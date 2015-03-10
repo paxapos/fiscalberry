@@ -1,0 +1,37 @@
+{
+  "name": "fiscalberry",
+  "version": "0.0.1",
+  "description": "Raspberry PI + NODE js fiscal printer client (impresoras fiscales argentina)",
+  "main": "index.js",
+  "directories": {
+    "example": "examples",
+    "test": "test"
+  },
+  "dependencies": {
+    "chai": "^2.1.1"
+  },
+  "devDependencies": {
+    "mocha": "^2.2.1"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ristorantino/fiscalberry.git"
+  },
+  "keywords": [
+    "raspberry",
+    "pi",
+    "fiscal",
+    "argentina",
+    "impresoras",
+    "impresorasfiscales"
+  ],
+  "author": "alevilar",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ristorantino/fiscalberry/issues"
+  },
+  "homepage": "https://github.com/ristorantino/fiscalberry"
+}
