@@ -1,0 +1,11 @@
+{
+  "Host": {
+      "name": "localhost",
+      "port": 12001
+    },
+    "Database": {
+    	"user": "root",
+    	"pass": "alejandro",
+    	"host": "localhost"
+    }
+}

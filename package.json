@@ -2,19 +2,25 @@
   "name": "fiscalberry",
   "version": "0.0.1",
   "description": "Raspberry PI + NODE js fiscal printer client (impresoras fiscales argentina)",
-  "main": "index.js",
   "directories": {
     "example": "examples",
     "test": "test"
   },
+  "scripts": {
+    "start": "node index.js",
+    "server": "node server.js",
+    "spooler": "node spooler.js",
+    "client": "node client.js"
+  },
   "dependencies": {
-    "chai": "^2.1.1"
+    "chai": "^2.1.1",
+    "daemon" : "*",
+    "mysql": "*",
+    "uuid": "*"
+
   },
   "devDependencies": {
     "mocha": "^2.2.1"
-  },
-  "scripts": {
-    "test": "mocha"
   },
   "repository": {
     "type": "git",
