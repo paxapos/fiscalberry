@@ -26,43 +26,46 @@ Chai offers a robust Plugin architecture for extending Chai's assertions and int
 
      project  : chai
      repo age : 3 years, 3 months
-     active   : 224 days
-     commits  : 859
+     active   : 232 days
+     commits  : 879
      files    : 59
      authors  :
-       554  Jake Luer           64.5%
-        79  Veselin Todorov     9.2%
-        43  Domenic Denicola    5.0%
-        29  Keith Cirkel        3.4%
+       555  Jake Luer           63.1%
+        79  Veselin Todorov     9.0%
+        43  Domenic Denicola    4.9%
+        41  Keith Cirkel        4.7%
         14  Joshua Perry        1.6%
          8  Chris Polis         0.9%
-         6  Ian Zamojc          0.7%
          6  Ruben Verborgh      0.7%
-         5  Juliusz Gonera      0.6%
-         5  George Kats         0.6%
-         5  Jo Liss             0.6%
-         5  Scott Nonnenberg    0.6%
+         6  Ian Zamojc          0.7%
          5  leider              0.6%
-         4  charlierudolph      0.5%
-         4  Chris Jones         0.5%
-         4  Max Edmands         0.5%
-         4  David da Silva      0.5%
+         5  George Kats         0.6%
+         5  Scott Nonnenberg    0.6%
+         5  Jo Liss             0.6%
+         5  Juliusz Gonera      0.6%
          4  Veselin             0.5%
+         4  Nick Heiner         0.5%
+         4  David da Silva      0.5%
+         4  Chris Jones         0.5%
          4  josher19            0.5%
          4  John Firebaugh      0.5%
-         4  Nick Heiner         0.5%
-         3  Andrei Neculau      0.3%
-         3  Duncan Beevers      0.3%
+         4  Max Edmands         0.5%
+         4  charlierudolph      0.5%
          3  Ryunosuke SATO      0.3%
-         3  Jake Rosoman        0.3%
          3  Jason Karns         0.3%
          3  Jeff Barczewski     0.3%
-         2  Jakub Nešetřil      0.2%
+         3  Andrei Neculau      0.3%
+         3  Duncan Beevers      0.3%
+         3  Jake Rosoman        0.3%
          2  Teddy Cross         0.2%
-         2  Roman Masek         0.2%
-         2  Gregg Lind          0.2%
-         2  Edwin Shao          0.2%
          2  Bartvds             0.2%
+         2  Edwin Shao          0.2%
+         2  Gregg Lind          0.2%
+         2  Roman Masek         0.2%
+         2  Jérémie Astori      0.2%
+         2  Jakub Nešetřil      0.2%
+         2  eldritch fossicker  0.2%
+         1  Adam Hull           0.1%
          1  toastynerd          0.1%
          1  Anand Patil         0.1%
          1  Benjamin Horsleben  0.1%
@@ -75,6 +78,7 @@ Chai offers a robust Plugin architecture for extending Chai's assertions and int
          1  DD                  0.1%
          1  Danilo Vaz          0.1%
          1  Dido Arellano       0.1%
+         1  Doug Neiner         0.1%
          1  Jeff Welch          0.1%
          1  Jesse McCarthy      0.1%
          1  Julien Wajsberg     0.1%
@@ -90,13 +94,13 @@ Chai offers a robust Plugin architecture for extending Chai's assertions and int
          1  Victor Costan       0.1%
          1  Vinay Pulim         0.1%
          1  Virginie BARDALES   0.1%
+         1  Vlad GURDIGA        0.1%
          1  ericdouglas         0.1%
          1  laconbass           0.1%
          1  mohayonao           0.1%
          1  piecioshka          0.1%
+         1  root                0.1%
          1  shinnn              0.1%
-         1  Adam Hull           0.1%
-
 
 ## License
 

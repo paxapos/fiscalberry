@@ -8,15 +8,18 @@
   },
   "scripts": {
     "start": "node index.js",
-    "server": "node server.js",
-    "spooler": "node spooler.js",
-    "client": "node client.js"
+    "server": "node app_server.js",
+    "spooler": "node app_spooler.js",
+    "client": "node app_client.js"
   },
   "dependencies": {
     "chai": "^2.1.1",
     "daemon" : "*",
     "mysql": "*",
-    "uuid": "*"
+    "underscore": "*",
+    "uuid": "*",
+    "array": "*",
+    "temp": "*"
 
   },
   "devDependencies": {

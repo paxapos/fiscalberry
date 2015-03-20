@@ -2,16 +2,11 @@
 
 	var WebSocketServer = require('websocket').server;
 	var http = require('http');
-	var mysql = require('mysql');
 
-
-
+	var mysqlConnection = require('./lib/mysql_connection.js');	
 	var config = require('config');
 
 
-	var clients = [];
-
-	 
 	var server = http.createServer(function(request, response) {
 	    console.log((new Date()) + ' Received request for ' + request.url);
 	    response.writeHead(404);
@@ -30,6 +25,11 @@
 	    // to accept it. 
 	    autoAcceptConnections: false
 	});
+
+
+	var dbServer = mysqlConnection.createConnection();
+	
+	//return new Error("Can't divide by zero")
 	 
 	function originIsAllowed(origin) {
 	  // put logic here to detect whether the specified origin is allowed. 
@@ -37,40 +37,35 @@
 	}
 
 
-	function removeClient ( rmClient ) {
-		clients.forEach( function (connection) {
-			connection.sendUTF( message.utf8Data);
-		});
-	}
-
-	function broadcast ( message ) {
-		clients.forEach( function (connection) {
-			connection.sendUTF( message.utf8Data);
-		});
-	}
 	 
 	wsServer.on('request', function(request) {
-		console.log(request);
+		var clienUuid = request.httpRequest.headers.origin;
 	    if (!originIsAllowed(request.origin)) {
 	      // Make sure we only accept requests from an allowed origin 
 	      request.reject();
-	      console.log((new Date()) + ' Connection from origin ' + request.origin + ' rejected.');
+	      console.log((new Date()) + ' Connection from origin ' + request.origin + ' rejected UUID: '+clienUuid);
 	      return;
 	    }
 	    
-	    var connection = request.accept('echo-protocol', request.origin);
-	    clients.push( connection );
-	    console.log((new Date()) + ' Connection accepted.');
-	    
+	    var connection = request.accept( config.get("Host.protocol"), request.origin);
+	    console.log((new Date()) + ' Nuevo cliente: ' + clienUuid);
+	    var clienteConectado = dbServer.addClient( connection, clienUuid );
+	    clienteConectado.startFetchingJobs();			
+
 	    connection.on('close', function(reasonCode, description) {
-	        console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
-	        removeClient( connection );
+	   		clienteConectado.stopFetchingJobs();			
+	   		console.info("cliente desconectado");
 	    });
+		
+		
+
+
 	});
 
 
 	function exitHandler () {
-		wsServer.shutDown();
+		console.info(" cerrando...."); 
+		//dbServer.end		wsServer.shutDown();
 		server.close();
 	}
 
@@ -79,18 +74,18 @@
 	console.info("Type 'KILL' to close this server: "); 
 	stdin.on('data', function(chunk) { 
 		console.log("Got chunk: " + chunk); 
-		if ( chunk == "KILL" || chunk == "kill" ) {
-			console.info(" cerrando...."); 
+		if ( chunk == "KILL\n" || chunk == "kill\n" ) {
 			exitHandler();
 			process.exit();
 		}
+
 	});
 
 	//do something when app is closing
 	process.on('exit', exitHandler.bind(null,{cleanup:true}));
 
 	//catches ctrl+c event
-	process.on('SIGINT', exitHandler.bind(null, {exit:true}));
+	//process.on('SIGINT', exitHandler.bind(null, {exit:true}));
 
 	//catches uncaught exceptions
-	process.on('uncaughtException', exitHandler.bind(null, {exit:true}));
+	//process.on('uncaughtException', exitHandler.bind(null, {exit:true}));
