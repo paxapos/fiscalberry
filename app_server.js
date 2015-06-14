@@ -27,6 +27,11 @@
 	});
 
 
+
+	server.on('request', function() {
+		console.info("Vino REQUESTTTTT");
+	});
+
 	var dbServer = mysqlConnection.createConnection();
 	
 	//return new Error("Can't divide by zero")

@@ -1,11 +1,15 @@
 {
   "Host": {
       "name": "localhost",
-      "port": 12001
+      "port": 12001,,
+      "protocol": "fiscalberry-protocol"
     },
     "Database": {
-    	"user": "root",
-    	"pass": "alejandro",
-    	"host": "localhost"
+    	"user": "eluser",
+    	"pass": "unpass",
+    	"host": "localhost",
+    	"charset": "utf8",
+    	"dbname": "dbname",
+    	"intervalFetch": 5000
     }
 }
