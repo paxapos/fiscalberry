@@ -30,7 +30,7 @@ Se necesitan 2 dependencias:
 * tornado (para usar como servidor de web sockets)
 
 ```sh
-sudo apt-get install python-serial
+sudo pip install pyserial
 sudo pip install tornado
 ```
 
