@@ -1,14 +1,34 @@
-¿COMO FUNCIONA?
+# fiscalberry
 
+## ¿Qué es?
+Es un proyecto open source desarrollado en python 2.7 para conectar impresoras "especiales" (comanderas, receipt, fiscales, tickets, etc) con cualquier tipo de lenguaje de programación utilizando un protocolo de comunicación JSON conectado mediante web sockets.
+Con fiscalberry podrás imprimir a una impresora fiscal desde la misma página web usando javascript, por ejemplo.
 
-Supongamos que tenemos este JSON en nuestra aplicación
+Fiscalberry actua como servidor Web Socket. Con cualquier lenguaje de programación que se conecte a este servidor, podrá enviarle instrucciones JSON para imprimir.
 
-Si vemos la estructira del ticket tiene un primr string que indica la accion 
-que vamos a realizar "printTicket"
- esa accion esta compuesto de 2 parametros: "encabezado" e "items"
- A su vez el encabezado indica el tipo de comprobante a imprimir. La "T" significa "Tiquet". Luego los items es una lista de items a imprimir donde, en este ejemplo, tegemos una coca cola, con impuesto de 21%, importe $10, descripcion del producto "COCA COLA" y la cantidad es 2.
+## ¿Qué lenguajes soporta?
+Javascript, nodejs, python, php, y todos los que se te ocurran que puedan actuar como "cliente Web Socket" para conectarse con el servidor y enviar y recibir JSON's.
 
-json = {"printTicket": {
+## ¿Cómo funciona?
+
+Supongamos que tenemos este JSON genérico:
+```
+{
+ "ACCION_A_EJECUTAR": {
+        PARAMETROS_DE_LA_ACCION
+        ...
+        }
+}
+```
+
+Por ejemplo queremos imprimir un ticket, esta acción se denomina "printTicket" y está compuesta de 2 parámetros obligatorios: "encabezado" e "items".
+
+El "encabezado" indica el tipo de comprobante a imprimir. 
+Los items son una lista de productos a imprimir donde, en este ejemplo, tegemos una coca cola, con impuesto de 21%, importe $10, descripcion del producto "COCA COLA" y la cantidad vendida es 2.
+
+```javascript
+{
+"printTicket": {
 			"encabezado": {
 		        "tipo_cbte": "T",
 		    },
@@ -22,19 +42,90 @@ json = {"printTicket": {
 		    ]
 			}
 		}
+```
+
+## Ejemplo de uso
+
+1) __Iniciamos el servicio:__ para ello debemos pararnos en nuestra carpeta principal del proyecto y hacer:
+
+```sh
+python server.py
+```
+
+2) __Iniciar cliente:__ hay un ejemplo en javascript dentro de la carpeta __js_browser_client__. Deberás abrir el HTML en un browser y jugar un poco con él.
 
 
-una vez que tenemos el JSON, en nuestra aplicacion debemos enviarlo a la IP donde esta corriendo el servidor de impresion fiscalberry, puerto 12000 (por defecto)
 
-fiscalberry.local:12000
-
+## Documentación para su uso
 
 
-Variables Estaticas
+### Accion: **printTicket**
 
-printTicket:
+Protocolo para formar un JSON con el objetivo de imprimir un ticket.
+Se compone de 3 distintas partes:
+* Encabezado
+* Ìtems
+* Pagos (opcional)
 
-	EJ:
+#### Encabezado (Obligatorio)
+tipo: Json
+
+```javascript
+{
+"encabezado": {
+			        "tipo_cbte": "FA", // * Obligatorio
+			        "nro_doc": "20267565393",
+			        "domicilio_cliente": "Rua 76 km 34.5 Alagoas",
+			        "tipo_doc": "DNI",
+			        "nombre_cliente": "Joao Da Silva",
+			        "tipo_responsable": "RESPONSABLE_INSCRIPTO"
+			    }
+}
+                
+```
+
+#### Ítems (Obligatorio)
+tipo: list
+
+```javascript
+{
+ "items": [
+    {
+        "alic_iva": 21.0, // * Obligatorio
+        "importe": 0.01, // * Obligatorio
+        "ds": "PIPI", // * Obligatorio
+        "qty": 1.0 // * Obligatorio
+    },
+    {
+        "alic_iva": 21.0,
+        "importe": 0.22,
+        "ds": "COCA",
+        "qty": 2.0
+    }
+]
+}               
+                
+```
+__Todos los campos del ítem son obligatorios__
+
+
+
+#### Pagos (Opcional)
+tipo: list
+```
+{
+"pagos": [
+        {
+        "ds": "efectivo", // * Obligatorio
+        "importe": 1.0    // * Obligatorio
+        }
+    ]
+}
+```
+
+#### Ejemplo completo de "printTicket"
+
+```
 		json = {		
 			"printTicket": {
 				"encabezado": {
@@ -86,11 +177,13 @@ printTicket:
 					}]
 				}
 			}
+```
 
 
-	# VARIABLES ESTATICAS
 
-	tipo_cbte String
+#### Variables Estáticas Para Encabezado
+
+	tipo_cbte
 	        "T"  # tiques
 	        "FA", 
 	        "FB", 
@@ -128,16 +221,54 @@ printTicket:
 
 
 
-configure 
-		"printerName" 
-			Se pueden configurar muchas impresoras, pero solo 1 puede ser fiscal.
-			La única impresora fiscal se debe llamar "IMPRESORA_FISCAL". Esto es 
-			conveniente para cuando se necesita tener impresras de comandas
-		marca ("Epson", "Hasar", "Raw") (comando "Raw" es para las impresoras de comandas)
-		modelo()
-		path (En Windows COM1, en linux /dev/ttyUSB0 )
+### Accion: **configure**
 
-		EJ: 
+Al enviar este JSON se puede configurar el servidor de impresión directamente desde el cliente.
+El archivo de configuración que será modificado es **config.ini** que tambiém puede ser modificado a mano desde consola.
+
+Los parámetros que puede llevar el JSON son:
+		
+#### "printerName" 
+
+Se pueden configurar muchas impresoras, pero solo 1 puede ser fiscal.
+
+La única impresora fiscal se debe llamar "IMPRESORA_FISCAL". Esto es conveniente para cuando se necesita tener impresoras de comandas
+
+#### "marca" 
+Las opciones son: 
+* "Epson"
+* "Hasar"
+
+		
+#### "modelo"
+
+Epson:
+* "tickeadoras"
+* "epsonlx300+"
+* "tm-220-af"
+
+Hasar:
+* "615"
+* "715v1"
+* "715v2"
+* "320"
+
+
+#### "path"
+
+En Windows COM1... COM2, etc.
+En linux /dev/ttyUSB0
+
+#### "driver" (opcional)
+Es la "salida" o sea, es el medio por donde saldrán las impresiones.
+
+Por defecto se utiliza el mismo driver que la impresora, pero en algunas casos (desarrollo) se pueden utilizar 2 drivers extra:
+* Dummy (no presenta salidas en ningun lado)
+* File (para usar este driver es necesario que en el campo "path" se coloque la ruta donde escribir la salida que será un archivo donde imprimirá las respuestas.
+
+
+```javascript
+// EJ: 
 		{
 			"configure": {
 				"printerName": "IMPRESORA_FISCAL",
@@ -151,34 +282,39 @@ configure
 		{
 			"configure": {
 				"printerName": "IMPRESORA_FISCAL",
-				"marca": "Hasar",
-				"modelo": "715v2",
+				"marca": "Epson",
+				"modelo": "tm-220-af",
 				"path": "/tmp/respuestas.txt",
 				"driver": "File"
 			}
 		}
+```
 
-openDrawer
-	Abre la gaveta de dinero
-
-	EJ:
-	{
-		"openDrawer": true
-	}
-
-getStatus
-	retorna la configuracon actual del servidor
-	EJ: 
-	{
-		"getStatus": {}
-	}
+### Accion: **openDrawer**
 
 
+Abre la gaveta de dinero. No es necesario pasar parámetros extra.
+
+```avascript
+// EJ:
+{
+  "openDrawer": true
+}
+```
 
 
-Marca "Hasar"; modelos: "615", "715v1", "715v2", "320"
-Marca "Epson"; modelos: "tickeadoras", "epsonlx300+", "tm-220-af"
+### Accion: **getStatus**
+
+retorna la configuracon actual del servidor.  No es necesario pasar parámetros extra.
+
+```
+EJ: 
+{
+  "getStatus": {}
+}
+```
 
 
-NOTA:
-deberas enviar JSON validos. Recomendamos usar la pagina http://jsonlint.com/ para verificar lo que se esta enviando al fiscalberry
+
+#### NOTA:
+Deberas enviar JSON válidos al servidor. Recomendamos usar la pagina http://jsonlint.com/ para verificar como tu programa esta generando los JSON.
