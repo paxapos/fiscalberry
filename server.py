@@ -22,13 +22,16 @@ Messages are output to the terminal for debuggin purposes.
 class WSHandler(tornado.websocket.WebSocketHandler):
 
 	def __init__(self, *args, **kwargs):
-		self.traductor = traductor = Traductor()
+		
+		# leer los parametros de configuracion de la impresora fiscal 
+		# en config.ini 
+		self.traductor = Traductor('IMPRESORA_FISCAL')
 		super(WSHandler, self).__init__(*args, **kwargs)
 
 
 	def open(self):
 		print 'new connection'
-	  
+	
 	def on_message(self, message):
 		jsonMes = json.loads(message)
 		response = self.traductor.json_to_comando( jsonMes )

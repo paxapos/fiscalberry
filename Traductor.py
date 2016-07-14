@@ -26,7 +26,7 @@ class Traductor:
 							81:	'FA', #tique factura A
 							82: 'FB', #tique factura B
 							83: 'T',  # tiques
-							}
+						}
 
 	pos_fiscal_map = {
 							1:  "IVA_TYPE_RESPONSABLE_INSCRIPTO",
@@ -39,7 +39,7 @@ class Traductor:
 							12:	"IVA_TYPE_PEQUENIO_CONTRIBUYENTE_EVENTUAL",
 							13: "IVA_TYPE_MONOTRIBUTISTA_SOCIAL",
 							14:	"IVA_TYPE_PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL",
-							}
+						}
 	doc_fiscal_map = {
 							96: "DOC_TYPE_DNI",
 							80: "DOC_TYPE_CUIT",
@@ -48,9 +48,10 @@ class Traductor:
 							00: "DOC_TYPE_CEDULA",
 							94: "DOC_TYPE_PASAPORTE", 
 							99: "DOC_TYPE_SIN_CALIFICADOR",
-						  }
+					  	}
 
-	def __init__(self, 
+	def __init__(self,
+				 printerName,
 				 marca=None, 
 				 deviceFile=None, 
 				 modelo=None, 
@@ -60,13 +61,14 @@ class Traductor:
 		config = ConfigParser.RawConfigParser()
 		config.read(CONFIG_FILE_NAME)
 		if not marca:	
-			marca = config.get('IMPRESORA_FISCAL', "marca")
+			marca = config.get(printerName, "marca")
 		if not modelo:	
-			modelo = config.get('IMPRESORA_FISCAL', "modelo")
+			modelo = config.get(printerName, "modelo")
 		if not deviceFile:	
-			deviceFile = config.get('IMPRESORA_FISCAL', "path")
+			deviceFile = config.get(printerName, "path")
 		if not driverName:	
-			driverName = config.get('IMPRESORA_FISCAL', "driver")
+			driverName = config.get(printerName, "driver")
+
 		if marca == "Epson":
 			from Comandos.EpsonComandos import EpsonComandos
 			self.comando = EpsonComandos(deviceFile, driverName=driverName)
@@ -158,7 +160,12 @@ class Traductor:
 
 	def _dailyClose(self, type):
 		"Comando X o Z"
-		return self.printer.dailyClose(type)
+		ret = self.printer.dailyClose(type)
+
+		if isinstance(ret, list):
+			ret = {'dailyClose': ret}
+
+		return ret
 
 
 	def _configure(self, printerName,  marca, modelo, path, driver=None):
@@ -236,7 +243,8 @@ class Traductor:
 			return self._cerrarComprobante()
 
 		if 'dailyClose' in jsonTicket:
-			return self._dailyClose(**jsonTicket["dailyClose"])
+			print jsonTicket["dailyClose"]
+			return self._dailyClose(jsonTicket["dailyClose"])
 
 		if 'openDrawer' in jsonTicket:
 			return self._openDrawer()
