@@ -1,0 +1,164 @@
+<!doctype html>
+<html>
+	<head>
+		<title>WebSockets Hello World</title>
+		<meta charset="utf-8" />
+		<style type="text/css">
+			body {
+				text-align: center;
+				min-width: 500px;
+			}
+
+			.ws-msg-offline{
+				color: red;
+			}
+
+			.ws-msg-online{
+				color: green;
+			}
+		</style>
+		<script src="http://code.jquery.com/jquery.min.js"></script>
+
+		<script src="fiscalberry.js"></script>
+
+		
+	</head>
+ 
+	<body>
+		<h1>Fiscalberry WS Hello World</h1>
+		<div id="ws-message" class="ws-msg-offline" >OFFLINE</div>
+		<div id="connection_details">
+			<label for="host">host:</label>
+			<input type="text" id="host" value="localhost" style="background:#ff0000;"/><br />
+			<label for="port">port:</label>
+			<input type="text" id="port" value="12000" style="background:#ff0000;"/><br />
+			<label for="uri">uri:</label>
+			<input type="text" id="uri" value="/ws" style="background:#ff0000;"/><br />
+			<input type="submit" id="open" value="open" />
+		</div>
+		<div id="message_details">
+				</br></br>
+
+				<input type="button" id="msg-status" value="Mensaje getStatus" />
+				<input type="button" id="msg-ticket" value="Mensaje Ticket" />
+
+				<label for="message">message:</label><br>
+				<textarea type="textarea" id="message" rows="20" cols="40">
+{
+	"getStatus": {}
+}
+	</textarea><br />
+				<input type="submit" id="send" value="send" />
+		</div>
+		<div id="terminal">
+				
+		</div>
+
+
+
+		<script>
+ 			// instancio la clase Fiscalberry del archivo fiscablerry.js
+			var fbrry = new Fiscalberry();
+
+			// log function
+			log = function(data){
+				$("div#terminal").prepend("</br>" +data);
+				console.log(data);
+			};
+
+
+			// funcion para conectar usando el FORM
+			function startWs() {
+						var host = $("#host").val();
+						var port = $("#port").val();
+						var uri = $("#uri").val();
+						// create websocket instance
+						fbrry.connect(host ,port);
+			}
+
+			$("#msg-status").on('click', function () {
+				$("#message").html('{"openDrawer": true}');
+					
+			});
+
+			$("#msg-ticket").on('click', function () {
+				$("#message").html('{"getStatus": {}}');
+			});
+
+			// Cuando aprieto el SUBMIT OPEN para conectar desde el FORM
+			$("#open").on("click", function(evt) {
+					evt.preventDefault();
+					startWs();
+					
+			});
+
+
+
+
+				$("div#message_details").hide();
+ 
+
+				
+
+
+				// como recibo un $.promise() puedo usar el done.
+				// se ejecuta ni bien conecta con el host del WS
+				fbrry.done(function(){
+								console.info("Iniciado el Web Socket");
+				});
+
+				
+	 
+
+				// Handle incoming websocket message callback
+				fbrry.onMsg ( function(evt) {
+					log("Message Received: " + evt.data);
+					});
+
+				// Close Websocket callback
+				fbrry.onClose ( function(evt) {
+					log("***Connection Closed***");
+					$("#host").css("background", "#ff0000"); 
+					$("#port").css("background", "#ff0000"); 
+					$("#uri").css("background",  "#ff0000");
+					$("div#message_details").empty();
+				});
+
+
+
+				// Open Websocket callback
+				fbrry.onOpen( function(evt) { 
+					$("#host").css("background", "#00ff00"); 
+					$("#port").css("background", "#00ff00"); 
+					$("#uri").css("background", "#00ff00");
+					$("div#message_details").show();
+					log("***Connection Opened***");
+				});
+
+
+
+				// manejo el mensaje ONLINE/OFFLINE
+				fbrry.onClose ( function(evt) {
+					 $("#ws-message").html("OFFLINE").addClass("ws-msg-offline").removeClass("ws-msg-online")
+				});
+				fbrry.onOpen( function(evt) { 
+					$("#ws-message").html("ONLINE").removeClass("ws-msg-offline").addClass("ws-msg-online")
+				});
+	 
+ 
+
+				startWs();
+ 
+				// Send websocket message function
+				$("#send").on("click", function(evt) {
+						log("Sending Message: "+$("#message").val());
+						fbrry.send($("#message").val());
+				});
+				
+ 
+		</script>
+
+
+		
+	</body>
+</html>
