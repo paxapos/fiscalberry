@@ -1,5 +1,9 @@
 # fiscalberry
 
+## NOTA IMPORTANTE: Este proyecto es una mejora del original https://github.com/reingart/pyfiscalprinter
+
+Ŕealizé un refactor del proyecto original para adaptarlo a una necesidad distinta y mejorándolo para tal uso.
+
 ## ¿Qué es?
 Es un proyecto open source desarrollado en python 2.7 para conectar impresoras "especiales" (comanderas, receipt, fiscales, tickets, etc) con cualquier tipo de lenguaje de programación utilizando un protocolo de comunicación JSON conectado mediante web sockets.
 Con fiscalberry podrás imprimir a una impresora fiscal desde la misma página web usando javascript, por ejemplo.
