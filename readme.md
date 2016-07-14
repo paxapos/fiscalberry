@@ -334,7 +334,7 @@ Por defecto se utiliza el mismo driver que la impresora, pero en algunas casos (
 
 Abre la gaveta de dinero. No es necesario pasar parámetros extra.
 
-```avascript
+```javascript
 // EJ:
 {
   "openDrawer": true
@@ -353,6 +353,23 @@ EJ:
 }
 ```
 
+
+### JSON Accion: **dailyClose**
+
+
+Imprime un cierre fiscal X o Z dependiendo el parámetro enviado
+
+```javascript
+// EJ: Imprime un cierre "Zeta"
+{
+  "dailyClose": "Z"
+}
+
+// Ej: imprimiendo un "X"
+{
+  "dailyClose": "X"
+}
+```
 
 
 #### NOTA:
