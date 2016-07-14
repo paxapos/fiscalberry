@@ -2,16 +2,20 @@
 
 ## NOTA IMPORTANTE: Este proyecto es una mejora del original https://github.com/reingart/pyfiscalprinter
 
-Ŕealizé un refactor del proyecto original para adaptarlo a una necesidad distinta y mejorándolo para tal uso.
+Realizé un refactor del proyecto original para adaptarlo a una necesidad distinta y moderna, mejorándolo para tal uso.
 
 ## ¿Qué es?
-Es un proyecto open source desarrollado en python 2.7 para conectar impresoras "especiales" (comanderas, receipt, fiscales, tickets, etc) con cualquier tipo de lenguaje de programación utilizando un protocolo de comunicación JSON conectado mediante web sockets.
+Es un proyecto open source desarrollado en python para conectar impresoras "especiales" (comanderas, receipt, fiscales, tickets, etc) con cualquier tipo de lenguaje de programación utilizando un protocolo de comunicación JSON conectado mediante web sockets.
 Con fiscalberry podrás imprimir a una impresora fiscal desde la misma página web usando javascript, por ejemplo.
 
 Fiscalberry actua como servidor Web Socket. Con cualquier lenguaje de programación que se conecte a este servidor, podrá enviarle instrucciones JSON para imprimir.
 
-## ¿Qué lenguajes soporta?
-Javascript, nodejs, python, php, y todos los que se te ocurran que puedan actuar como "cliente Web Socket" para conectarse con el servidor y enviar y recibir JSON's.
+Funciona en una raspberry. Pero también deberia andar en windows, mac, y cualquier otra PC con python instalado.
+
+## ¿Qué lenguajes de programación pueden usarlo?
+Practicamente todos: Javascript, nodejs, python, php, etc.
+
+Los que se te ocurran que puedan actuar como "cliente Web Socket" para conectarse con el servidor y enviar y recibir JSON's.
 
 ## ¿Cómo funciona?
 
@@ -24,13 +28,13 @@ Supongamos que tenemos este JSON genérico:
         }
 }
 ```
-Lo enviamos usando websockets a un host y puerto determinado (el servidor fisalberry), écte lo procesa, envia a imprimir, y responde al cliente con la respuesta de la impresora. Por ejemplo, devolviendo el número del último comprobante impreso.
+Lo enviamos usando websockets a un host y puerto determinado (el servidor fiscalberry), éste lo procesa, envia a imprimir, y responde al cliente con la respuesta de la impresora. Por ejemplo, devolviendo el número del último comprobante impreso.
 
 
 Otro ejemplo más concreto: queremos imprimir un ticket, esta acción en el protocolo fiscalberry se lo llama como accion "printTicket" y está compuesta de 2 parámetros obligatorios: "encabezado" e "items".
 
 El "encabezado" indica el tipo de comprobante a imprimir (y también podria agregarle datos del cliente, que son opcionales). 
-Los ìtems son una lista de productos a imprimir donde, en este ejemplo, tenemos una coca cola, con impuesto de 21%, importe $10, descripción del producto "COCA COLA" y la cantidad vendida es 2.
+Los ítems son una lista de productos a imprimir donde, en este ejemplo, tenemos una coca cola, con impuesto de 21%, importe $10, descripción del producto "COCA COLA" y la cantidad vendida es 2.
 
 ```javascript
 {
@@ -50,7 +54,24 @@ Los ìtems son una lista de productos a imprimir donde, en este ejemplo, tenemos
 		}
 ```
 
-## Ejemplo de uso
+
+
+
+
+## Documentación
+
+
+### Requisitos
+probado bajo python 2.7.6 
+
+
+Instalar en Linux, Ubuntu, Raspian
+
+sudo apt-get install python-serial
+sudo pip install tornado
+
+
+## Iniciar el servicio
 
 1) __Iniciamos el servicio:__ para ello debemos pararnos en nuestra carpeta principal del proyecto y hacer:
 
@@ -59,13 +80,11 @@ python server.py
 ```
 
 2) __Iniciar cliente:__ hay un ejemplo en javascript dentro de la carpeta __js_browser_client__. Deberás abrir el HTML en un browser y jugar un poco con él.
+el archivo fiscalberry.js te servirá si queres enviar a imprimir desde el browser.
 
 
 
-## Documentación para su uso
-
-
-### Accion: **printTicket**
+### JSON Accion: **printTicket**
 
 Protocolo para formar un JSON con el objetivo de imprimir un ticket.
 Se compone de 3 distintas partes:
@@ -141,13 +160,13 @@ tipo: list
     {
         "alic_iva": 21.0, // * Obligatorio
         "importe": 0.01, // * Obligatorio
-        "ds": "PIPI", // * Obligatorio
+        "ds": "Descripcion Producto", // * Obligatorio
         "qty": 1.0 // * Obligatorio
     },
     {
         "alic_iva": 21.0,
         "importe": 0.22,
-        "ds": "COCA",
+        "ds": "COCA COLA",
         "qty": 2.0
     }
 ]
@@ -231,12 +250,12 @@ tipo: list
 
 
 
-### Accion: **configure**
+### JSON Accion: **configure**
 
 Al enviar este JSON se puede configurar el servidor de impresión directamente desde el cliente.
-El archivo de configuración que será modificado es **config.ini** que tambiém puede ser modificado a mano desde consola.
+El archivo de configuración que será modificado es **config.ini** que también puede ser modificado a mano desde consola.
 
-Los parámetros que puede llevar el JSON son:
+Los parámetros son:
 		
 #### "printerName" 
 
@@ -266,13 +285,13 @@ Hasar:
 
 #### "path"
 
-En Windows COM1... COM2, etc.
-En linux /dev/ttyUSB0
+En Windows "COM1"... "COM2", etc.
+En linux "/dev/ttyUSB0"
 
 #### "driver" (opcional)
 Es la "salida" o sea, es el medio por donde saldrán las impresiones.
 
-Por defecto se utiliza el mismo driver que la impresora, pero en algunas casos (desarrollo) se pueden utilizar 2 drivers extra:
+Por defecto se utiliza el mismo driver que la impresora, pero en algunas casos (desarrollo) se pueden utilizar drivers extra:
 * Dummy (no presenta salidas en ningun lado)
 * File (para usar este driver es necesario que en el campo "path" se coloque la ruta donde escribir la salida que será un archivo donde imprimirá las respuestas.
 
@@ -300,7 +319,7 @@ Por defecto se utiliza el mismo driver que la impresora, pero en algunas casos (
 		}
 ```
 
-### Accion: **openDrawer**
+### JSON Accion: **openDrawer**
 
 
 Abre la gaveta de dinero. No es necesario pasar parámetros extra.
@@ -313,7 +332,7 @@ Abre la gaveta de dinero. No es necesario pasar parámetros extra.
 ```
 
 
-### Accion: **getStatus**
+### JSON Accion: **getStatus**
 
 retorna la configuracon actual del servidor.  No es necesario pasar parámetros extra.
 
