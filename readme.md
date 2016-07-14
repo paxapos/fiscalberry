@@ -17,6 +17,38 @@ Practicamente todos: Javascript, nodejs, python, php, etc.
 
 Los que se te ocurran que puedan actuar como "cliente Web Socket" para conectarse con el servidor y enviar y recibir JSON's.
 
+
+## PROBALO
+
+
+### Instalar Dependencias
+
+probado bajo python 2.7.6 en Linux, Ubuntu, Raspian
+
+Se necesitan 2 dependencias:
+* serial (para conectarse con impresoras seriales)
+* tornado (para usar como servidor de web sockets)
+
+```sh
+sudo apt-get install python-serial
+sudo pip install tornado
+```
+
+
+### Iniciar el servicio
+
+```sh
+python server.py
+```
+
+### Iniciar el cliente para probarlo
+
+Hay un ejemplo de página web con javascript dentro de la carpeta __js_browser_client__. Deberás abrir el HTML en un browser y jugar un poco con él.
+el archivo fiscalberry.js te servirá si queres enviar a imprimir desde el browser.
+
+
+
+
 ## ¿Cómo funciona?
 
 Supongamos que tenemos este JSON genérico:
@@ -59,28 +91,6 @@ Los ítems son una lista de productos a imprimir donde, en este ejemplo, tenemos
 
 
 ## Documentación
-
-
-### Requisitos
-probado bajo python 2.7.6 
-
-
-Instalar en Linux, Ubuntu, Raspian
-
-sudo apt-get install python-serial
-sudo pip install tornado
-
-
-## Iniciar el servicio
-
-1) __Iniciamos el servicio:__ para ello debemos pararnos en nuestra carpeta principal del proyecto y hacer:
-
-```sh
-python server.py
-```
-
-2) __Iniciar cliente:__ hay un ejemplo en javascript dentro de la carpeta __js_browser_client__. Deberás abrir el HTML en un browser y jugar un poco con él.
-el archivo fiscalberry.js te servirá si queres enviar a imprimir desde el browser.
 
 
 
