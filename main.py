@@ -30,7 +30,7 @@ if __name__ == '__main__':
 	#hd = HasarComandos("/tmp/archivin.txt", driverName="File")
 
 
-	traductor = Traductor()
+	traductor = Traductor("IMPRESORA_FISCAL")
 
 	'''
 	jsonTicket = {
@@ -92,7 +92,20 @@ if __name__ == '__main__':
 			}
 		}
 
-	traductor.json_to_comando(jsonTicketSinConsumidor)
+	print "\n"
+	print traductor.json_to_comando(jsonTicketSinConsumidor)
+	print "\n"
+	print traductor.json_to_comando(jsonTicketSinConsumidor)
+
+
+	jsonDailyClose = {
+		"dailyClose": "Z"
+	}
+	print "\n"
+	print traductor.json_to_comando(jsonDailyClose)
+
+
+	#traductor.json_to_comando(jsonDailyClose)
 	#hd.openDrawer()
 
 	#hd.dailyClose("X")

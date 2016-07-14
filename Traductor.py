@@ -161,10 +161,6 @@ class Traductor:
 	def _dailyClose(self, type):
 		"Comando X o Z"
 		ret = self.printer.dailyClose(type)
-
-		if isinstance(ret, list):
-			ret = {'dailyClose': ret}
-
 		return ret
 
 
@@ -228,6 +224,8 @@ class Traductor:
 		print "esto es lo que estoy viendo"
 		print jsonTicket
 
+
+		rta = {"rta":""}
 		if 'printTicket' in jsonTicket:
 			ok = self._abrirComprobante(**jsonTicket['printTicket']["encabezado"])
 
@@ -240,19 +238,20 @@ class Traductor:
 			if "pagos" in jsonTicket['printTicket']:
 				for pago in jsonTicket['printTicket']["pagos"]:
 					ok = self._imprimirPago(**pago)
-			return self._cerrarComprobante()
+			rta["rta"] =  self._cerrarComprobante()
 
 		if 'dailyClose' in jsonTicket:
-			print jsonTicket["dailyClose"]
-			return self._dailyClose(jsonTicket["dailyClose"])
+			rta["rta"] =  self._dailyClose(jsonTicket["dailyClose"])
 
 		if 'openDrawer' in jsonTicket:
-			return self._openDrawer()
+			rta["rta"] =  self._openDrawer()
 
 
 		if 'configure' in jsonTicket:
-			return self._configure(**jsonTicket["configure"])
+			rta["rta"] =  self._configure(**jsonTicket["configure"])
 
 		if 'getStatus' in jsonTicket:
-			return self._getStatus()
+			rta["rta"] =  self._getStatus()
 			
+
+		return rta
