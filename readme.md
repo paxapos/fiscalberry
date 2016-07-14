@@ -24,24 +24,26 @@ Supongamos que tenemos este JSON genérico:
         }
 }
 ```
+Lo enviamos usando websockets a un host y puerto determinado (el servidor fisalberry), écte lo procesa, envia a imprimir, y responde al cliente con la respuesta de la impresora. Por ejemplo, devolviendo el número del último comprobante impreso.
 
-Por ejemplo queremos imprimir un ticket, esta acción se denomina "printTicket" y está compuesta de 2 parámetros obligatorios: "encabezado" e "items".
 
-El "encabezado" indica el tipo de comprobante a imprimir. 
-Los items son una lista de productos a imprimir donde, en este ejemplo, tegemos una coca cola, con impuesto de 21%, importe $10, descripcion del producto "COCA COLA" y la cantidad vendida es 2.
+Otro ejemplo más concreto: queremos imprimir un ticket, esta acción en el protocolo fiscalberry se lo llama como accion "printTicket" y está compuesta de 2 parámetros obligatorios: "encabezado" e "items".
+
+El "encabezado" indica el tipo de comprobante a imprimir (y también podria agregarle datos del cliente, que son opcionales). 
+Los ìtems son una lista de productos a imprimir donde, en este ejemplo, tenemos una coca cola, con impuesto de 21%, importe $10, descripción del producto "COCA COLA" y la cantidad vendida es 2.
 
 ```javascript
 {
 "printTicket": {
 			"encabezado": {
-		        "tipo_cbte": "T",
+		        "tipo_cbte": "T",      // tipo tiquet *obligatorio
 		    },
 		    "items": [
 		        {
-		            "alic_iva": 21.0,
-		            "importe": 10,
-		            "ds": "COCA COLA",
-		            "qty": 2.0
+		            "alic_iva": 21.0,  // impuesto
+		            "importe": 10,     // importe
+		            "ds": "COCA COLA", // descripcion producto
+		            "qty": 2.0         // cantidad
 		        }
 		    ]
 			}
@@ -77,16 +79,58 @@ tipo: Json
 ```javascript
 {
 "encabezado": {
-			        "tipo_cbte": "FA", // * Obligatorio
-			        "nro_doc": "20267565393",
-			        "domicilio_cliente": "Rua 76 km 34.5 Alagoas",
-			        "tipo_doc": "DNI",
-			        "nombre_cliente": "Joao Da Silva",
-			        "tipo_responsable": "RESPONSABLE_INSCRIPTO"
+			        "tipo_cbte": "FA", // tipo tiquet VARIABLE ESTATICA *obligatorio
+			        "nro_doc": "20267565393", // identificacion cliente
+			        "domicilio_cliente": "Rua 76 km 34.5 Alagoas", // domicilio
+			        "tipo_doc": "DNI", // tipo documento VARIABLE ESTATICA (mas abajo se detallan)
+			        "nombre_cliente": "Joao Da Silva", // nombre cliente
+			        "tipo_responsable": "RESPONSABLE_INSCRIPTO" // VARIABLE ESTATICA
 			    }
 }
                 
 ```
+
+
+##### Variables Estáticas Para Encabezado
+
+	tipo_cbte
+	        "T"  # tiques
+	        "FA", 
+	        "FB", 
+	        "NDA", 
+	        "NCA", 
+	        "NDB", 
+	        "NCB", 
+	        "FC", 
+	        "NDC", 
+	        "NDC",
+
+
+	        
+	tipo_responsable
+	        "RESPONSABLE_INSCRIPTO"
+	        "RESPONSABLE_NO_INSCRIPTO"
+	        "NO_RESPONSABLE"
+	        "EXENTO"
+	        "CONSUMIDOR_FINAL"
+	        "RESPONSABLE_MONOTRIBUTO"
+	        "NO_CATEGORIZADO"
+	        "PEQUENIO_CONTRIBUYENTE_EVENTUAL"
+	        "MONOTRIBUTISTA_SOCIAL"
+	        "PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL"
+	                        
+
+	tipo_doc
+	        "DNI"
+	        "CUIT"
+	        "LIBRETA_ENROLAMIENTO"
+	        "LIBRETA_CIVICA"
+	        "CEDULA"
+	        "PASAPORTE"
+	        "SIN_CALIFICADOR"
+
+
+
 
 #### Ítems (Obligatorio)
 tipo: list
@@ -184,44 +228,6 @@ tipo: list
 ```
 
 
-
-#### Variables Estáticas Para Encabezado
-
-	tipo_cbte
-	        "T"  # tiques
-	        "FA", 
-	        "FB", 
-	        "NDA", 
-	        "NCA", 
-	        "NDB", 
-	        "NCB", 
-	        "FC", 
-	        "NDC", 
-	        "NDC",
-
-
-	        
-	tipo_responsable
-	        "RESPONSABLE_INSCRIPTO"
-	        "RESPONSABLE_NO_INSCRIPTO"
-	        "NO_RESPONSABLE"
-	        "EXENTO"
-	        "CONSUMIDOR_FINAL"
-	        "RESPONSABLE_MONOTRIBUTO"
-	        "NO_CATEGORIZADO"
-	        "PEQUENIO_CONTRIBUYENTE_EVENTUAL"
-	        "MONOTRIBUTISTA_SOCIAL"
-	        "PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL"
-	                        
-
-	tipo_doc
-	        "DNI"
-	        "CUIT"
-	        "LIBRETA_ENROLAMIENTO"
-	        "LIBRETA_CIVICA"
-	        "CEDULA"
-	        "PASAPORTE"
-	        "SIN_CALIFICADOR"
 
 
 
