@@ -12,6 +12,8 @@ import time
 
 
 import ConfigParser
+
+
 from Traductor import Traductor, CONFIG_FILE_NAME
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
@@ -28,20 +30,12 @@ Messages are output to the terminal for debuggin purposes.
  
 class WSHandler(tornado.websocket.WebSocketHandler):
 
-	def __init__(self, *args, **kwargs):
-		
-		# leer los parametros de configuracion de la impresora fiscal 
-		# en config.ini 
-		self.traductor = Traductor('IMPRESORA_FISCAL')
-		super(WSHandler, self).__init__(*args, **kwargs)
-
-
 	def open(self):
 		print 'new connection'
 	
 	def on_message(self, message):
 		jsonMes = json.loads(message)
-		response = self.traductor.json_to_comando( jsonMes )
+		response = traductor.json_to_comando( jsonMes )
 		#print response
 		if response:
 			self.write_message( response )
@@ -98,6 +92,11 @@ def get_config_port(config):
 
 def start_ws_server():
 	global http_server
+	global traductor
+
+	# leer los parametros de configuracion de la impresora fiscal 
+	# en config.ini 
+	traductor = Traductor('IMPRESORA_FISCAL')
 	
 	config = ConfigParser.RawConfigParser()
 	print "Reading config file: "+CONFIG_FILE_NAME
