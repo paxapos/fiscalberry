@@ -10,6 +10,8 @@ import signal
 import logging
 import time
 
+from threading import Timer
+
 
 import ConfigParser
 
@@ -17,20 +19,18 @@ import ConfigParser
 from Traductor import Traductor, CONFIG_FILE_NAME
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
+INTERVALO_IMPRESORA_WARNING = 10.0
+
+
 
 class WebSocketException(Exception):
 	pass
 
-'''
-This is a simple Websocket Echo server that uses the Tornado websocket handler.
-Please run `pip install tornado` with python of version 2.7.9 or greater to install tornado.
-This program will echo back the reverse of whatever it recieves.
-Messages are output to the terminal for debuggin purposes. 
-''' 
  
 class WSHandler(tornado.websocket.WebSocketHandler):
 
 	def open(self):
+		clients.append(self)
 		print 'new connection'
 	
 	def on_message(self, message):
@@ -45,10 +45,45 @@ class WSHandler(tornado.websocket.WebSocketHandler):
  
 	def check_origin(self, origin):
 		return True
+
+# thread timer para hacer broadcast cuando hay mensaje de la impresora
+timerPrinterWarnings = None
+
+# leer los parametros de configuracion de la impresora fiscal 
+# en config.ini 
+traductor = Traductor('IMPRESORA_FISCAL')
+
  
 application = tornado.web.Application([
 	(r'/ws', WSHandler),
 ])
+
+http_server = tornado.httpserver.HTTPServer(application)
+clients = []
+
+
+def broadcast_clientes(message):
+	"envia un broadcast a todos los clientes"
+	msg = {"msg":message}
+	for cli in clients:
+		cli.write_message( msg )
+
+def send_printer_warnings():
+    "enviar un broadcast a los clientes con los warnings de impresora, si existen"
+    global traductor
+    global timerPrinterWarnings
+
+    warns = traductor.printer.getWarnings()
+    if warns:
+    	broadcast_clientes(warns)  
+    #volver a comprobar segun intervalo seleccionado  
+    timerPrinterWarnings = Timer(INTERVALO_IMPRESORA_WARNING, send_printer_warnings)
+    timerPrinterWarnings.start()
+
+
+
+
+
 
 
 
@@ -60,6 +95,10 @@ def sig_handler(sig, frame):
 
 def shutdown():
 	logging.info('Stopping http server')
+	global http_server
+	global timerPrinterWarnings
+
+	timerPrinterWarnings.cancel()
 	http_server.stop()
 
 	logging.info('Will shutdown in %s seconds ...', MAX_WAIT_SECONDS_BEFORE_SHUTDOWN)
@@ -92,11 +131,8 @@ def get_config_port(config):
 
 def start_ws_server():
 	global http_server
-	global traductor
+	global timerPrinterWarnings
 
-	# leer los parametros de configuracion de la impresora fiscal 
-	# en config.ini 
-	traductor = Traductor('IMPRESORA_FISCAL')
 	
 	config = ConfigParser.RawConfigParser()
 	print "Reading config file: "+CONFIG_FILE_NAME
@@ -118,13 +154,18 @@ def start_ws_server():
 	print "\n"
 	
 
-	http_server = tornado.httpserver.HTTPServer(application)
+	
 	http_server.listen( puerto )
 	myIP = socket.gethostbyname(socket.gethostname())
 
 
+
 	signal.signal(signal.SIGTERM, sig_handler)
 	signal.signal(signal.SIGINT, sig_handler)
+
+
+	# inicializar intervalo para verificar que la impresora tenga papel
+	timerPrinterWarnings = Timer(INTERVALO_IMPRESORA_WARNING, send_printer_warnings).start()
 
 
 	print '*** Websocket Server Started at %s port %s***' % (myIP, puerto)

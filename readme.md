@@ -377,5 +377,67 @@ Imprime un cierre fiscal X o Z dependiendo el parámetro enviado
 ```
 
 
+### JSON Accion: **getAvaliablePrinters**
+
+lista todas las impresoras configuradas en el archivo config.ini
+
+
+### JSON Accion: **setHeader**
+
+Permite agregar lineas al encabezado
+
+```javascript
+{
+	"setHeader": [
+		"Linea 1",
+		"Linea 22 22",
+		"Linea 3 3 3 3 3"
+	]
+}
+
+```
+
+### JSON Accion: **setTrailer**
+
+Permite agregar lineas al encabezado
+
+```javascript
+{
+	"setTrailer": [
+		"Linea 1",
+		"Linea 22 22",
+		"Linea 3 3 3 3 3"
+	]
+}
+
+```
+
+
+### JSON Accion: **getLastNumber**
+
+Devuelve el numero del ultimo comprobante impreso segun tipo de factura
+como parámetro hay que pasarle una variable estatica "tipo_cbte"
+
+```javascript
+// EJ: ultimo numero de tiquet
+{
+	"getLastNumber": "T"
+}
+
+// EJ: ultimo comprobante Factura A
+{
+	"getLastNumber": "FA"
+}
+
+
+// EJ: ultimo comprobante Nota de Credito A
+{
+	"getLastNumber": "NCA"
+}
+
+```
+
+
+
 #### NOTA:
 Deberas enviar JSON válidos al servidor. Recomendamos usar la pagina http://jsonlint.com/ para verificar como tu programa esta generando los JSON.

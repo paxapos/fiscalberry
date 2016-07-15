@@ -348,7 +348,7 @@ class EpsonComandos(ComandoInterface):
         printerStatus = reply[0]
         x = int(printerStatus, 16)
         if ((1 << 4) & x) == (1 << 4):
-            ret.append("Poco papel para la cinta de auditoría")
+            ret.append("Poco papel para la cinta de auditoria")
         if ((1 << 5) & x) == (1 << 5):
             ret.append("Poco papel para comprobantes o tickets")
         return ret

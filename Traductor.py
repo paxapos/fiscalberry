@@ -180,6 +180,21 @@ class Traductor:
 		with open(CONFIG_FILE_NAME, 'w') as configfile:
 			config.write(configfile)
 
+	def _getAvaliablePrinters(self):
+		config = ConfigParser.RawConfigParser()
+		config.read(CONFIG_FILE_NAME)
+		# la primer seccion corresponde a SERVER, el resto son las impresoras
+		return config.sections()[1:]
+
+	def _setHeader(self, header):
+		"SetHeader"
+		ret = self.printer.setHeader(header)
+		return ret
+
+	def _setTrailer(self, trailer):
+		"SetTrailer"
+		ret = self.printer.setTrailer(trailer)
+		return ret
 
 	def _getStatus(self):
 		config = ConfigParser.RawConfigParser()
@@ -202,12 +217,15 @@ class Traductor:
 		return self.printer.openDrawer()
 
 
-	def _consultarUltNro(self, tipo_cbte):
+	def _getLastNumber(self, tipo_cbte):
 		"Devuelve el último número de comprobante"
 		
 		letra_cbte = tipo_cbte[-1] if len(tipo_cbte) > 1 else None
 		return self.printer.getLastNumber(letra_cbte)
 
+	def _cancelDocument(self):
+		"Cancelar comprobante en curso"
+		return self.printer.cancelDocument()
 
 	def is_json(self, myjson):
 	    try:
@@ -226,6 +244,36 @@ class Traductor:
 
 
 		rta = {"rta":""}
+		
+
+		if 'cancelDocument' in jsonTicket:
+			rta["rta"] =  self._cancelDocument()
+
+		if 'dailyClose' in jsonTicket:
+			rta["rta"] =  self._dailyClose(jsonTicket["dailyClose"])
+
+		if 'openDrawer' in jsonTicket:
+			rta["rta"] =  self._openDrawer()
+
+
+		if 'configure' in jsonTicket:
+			rta["rta"] =  self._configure(**jsonTicket["configure"])
+
+		if 'getLastNumber' in jsonTicket:
+			rta["rta"] =  self._getLastNumber(jsonTicket["getLastNumber"])			
+
+		if 'getStatus' in jsonTicket:
+			rta["rta"] =  self._getStatus()
+
+		if 'getAvaliablePrinters' in jsonTicket:
+			rta["rta"] =  self._getAvaliablePrinters()
+		
+		if 'setHeader' in jsonTicket:
+			rta["rta"] =  self._setHeader( jsonTicket["setHeader"] )
+
+		if 'setTrailer' in jsonTicket:
+			rta["rta"] =  self._setTrailer( jsonTicket["setTrailer"] )
+
 		if 'printTicket' in jsonTicket:
 			ok = self._abrirComprobante(**jsonTicket['printTicket']["encabezado"])
 
@@ -239,19 +287,5 @@ class Traductor:
 				for pago in jsonTicket['printTicket']["pagos"]:
 					ok = self._imprimirPago(**pago)
 			rta["rta"] =  self._cerrarComprobante()
-
-		if 'dailyClose' in jsonTicket:
-			rta["rta"] =  self._dailyClose(jsonTicket["dailyClose"])
-
-		if 'openDrawer' in jsonTicket:
-			rta["rta"] =  self._openDrawer()
-
-
-		if 'configure' in jsonTicket:
-			rta["rta"] =  self._configure(**jsonTicket["configure"])
-
-		if 'getStatus' in jsonTicket:
-			rta["rta"] =  self._getStatus()
-			
 
 		return rta
