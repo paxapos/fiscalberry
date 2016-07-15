@@ -271,9 +271,12 @@ Los parámetros son:
 		
 #### "printerName" 
 
-Se pueden configurar muchas impresoras, pero solo 1 puede ser fiscal.
+Se pueden configurar muchas impresoras. Cada impresora estara como nombre de segmento del archivo config.ini
 
-La única impresora fiscal se debe llamar "IMPRESORA_FISCAL". Esto es conveniente para cuando se necesita tener impresoras de comandas
+se deberá indicar un nombre para cada impresora.
+
+**_NOTA: Tiene que haber al menos una impresora fiscal con el nombre "IMPRESORA_FISCAL"_**
+
 
 #### "marca" 
 Las opciones son: 
