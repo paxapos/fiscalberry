@@ -5,17 +5,19 @@
 Realizé un refactor del proyecto original para adaptarlo a una necesidad distinta y moderna, mejorándolo para tal uso.
 
 ## ¿Qué es?
-Es un proyecto open source desarrollado en python para conectar impresoras "especiales" (comanderas, receipt, fiscales, tickets, etc) con cualquier tipo de lenguaje de programación utilizando un protocolo de comunicación JSON conectado mediante web sockets.
-Con fiscalberry podrás imprimir a una impresora fiscal desde la misma página web usando javascript, por ejemplo.
+Fiscalberry es un 3x1, actúa como: protocolo, servidor y driver facilitando al programador la impresión de tickets, facturas o comprobantes fiscales.
 
-Fiscalberry actua como servidor Web Socket. Con cualquier lenguaje de programación que se conecte a este servidor, podrá enviarle instrucciones JSON para imprimir.
+- _PROCOLO_: Siguiendo la estructura del JSON indicado, se podrá imprimir independientemente de la impresora conectada. Fiscalberry se encargará de conectarse y pelear con los códigos y comandos especiales de cada marca/modelo.
+- _SERVIDOR_: gracias al servidor de websockets es posible conectar tu aplicación para que ésta fácilmente pueda enviar JSON's y recibir las respuestas de manera asíncrona.
+- _DRIVER_: Es el encargado de transformar el JSON genérico en un conjunto de comandos especiales según marca y modelo de la impresora. Aquí es donde reutilicé el código del proyecto de Reingart (https://github.com/reingart/pyfiscalprinter) para impresoras Hasar y Epson.
 
-Funciona en una raspberry. Pero también deberia andar en windows, mac, y cualquier otra PC con python instalado.
+Funciona en cualquier PC con cualquier sistema operativo que soporte python.
+La idea original fue pensada para que funcione en una raspberry pi, cuyo fin es integrar las fiscales al mundo de la Internet de las Cosas (IOT). Yo tengo funcionando varias fiscales conectadas a una raspberry pi.
 
 ## ¿Qué lenguajes de programación pueden usarlo?
 Practicamente todos: Javascript, nodejs, python, php, etc.
 
-Los que se te ocurran que puedan actuar como "cliente Web Socket" para conectarse con el servidor y enviar y recibir JSON's.
+Los que se puedan actuar como "cliente Web Socket" y conectarse con el servidor para enviar/recibir JSON's.
 
 
 ## PROBALO
