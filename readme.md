@@ -439,5 +439,24 @@ como parámetro hay que pasarle una variable estatica "tipo_cbte"
 
 
 
+### JSON RESPUESTA
+Existen 2 tipos de respuesta y siempre vienen con la forma de un JSON.
+
+
+Aquellos que son una respuesta a un comando enviado, comienzan con "ret"
+**_{"ret": ......}_**
+
+
+Aquellos que son un mensaje de la impresora fiscal, vienen con "msg"
+
+**_{"msg": ......}_**
+
+```javascript
+// ejemplo retorno de un mensaje cuando no hay papel
+{"msg": ["Poco papel para comprobantes o tickets"]}
+```
+
+
+
 #### NOTA:
 Deberas enviar JSON válidos al servidor. Recomendamos usar la pagina http://jsonlint.com/ para verificar como tu programa esta generando los JSON.
