@@ -22,6 +22,42 @@ Los que se puedan actuar como "cliente Web Socket" y conectarse con el servidor 
 
 ## PROBALO
 
+### Descargar
+
+usando git
+```sh
+git clone https://github.com/ristorantino/fiscalberry.git
+```
+o directamente el ZIP: https://github.com/ristorantino/fiscalberry/archive/master.zip
+
+### Crear archivo de configuracion
+
+Renombrar el archivo "config.ini.install" como "config.ini" y configurar la marca, modelo, path y driver de la impresora.
+Las opciones son:
+
+  para marca: [Hasar, Epson]
+
+  modelo: 
+  	(para Hasar)
+		"615"
+		"715v1"
+		"715v2"
+		"320"
+
+	(para Epson)
+		"tickeadoras"
+		"epsonlx300+"
+
+
+  path:
+  	en windows: (COM1, COM2, etc)
+  	en linux: (/dev/ttyUSB0, /dev/ttyS0, etc)
+
+  driver:
+  	(puede quedar vacio, en ese caso si la marca setteada es Hasar, el driver sera Hasar, lo mismo con Epson. Modificar File o Dummy es útil para hacer pruebas o desarrollo)
+  	Hasar, Epson, Dummy, File
+
+  	En el caso de seleccionar File, en la variable "path" hay que colocar el nombre del archivo que deseo crear para que se escriban las salidas. Ej en linux: "/tmp/archivo.txt"
 
 ### Instalar Dependencias
 
@@ -306,8 +342,14 @@ En linux "/dev/ttyUSB0"
 #### "driver" (opcional)
 Es la "salida" o sea, es el medio por donde saldrán las impresiones.
 
+Opciones: 
+* Hasar
+* Epson
+* Dummy
+* File
+
 Por defecto se utiliza el mismo driver que la impresora, pero en algunas casos (desarrollo) se pueden utilizar drivers extra:
-* Dummy (no presenta salidas en ningun lado)
+* Dummy (no presenta salidas en ningun lado, por lo tanto no usa el campo "path")
 * File (para usar este driver es necesario que en el campo "path" se coloque la ruta donde escribir la salida que será un archivo donde imprimirá las respuestas.
 
 
