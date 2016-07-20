@@ -25,6 +25,10 @@ class ConectorDriverComando:
 				from Drivers.DummyDriver import DummyDriver
 				self.driver = DummyDriver()
 
+			elif (driverName == 'Txt'):
+				from Drivers.TxtDriver import TxtDriver
+				self.driver = TxtDriver(args[0])
+
 			elif (driverName == 'File'):
 				print args
 				from Drivers.FileDriver import FileDriver

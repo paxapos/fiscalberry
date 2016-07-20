@@ -246,11 +246,11 @@ tipo: list
 					"items": [{
 						"alic_iva": 21.0,
 						"importe": 0.01,
-						"ds": "PIPI",
+						"ds": "PEPSI",
 						"qty": 1.0
 					}, {
 						"alic_iva": 21.0,
-						"importe": 0.22,
+						"importe": 0.12,
 						"ds": "COCA",
 						"qty": 2.0
 					}]
@@ -407,6 +407,14 @@ Permite agregar lineas al encabezado
 		"Linea 1",
 		"Linea 22 22",
 		"Linea 3 3 3 3 3"
+	]
+}
+
+// cada item de la lista es una linea a modificar, por ejemplo
+{
+	"setTrailer": [
+		"", 				// dejara la linea 1 vacia
+		"Linea 22 modif",   // modificara la linea 2		
 	]
 }
 

@@ -1,6 +1,6 @@
 # -*- coding: iso-8859-1 -*-
 
-from Drivers.FiscalPrinterDriver import FiscalPrinterDriver
+from Drivers.FiscalPrinterDriver import FiscalPrinterDriver, ComunicationError
 import random
 import time
 

@@ -39,9 +39,13 @@
 		<div id="message_details">
 				</br></br>
 
-				<input type="button" id="msg-status" value="Mensaje getStatus" />
-				<input type="button" id="msg-ticket" value="Mensaje Ticket" />
+				<input type="button" id="msg-drawer" value="Mensaje Open Drawer" />
+				<input type="button" id="msg-status" value="Mensaje Status (get Config values)" />
+				<input type="button" id="msg-lst-number" value="Last Ticket Number" />
+				<input type="button" id="msg-daily" value="Cierre X" />
+				<input type="button" id="msg-ticket" value="Ticket" />
 
+				<br>
 				<label for="message">message:</label><br>
 				<textarea type="textarea" id="message" rows="20" cols="40">
 {
@@ -67,23 +71,122 @@
 			};
 
 
+
+			// como recibo un $.promise() puedo usar el done.
+			// se ejecuta ni bien conecta con el host del WS
+			fbrry.promise.done(function(){
+				console.info("Iniciado el Web Socket promise DONE");
+			});
+
+			fbrry.promise.fail(function(){
+				console.info("No hay conexion con el Web Socket promise ERROR");
+			});
+			
+ 
+			// Handle incoming websocket message callback
+			fbrry.on('message', function(ob, evt) {
+				log("Message Received: " + evt.data);
+				});
+
+			// Close Websocket callback
+			fbrry.on( 'close', function(evt) {
+				log("***Connection Closed***");
+				$("#host").css("background", "#ff0000"); 
+				$("#port").css("background", "#ff0000"); 
+				$("#uri").css("background",  "#ff0000");
+				$("div#message_details").empty();
+
+			});
+
+
+			// Open Websocket callback
+			fbrry.on( 'open', function(evt) { 
+				$("#host").css("background", "#00ff00"); 
+				$("#port").css("background", "#00ff00"); 
+				$("#uri").css("background", "#00ff00");
+				$("div#message_details").show();
+				log("***Connection Opened***");
+			});
+
+
+			// Close Websocket callback
+			fbrry.on('close',  function(evt) {
+
+				// reconnect
+				log(" reconectando en 3 segundos ");
+				setTimeout(function(){startWs();}, 3000);
+			});
+
+
+			// manejo el mensaje ONLINE/OFFLINE
+			fbrry.on( 'close', function(evt) {
+				console.info("CLOSE");
+				 $("#ws-message").html("OFFLINE").addClass("ws-msg-offline").removeClass("ws-msg-online");
+			});
+			fbrry.on( 'open', function(evt) { 
+				console.info("OPEN CONECTADO");
+				$("#ws-message").html("ONLINE").removeClass("ws-msg-offline").addClass("ws-msg-online");
+			});
+
+
+
+			
+
 			// funcion para conectar usando el FORM
 			function startWs() {
-						var host = $("#host").val();
-						var port = $("#port").val();
-						var uri = $("#uri").val();
-						// create websocket instance
-						fbrry.connect(host ,port);
+				var host = $("#host").val();
+				var port = $("#port").val();
+				var uri = $("#uri").val();
+				// create websocket instance
+				fbrry.connect(host ,port);
+
+				console.info("START INICIANDO");
+				console.log(fbrry);
+
+						
 			}
 
-			$("#msg-status").on('click', function () {
+			$("#msg-drawer").on('click', function () {
 				$("#message").html('{"openDrawer": true}');
 					
 			});
 
-			$("#msg-ticket").on('click', function () {
+			$("#msg-status").on('click', function () {
 				$("#message").html('{"getStatus": {}}');
 			});
+
+			$("#msg-lst-number").on('click', function () {
+				$("#message").html('{"getLastNumber": "T"}');
+			});
+
+			$("#msg-daily").on('click', function () {
+				$("#message").html('{"dailyClose": "X"}');
+			});
+
+
+			var ticketString = 
+'{"printTicket": {\
+    "encabezado": {\
+        "tipo_cbte": "T"\
+    },\
+    "items": [{\
+      "alic_iva":21.0,\
+      "importe": 0.01,\
+      "ds": "PEPSI",\
+      "qty": 1.0\
+    },\
+    {\
+      "alic_iva": 21.0,\
+      "importe": 0.12,\
+      "ds": "COCA",\
+      "qty": 2.0\
+    }]\
+}}';
+
+			$("#msg-ticket").on('click', function () {
+				$("#message").html(ticketString);
+			});
+			
 
 			// Cuando aprieto el SUBMIT OPEN para conectar desde el FORM
 			$("#open").on("click", function(evt) {
@@ -98,53 +201,7 @@
 				$("div#message_details").hide();
  
 
-				
-
-
-				// como recibo un $.promise() puedo usar el done.
-				// se ejecuta ni bien conecta con el host del WS
-				fbrry.done(function(){
-								console.info("Iniciado el Web Socket");
-				});
-
-				
-	 
-
-				// Handle incoming websocket message callback
-				fbrry.onMsg ( function(evt) {
-					log("Message Received: " + evt.data);
-					});
-
-				// Close Websocket callback
-				fbrry.onClose ( function(evt) {
-					log("***Connection Closed***");
-					$("#host").css("background", "#ff0000"); 
-					$("#port").css("background", "#ff0000"); 
-					$("#uri").css("background",  "#ff0000");
-					$("div#message_details").empty();
-				});
-
-
-
-				// Open Websocket callback
-				fbrry.onOpen( function(evt) { 
-					$("#host").css("background", "#00ff00"); 
-					$("#port").css("background", "#00ff00"); 
-					$("#uri").css("background", "#00ff00");
-					$("div#message_details").show();
-					log("***Connection Opened***");
-				});
-
-
-
-				// manejo el mensaje ONLINE/OFFLINE
-				fbrry.onClose ( function(evt) {
-					 $("#ws-message").html("OFFLINE").addClass("ws-msg-offline").removeClass("ws-msg-online")
-				});
-				fbrry.onOpen( function(evt) { 
-					$("#ws-message").html("ONLINE").removeClass("ws-msg-offline").addClass("ws-msg-online")
-				});
-	 
+		
  
 
 				startWs();

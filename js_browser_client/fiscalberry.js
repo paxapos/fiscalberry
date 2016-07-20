@@ -2,103 +2,89 @@
 
 (function($){
 
+	var $fb, // singleton object
+		__def; // deferred obect
+
+	/** Singleton, devuelve siempre la instancia $fb **/
 	Fiscalberry = function ( host, port, uri  ) {
-
-
+		// WebSocket instance
 		var ws;
 
-		var __def = new $.Deferred();
-		
+		// real Fiscalberry object that will be returned as instance
+		if ( !$fb ) {
+			$fb = $({});
+			__def = new $.Deferred();
+			$fb.promise = __def.promise();
+		}
 
+		$fb.on('create', function(){
+			console.info("creandosllso");
+		});
+		$fb.trigger('create');
+
+
+		if ( typeof host != 'undefined'
+			&& typeof port != 'undefined'
+		) {
+			ws = $fb.connect(host, port);
+		}
+		
 
 
 		/**
 		*
 		*	Conecta con el web socket
-		*
+		*	creando una nueva instancia ws
+		*	@return WebSocket instance
 		**/
-		this.connect = function( host, port, uri ) {
+		$fb.connect = function( host, port, uri ) {
 			if ( typeof uri == 'undefined' ) {
 				uri = "/ws";
 			}
 
 			var url = "ws://" + host + ":" + port + uri;
+		
 
 			// create websocket instance
-			ws = new WebSocket(url);
-
-			__def.resolve(this);
+			if ( !ws ) {
+				
+				ws = new WebSocket(url);
+				ws.onopen = function(e) {
+					__def.resolve(ws);
+					$fb.trigger('open');
+				}
+				ws.onerror = function(e) {
+					__def.reject(e);
+					$fb.trigger('error');
+				}
+				ws.onclose = function() {
+					$fb.trigger('close');
+				}
+				ws.onmessage = function(ev) {
+					console.debug(ev.data);
+					$fb.trigger('message', ev ) ;
+				}
+			
+			}
 
 			return ws;
 		}
 
+		
 
 		/**
 		*
-		*	Solo se ejecutara una vez el listener y luego se destruira
+		*	Envia mensaje por medio del web socket conectado
 		*
 		**/
-		this.onceOpen = function ( fn ) {
-			__def.done(function(){
-				ws.addEventListener("open", fn, false);
-				ws.removeEventListener("open", fn, false);
-			})
-		}
-
-
-		/**
-		*
-		*	Listeners
-		*
-		**/
-		this.onOpen = function( fn ) {
-			__def.done(function(){
-				return ws.addEventListener("open", fn);
-			});
-		}
-
-		this.onClose = function( fn ) {
-			__def.done(function(){
-				return ws.addEventListener("close", fn);
-			});
-		}
-
-		this.onMsg = function( fn ) {
-			__def.done(function(){
-				return ws.addEventListener("message", fn);
-			});
-		}
-
-		this.onError = function( fn ) {
-			__def.done(function(){
-				return ws.addEventListener("error", fn);
-			});
-		}
-
-
-		/**
-		*
-		*	Envia mensaje por medio del web socket conactado
-		*
-		**/
-		this.send = function() {
+		$fb.send = function() {
 			var fnargs = arguments;
-			__def.done(function(){
-				return ws.send.apply(ws, fnargs)
-			});
+			return ws.send.apply(ws, fnargs);
 		}
 		
 
-		if ( typeof host != 'undefined'
-				&& typeof port != 'undefined'
-			) {
-			ws = this.connect(host, port);
-		}
 
-
-		
-
-		return __def.promise( this );
+		return $fb;
 
 	}
 		 
