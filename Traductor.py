@@ -58,6 +58,12 @@ class Traductor:
 				 driverName=None
 				 ):
 
+
+		import os.path
+		if not os.path.isfile(CONFIG_FILE_NAME):
+			import shutil
+			shutil.copy ("config.ini.install", CONFIG_FILE_NAME)
+
 		config = ConfigParser.RawConfigParser()
 		config.read(CONFIG_FILE_NAME)
 		if not marca:	

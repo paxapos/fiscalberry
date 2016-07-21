@@ -33,6 +33,8 @@ o directamente el ZIP: https://github.com/ristorantino/fiscalberry/archive/maste
 ### Crear archivo de configuracion
 
 Renombrar el archivo "config.ini.install" como "config.ini" y configurar la marca, modelo, path y driver de la impresora.
+(al inicializar el servicio "server.py", si el archivo no existe, lo crea automáticamente)
+
 Las opciones son:
 
   para marca: [Hasar, Epson]
@@ -137,8 +139,15 @@ Los ítems son una lista de productos a imprimir donde, en este ejemplo, tenemos
 Protocolo para formar un JSON con el objetivo de imprimir un ticket.
 Se compone de 3 distintas partes:
 * Encabezado
-* Ìtems
+* Ítems
 * Pagos (opcional)
+
+Al imprimir un ticket el servidor enviará 3 comandos previos que pueden resultar en un mensaje de warning: "comando no es valido para el estado de la impresora fiscal ".
+Esto no es un error, sino que antes de imprimir un tiquet envia:
+* CANCELAR CUALQUIER TIQUET ABIERTO
+* CANCELAR COMPROBANTE NO FISCAL
+* CANCELAR NOTA ED CREDITO O DEBITO
+Es una comprobación útil que ahorrará dolores de cabeza y posibilidades de bloquear la impresora fiscal.
 
 #### Encabezado (Obligatorio)
 tipo: Json
