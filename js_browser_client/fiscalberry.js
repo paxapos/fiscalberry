@@ -22,11 +22,8 @@
 		});
 		$fb.trigger('create');
 
-
-		if ( typeof host != 'undefined'
-			&& typeof port != 'undefined'
-		) {
-			ws = $fb.connect(host, port);
+		if ( typeof host != 'undefined' ) {
+			ws = $fb.connect(host, port, uri);
 		}
 		
 
@@ -38,6 +35,10 @@
 		*	@return WebSocket instance
 		**/
 		$fb.connect = function( host, port, uri ) {
+			if ( typeof port != 'undefined' ) {
+				port = 12000; // default fiscalberry server port
+			}
+
 			if ( typeof uri == 'undefined' ) {
 				uri = "/ws";
 			}
