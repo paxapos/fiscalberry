@@ -291,6 +291,7 @@ class Traductor:
 
 			if "pagos" in jsonTicket['printTicket']:
 				for pago in jsonTicket['printTicket']["pagos"]:
+					print pago
 					ok = self._imprimirPago(**pago)
 			rta["rta"] =  self._cerrarComprobante()
 

@@ -34,7 +34,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 		print 'new connection'
 	
 	def on_message(self, message):
-		jsonMes = json.loads(message)
+		jsonMes = json.loads(message.decode('utf-8'), strict=False)
 		response = traductor.json_to_comando( jsonMes )
 		#print response
 		if response:

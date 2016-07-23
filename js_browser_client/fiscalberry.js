@@ -3,12 +3,14 @@
 (function($){
 
 	var $fb, // singleton object
-		__def; // deferred obect
+		__def, // deferred obect
+		__conected = false;
 
 	/** Singleton, devuelve siempre la instancia $fb **/
 	Fiscalberry = function ( host, port, uri  ) {
 		// WebSocket instance
 		var ws;
+
 
 		// real Fiscalberry object that will be returned as instance
 		if ( !$fb ) {
@@ -17,13 +19,13 @@
 			$fb.promise = __def.promise();
 		}
 
-		$fb.on('create', function(){
-			console.info("creandosllso");
-		});
-		$fb.trigger('create');
-
-		if ( typeof host != 'undefined' ) {
-			ws = $fb.connect(host, port, uri);
+	
+		/**
+		*	Indica si esta conectado o no con el websocket
+		*	@return Boolean true si esta conectado, false si no lo esta
+		**/
+		$fb.isConnected = function() {
+			return __conected;
 		}
 		
 
@@ -53,13 +55,16 @@
 				ws.onopen = function(e) {
 					__def.resolve(ws);
 					$fb.trigger('open');
+					__conected = true;
 				}
 				ws.onerror = function(e) {
 					__def.reject(e);
 					$fb.trigger('error');
+					__conected = false;
 				}
 				ws.onclose = function() {
 					$fb.trigger('close');
+					__conected = false;
 				}
 				ws.onmessage = function(ev) {
 					console.debug(ev.data);
@@ -85,6 +90,11 @@
 		
 
 
+		if ( typeof host != 'undefined' ) {
+			ws = $fb.connect(host, port, uri);
+		}
+
+		
 		return $fb;
 
 	}
