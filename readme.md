@@ -74,6 +74,15 @@ sudo pip install pyserial
 sudo pip install tornado
 ```
 
+Si se quiere usar las comanderas hay que instalar
+```sh
+pip install python-escpos
+```
+
+#### Raspberry
+
+para usar impresora de comandas en raspbian será necesario seguir una serie de pasos adicionales:
+https://python-escpos.readthedocs.io/en/latest/user/raspi.html
 
 ### Iniciar el servicio
 

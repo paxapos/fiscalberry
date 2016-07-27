@@ -1,3 +1,5 @@
+# -*- coding: iso-8859-1 -*-
+
 #from hasarPrinter import HasarPrinter
 # Drivers:
 
@@ -10,7 +12,7 @@ from Comandos.EpsonComandos import EpsonComandos
 from Comandos.HasarComandos import HasarComandos
 
 from Traductor import Traductor
-
+from escpos import printer
 
 
 
@@ -38,7 +40,7 @@ if __name__ == '__main__':
 	}
 	'''
 
-
+	'''
 	jsonTicketFacutaAConConsumidor = {		
 		"printTicket": {
 			"encabezado": {
@@ -109,6 +111,53 @@ if __name__ == '__main__':
 	#hd.openDrawer()
 
 	#hd.dailyClose("X")
+
+
+	
+	jsonBarra = {
+		"printerName": "BEMATECH_BARRA",
+		"getStatus": ""
+	}
+	# print traductor.json_to_comando(jsonBarra)
+
+
+	'''
+
+	jsonBarra = {
+		"printerName": "BEMATECH_BARRA",
+		"printComanda": {
+			"comanda": {
+				"id": 12121,
+				"created": "2015-12-12 22:22:22",
+				"observacion": "Para LLEVAR!",
+				"entradas": [
+					{
+						"cant": 2,
+						"nombre": "raba"
+					}
+				],
+				"platos": [
+					{
+						"cant": 1,
+						"nombre": "arroz con pollo",
+						"observacion": "sin sal"
+					},
+					{
+						"cant": 2,
+						"nombre": "merluza con pure"
+					}
+				]
+			},
+			"mesa": "Mesa 21",
+			"mozo": "Mozo 23"
+		}
+	}
+
+
+	traductor.json_to_comando(jsonBarra)
+
+	#Bematech.control("CR")
+
 
 	print( "y este cuento se ha terminado" )
 	

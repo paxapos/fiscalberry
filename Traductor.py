@@ -11,6 +11,8 @@ class TraductorException(Exception):
 
 class Traductor:
 	"""Convierte un JSON a Comando Fiscal Para Cualquier tipo de Impresora fiscal"""
+	currentPrinterName = CONFIG_IMPRESORA_FISCAL_SECTION_NAME
+	defaultPrinterName = CONFIG_IMPRESORA_FISCAL_SECTION_NAME
 
 	# RG1785/04
 	cbte_fiscal_map = {
@@ -57,8 +59,18 @@ class Traductor:
 				 modelo=None, 
 				 driverName=None
 				 ):
+		self.printer = self._select_printer(printerName, marca, deviceFile, modelo, driverName)
+		
 
-
+	def _select_printer(self,
+						 printerName,
+						 marca=None, 
+						 deviceFile=None, 
+						 modelo=None, 
+						 driverName=None
+						 ):
+		self.currentPrinterName = printerName
+		comando = None
 		import os.path
 		if not os.path.isfile(CONFIG_FILE_NAME):
 			import shutil
@@ -68,8 +80,10 @@ class Traductor:
 		config.read(CONFIG_FILE_NAME)
 		if not marca:	
 			marca = config.get(printerName, "marca")
-		if not modelo:	
-			modelo = config.get(printerName, "modelo")
+		if not modelo:
+			modelo = None
+			if config.has_option(printerName, "modelo"):
+				modelo = config.get(printerName, "modelo")
 		if not deviceFile:	
 			deviceFile = config.get(printerName, "path")
 		if not driverName:	
@@ -77,16 +91,20 @@ class Traductor:
 
 		if marca == "Epson":
 			from Comandos.EpsonComandos import EpsonComandos
-			self.comando = EpsonComandos(deviceFile, driverName=driverName)
+			comando = EpsonComandos(deviceFile, driverName=driverName)
 		elif marca == "Hasar":
 			from Comandos.HasarComandos import HasarComandos
-			self.comando = HasarComandos(deviceFile, driverName=driverName)
+			comando = HasarComandos(deviceFile, driverName=driverName)
+		elif marca == "Bematech":
+			from Comandos.BematechComandos import BematechComandos
+			comando = BematechComandos(deviceFile, driverName=driverName)
+		elif marca == "EscP":
+			from Comandos.EscPComandos import EscPComandos
+			comando = EscPComandos(deviceFile, driverName=driverName)
 		else:
 			raise TraductorException("Debe seleccionar un juego de comandos valido de la Carpeta /Comandos")
 
-		self.printer = self.comando
-		
-
+		return comando
 
 	def debugLog(self):
 		"Devolver bitácora de depuración"
@@ -206,10 +224,12 @@ class Traductor:
 		config = ConfigParser.RawConfigParser()
 
 		config.read(CONFIG_FILE_NAME)
-		marca  = config.get(CONFIG_IMPRESORA_FISCAL_SECTION_NAME, "marca")
-		modelo = config.get(CONFIG_IMPRESORA_FISCAL_SECTION_NAME, "modelo")
-		path   = config.get(CONFIG_IMPRESORA_FISCAL_SECTION_NAME, "path")
-		driver = config.get(CONFIG_IMPRESORA_FISCAL_SECTION_NAME, "driver")
+		marca  = config.get(self.currentPrinterName, "marca")
+		modelo = None
+		if config.has_option(self.currentPrinterName, "modelo"):
+			modelo = config.get(self.currentPrinterName, "modelo")
+		path   = config.get(self.currentPrinterName, "path")
+		driver = config.get(self.currentPrinterName, "driver")
 
 		return {
 			"marca": marca,
@@ -233,6 +253,15 @@ class Traductor:
 		"Cancelar comprobante en curso"
 		return self.printer.cancelDocument()
 
+	def _printRemito(self):
+		"Imprime un Remito, comando de accion valido solo para Comandos de Receipt"
+		return self.printer.printRemito()
+
+	def _printComanda(self, comanda, mesa, mozo):
+		"Imprime una Comanda, comando de accion valido solo para Comandos de Receipt"
+		return self.printer.printComanda(comanda, mesa, mozo)
+
+
 	def is_json(self, myjson):
 	    try:
 	        json_object = json.loads(myjson)
@@ -245,12 +274,22 @@ class Traductor:
 		print("Iniciando procesamiento de json...")
 		
 
-		print "esto es lo que estoy viendo"
-		print jsonTicket
-
-
 		rta = {"rta":""}
+
+		# dejar la impresora por defecto inicializada en una variable auxiliar
+		printerDefault = self.printer
 		
+		# seleccionar impresora
+		# esto se debe ejecutar antes que cualquier otro comando
+		if 'printerName' in jsonTicket:
+			print("cambiando de impresora a %s"%jsonTicket['printerName'])
+			self.printer = self._select_printer(jsonTicket['printerName'])
+
+		if 'printRemito' in jsonTicket:
+			rta["rta"] =  self._printRemito(**jsonTicket["printRemito"])
+
+		if 'printComanda' in jsonTicket:
+			rta["rta"] =  self._printComanda(**jsonTicket["printComanda"])
 
 		if 'cancelDocument' in jsonTicket:
 			rta["rta"] =  self._cancelDocument()
@@ -295,4 +334,7 @@ class Traductor:
 					ok = self._imprimirPago(**pago)
 			rta["rta"] =  self._cerrarComprobante()
 
+		# vuelvo a poner la impresora que estaba por default inicializada
+		self.printer = printerDefault
+		self.currentPrinterName = self.defaultPrinterName
 		return rta

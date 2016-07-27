@@ -10,7 +10,6 @@ class ConectorDriverComando:
 	
 	def __init__(self, comando, driverName, *args):
 		self._comando = comando
-
 		try:
 
 			if ( driverName == 'Hasar'):
@@ -33,6 +32,10 @@ class ConectorDriverComando:
 				print args
 				from Drivers.FileDriver import FileDriver
 				self.driver = FileDriver(args[0])
+
+			elif (driverName == 'ReceipDirectJet'):
+				from Drivers.ReceiptDirectJetDriver import ReceiptDirectJetDriver
+				self.driver = ReceiptDirectJetDriver(args[0])
 
 			else:
 				raise ConectorError("No existe el driver", driverName)

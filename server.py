@@ -41,6 +41,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 			self.write_message( response )
  
 	def on_close(self):
+		clients.remove(self)
 		print 'connection closed'
  
 	def check_origin(self, origin):
@@ -147,9 +148,11 @@ def start_ws_server():
 		print "Impresora disponible:"
 	for printer in printers:
 		print "  - %s" % printer
+		modelo = None
 		marca = config.get(printer, "marca")
-		modelo = config.get(printer, "modelo")
 		path = config.get(printer, "path")
+		if config.has_option(printer, "modelo"):
+			modelo = config.get(printer, "modelo")
 		print "      marca: %s, modelo: %s (%s)" % (marca, modelo, path)
 	print "\n"
 	

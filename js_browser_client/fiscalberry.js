@@ -11,6 +11,10 @@
 		// WebSocket instance
 		var ws;
 
+		if ( typeof port == 'undefined' ) {
+			port = 12000; // default fiscalberry port
+		}
+
 
 		// real Fiscalberry object that will be returned as instance
 		if ( !$fb ) {
@@ -37,7 +41,8 @@
 		*	@return WebSocket instance
 		**/
 		$fb.connect = function( host, port, uri ) {
-			if ( typeof port != 'undefined' ) {
+			console.log(arguments);
+			if ( typeof port == 'undefined' ) {
 				port = 12000; // default fiscalberry server port
 			}
 
@@ -47,31 +52,34 @@
 
 			var url = "ws://" + host + ":" + port + uri;
 		
-
-			// create websocket instance
-			if ( !ws ) {
-				
-				ws = new WebSocket(url);
-				ws.onopen = function(e) {
-					__def.resolve(ws);
-					$fb.trigger('open');
-					__conected = true;
-				}
-				ws.onerror = function(e) {
-					__def.reject(e);
-					$fb.trigger('error');
-					__conected = false;
-				}
-				ws.onclose = function() {
-					$fb.trigger('close');
-					__conected = false;
-				}
-				ws.onmessage = function(ev) {
-					console.debug(ev.data);
-					$fb.trigger('message', ev ) ;
-				}
-			
+			ws = new WebSocket(url);
+			ws.onopen = function(e) {
+				__def.resolve(ws);
+				$fb.trigger('open');
+				__conected = true;
 			}
+			ws.onerror = function(e) {
+				__def.reject(e);
+				$fb.trigger('error');
+				__conected = false;
+			}
+			ws.onclose = function() {
+				$fb.trigger('close');
+				__conected = false;
+			}
+
+			// solo responde si me vino un JSON válido, caso contrario lo omite
+			ws.onmessage = function(ev) {
+				var response=jQuery.parseJSON(ev.data);
+
+				if(typeof response =='object')
+				{
+					var e = jQuery.Event( "message", { data: response } );
+					$fb.trigger('message', e ) ;
+				}
+				
+			}
+			
 
 			return ws;
 		}
@@ -90,7 +98,7 @@
 		
 
 
-		if ( typeof host != 'undefined' ) {
+		if ( arguments.length > 0 ) {
 			ws = $fb.connect(host, port, uri);
 		}
 
