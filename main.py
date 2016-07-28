@@ -48,7 +48,7 @@ if __name__ == '__main__':
 		        "nro_doc": "20267565393",
 		        "domicilio_cliente": "Rua 76 km 34.5 Alagoas",
 		        "tipo_doc": "DNI",
-		        "nombre_cliente": "Joao Da Silva",
+		        "nombre_cliente": "Gonzales Oro",
 		        "tipo_responsable": "RESPONSABLE_INSCRIPTO"
 		    },
 		    "items": [

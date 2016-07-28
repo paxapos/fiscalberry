@@ -84,24 +84,32 @@ if __name__ == '__main__':
 	}
 
 
-	#traductor.json_to_comando(jsonBarra)
+	traductor.json_to_comando(jsonBarra)
 
 
 
 	jsonTicketSinConsumidor = {
 			"printerName": "BEMATECH_BARRA",
 			"printRemito": {
-				"encabezado": {
-					"tipo_cbte": "T"
+				"extra": {
+					"mesa_id": 123445
 				},
+				"encabezado": {
+			        "tipo_cbte": "FA",
+			        "nro_doc": "20267565393",
+			        "domicilio_cliente": "Rua 76 km 34.5 Alagoas",
+			        "tipo_doc": "DNI",
+			        "nombre_cliente": "Gonzales Oro",
+			        "tipo_responsable": "RESPONSABLE_INSCRIPTO"
+			    },
 				"items": [{
 					"alic_iva": 21.0,
 					"importe": 0.01,
-					"ds": "PIPI",
+					"ds": "Arroz con Pollo",
 					"qty": 1.0
 				}, {
 					"alic_iva": 21.0,
-					"importe": 0.22,
+					"importe": 30.22,
 					"ds": "COCA",
 					"qty": 2.0
 				}],
@@ -117,8 +125,8 @@ if __name__ == '__main__':
 				],
 				"setTrailer": [
 					"",
-					"MOZO: xxxxx",
-					"MESA: 11111",
+					"MOZO: Carlos EL REY Dominguez",
+					"MESA: 13",
 					""
 				]
 			}

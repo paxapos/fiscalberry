@@ -7,7 +7,7 @@ import unicodedata
 from ComandoInterface import ComandoInterface, ComandoException, ValidationError, FiscalPrinterError, formatText
 from ConectorDriverComando import ConectorDriverComando
 import time
-
+from math import ceil
 
 
 class PrinterException(Exception):
@@ -17,9 +17,9 @@ class EscPComandos(ComandoInterface):
 
 
 	tipoCbte = {
-	        "T": "B",
+	        "T": "Consumidor Final",
 	        "FA":  "A", 
-	        "FB": "B", 
+	        "FB": "Consumidor Final", 
 	        "NDA": "NDA", 
 	        "NCA": "NCA", 
 	        "NDB": "NDB", 
@@ -30,39 +30,7 @@ class EscPComandos(ComandoInterface):
 
 	}
 
-	docTypeNames = {
-		"DOC_TYPE_CUIT": "CUIT",
-		"DOC_TYPE_LIBRETA_ENROLAMIENTO": 'L.E.',
-		"DOC_TYPE_LIBRETA_CIVICA": 'L.C.',
-		"DOC_TYPE_DNI": 'DNI',
-		"DOC_TYPE_PASAPORTE": 'PASAP',
-		"DOC_TYPE_CEDULA": 'CED',
-		"DOC_TYPE_SIN_CALIFICADOR": 'S/C'
-	}
-
-	docTypes = {
-		"CUIT": 'CUIT',
-		"LIBRETA_ENROLAMIENTO": 'LE',
-		"LIBRETA_CIVICA": 'LC',
-		"DNI": 'DNI',
-		"PASAPORTE": 'PASAPORTE',
-		"CEDULA": 'CEDULA',
-		"SIN_CALIFICADOR": '',
-	}
-
-	ivaTypes = {
-		"RESPONSABLE_INSCRIPTO": 'Resp. Inscripto',
-		"RESPONSABLE_NO_INSCRIPTO": 'N',
-		"EXENTO": 'Exento',
-		"NO_RESPONSABLE": 'No Responsable',
-		"CONSUMIDOR_FINAL": 'Consumidor Final',
-		"RESPONSABLE_NO_INSCRIPTO_BIENES_DE_USO": 'B',
-		"RESPONSABLE_MONOTRIBUTO": 'Monotributo',
-		"MONOTRIBUTISTA_SOCIAL": 'Monotributo Social',
-		"PEQUENIO_CONTRIBUYENTE_EVENTUAL": 'Peq. Contrib. Eventual',
-		"PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL": 'Peq. Contrib. Social',
-		"NO_CATEGORIZADO": '',
-	}
+	
 	
 
 	def __init__(self, deviceFile=None, driverName="ReceipDirectJet"):
@@ -95,45 +63,72 @@ class EscPComandos(ComandoInterface):
 
 		printer = self.conector.driver
 
-		printer.set("LEFT", "A", "A", 1, 1)
+		printer.set("CENTER", "A", "A", 1, 1)
 		
 		# colocar en modo ESC P
 		printer._raw(chr(0x1D)+chr(0xF9)+chr(0x35)+"1")
 
+		printer.set("CENTER", "A", "A", 1, 1)
+		printer.text( "Verifique su cuenta por favor\n" )
+		printer.text( "COMPROBANTE NO VALIDO COMO FACTURA\n\n" )
+
 		if encabezado:
-			if "tipo_cbte" in encabezado:
-				printer.text( "%s\n"% self.tipoCbte[encabezado['tipo_cbte']] )
+			printer.set("CENTER", "A", "A", 1, 2)
+			if encabezado.has_key("nombre_cliente"):
+				printer.text( '\n%s\n\n'% encabezado.get("nombre_cliente") )
 
 			if "fecha" in encabezado:
+				printer.set("LEFT", "A", "A", 1, 1)
 				fff_aux = time.strptime( encabezado['fecha'], "%Y-%m-%d %H:%M:%S")
 				fecha = time.strftime('%H:%M %x', fff_aux)
 				printer.text( fecha +"\n")
 
-		printer.text("CANT   DESCRIPCION              PRECIO")
-		printer.text("--------------------------------------")
+		printer.set("LEFT", "A", "A", 1, 1)
+		
+
+		printer.text("CANT\tDESCRIPCION\t\tPRECIO\n")
+		printer.text("------------------------------------------\n")
 		tot_chars = 40
 		tot_importe = 0.0
 		for item in items:
-			desc = item['ds']
-			cant = item['qty']
-			precio = item['importe']
-			tot_importe += float(precio)
-			printer.text("%s  %s %s\n" % (desc, cant, precio))
-		printer.text("--------------------------------------")
+			desc = item.get('ds')[0:24]
+			cant = item.get('qty')
+			precio = item.get('importe')
+			tot_importe += cant * float(precio)
+			cant_tabs = 3
+			can_tabs_final = cant_tabs - ceil( len(desc)/8 )
+			strTabs = desc.ljust( int(len(desc) + can_tabs_final), '\t')
+
+			printer.text("%g\t%s$%g\n" % (cant, strTabs, precio))
+
+		printer.text("------------------------------------------\n")
 
 		if addAdditional:
-			printer.text("                      SUBTOTAL:  %s\n" % tot_importe)
+			#imprimir subtotal
+			printer.set("RIGHT", "A", "A", 1, 1)
+			printer.text("SUBTOTAL: $%g\n" % tot_importe)
+
+			# imprimir descuento
 			sAmount = float( addAdditional.get('amount',0) )
 			tot_importe = tot_importe - sAmount
-			printer.text("%s %s\n" % (addAdditional.get('description'), addAdditional.get('amount') ))
+			printer.set("RIGHT", "A", "A", 1, 1)
+			printer.text("%s $%g\n" % (addAdditional.get('description'), addAdditional.get('amount') ))
 
-		printer.text("                         TOTAL:  %s\n" % tot_importe)
+		# imprimir total
+		printer.set("RIGHT", "A", "A", 2, 2)
+		printer.text("\t\tTOTAL: $%g\n" % tot_importe)
 		printer.text("\n\n\n")
 
+		extra = kwargs.get("extra", None)
+		if extra and "mesa_id" in extra:
+			mesa_id = extra.get("mesa_id")
+			printer.barcode(str(mesa_id).rjust(8,"0"),'EAN13')
+
+
+		printer.set("CENTER", "A", "B", 1, 1)
 		#plato principal
 		if setTrailer:
 			self._setTrailer(setTrailer)
-
 
 		printer.cut("PART")
 
@@ -145,13 +140,11 @@ class EscPComandos(ComandoInterface):
 		print self.conector.driver		
 		printer = self.conector.driver
 
-		printer.set("LEFT", "A", "A", 1, 1)
-
 		for trailerLine in setTrailer:
 			if trailerLine:
 				printer.text( trailerLine )
-			else:
-				printer.text( " " )
+
+			printer.text( "\n" )
 		
 
 	def printComanda(self, comanda, setHeader=None, setTrailer=None):
