@@ -253,13 +253,13 @@ class Traductor:
 		"Cancelar comprobante en curso"
 		return self.printer.cancelDocument()
 
-	def _printRemito(self):
+	def _printRemito(self, **kwargs):
 		"Imprime un Remito, comando de accion valido solo para Comandos de Receipt"
-		return self.printer.printRemito()
+		return self.printer.printRemito( **kwargs )
 
-	def _printComanda(self, comanda, mesa, mozo):
+	def _printComanda(self, comanda, setHeader=None, setTrailer=None):
 		"Imprime una Comanda, comando de accion valido solo para Comandos de Receipt"
-		return self.printer.printComanda(comanda, mesa, mozo)
+		return self.printer.printComanda(comanda, setHeader, setTrailer)
 
 
 	def is_json(self, myjson):
@@ -278,12 +278,17 @@ class Traductor:
 
 		# dejar la impresora por defecto inicializada en una variable auxiliar
 		printerDefault = self.printer
-		
+
 		# seleccionar impresora
 		# esto se debe ejecutar antes que cualquier otro comando
 		if 'printerName' in jsonTicket:
 			print("cambiando de impresora a %s"%jsonTicket['printerName'])
 			self.printer = self._select_printer(jsonTicket['printerName'])
+
+
+
+		if 'setHeader' in jsonTicket:
+			rta["rta"] =  self._setHeader( jsonTicket["setHeader"] )
 
 		if 'printRemito' in jsonTicket:
 			rta["rta"] =  self._printRemito(**jsonTicket["printRemito"])
@@ -313,14 +318,20 @@ class Traductor:
 		if 'getAvaliablePrinters' in jsonTicket:
 			rta["rta"] =  self._getAvaliablePrinters()
 		
-		if 'setHeader' in jsonTicket:
-			rta["rta"] =  self._setHeader( jsonTicket["setHeader"] )
-
+		
 		if 'setTrailer' in jsonTicket:
 			rta["rta"] =  self._setTrailer( jsonTicket["setTrailer"] )
 
 		if 'printTicket' in jsonTicket:
+			
+			if "setHeader" in jsonTicket['printTicket']:
+				self.printer.setHeader( jsonTicket['printTicket']["setHeader"] )
+
+			if "setTrailer" in jsonTicket['printTicket']:
+				self.printer.setHeader( jsonTicket['printTicket']["setTrailer"] )
+
 			ok = self._abrirComprobante(**jsonTicket['printTicket']["encabezado"])
+
 
 			if "items" in jsonTicket['printTicket']:
 				for item in jsonTicket['printTicket']["items"]:
@@ -332,6 +343,10 @@ class Traductor:
 				for pago in jsonTicket['printTicket']["pagos"]:
 					print pago
 					ok = self._imprimirPago(**pago)
+
+			if "addAdditional" in jsonTicket['printTicket']:
+				self.printer.addAdditional(**jsonTicket['printTicket']['addAdditional'])
+
 			rta["rta"] =  self._cerrarComprobante()
 
 		# vuelvo a poner la impresora que estaba por default inicializada

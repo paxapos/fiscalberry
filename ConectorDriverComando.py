@@ -34,8 +34,9 @@ class ConectorDriverComando:
 				self.driver = FileDriver(args[0])
 
 			elif (driverName == 'ReceipDirectJet'):
-				from Drivers.ReceiptDirectJetDriver import ReceiptDirectJetDriver
-				self.driver = ReceiptDirectJetDriver(args[0])
+				from escpos import printer
+				print args
+				self.driver = printer.Network(*args)
 
 			else:
 				raise ConectorError("No existe el driver", driverName)

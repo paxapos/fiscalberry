@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+
 #from hasarPrinter import HasarPrinter
 # Drivers:
 
@@ -13,6 +14,7 @@ from Comandos.HasarComandos import HasarComandos
 
 from Traductor import Traductor
 from escpos import printer
+
 
 
 
@@ -32,51 +34,63 @@ if __name__ == '__main__':
 	#hd = HasarComandos("/tmp/archivin.txt", driverName="File")
 
 
-	traductor = Traductor("IMPRESORA_FISCAL")
+	traductor = Traductor("BEMATECH_BARRA")
 
-	'''
-	jsonTicket = {
-		"openDrawer": 1
-	}
-	'''
 
 	
-	jsonTicketFacutaAConConsumidor = {		
-		"printTicket": {
-			"encabezado": {
-		        "tipo_cbte": "FA",
-		        "nro_doc": "20267565393",
-		        "domicilio_cliente": "Rua 76 km 34.5 Alagoas",
-		        "tipo_doc": "DNI",
-		        "nombre_cliente": "Joao Da Silva",
-		        "tipo_responsable": "RESPONSABLE_INSCRIPTO"
-		    },
-		    "items": [
-		        {
-		            "alic_iva": 21.0,
-		            "importe": 0.01,
-		            "ds": "PIPI",
-		            "qty": 1.0
-		        },
-		        {
-		            "alic_iva": 21.0,
-		            "importe": 0.22,
-		            "ds": "COCA",
-		            "qty": 2.0
-		        }
-		    ],
-		    "pagos": [
-		        {
-		            "ds": "efectivo",
-		            "importe": 1.0
-		        }
-		    ]
-			}
+	jsonBarra = {
+		"printerName": "BEMATECH_BARRA",
+		"getStatus": ""
+	}
+	# print traductor.json_to_comando(jsonBarra)
+
+
+	
+
+	jsonBarra = {
+		"printerName": "BEMATECH_BARRA",
+		"printComanda": {
+			"comanda": {
+				"id": 12121,
+				"created": "2015-12-12 22:15:20",		
+				"observacion": "ALE PROBANDO!",
+				"entradas": [
+					{
+						"cant": 2,
+						"nombre": "raba"
+					}
+				],
+				"platos": [
+					{
+						"cant": 1,
+						"nombre": "arroz con pollo",
+						"observacion": "sin sal"
+					},
+					{
+						"cant": 2,
+						"nombre": "Ensalada",
+						"observacion": "con aceite de oliva",
+						"sabores":["tomate", "zanahoria", "remolacha", "chaucha", "cebolla", "rodriguez"]
+					}
+				]
+			},
+			"setTrailer": [
+					"",
+					"MOZO: xxxxx",
+					"MESA: 11111",
+					""
+				]
 		}
+	}
+
+
+	#traductor.json_to_comando(jsonBarra)
+
 
 
 	jsonTicketSinConsumidor = {
-			"printTicket": {
+			"printerName": "BEMATECH_BARRA",
+			"printRemito": {
 				"encabezado": {
 					"tipo_cbte": "T"
 				},
@@ -108,28 +122,6 @@ if __name__ == '__main__':
 					""
 				]
 			}
-		}
-
-
-	print "\n"
-	print traductor.json_to_comando(jsonTicketSinConsumidor)
-
-
-	jsonDailyClose = {
-		"dailyClose": "Z"
 	}
-	print "\n"
-	#print traductor.json_to_comando(jsonDailyClose)
 
-
-	#traductor.json_to_comando(jsonDailyClose)
-	#hd.openDrawer()
-
-	#hd.dailyClose("X")
-
-
-
-	print( "y este cuento se ha terminado" )
-	
-	
-
+	traductor.json_to_comando(jsonTicketSinConsumidor)
