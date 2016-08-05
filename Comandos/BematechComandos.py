@@ -15,6 +15,10 @@ class PrinterException(Exception):
 
 class BematechComandos(ComandoInterface):
 
+	# el traductor puede ser: TraductorFiscal o TraductorReceipt
+    # path al modulo de traductor que este comando necesita
+    traductorModule="Traductores.TraductorReceipt"
+
 	INICIAR           = 0x40 #@
 	RETORNO_DE_CARRO  = 0x0D
 	CORTAR_PAPEL      = 0x69 #i
@@ -44,10 +48,12 @@ class BematechComandos(ComandoInterface):
 
 
 
-	def __init__(self, deviceFile=None, driverName="ReceipDirectJet"):
-		"deviceFile indica la IP o puerto donde se encuentra la impresora"
-		
-		self.conector = ConectorDriverComando(self, driverName, deviceFile)
+	def __init__(self, path=None, driver="ReceipDirectJet", *args):
+		"path indica la IP o puerto donde se encuentra la impresora"
+
+        ComandoInterface.__init__(args)
+
+		self.conector = ConectorDriverComando(self, driver, path)
 
 	def init_defaults(self):
 		self._sendCommand(self.INICIAR)

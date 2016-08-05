@@ -11,7 +11,7 @@ from Drivers.DummyDriver import DummyDriver
 from Comandos.EpsonComandos import EpsonComandos
 from Comandos.HasarComandos import HasarComandos
 
-from Traductor import Traductor
+from Traductores.TraductoresHandler import TraductoresHandler
 from escpos import printer
 
 
@@ -32,7 +32,7 @@ if __name__ == '__main__':
 	#hd = HasarComandos("/tmp/archivin.txt", driverName="File")
 
 
-	traductor = Traductor("IMPRESORA_FISCAL")
+	traductor = TraductoresHandler()
 
 	'''
 	jsonTicket = {
@@ -41,7 +41,8 @@ if __name__ == '__main__':
 	'''
 
 	
-	jsonTicketFacutaAConConsumidor = {		
+	jsonTicketFacutaAConConsumidor = {
+		"printerName": "IMPRESORA_FISCAL",
 		"printTicket": {
 			"encabezado": {
 		        "tipo_cbte": "FA",
@@ -76,6 +77,7 @@ if __name__ == '__main__':
 
 
 	jsonTicketSinConsumidor = {
+			"printerName": "IMPRESORA_FISCAL",
 			"printTicket": {
 				"encabezado": {
 					"tipo_cbte": "T"
@@ -116,6 +118,7 @@ if __name__ == '__main__':
 
 
 	jsonDailyClose = {
+		"printerName": "IMPRESORA_FISCAL",
 		"dailyClose": "Z"
 	}
 	print "\n"

@@ -14,7 +14,11 @@ class PrinterException(Exception):
     pass
 
 class EscPComandos(ComandoInterface):
+	# el traductor puede ser: TraductorFiscal o TraductorReceipt
+    # path al modulo de traductor que este comando necesita
+    traductorModule="Traductores.TraductorReceipt"
 
+	__preFillTrailer = None
 
 	tipoCbte = {
 	        "T": "Consumidor Final",
@@ -27,15 +31,14 @@ class EscPComandos(ComandoInterface):
 	        "FC": "C", 
 	        "NDC": "NCC",
 	        "NDC": "NDC"
-
 	}
 
 	
 	
 
-	def __init__(self, deviceFile=None, driverName="ReceipDirectJet"):
-		"deviceFile indica la IP o puerto donde se encuentra la impresora"
-		self.conector = ConectorDriverComando(self, driverName, deviceFile)
+	def __init__(self, path=None, driver="ReceipDirectJet"):
+		"path indica la IP o puerto donde se encuentra la impresora"
+		self.conector = ConectorDriverComando(self, driver, path)
 
 	
 	def _sendCommand(self, comando, skipStatusErrors=False):
@@ -127,6 +130,9 @@ class EscPComandos(ComandoInterface):
 
 		printer.set("CENTER", "A", "B", 1, 1)
 		#plato principal
+		if self.__preFillTrailer:
+			self._setTrailer(self.__preFillTrailer)
+
 		if setTrailer:
 			self._setTrailer(setTrailer)
 
@@ -135,6 +141,8 @@ class EscPComandos(ComandoInterface):
 		# volver a poner en modo ESC Bematech, temporal para testing
 		printer._raw(chr(0x1D)+chr(0xF9)+chr(0x35)+"0")
 
+	def setTrailer(self, setTrailer):
+		self.__preFillTrailer = setTrailer
 
 	def _setTrailer(self, setTrailer):
 		print self.conector.driver		
@@ -161,13 +169,15 @@ class EscPComandos(ComandoInterface):
 				printer.text( headerLine )	
 
 		printer.set("CENTER", "A", "A", 1, 1)
-		printer.text("Comanda #%s\n" % comanda['id'])
+		if "id" in comanda:
+			printer.text("Comanda #%s\n" % comanda['id'])
 
-		fff_aux = time.strptime( comanda['created'], "%Y-%m-%d %H:%M:%S")
-		fecha = time.strftime('%H:%M %x', fff_aux)
+		if "created" in comanda:
+			fff_aux = time.strptime( comanda['created'], "%Y-%m-%d %H:%M:%S")
+			fecha = time.strftime('%H:%M %x', fff_aux)
 
-		#fecha = datetime.strftime(comanda['created'], '%Y-%m-%d %H:%M:%S')
-		printer.text( fecha +"\n")
+			#fecha = datetime.strftime(comanda['created'], '%Y-%m-%d %H:%M:%S')
+			printer.text( fecha +"\n")
 
 
 		def print_plato(plato):

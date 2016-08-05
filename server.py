@@ -16,7 +16,7 @@ from threading import Timer
 import ConfigParser
 
 
-from Traductor import Traductor, CONFIG_FILE_NAME
+from Traductores.Traductor import Traductor, CONFIG_FILE_NAME
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 INTERVALO_IMPRESORA_WARNING = 10.0

@@ -14,6 +14,14 @@ NUMBER = 999990
 
 
 class HasarComandos(ComandoInterface):
+    # el traductor puede ser: TraductorFiscal o TraductorReceipt
+    # path al modulo de traductor que este comando necesita
+    traductorModule="Traductores.TraductorFiscal"
+
+    
+    _savedPayments= None
+    _currentDocument = None
+    _currentDocumentType = None
 
     CMD_OPEN_FISCAL_RECEIPT = 0x40
 
@@ -129,9 +137,9 @@ class HasarComandos(ComandoInterface):
 
 
 
-    def __init__(self, deviceFile=None, speed=9600, model="615", driverName="Hasar"):
-        self.conector = ConectorDriverComando(self, driverName, deviceFile, speed)
-        self.model = model
+    def __init__(self, path=None, speed=9600, modelo="615", driver="Hasar"):
+        self.conector = ConectorDriverComando(self, driver, path, speed)
+        self.model = modelo
 
     def _sendCommand(self, commandNumber, parameters=(), skipStatusErrors=False):
         try:
@@ -284,6 +292,7 @@ class HasarComandos(ComandoInterface):
         return self._sendCommand(self.CMD_OPEN_DNFH, ["x", "T", number[:20]])
 
     def closeDocument(self):
+        print self._currentDocument
         if self._currentDocument in (self.CURRENT_DOC_TICKET, self.CURRENT_DOC_BILL_TICKET):
             for desc, payment in self._savedPayments:
                 self._sendCommand(self.CMD_ADD_PAYMENT, [self._formatText(desc, "paymentDescription"),

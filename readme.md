@@ -81,8 +81,13 @@ pip install python-escpos
 
 #### Raspberry
 
-para usar impresora de comandas en raspbian será necesario seguir una serie de pasos adicionales:
+para usar impresora de comandas ESCP en raspbian
+```sh
+sudo apt-get install libjpeg-dev
+```
+Además será necesario seguir una serie de pasos adicionales detallados en esta libreria utilizada por fiscalberry:
 https://python-escpos.readthedocs.io/en/latest/user/raspi.html
+
 
 ### Iniciar el servicio
 

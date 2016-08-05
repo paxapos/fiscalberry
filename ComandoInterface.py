@@ -24,7 +24,15 @@ def formatText(text):
 class ComandoInterface:
     """Interfaz que deben cumplir las impresoras fiscales."""
 
+    # el traductor puede ser: TraductorFiscal o TraductorReceipt
+    # path al modulo de traductor que este comando necesita
+    traductor="Traductores.TraductorFiscal"
 
+
+    def __init__(self, *args):
+        traductorModule = importlib.import_module(self.traductorModule)
+        traductorClass = getattr(traductorModule, traductor[12:])
+        self.traductor = traductorClass(self, args)
 
     def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
         print "_sendCommand", commandNumber, parameters

@@ -1,6 +1,6 @@
 # -*- coding: iso-8859-1 -*-
 from serial import SerialException
-
+import importlib
 
 class ConectorError(Exception):
     pass
@@ -8,40 +8,15 @@ class ConectorError(Exception):
 
 class ConectorDriverComando:
 	
-	def __init__(self, comando, driverName, *args):
+	def __init__(self, comando, driverName, *args, **kwargs):
 		self._comando = comando
-		try:
+		print("inicializando conectir driver")
 
-			if ( driverName == 'Hasar'):
-				from Drivers.HasarDriver import HasarDriver
-				self.driver = HasarDriver(*args)
-
-			elif (driverName == 'Epson'):
-				from Drivers.EpsonDriver import EpsonDriver
-				self.driver = EpsonDriver(*args)
-
-			elif (driverName == 'Dummy'):
-				from Drivers.DummyDriver import DummyDriver
-				self.driver = DummyDriver()
-
-			elif (driverName == 'Txt'):
-				from Drivers.TxtDriver import TxtDriver
-				self.driver = TxtDriver(args[0])
-
-			elif (driverName == 'File'):
-				print args
-				from Drivers.FileDriver import FileDriver
-				self.driver = FileDriver(args[0])
-
-			elif (driverName == 'ReceipDirectJet'):
-				from escpos import printer
-				print args
-				self.driver = printer.Network(*args)
-
-			else:
-				raise ConectorError("No existe el driver", driverName)
-		except Exception, e:
-		    raise ConectorError("Imposible establecer comunicación.", e)
+		# instanciar el driver dinamicamente segun el driverName pasado como parametro
+		libraryName = "Drivers."+driverName+"Driver"
+		driverModule = importlib.import_module(libraryName)
+		driverClass = getattr(driverModule, driverName+"Driver")
+		self.driver = driverClass(*args)
 
 
    	

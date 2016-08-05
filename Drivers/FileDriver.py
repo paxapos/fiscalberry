@@ -1,12 +1,14 @@
 # -*- coding: iso-8859-1 -*-
 
 from DriverInterface import DriverInterface
+import logging
 
 class FileDriver(DriverInterface):
 
     def __init__(self, filename):
         self.filename = filename
-        self.file = open(filename, "a")
+        bufsize = 1 # line buffer
+        self.file = open(filename, "a", bufsize)
 
     def sendCommand(self, command, parameters, skipStatusErrors=False):
         import random

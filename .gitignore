@@ -5,6 +5,7 @@ __pycache__/
 
 #configuration file for fiscalberry
 config.ini
+env/*
 
 # C extensions
 *.so

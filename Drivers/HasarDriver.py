@@ -4,6 +4,7 @@ from Drivers.FiscalPrinterDriver import FiscalPrinterDriver, ComunicationError
 import random
 import time
 
+__name__="HasarDriver"
 
 class HasarDriver( FiscalPrinterDriver ):
     ACK = chr(0x06)

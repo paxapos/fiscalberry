@@ -16,20 +16,20 @@ from Traductor import Traductor
 from escpos import printer
 
 
-printer = printer.Network("192.168.1.124")
+barra = printer.File("/tmp/asas.txt")
+texto = u"ñandú imprimiendo caracteres raros\nÑasasas\n"
 
 # colocar en modo ESC P
-printer._raw(chr(0x1D)+chr(0xF9)+chr(0x35)+"1")
+barra._raw(chr(0x1D)+chr(0xF9)+chr(0x35)+"1")
+
+#1D F9 37 n CP850
+#barra._raw(chr(0x1D) + chr(0xF9) + chr(0x37) + "2")
+barra.charcode("WEST_EUROPE")
+barra._raw(chr(0x1D) + chr(0xF9) + chr(0x37) + "2")
+barra.text(texto)
 
 
-printer.text("P\ta\tb\tc\td\te\tf\tg\th\ti\ta\tb\tc")
+barra.cut()
 
+barra._raw(chr(0x1D)+chr(0xF9)+chr(0x35)+"0")
 
-desc = desc[0:23]
-cant_tabs = 3
-can_tabs_final = int( ceil( len(desc)/8 * 100) / 100 )
-strTabs = desc.ljust(cant_tabs-can_tabs_final, '\t')
-
-#printer.cut()
-
-printer._raw(chr(0x1D)+chr(0xF9)+chr(0x35)+"0")

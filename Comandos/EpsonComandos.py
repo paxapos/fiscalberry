@@ -12,6 +12,11 @@ class FiscalPrinterError(Exception):
 
 
 class EpsonComandos(ComandoInterface):
+
+    # el traductor puede ser: TraductorFiscal o TraductorReceipt
+    # path al modulo de traductor que este comando necesita
+    traductorModule="Traductores.TraductorFiscal"
+    
     DEBUG = True
 
     CMD_OPEN_FISCAL_RECEIPT = 0x40
@@ -55,13 +60,13 @@ class EpsonComandos(ComandoInterface):
         "NO_CATEGORIZADO": 'F',
     }
 
-    def __init__(self, deviceFile=None, speed=9600, model="615", driverName="Epson"):
-        self.conector = ConectorDriverComando(self, driverName, deviceFile, speed)
+    def __init__(self, path=None, speed=9600, modelo="615", driver="Epson"):
+        self.conector = ConectorDriverComando(self, driver, path, speed)
 
-        if not model:
+        if not modelo:
             self.model = "tickeadoras"
         else:
-            self.model = model
+            self.model = modelo
         self._currentDocument = None
         self._currentDocumentType = None
 
