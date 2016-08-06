@@ -8,15 +8,15 @@ class ConectorError(Exception):
 
 class ConectorDriverComando:
 	
-	def __init__(self, comando, driverName, *args, **kwargs):
+	def __init__(self, comando, driver, *args, **kwargs):
 		self._comando = comando
-		print("inicializando conectir driver")
+		print("inicializando conectir driver de %s"%driver)
 
-		# instanciar el driver dinamicamente segun el driverName pasado como parametro
-		libraryName = "Drivers."+driverName+"Driver"
+		# instanciar el driver dinamicamente segun el driver pasado como parametro
+		libraryName = "Drivers."+driver+"Driver"
 		driverModule = importlib.import_module(libraryName)
-		driverClass = getattr(driverModule, driverName+"Driver")
-		self.driver = driverClass(*args)
+		driverClass = getattr(driverModule, driver+"Driver")
+		self.driver = driverClass(**kwargs)
 
 
    	

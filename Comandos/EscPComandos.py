@@ -11,35 +11,31 @@ from math import ceil
 
 
 class PrinterException(Exception):
-    pass
+	pass
 
 class EscPComandos(ComandoInterface):
 	# el traductor puede ser: TraductorFiscal o TraductorReceipt
-    # path al modulo de traductor que este comando necesita
-    traductorModule="Traductores.TraductorReceipt"
+	# path al modulo de traductor que este comando necesita
+	traductorModule="Traductores.TraductorReceipt"
+
+	DEFAULT_DRIVER="ReceipDirectJet"
 
 	__preFillTrailer = None
 
 	tipoCbte = {
-	        "T": "Consumidor Final",
-	        "FA":  "A", 
-	        "FB": "Consumidor Final", 
-	        "NDA": "NDA", 
-	        "NCA": "NCA", 
-	        "NDB": "NDB", 
-	        "NCB": "NCB", 
-	        "FC": "C", 
-	        "NDC": "NCC",
-	        "NDC": "NDC"
+			"T": "Consumidor Final",
+			"FA":  "A", 
+			"FB": "Consumidor Final", 
+			"NDA": "NDA", 
+			"NCA": "NCA", 
+			"NDB": "NDB", 
+			"NCB": "NCB", 
+			"FC": "C", 
+			"NDC": "NCC",
+			"NDC": "NDC"
 	}
 
 	
-	
-
-	def __init__(self, path=None, driver="ReceipDirectJet"):
-		"path indica la IP o puerto donde se encuentra la impresora"
-		self.conector = ConectorDriverComando(self, driver, path)
-
 	
 	def _sendCommand(self, comando, skipStatusErrors=False):
 		try:

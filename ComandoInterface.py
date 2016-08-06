@@ -1,7 +1,7 @@
 # -*- coding: iso-8859-1 -*-
 import ConectorDriverComando
 import unicodedata
-
+import importlib
 
 class ValidationError(Exception):
     pass
@@ -23,16 +23,24 @@ def formatText(text):
 
 class ComandoInterface:
     """Interfaz que deben cumplir las impresoras fiscales."""
+    
+    DEFAULT_DRIVER=None
 
-    # el traductor puede ser: TraductorFiscal o TraductorReceipt
-    # path al modulo de traductor que este comando necesita
-    traductor="Traductores.TraductorFiscal"
+    def __init__(self, *args, **kwargs):
+        print (kwargs)
+        self.model = kwargs.pop("modelo", None)
+        driver = kwargs.pop("driver", self.DEFAULT_DRIVER)
+        print ConectorDriverComando
+        if driver:
+            self.conector = ConectorDriverComando.ConectorDriverComando(self, driver, **kwargs)
 
-
-    def __init__(self, *args):
+        print "COSOROTO %s\n" %self.traductorModule
         traductorModule = importlib.import_module(self.traductorModule)
-        traductorClass = getattr(traductorModule, traductor[12:])
-        self.traductor = traductorClass(self, args)
+        print traductorModule
+        traductorClass = getattr(traductorModule, self.traductorModule[12:])
+        self.traductor = traductorClass(self, *args)
+
+       
 
     def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
         print "_sendCommand", commandNumber, parameters

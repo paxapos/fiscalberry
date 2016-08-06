@@ -1,6 +1,7 @@
+# -*- coding: utf-8 -*-
+from Traductores.TraductorInterface import TraductorInterface
 
-
-class TraductorFiscal:
+class TraductorFiscal(TraductorInterface):
 
 	
 	def _abrirComprobante(self, 
@@ -113,6 +114,7 @@ class TraductorFiscal:
 
 
 	def _run_comando(self, jsonTicket):
+		rta={}
 		if 'setHeader' in jsonTicket:
 			rta["rta"] =  self._setHeader( jsonTicket["setHeader"] )
 

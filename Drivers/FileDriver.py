@@ -5,10 +5,9 @@ import logging
 
 class FileDriver(DriverInterface):
 
-    def __init__(self, filename):
-        self.filename = filename
+    def __init__(self, path):
         bufsize = 1 # line buffer
-        self.file = open(filename, "a", bufsize)
+        self.file = open(path, "a", bufsize)
 
     def sendCommand(self, command, parameters, skipStatusErrors=False):
         import random

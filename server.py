@@ -16,11 +16,17 @@ from threading import Timer
 import ConfigParser
 
 
-from Traductores.Traductor import Traductor, CONFIG_FILE_NAME
+from Traductores.TraductorHandler import TraductorHandler, CONFIG_FILE_NAME
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 INTERVALO_IMPRESORA_WARNING = 10.0
 
+# thread timer para hacer broadcast cuando hay mensaje de la impresora
+timerPrinterWarnings = None
+
+# leer los parametros de configuracion de la impresora fiscal 
+# en config.ini 
+traductor = TraductorHandler()
 
 
 class WebSocketException(Exception):
@@ -34,11 +40,10 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 		print 'new connection'
 	
 	def on_message(self, message):
+		global traductor
 		jsonMes = json.loads(message.decode('utf-8'), strict=False)
 		response = traductor.json_to_comando( jsonMes )
-		#print response
-		if response:
-			self.write_message( response )
+		
  
 	def on_close(self):
 		clients.remove(self)
@@ -47,12 +52,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 	def check_origin(self, origin):
 		return True
 
-# thread timer para hacer broadcast cuando hay mensaje de la impresora
-timerPrinterWarnings = None
 
-# leer los parametros de configuracion de la impresora fiscal 
-# en config.ini 
-traductor = Traductor('IMPRESORA_FISCAL')
 
  
 application = tornado.web.Application([

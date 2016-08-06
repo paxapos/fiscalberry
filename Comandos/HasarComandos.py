@@ -18,6 +18,8 @@ class HasarComandos(ComandoInterface):
     # path al modulo de traductor que este comando necesita
     traductorModule="Traductores.TraductorFiscal"
 
+
+    DEFAULT_DRIVER="Hasar"
     
     _savedPayments= None
     _currentDocument = None
@@ -137,9 +139,7 @@ class HasarComandos(ComandoInterface):
 
 
 
-    def __init__(self, path=None, speed=9600, modelo="615", driver="Hasar"):
-        self.conector = ConectorDriverComando(self, driver, path, speed)
-        self.model = modelo
+    
 
     def _sendCommand(self, commandNumber, parameters=(), skipStatusErrors=False):
         try:

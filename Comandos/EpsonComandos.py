@@ -17,6 +17,10 @@ class EpsonComandos(ComandoInterface):
     # path al modulo de traductor que este comando necesita
     traductorModule="Traductores.TraductorFiscal"
     
+
+    DEFAULT_DRIVER="Epson"
+
+
     DEBUG = True
 
     CMD_OPEN_FISCAL_RECEIPT = 0x40

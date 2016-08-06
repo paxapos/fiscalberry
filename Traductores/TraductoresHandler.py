@@ -168,19 +168,20 @@ class TraductoresHandler:
 
 
 	def json_to_comando( self, jsonTicket ):
-		# leer y procesar una factura en formato JSON
+		""" leer y procesar una factura en formato JSON
+		"""
 		logging.info("Iniciando procesamiento de json...")
+
 		print jsonTicket
 
+		
 		rta = {"rta":""}
-
-		# dejar la impresora por defecto inicializada en una variable auxiliar
-		printerDefault = self.printer
 
 		# seleccionar impresora
 		# esto se debe ejecutar antes que cualquier otro comando
 		if 'printerName' in jsonTicket:
-			traductor = self.traductores.get( jsonTicket['printerName'] )
+			printerName = jsonTicket.pop('printerName')
+			traductor = self.traductores.get( printerName )
 			traductor.encolar( jsonTicket )
 		else:
 			# aciones de comando genericos de Ststus y control
@@ -193,8 +194,3 @@ class TraductoresHandler:
 			if 'configure' in jsonTicket:
 				rta["rta"] =  self._configure(**jsonTicket["configure"])
 
-			
-
-		self.encolar( self.currentPrinterName, jsonTicket )
-
-		
