@@ -190,6 +190,7 @@ class HasarComandos(ComandoInterface):
 
     def setHeader(self, header=None):
         "Establecer encabezados"
+        print header
         if not header:
             header = []
         line = 3

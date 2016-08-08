@@ -182,7 +182,7 @@ class TraductoresHandler:
 		if 'printerName' in jsonTicket:
 			printerName = jsonTicket.pop('printerName')
 			traductor = self.traductores.get( printerName )
-			traductor.encolar( jsonTicket )
+			rta["rta"] = traductor.run( jsonTicket )
 		else:
 			# aciones de comando genericos de Ststus y control
 			if 'getStatus' in jsonTicket:
@@ -193,4 +193,6 @@ class TraductoresHandler:
 
 			if 'configure' in jsonTicket:
 				rta["rta"] =  self._configure(**jsonTicket["configure"])
+
+		return rta
 

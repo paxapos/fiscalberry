@@ -111,7 +111,7 @@ class EscPComandos(ComandoInterface):
 			sAmount = float( addAdditional.get('amount',0) )
 			tot_importe = tot_importe - sAmount
 			printer.set("RIGHT", "A", "A", 1, 1)
-			printer.text("%s $%g\n" % (addAdditional.get('description'), addAdditional.get('amount') ))
+			printer.text("%s $%g\n" % (addAdditional.get('description'), sAmount ))
 
 		# imprimir total
 		printer.set("RIGHT", "A", "A", 2, 2)

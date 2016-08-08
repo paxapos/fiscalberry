@@ -12,7 +12,7 @@ from Drivers.DummyDriver import DummyDriver
 from Comandos.EpsonComandos import EpsonComandos
 from Comandos.HasarComandos import HasarComandos
 
-from Traductor import Traductor
+from Traductores.TraductoresHandler import TraductoresHandler
 from escpos import printer
 
 
@@ -34,7 +34,7 @@ if __name__ == '__main__':
 	#hd = HasarComandos("/tmp/archivin.txt", driverName="File")
 
 
-	traductor = Traductor("BEMATECH_BARRA")
+	traductor = TraductoresHandler()
 
 
 	

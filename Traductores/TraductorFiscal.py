@@ -3,6 +3,69 @@ from Traductores.TraductorInterface import TraductorInterface
 
 class TraductorFiscal(TraductorInterface):
 
+
+
+	def dailyClose(self, type):
+		"Comando X o Z"
+		ret = self.comando.dailyClose(type)
+		return ret
+
+
+
+	def setHeader(self, *args):
+		"SetHeader"
+		ret = self.comando.setHeader(list(args))
+		return ret
+
+	def setTrailer(self, *args):
+		"SetTrailer"
+		ret = self.comando.setTrailer(list(args))
+		return ret
+
+
+	def openDrawer(self, *args):
+		"Abrir caja registradora"
+		return self.comando.openDrawer()
+
+
+	def getLastNumber(self, tipo_cbte):
+		"Devuelve el último número de comprobante"
+		
+		letra_cbte = tipo_cbte[-1] if len(tipo_cbte) > 1 else None
+		return self.comando.getLastNumber(letra_cbte)
+
+	def cancelDocument(self):
+		"Cancelar comprobante en curso"
+		return self.comando.cancelDocument()
+
+
+	def printTicket(self, encabezado=None, items=[], pagos=[], addAdditional=None, setHeader=None, setTrailer=None):
+		if setHeader:
+			self.setHeader( *setHeader )
+
+		if setTrailer:
+			self.setTrailer( *setTrailer )
+
+		if encabezado:
+			self._abrirComprobante(**encabezado)
+		else:
+			self._abrirComprobante()
+
+		for item in items:
+			self._imprimirItem(**item)
+
+		for pago in pagos:
+			self._imprimirPago(**pago)
+
+		if addAdditional:
+			self.comando.addAdditional(**addAdditional)
+
+		return self._cerrarComprobante()
+
+
+
+
+
 	
 	def _abrirComprobante(self, 
 						 tipo_cbte="T", 							# tique
@@ -73,102 +136,3 @@ class TraductorFiscal(TraductorInterface):
 	def _cerrarComprobante(self):
 		"Envia el comando para cerrar un comprobante Fiscal"
 		return self.comando.closeDocument()
-
-
-	def _dailyClose(self, type):
-		"Comando X o Z"
-		ret = self.comando.dailyClose(type)
-		return ret
-
-
-
-	def _setHeader(self, header):
-		"SetHeader"
-		ret = self.comando.setHeader(header)
-		return ret
-
-	def _setTrailer(self, trailer):
-		"SetTrailer"
-		ret = self.comando.setTrailer(trailer)
-		return ret
-
-
-	def _openDrawer(self):
-		"Abrir caja registradora"
-		return self.comando.openDrawer()
-
-
-	def _getLastNumber(self, tipo_cbte):
-		"Devuelve el último número de comprobante"
-		
-		letra_cbte = tipo_cbte[-1] if len(tipo_cbte) > 1 else None
-		return self.comando.getLastNumber(letra_cbte)
-
-	def _cancelDocument(self):
-		"Cancelar comprobante en curso"
-		return self.comando.cancelDocument()
-
-
-
-
-
-
-	def _run_comando(self, jsonTicket):
-		rta={}
-		if 'setHeader' in jsonTicket:
-			rta["rta"] =  self._setHeader( jsonTicket["setHeader"] )
-
-		if 'printRemito' in jsonTicket:
-			rta["rta"] =  self._printRemito(**jsonTicket["printRemito"])
-
-		if 'printComanda' in jsonTicket:
-			rta["rta"] =  self._printComanda(**jsonTicket["printComanda"])
-
-		if 'cancelDocument' in jsonTicket:
-			rta["rta"] =  self._cancelDocument()
-
-		if 'dailyClose' in jsonTicket:
-			rta["rta"] =  self._dailyClose(jsonTicket["dailyClose"])
-
-		if 'openDrawer' in jsonTicket:
-			rta["rta"] =  self._openDrawer()
-
-
-		
-		if 'getLastNumber' in jsonTicket:
-			rta["rta"] =  self._getLastNumber(jsonTicket["getLastNumber"])			
-
-		
-		
-		if 'setTrailer' in jsonTicket:
-			rta["rta"] =  self._setTrailer( jsonTicket["setTrailer"] )
-
-		if 'printTicket' in jsonTicket:
-			'''	
-			if "setHeader" in jsonTicket['printTicket']:
-				self.comando.setHeader( jsonTicket['printTicket']["setHeader"] )
-
-			if "setTrailer" in jsonTicket['printTicket']:
-				self.comando.setHeader( jsonTicket['printTicket']["setTrailer"] )
-			'''
-			
-			ok = self._abrirComprobante(**jsonTicket['printTicket']["encabezado"])
-
-
-			if "items" in jsonTicket['printTicket']:
-				for item in jsonTicket['printTicket']["items"]:
-					ok = self._imprimirItem(**item)
-			else:
-				raise TraductorException("Debe incluir 'items' en el JSON")
-
-			if "pagos" in jsonTicket['printTicket']:
-				for pago in jsonTicket['printTicket']["pagos"]:
-					print pago
-					ok = self._imprimirPago(**pago)
-
-			if "addAdditional" in jsonTicket['printTicket']:
-				self.comando.addAdditional(**jsonTicket['printTicket']['addAdditional'])
-
-			rta["rta"] =  self._cerrarComprobante()
-
-		return rta
