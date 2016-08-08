@@ -5,7 +5,9 @@ __pycache__/
 
 #configuration file for fiscalberry
 config.ini
-test_scripts
+bemafix.py
+fiscaltest.py
+comanderatest.py
 test_scripts/*
 env/*
 
