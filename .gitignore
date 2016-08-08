@@ -5,6 +5,8 @@ __pycache__/
 
 #configuration file for fiscalberry
 config.ini
+test_scripts
+test_scripts/*
 env/*
 
 # C extensions

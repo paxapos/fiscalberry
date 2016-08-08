@@ -182,7 +182,10 @@ class TraductoresHandler:
 		if 'printerName' in jsonTicket:
 			printerName = jsonTicket.pop('printerName')
 			traductor = self.traductores.get( printerName )
-			rta["rta"] = traductor.run( jsonTicket )
+			if traductor:
+				rta["rta"] = traductor.run( jsonTicket )
+			else:
+				raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'"%printerName)
 		else:
 			# aciones de comando genericos de Ststus y control
 			if 'getStatus' in jsonTicket:
