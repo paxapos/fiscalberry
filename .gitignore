@@ -7,6 +7,7 @@ __pycache__/
 config.ini
 bemafix.py
 fiscaltest.py
+tornado.*
 comanderatest.py
 test_scripts/*
 env/*

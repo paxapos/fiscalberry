@@ -60,7 +60,8 @@ class TraductorFiscal(TraductorInterface):
 		if addAdditional:
 			self.comando.addAdditional(**addAdditional)
 
-		return self._cerrarComprobante()
+		rta = self._cerrarComprobante()
+		return rta
 
 
 

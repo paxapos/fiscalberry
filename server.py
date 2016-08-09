@@ -16,7 +16,7 @@ from threading import Timer
 import ConfigParser
 
 
-from Traductores.TraductorHandler import TraductorHandler, CONFIG_FILE_NAME
+from Traductores.TraductoresHandler import TraductoresHandler, CONFIG_FILE_NAME, TraductorException
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 INTERVALO_IMPRESORA_WARNING = 10.0
@@ -26,7 +26,7 @@ timerPrinterWarnings = None
 
 # leer los parametros de configuracion de la impresora fiscal 
 # en config.ini 
-traductor = TraductorHandler()
+traductor = TraductoresHandler()
 
 
 class WebSocketException(Exception):
@@ -41,9 +41,19 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 	
 	def on_message(self, message):
 		global traductor
-		jsonMes = json.loads(message.decode('utf-8'), strict=False)
-		response = traductor.json_to_comando( jsonMes )
-		
+		try:
+			jsonMes = json.loads(message.decode('utf-8'), strict=False)
+			response = traductor.json_to_comando( jsonMes )
+		except TypeError:
+			print "error parseando el JSON "
+			print jsonMes
+			response = {"err": "Error parseando el JSON"}
+		except TraductorException, e:
+			response = {"err": "Traductor Comandos: %s"%str(e)}
+		except Exception, e:
+			response = {"err": str(e)}
+		print response
+		self.write_message( response )
  
 	def on_close(self):
 		clients.remove(self)
@@ -65,7 +75,7 @@ clients = []
 
 def broadcast_clientes(message):
 	"envia un broadcast a todos los clientes"
-	msg = {"msg":message}
+	msg = json.dumps( {"msg":message} )
 	for cli in clients:
 		cli.write_message( msg )
 
@@ -74,7 +84,7 @@ def send_printer_warnings():
     global traductor
     global timerPrinterWarnings
 
-    warns = traductor.printer.getWarnings()
+    warns = traductor.getWarnings()
     if warns:
     	broadcast_clientes(warns)  
     #volver a comprobar segun intervalo seleccionado  
@@ -150,10 +160,10 @@ def start_ws_server():
 		print "  - %s" % printer
 		modelo = None
 		marca = config.get(printer, "marca")
-		path = config.get(printer, "path")
+		driver = config.get(printer, "driver")
 		if config.has_option(printer, "modelo"):
 			modelo = config.get(printer, "modelo")
-		print "      marca: %s, modelo: %s (%s)" % (marca, modelo, path)
+		print "      marca: %s, driver: %s" % (marca, driver)
 	print "\n"
 	
 

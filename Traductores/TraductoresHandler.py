@@ -59,12 +59,24 @@ class TraductoresHandler:
 							00: "DOC_TYPE_CEDULA",
 							94: "DOC_TYPE_PASAPORTE", 
 							99: "DOC_TYPE_SIN_CALIFICADOR",
-					  	}
+						}
 
 	def __init__(self):
 		self.__create_config_if_not_exists()
 		self.__init_cola_traductores_printer()
 		
+
+	def getWarnings(self):
+		""" Recolecta los warning que puedan ir arrojando las impresoraas
+			devuelve un listado de warnings
+		"""
+		collect_warnings = {}
+		for trad in self.traductores:
+			warn = self.traductores[trad].comando.getWarnings()
+			if warn:
+				collect_warnings[trad] = warn
+		return collect_warnings
+
 
 	def __init_cola_traductores_printer(self):
 
@@ -79,7 +91,6 @@ class TraductoresHandler:
 			# si la seccion es "SERVIDOR", no hacer caso y continuar con el resto
 			if s == "SERVIDOR":
 				continue
-			print s
 			dictSectionConf = dictConf[s]
 			marca = dictSectionConf.get("marca")
 			del dictSectionConf['marca']
@@ -87,9 +98,12 @@ class TraductoresHandler:
 			libraryName = "Comandos."+marca+"Comandos"
 			comandoModule = importlib.import_module(libraryName)
 			comandoClass = getattr(comandoModule, marca+"Comandos")
-			comando = comandoClass(**dictSectionConf)
-			traductorComando = comando.traductor
-		
+			try:
+				comando = comandoClass(**dictSectionConf)
+				traductorComando = comando.traductor
+			except:
+				traductorComando = None
+
 			# inicializo la cola por cada seccion o sea cada impresora
 			self.traductores.setdefault(s, traductorComando) 
 
@@ -111,7 +125,7 @@ class TraductoresHandler:
 	
 
 
-	def _configure(self, printerName,  marca, modelo, path, driver=None):
+	def _configure(self, printerName, **kwargs):
 		"Configura generando o modificando el archivo configure.ini"
 
 		config = ConfigParser.RawConfigParser()
@@ -120,54 +134,51 @@ class TraductoresHandler:
 		if not config.has_section(printerName):
 			config.add_section(printerName)
 
-		config.set(printerName, 'marca', marca)
-		config.set(printerName, 'modelo', modelo)
-		config.set(printerName, 'path', path)
-		config.set(printerName, 'driver', driver)
+		for param in kwargs:
+			config.set(printerName, param, kwargs[param])
 
 		with open(CONFIG_FILE_NAME, 'w') as configfile:
 			config.write(configfile)
+
+		return {
+			"action": "configure",
+			"rta": "ok"
+		}
 
 	def _getAvaliablePrinters(self):
 		config = ConfigParser.RawConfigParser()
 		config.read(CONFIG_FILE_NAME)
 		# la primer seccion corresponde a SERVER, el resto son las impresoras
-		return config.sections()[1:]
+		rta = {
+			"action": "getAvaliablePrinters",
+			"rta": config.sections()[1:]
+		}
+
+		return rta
 
 	
 
-	def _getStatus(self, printerName):
-		config = ConfigParser.RawConfigParser()
-
-		config.read(CONFIG_FILE_NAME)
-		marca  = config.get(printerName, "marca")
-		modelo = None
-		if config.has_option(printerName, "modelo"):
-			modelo = config.get(printerName, "modelo")
-		path   = config.get(printerName, "path")
-		driver = config.get(printerName, "driver")
-
-		return {
-			"marca": marca,
-			"modelo": modelo,
-			"path": path,
-			"driver": driver
-		}
-
+	def _getStatus(self, *args):
+		resdict = {"action": "getStatus", "rta":{}}
+		for tradu in self.traductores:
+			if self.traductores[tradu]:
+				resdict["rta"][tradu] = "ONLINE"
+			else:
+				resdict["rta"][tradu] = "OFFLINE"
+		return resdict
 
 
 	def is_json(self, myjson):
-	    try:
-	        json_object = json.loads(myjson)
-	    except ValueError, e:
-	        return False
-	    return True
+		try:
+			json_object = json.loads(myjson)
+		except ValueError, e:
+			return False
+		return True
 
 
 
 
-
-	def json_to_comando( self, jsonTicket ):
+	def json_to_comando	( self, jsonTicket ):
 		""" leer y procesar una factura en formato JSON
 		"""
 		logging.info("Iniciando procesamiento de json...")
@@ -176,26 +187,30 @@ class TraductoresHandler:
 
 		
 		rta = {"rta":""}
-
 		# seleccionar impresora
 		# esto se debe ejecutar antes que cualquier otro comando
 		if 'printerName' in jsonTicket:
 			printerName = jsonTicket.pop('printerName')
 			traductor = self.traductores.get( printerName )
 			if traductor:
-				rta["rta"] = traductor.run( jsonTicket )
+				try:
+					rta["rta"] = traductor.run( jsonTicket )
+				except Exception, e:
+					raise TraductorException(e)
 			else:
 				raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'"%printerName)
+		
+		# aciones de comando genericos de Ststus y control
+		elif 'getStatus' in jsonTicket:
+			rta["rta"] =  self._getStatus()
+
+		elif 'getAvaliablePrinters' in jsonTicket:
+			rta["rta"] =  self._getAvaliablePrinters()
+
+		elif 'configure' in jsonTicket:
+			rta["rta"] =  self._configure(**jsonTicket["configure"])
+
 		else:
-			# aciones de comando genericos de Ststus y control
-			if 'getStatus' in jsonTicket:
-				rta["rta"] =  self._getStatus()
-
-			if 'getAvaliablePrinters' in jsonTicket:
-				rta["rta"] =  self._getAvaliablePrinters()
-
-			if 'configure' in jsonTicket:
-				rta["rta"] =  self._configure(**jsonTicket["configure"])
+			rta["msg"] = "No se paso un nombre de impresora 'printerName'"
 
 		return rta
-

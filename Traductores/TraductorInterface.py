@@ -8,13 +8,8 @@ class TraductorInterface:
 		self.comando = comando
 
 	
-	def run(self, jsonobj):
 
-		return self._run_comando(jsonobj)
-	
-
-
-	def _run_comando(self, jsonTicket):
+	def run(self, jsonTicket):
 		actions = jsonTicket.keys()
 		rta = []
 

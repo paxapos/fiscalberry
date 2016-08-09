@@ -16,6 +16,25 @@
 			.ws-msg-online{
 				color: green;
 			}
+
+
+			.error{
+				color: #CB0000;
+			}
+
+			.rta{
+				color:#027828;
+			}
+
+			.msg{
+				color: #0089B6;				
+			}
+
+			.btn-submit{
+				padding: 8px;
+				background: #2196F3;
+				color: white;
+			}
 		</style>
 		<script src="http://code.jquery.com/jquery.min.js"></script>
 
@@ -36,38 +55,68 @@
 			<input type="text" id="uri" value="/ws" style="background:#ff0000;"/><br />
 			<input type="submit" id="open" value="open" />
 		</div>
+
+
 		<div id="message_details">
+				<div id="select-printers">
+				  		<h3>Seleccionar Impresora</h3>
+				  		<div class="content">
+				  		<span style="color: red">Deberás apretar en "listar Impresoras" y luego en "ENVIAR" para enviar el JSON y que el server responda con  las impresoras configuradas en el archivo config.ini</span></div> 
+				</div>
+
 				</br></br>
+				<input type="button" id="msg-get-printers" value="Listar Impresoras" />
 
 				<input type="button" id="msg-drawer" value="Mensaje Open Drawer" />
+
+
 				<input type="button" id="msg-status" value="Mensaje Status (get Config values)" />
 				<input type="button" id="msg-lst-number" value="Last Ticket Number" />
 				<input type="button" id="msg-daily" value="Cierre X" />
 				<input type="button" id="msg-ticket" value="Ticket" />
 
-				<br>
-				<label for="message">message:</label><br>
+				<br><br />
+				<label for="message">JSON a enviar mediante WS message:</label><br>
+
+				<br />
+				<input type="submit" id="send" value="ENVIAR" class="btn-submit" />
+				<br /><br />
 				<textarea type="textarea" id="message" rows="20" cols="40">
 {
 	"getStatus": {}
 }
-	</textarea><br />
-				<input type="submit" id="send" value="send" />
+	</textarea>
 		</div>
-		<div id="terminal">
-				
+		
+
+		<div style="width: 80%; margin-left: auto; margin-right: auto; background: #EAFDFF">
+			<h3>Mensajes</h3>
+			<div id="terminal"></div>
 		</div>
-
-
 
 		<script>
  			// instancio la clase Fiscalberry del archivo fiscablerry.js
 			var fbrry = new Fiscalberry();
 
 			// log function
-			log = function(data){
-				$("div#terminal").prepend("</br>" +data);
-				console.log(data);
+			log = function(txt){
+				var $span = $("<span class='msg'>").text("[MSG] "+txt);
+				$("div#terminal").prepend("</br>").prepend( $span);
+				console.info(txt);
+			};
+
+			// log function
+			logRta = function(txt){
+				var $span = $("<span class='rta'>").text("[RTA] "+txt);
+				$("div#terminal").prepend("</br>").prepend( $span);
+				console.debug(txt);
+			};
+
+			// log function
+			logErr = function(txt){
+				var $span = $("<span class='error'>").text("[ERR] "+txt);
+				$("div#terminal").prepend("</br>").prepend( $span);
+				console.error(txt);
 			};
 
 
@@ -85,8 +134,97 @@
  
 			// Handle incoming websocket message callback
 			fbrry.on('message', function(ob, evt) {
-				log("Message Received: " + evt.data);
-				});
+				// recibe mensajes y respuestas. O sea todo lo que recibe el WS
+				console.info("Vino algo del websocket %o", evt);
+			});
+
+			// Handle msg recibido del server.py
+			fbrry.on("fb:msg", function( ob, evt){
+				if ( typeof evt.data === 'string' ) {
+					log( evt.data );
+				}
+				if ( typeof evt.data === 'object' ) {
+					for (key in evt.data ) {
+						log("Message Received: " + key);
+						if ( typeof evt.data[key] != "string" && Array.isArray(evt.data[key])) {
+							for (var i = evt.data[key].length - 1; i >= 0; i--) {
+								log("   "+key+": " + evt.data[key][i]);
+							}
+						}
+					}
+				}
+			});
+
+
+
+
+			// Handle msg recibido del server.py
+			fbrry.on("fb:err", function( ob, evt){
+				if ( typeof evt.data === 'string' ) {
+					logErr( evt.data );
+				}
+				if ( typeof evt.data === 'object' ) {
+					for (key in evt.data ) {
+						logErr("Message Received: " + key);
+						if ( typeof evt.data[key] != "string" && Array.isArray(evt.data[key])) {
+							for (var i = evt.data[key].length - 1; i >= 0; i--) {
+								logErr("   "+key+": " + evt.data[key][i]);
+							}
+						}
+					}
+				}
+			});
+
+
+
+
+			// Handle rta recibido a un comando nviado previamente
+			fbrry.on("fb:rta", function( ob, evt){
+				console.info("vino la respuesta %o", evt.data);
+				
+				if ( evt.data.hasOwnProperty("action") ) {
+					logRta(evt.data["action"]+" : " + evt.data["rta"]);
+				}
+
+
+				if ( Array.isArray( evt.data ) ) {
+					for (var i = evt.data.length - 1; i >= 0; i--) {
+						if ( evt.data[i].hasOwnProperty("action") ) {
+							logRta(evt.data[i]["action"]+" : " + evt.data[i]["rta"]);
+						}
+
+						if (typeof evt.data[i] === "string") {
+							logRta( evt.data[i] );
+						}
+					}
+					
+				}
+
+			});
+
+
+
+
+			// Handle msg recibido del server.py
+			fbrry.on("fb:rta:getAvaliablePrinters", function( ob, evt){
+				console.info("Vino RTA DE  getAvaliablePrinters: %o", evt.data);
+
+				var $select = $("<select>"), 
+					ops, val;
+				for (var i = evt.data.length - 1; i >= 0; i--) {
+					val = evt.data[i];
+					ops = "<option value='"+val+"'>"+val+"</option>";
+					$(ops).appendTo($select);
+				}
+				// borrar mensaje de que hay que apretar el boton para ver impresoras
+				$(".content", "#select-printers").empty();
+
+				// agregar el select con las impresoras configuradas
+				$select.appendTo( $(".content", "#select-printers") );
+			});
+
+
+
 
 			// Close Websocket callback
 			fbrry.on( 'close', function(evt) {
@@ -94,8 +232,7 @@
 				$("#host").css("background", "#ff0000"); 
 				$("#port").css("background", "#ff0000"); 
 				$("#uri").css("background",  "#ff0000");
-				$("div#message_details").empty();
-
+				$("div#message_details").hide();
 			});
 
 
@@ -105,7 +242,7 @@
 				$("#port").css("background", "#00ff00"); 
 				$("#uri").css("background", "#00ff00");
 				$("div#message_details").show();
-				log("***Connection Opened***");
+				log("***Connection Opened***");				
 			});
 
 
@@ -141,26 +278,39 @@
 				fbrry.connect(host ,port);
 
 				console.info("START INICIANDO");
-				console.log(fbrry);
-
 						
 			}
 
+
+			function ponerJSONenTextarea( jsontext ) {
+
+				jsontemp = JSON.parse(jsontext);
+				var printerName = $("#select-printers select").val();
+				if ( printerName )  {
+					jsontemp['printerName'] = printerName;
+				}
+				$("#message").html( JSON.stringify(jsontemp) );
+			}
+
 			$("#msg-drawer").on('click', function () {
-				$("#message").html('{"openDrawer": true}');
+				ponerJSONenTextarea('{"openDrawer": true}');
 					
 			});
 
 			$("#msg-status").on('click', function () {
-				$("#message").html('{"getStatus": {}}');
+				ponerJSONenTextarea('{"getStatus": {}}');
 			});
 
 			$("#msg-lst-number").on('click', function () {
-				$("#message").html('{"getLastNumber": "T"}');
+				ponerJSONenTextarea('{"getLastNumber": "T"}');
 			});
 
 			$("#msg-daily").on('click', function () {
-				$("#message").html('{"dailyClose": "X"}');
+				ponerJSONenTextarea('{"dailyClose": "X"}');
+			});
+
+			$("#msg-get-printers").on('click', function () {
+				ponerJSONenTextarea('{"getAvaliablePrinters": ""}');
 			});
 
 
@@ -184,7 +334,7 @@
 }}';
 
 			$("#msg-ticket").on('click', function () {
-				$("#message").html(ticketString);
+				ponerJSONenTextarea(ticketString);
 			});
 			
 
