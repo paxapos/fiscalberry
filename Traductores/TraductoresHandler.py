@@ -193,10 +193,7 @@ class TraductoresHandler:
 			printerName = jsonTicket.pop('printerName')
 			traductor = self.traductores.get( printerName )
 			if traductor:
-				try:
-					rta["rta"] = traductor.run( jsonTicket )
-				except Exception, e:
-					raise TraductorException(e)
+				rta["rta"] = traductor.run( jsonTicket )
 			else:
 				raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'"%printerName)
 		
@@ -211,6 +208,6 @@ class TraductoresHandler:
 			rta["rta"] =  self._configure(**jsonTicket["configure"])
 
 		else:
-			rta["msg"] = "No se paso un nombre de impresora 'printerName'"
+			rta["err"] = "No se paso un comandio de accion generico ni el nombre de la impresora printerName"
 
 		return rta

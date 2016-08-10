@@ -51,7 +51,11 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 		except TraductorException, e:
 			response = {"err": "Traductor Comandos: %s"%str(e)}
 		except Exception, e:
-			response = {"err": str(e)}
+			response = {"err": repr(e)+"- "+str(e)}
+
+			import sys, traceback
+			traceback.print_exc(file=sys.stdout)
+
 		print response
 		self.write_message( response )
  

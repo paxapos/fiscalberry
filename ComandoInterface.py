@@ -27,16 +27,12 @@ class ComandoInterface:
     DEFAULT_DRIVER=None
 
     def __init__(self, *args, **kwargs):
-        print (kwargs)
         self.model = kwargs.pop("modelo", None)
         driver = kwargs.pop("driver", self.DEFAULT_DRIVER)
-        print ConectorDriverComando
         if driver:
             self.conector = ConectorDriverComando.ConectorDriverComando(self, driver, **kwargs)
 
-        print "COSOROTO %s\n" %self.traductorModule
         traductorModule = importlib.import_module(self.traductorModule)
-        print traductorModule
         traductorClass = getattr(traductorModule, self.traductorModule[12:])
         self.traductor = traductorClass(self, *args)
 

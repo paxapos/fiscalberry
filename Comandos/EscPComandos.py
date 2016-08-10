@@ -153,7 +153,6 @@ class EscPComandos(ComandoInterface):
 
 	def printComanda(self, comanda, setHeader=None, setTrailer=None):
 		"observacion, entradas{observacion, cant, nombre, sabores}, platos{observacion, cant, nombre, sabores}"
-		print self.conector.driver		
 		printer = self.conector.driver
 
 		# 0x1D 0xF9 0x35 1
