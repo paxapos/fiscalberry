@@ -40,8 +40,8 @@ class FiscalPrinterDriver(DriverInterface):
     NO_REPLY_TRIES = 200
 
 
-    def __init__( self, deviceFile, speed = 9600 ):
-        self._serialPort = serial.Serial( port = deviceFile, timeout = None, baudrate = speed )
+    def __init__( self, path, speed = 9600 ):
+        self._serialPort = serial.Serial( port = path, timeout = None, baudrate = speed )
         self._initSequenceNumber()
 
 

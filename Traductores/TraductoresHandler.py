@@ -98,11 +98,9 @@ class TraductoresHandler:
 			libraryName = "Comandos."+marca+"Comandos"
 			comandoModule = importlib.import_module(libraryName)
 			comandoClass = getattr(comandoModule, marca+"Comandos")
-			try:
-				comando = comandoClass(**dictSectionConf)
-				traductorComando = comando.traductor
-			except:
-				traductorComando = None
+			
+			comando = comandoClass(**dictSectionConf)
+			traductorComando = comando.traductor
 
 			# inicializo la cola por cada seccion o sea cada impresora
 			self.traductores.setdefault(s, traductorComando) 
