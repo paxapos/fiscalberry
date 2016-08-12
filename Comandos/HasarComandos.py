@@ -208,8 +208,9 @@ class HasarComandos(ComandoInterface):
             self._setHeaderTrailer(line, text)
             line += 1
 
-    def _setCustomerData(self, name, address, doc, docType, ivaType):
+    def _setCustomerData(self, name, address, doc, docType=" ", ivaType="T"):
         # limpio el header y trailer:
+
         self.setHeader()
         self.setTrailer()
         doc = doc.replace("-", "").replace(".", "")
@@ -220,8 +221,7 @@ class HasarComandos(ComandoInterface):
         if not doc.strip():
             docType = " "
 
-        ivaType = self.ivaTypes.get(ivaType, "C")
-        if ivaType != "C" and (not doc or docType != self.DOC_TYPE_CUIT):
+        if ivaType != "C" and (not doc or docType != "C" ):
             raise ValidationError("Error, si el tipo de IVA del cliente NO es consumidor final, "
                 "debe ingresar su número de CUIT.")
         parameters = [self._formatText(name, 'customerName'),
