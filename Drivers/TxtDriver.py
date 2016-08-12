@@ -4,8 +4,8 @@ from DriverInterface import DriverInterface
 
 class TxtDriver(DriverInterface):
 
-	def __init__(self, filename):
-		self.filename = filename
+	def __init__(self, path):
+		self.filename = path
 		bufsize = 1 # line buffer
 		self.file = open(filename, "w", bufsize)
 
