@@ -14,11 +14,8 @@ class ConectorDriverComando:
 
 		# instanciar el driver dinamicamente segun el driver pasado como parametro
 		libraryName = "Drivers."+driver+"Driver"
-		print "leyendo la libreria %s"%libraryName
 		driverModule = importlib.import_module(libraryName)
-		print driverModule
 		driverClass = getattr(driverModule, driver+"Driver")
-		print driverClass
 		self.driver = driverClass(**kwargs)
 
 
