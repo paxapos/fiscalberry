@@ -72,9 +72,10 @@ class TraductoresHandler:
 		"""
 		collect_warnings = {}
 		for trad in self.traductores:
-			warn = self.traductores[trad].comando.getWarnings()
-			if warn:
-				collect_warnings[trad] = warn
+			if self.traductores[trad]:
+				warn = self.traductores[trad].comando.getWarnings()
+				if warn:
+					collect_warnings[trad] = warn
 		return collect_warnings
 
 

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # coding=utf-8
 
 import tornado.httpserver
@@ -113,7 +114,9 @@ def shutdown():
 	global http_server
 	global timerPrinterWarnings
 
-	timerPrinterWarnings.cancel()
+	if timerPrinterWarnings:
+		timerPrinterWarnings.cancel()
+		
 	http_server.stop()
 
 	logging.info('Will shutdown in %s seconds ...', MAX_WAIT_SECONDS_BEFORE_SHUTDOWN)
