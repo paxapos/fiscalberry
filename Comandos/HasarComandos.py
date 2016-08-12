@@ -186,11 +186,11 @@ class HasarComandos(ComandoInterface):
     ADDRESS_SIZE = 40
 
     def _setHeaderTrailer(self, line, text):
-        self._sendCommand(self.CMD_SET_HEADER_TRAILER, (str(line), text))
+        if text:
+            self._sendCommand(self.CMD_SET_HEADER_TRAILER, (str(line), text))
 
     def setHeader(self, header=None):
         "Establecer encabezados"
-        print header
         if not header:
             header = []
         line = 3
@@ -211,8 +211,8 @@ class HasarComandos(ComandoInterface):
     def _setCustomerData(self, name, address, doc, docType=" ", ivaType="T"):
         # limpio el header y trailer:
 
-        self.setHeader()
-        self.setTrailer()
+        #self.setHeader()
+        #self.setTrailer()
         doc = doc.replace("-", "").replace(".", "")
         if doc and docType != "3" and filter(lambda x: x not in string.digits, doc):
             # Si tiene letras se blanquea el DNI para evitar errores, excepto que sea

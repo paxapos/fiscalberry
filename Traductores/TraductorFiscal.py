@@ -7,6 +7,9 @@ class TraductorFiscal(TraductorInterface):
 
 	def dailyClose(self, type):
 		"Comando X o Z"
+		# cancelar y volver a un estado conocido
+		self.comando.cancelAnyDocument()
+		
 		ret = self.comando.dailyClose(type)
 		return ret
 
@@ -96,8 +99,7 @@ class TraductorFiscal(TraductorInterface):
 		# mapear el numero de documento según RG1361
 		doc_fiscal = printer.docTypes.get(tipo_doc)
 
-		# cancelar y volver a un estado conocido
-		printer.cancelAnyDocument()
+		
 		ret = False
 		# enviar los comandos de apertura de comprobante fiscal:
 		if tipo_cbte.startswith('T'):
