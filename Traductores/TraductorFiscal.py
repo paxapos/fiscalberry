@@ -54,8 +54,8 @@ class TraductorFiscal(TraductorInterface):
 		for item in items:
 			self._imprimirItem(**item)
 
-		for pago in pagos:
-			self._imprimirPago(**pago)
+		#for pago in pagos:
+		#	self._imprimirPago(**pago)
 
 		if addAdditional:
 			self.comando.addAdditional(**addAdditional)
