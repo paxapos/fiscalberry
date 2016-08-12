@@ -7,7 +7,7 @@ class TxtDriver(DriverInterface):
 	def __init__(self, path):
 		self.filename = path
 		bufsize = 1 # line buffer
-		self.file = open(filename, "w", bufsize)
+		self.file = open(self.filename, "w", bufsize)
 
 	def sendCommand(self, command, fields, skipStatusErrors=False):
 		import random
