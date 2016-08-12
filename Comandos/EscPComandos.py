@@ -91,9 +91,9 @@ class EscPComandos(ComandoInterface):
 		tot_importe = 0.0
 		for item in items:
 			desc = item.get('ds')[0:24]
-			cant = item.get('qty')
-			precio = item.get('importe')
-			tot_importe += cant * float(precio)
+			cant = float(item.get('qty'))
+			precio = cant * float(item.get('importe'))
+			tot_importe += precio
 			cant_tabs = 3
 			can_tabs_final = cant_tabs - ceil( len(desc)/8 )
 			strTabs = desc.ljust( int(len(desc) + can_tabs_final), '\t')
