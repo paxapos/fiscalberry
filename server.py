@@ -20,7 +20,7 @@ import ConfigParser
 from Traductores.TraductoresHandler import TraductoresHandler, CONFIG_FILE_NAME, TraductorException
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
-INTERVALO_IMPRESORA_WARNING = 10.0
+INTERVALO_IMPRESORA_WARNING = 30.0
 
 # thread timer para hacer broadcast cuando hay mensaje de la impresora
 timerPrinterWarnings = None

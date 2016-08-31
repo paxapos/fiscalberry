@@ -293,7 +293,6 @@ class HasarComandos(ComandoInterface):
         return self._sendCommand(self.CMD_OPEN_DNFH, ["x", "T", number[:20]])
 
     def closeDocument(self):
-        print self._currentDocument
         if self._currentDocument in (self.CURRENT_DOC_TICKET, self.CURRENT_DOC_BILL_TICKET):
             for desc, payment in self._savedPayments:
                 self._sendCommand(self.CMD_ADD_PAYMENT, [self._formatText(desc, "paymentDescription"),

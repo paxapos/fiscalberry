@@ -30,8 +30,11 @@ class ComandoInterface:
         self.model = kwargs.pop("modelo", None)
         driver = kwargs.pop("driver", self.DEFAULT_DRIVER)
         if driver:
-            self.conector = ConectorDriverComando.ConectorDriverComando(self, driver, **kwargs)
-
+            try:
+                self.conector = ConectorDriverComando.ConectorDriverComando(self, driver, **kwargs)
+            except Exception, e:
+                print "no se pudo conctar con el driver: %s"%driver
+                self.conector = None
         traductorModule = importlib.import_module(self.traductorModule)
         traductorClass = getattr(traductorModule, self.traductorModule[12:])
         self.traductor = traductorClass(self, *args)

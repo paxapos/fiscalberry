@@ -192,7 +192,10 @@ class TraductoresHandler:
 			printerName = jsonTicket.pop('printerName')
 			traductor = self.traductores.get( printerName )
 			if traductor:
-				rta["rta"] = traductor.run( jsonTicket )
+				if traductor.comando.conector is not None:
+					rta["rta"] = traductor.run( jsonTicket )
+				else:
+					logging.info("el Driver no esta inicializado para la impresora %s"%printerName)
 			else:
 				raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'"%printerName)
 		
