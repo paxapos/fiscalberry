@@ -10,12 +10,14 @@ import json
 import signal
 import logging
 import time
-
+import os.path
 from threading import Timer
 
 
 import ConfigParser
 
+newpath = os.path.dirname(os.path.realpath(__file__))
+os.chdir(newpath)
 
 from Traductores.TraductoresHandler import TraductoresHandler, CONFIG_FILE_NAME, TraductorException
 

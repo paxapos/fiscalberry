@@ -13,9 +13,10 @@
 # Change the next 3 lines to suit where you install your script and what you want to call it
 
 #DIR current
-DIR=/home/pi/fiscalberry
+DIR=/insertPATHHERE
+cd $DIR
 DAEMON=$DIR/server.py
-DAEMON_NAME=fiscalberry-server
+DAEMON_NAME=fiscalberry_server
 
 # Add any command line options for your daemon here
 DAEMON_OPTS=""
@@ -30,7 +31,7 @@ PIDFILE=/var/run/$DAEMON_NAME.pid
 . /lib/lsb/init-functions
 
 do_start () {
-    log_daemon_msg "Starting system $DAEMON_NAME daemon"
+    log_daemon_msg "Starting system $DAEMON_NAME daemon $DAEMON"
     start-stop-daemon --start --background --pidfile $PIDFILE --make-pidfile --user $DAEMON_USER --chuid $DAEMON_USER --startas $DAEMON -- $DAEMON_OPTS
     log_end_msg $?
 }
@@ -43,6 +44,7 @@ do_stop () {
 case "$1" in
 
     start|stop)
+	echo "STARTTTT"
         do_${1}
         ;;
 

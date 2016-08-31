@@ -111,8 +111,13 @@ class TraductoresHandler:
 	def __create_config_if_not_exists(self):
 		import os.path
 		if not os.path.isfile(CONFIG_FILE_NAME):
+			savedPath = os.getcwd()
+			newpath = os.path.dirname(os.path.realpath(__file__))
+			os.chdir(newpath)
+			os.chdir("../")
 			import shutil
 			shutil.copy ("config.ini.install", CONFIG_FILE_NAME)
+			os.chdir(savedPath)
 
 
 
