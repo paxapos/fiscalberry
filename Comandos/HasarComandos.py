@@ -402,7 +402,38 @@ class HasarComandos(ComandoInterface):
 
     def dailyClose(self, type):
         reply = self._sendCommand(self.CMD_DAILY_CLOSE, [type])
-        return reply[2:]
+        
+        if ( len( reply) >= 27 ):
+            rta = {
+                "zeta_numero": reply[3],
+                "cant_doc_fiscales_cancelados": reply[4],
+                "cant_doc_nofiscales_homologados": reply[5],
+                "cant_doc_nofiscales": reply[6],
+                "cant_doc_fiscales": reply[7],
+                "ultimo_doc_b": reply[9],
+                "ultimo_doc_a": reply[10],
+                "monto_ventas_doc_fiscal": reply[11],
+                "monto_iva_doc_fiscal": reply[12],
+                "monto_imp_internos": reply[13],
+                "monto_percepciones": reply[14],
+                "monto_iva_no_inscripto": reply[15],
+                "ultima_nc_b": reply[16],
+                "ultima_nc_a": reply[17],
+                "monto_credito_nc": reply[18],
+                "monto_iva_nc": reply[19],
+                "monto_imp_internos_nc": reply[20],
+                "monto_percepciones_nc": reply[21],
+                "monto_iva_no_inscripto_nc": reply[22],
+                "ultimo_remito": reply[23],
+                "cant_nc_canceladas": reply[24],
+                "cant_doc_fiscales_bc_emitidos": reply[25],
+                "cant_doc_fiscales_a_emitidos": reply[26],
+                "cant_nc_bc_emitidos": reply[27],
+                "cant_nc_a_fiscales_a_emitidos": reply[28]
+            }
+        else:
+            rta = reply[3:]
+        return rta
 
     def getLastNumber(self, letter):
         reply = self._sendCommand(self.CMD_STATUS_REQUEST, [], True)
