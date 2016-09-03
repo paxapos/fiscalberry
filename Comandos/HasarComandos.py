@@ -403,7 +403,7 @@ class HasarComandos(ComandoInterface):
     def dailyClose(self, type):
         reply = self._sendCommand(self.CMD_DAILY_CLOSE, [type])
         
-        if ( len( reply) >= 27 ):
+        if ( len( reply) >= 29 ):
             rta = {
                 "zeta_numero": reply[3],
                 "cant_doc_fiscales_cancelados": reply[4],
