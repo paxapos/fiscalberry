@@ -2,6 +2,7 @@
 import ConectorDriverComando
 import unicodedata
 import importlib
+import logging
 
 class ValidationError(Exception):
     pass
@@ -33,8 +34,9 @@ class ComandoInterface:
             try:
                 self.conector = ConectorDriverComando.ConectorDriverComando(self, driver, **kwargs)
             except Exception, e:
-                print "no se pudo conctar con el driver: %s"%driver
+                logging.info( "no se pudo conectar con el driver: %s"%driver )
                 self.conector = None
+        
         traductorModule = importlib.import_module(self.traductorModule)
         traductorClass = getattr(traductorModule, self.traductorModule[12:])
         self.traductor = traductorClass(self, *args)

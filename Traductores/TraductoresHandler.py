@@ -5,8 +5,23 @@ import ConfigParser
 import logging
 import importlib
 
+import threading
+
+def set_interval(func, sec):
+    def func_wrapper():
+        set_interval(func, sec)
+        func()
+    t = threading.Timer(sec, func_wrapper)
+    t.start()
+    return t
+
+
 CONFIG_FILE_NAME = "config.ini"
-CONFIG_IMPRESORA_FISCAL_SECTION_NAME = "IMPRESORA_FISCAL"
+
+# es un diccionario como clave va el nombre de la impresora que funciona como cola
+# cada KEY es una printerName y contiene un a instancia de TraductorReceipt o TraductorFiscal dependiendo
+# si la impresora es fiscal o receipt
+traductores = {}
 
 class TraductorException(Exception):
 	pass
@@ -16,12 +31,9 @@ class TraductoresHandler:
 
 
 
-	# es un diccionario como clave va el nombre de la impresora que funciona como cola
-	# cada KEY es una printerName y contiene un a instancia de TraductorReceipt o TraductorFiscal dependiendo
-	# si la impresora es fiscal o receipt
-	traductores = {}
+	# traductores = {}
 
-
+	config = None
 
 	# RG1785/04
 	cbte_fiscal_map = {
@@ -33,7 +45,7 @@ class TraductoresHandler:
 							8: 'NCB', 
 							11: 'FC', 
 							12: 'NDC', 
-							13: 'NDC',
+							13: 'NCC',
 							81:	'FA', #tique factura A
 							82: 'FB', #tique factura B
 							83: 'T',  # tiques
@@ -62,49 +74,90 @@ class TraductoresHandler:
 						}
 
 	def __init__(self):
+		config = ConfigParser.ConfigParser()
+		config.read(CONFIG_FILE_NAME)
+
+		self.config = config
+
 		self.__create_config_if_not_exists()
 		self.__init_cola_traductores_printer()
+		#self.__init_keep_looking_for_device_connected()
+
 		
+	def get_traductores():
+		global traductores
+		return traductores
+
+	def __init_keep_looking_for_device_connected(self):
+		def recorrer_traductores_y_comprobar():
+			global traductores
+			logging.info("Iniciando procesamiento de json...")
+			for t in traductores:
+				print "estoy por verificando conexion de %s"%t
+				if not traductores[t].comando.conector:
+					print "*** NO conectada"
+					logging.info("la impresora %s esta desconectada y voy a reintentar conectarla"%t)
+					self.init_printer_traductor(t)
+				else:
+					print "ya estaba conectado"
+
+		set_interval(recorrer_traductores_y_comprobar, 10)
+
+
 
 	def getWarnings(self):
 		""" Recolecta los warning que puedan ir arrojando las impresoraas
 			devuelve un listado de warnings
 		"""
+		global traductores
 		collect_warnings = {}
-		for trad in self.traductores:
-			if self.traductores[trad]:
-				warn = self.traductores[trad].comando.getWarnings()
+		for trad in traductores:
+			if traductores[trad]:
+				warn = traductores[trad].comando.getWarnings()
 				if warn:
 					collect_warnings[trad] = warn
 		return collect_warnings
 
 
-	def __init_cola_traductores_printer(self):
+	def get_config_for_printer(self, printerName):
+		dictConf = {s:dict(self.config.items(s)) for s in self.config.sections()}
 
+		return dictConf[printerName]
+
+
+	def get_sections_from_config_file( self):
 		config = ConfigParser.ConfigParser()
 		config.read(CONFIG_FILE_NAME)
 
-		secs = config.sections()
+		return  config.sections()
 
-		dictConf = {s:dict(config.items(s)) for s in config.sections()}
+	def init_printer_traductor(self, printerName):
+		global traductores
+		dictSectionConf = self.get_config_for_printer(printerName)
+		marca = dictSectionConf.get("marca")
+		del dictSectionConf['marca']
+		# instanciar los comandos dinamicamente
+		libraryName = "Comandos."+marca+"Comandos"
+		comandoModule = importlib.import_module(libraryName)
+		comandoClass = getattr(comandoModule, marca+"Comandos")
+		
+		comando = comandoClass(**dictSectionConf)
+		traductorComando = comando.traductor
+
+		# inicializo la cola por cada seccion o sea cada impresora
+		traductores.setdefault(printerName, traductorComando) 
+
+
+
+	def __init_cola_traductores_printer(self):
+
+		secs = self.get_sections_from_config_file()
+
 		# para cada impresora le voy a crear su juego de comandos con sui respectivo traductor
 		for s in secs:
 			# si la seccion es "SERVIDOR", no hacer caso y continuar con el resto
-			if s == "SERVIDOR":
-				continue
-			dictSectionConf = dictConf[s]
-			marca = dictSectionConf.get("marca")
-			del dictSectionConf['marca']
-			# instanciar los comandos dinamicamente
-			libraryName = "Comandos."+marca+"Comandos"
-			comandoModule = importlib.import_module(libraryName)
-			comandoClass = getattr(comandoModule, marca+"Comandos")
-			
-			comando = comandoClass(**dictSectionConf)
-			traductorComando = comando.traductor
-
-			# inicializo la cola por cada seccion o sea cada impresora
-			self.traductores.setdefault(s, traductorComando) 
+			if s != "SERVIDOR":
+				self.init_printer_traductor(s)
 
 
 		
@@ -163,9 +216,10 @@ class TraductoresHandler:
 	
 
 	def _getStatus(self, *args):
+		global traductores
 		resdict = {"action": "getStatus", "rta":{}}
-		for tradu in self.traductores:
-			if self.traductores[tradu]:
+		for tradu in traductores:
+			if traductores[tradu]:
 				resdict["rta"][tradu] = "ONLINE"
 			else:
 				resdict["rta"][tradu] = "OFFLINE"
@@ -185,6 +239,7 @@ class TraductoresHandler:
 	def json_to_comando	( self, jsonTicket ):
 		""" leer y procesar una factura en formato JSON
 		"""
+		global traductores
 		logging.info("Iniciando procesamiento de json...")
 
 		print jsonTicket
@@ -195,7 +250,7 @@ class TraductoresHandler:
 		# esto se debe ejecutar antes que cualquier otro comando
 		if 'printerName' in jsonTicket:
 			printerName = jsonTicket.pop('printerName')
-			traductor = self.traductores.get( printerName )
+			traductor = traductores.get( printerName )
 			if traductor:
 				if traductor.comando.conector is not None:
 					rta["rta"] = traductor.run( jsonTicket )

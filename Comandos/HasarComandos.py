@@ -213,6 +213,7 @@ class HasarComandos(ComandoInterface):
 
         #self.setHeader()
         #self.setTrailer()
+        doc = str(doc)
         doc = doc.replace("-", "").replace(".", "")
         if doc and docType != "3" and filter(lambda x: x not in string.digits, doc):
             # Si tiene letras se blanquea el DNI para evitar errores, excepto que sea
@@ -258,7 +259,8 @@ class HasarComandos(ComandoInterface):
 ##  NO SE PUEDE
 
     def openDebitNoteTicket(self, type, name, address, doc, docType, ivaType):
-        self._setCustomerData(name, address, doc, docType, ivaType)
+        if doc:
+            self._setCustomerData(name, address, doc, docType, ivaType)
         if type == "A":
             type = "D"
         else:
@@ -268,7 +270,8 @@ class HasarComandos(ComandoInterface):
         return self._sendCommand(self.CMD_OPEN_FISCAL_RECEIPT, [type, "T"])
 
     def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, reference="NC"):
-        self._setCustomerData(name, address, doc, docType, ivaType)
+        if doc:
+            self._setCustomerData(name, address, doc, docType, ivaType)
         if type == "A":
             type = "R"
         else:

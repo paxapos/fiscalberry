@@ -292,12 +292,12 @@
 				$("#message").html( JSON.stringify(jsontemp) );
 			}
 
-			$("#msg-drawer").on('click', function () {
+			$(document).on('click', "#msg-drawer", function () {
 				ponerJSONenTextarea('{"openDrawer": true}');
 					
 			});
 
-			$("#msg-status").on('click', function () {
+			$(document).on('click', "#msg-status", function () {
 				ponerJSONenTextarea('{"getStatus": {}}');
 			});
 
