@@ -255,11 +255,10 @@ class TraductoresHandler:
 				if traductor.comando.conector is not None:
 					try:
 						rta["rta"] = traductor.run( jsonTicket )
-					except socket.error, ex:
-						if err.code == 104:
-							print(str(err))
-							print("reconectando...")
-							traductor.comando.conector.reconnect()
+					except socket.error, err:
+						print(str(err))
+						print("reconectando...")
+						traductor.comando.conector.driver.reconnect()
 				else:
 					logging.info("el Driver no esta inicializado para la impresora %s"%printerName)
 			else:

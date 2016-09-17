@@ -7,6 +7,7 @@ import unicodedata
 from ComandoInterface import ComandoInterface, ComandoException, ValidationError, FiscalPrinterError, formatText
 from ConectorDriverComando import ConectorDriverComando
 import time
+import datetime
 from math import ceil
 
 
@@ -165,15 +166,18 @@ class EscPComandos(ComandoInterface):
 
 		printer.set("CENTER", "A", "A", 1, 1)
 		if "id" in comanda:
+			printer.text("- REIMPRESION -\n")
 			printer.text("Comanda #%s\n" % comanda['id'])
+		else:
+			printer.text("Nueva Comanda\n")
 
 		if "created" in comanda:
 			fff_aux = time.strptime( comanda['created'], "%Y-%m-%d %H:%M:%S")
 			fecha = time.strftime('%H:%M %x', fff_aux)
-
-			#fecha = datetime.strftime(comanda['created'], '%Y-%m-%d %H:%M:%S')
 			printer.text( fecha +"\n")
-
+		else:
+			fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M %x')
+			printer.text( fecha +"\n")
 
 		def print_plato(plato):
 			"Imprimir platos"
