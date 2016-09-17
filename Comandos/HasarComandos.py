@@ -437,10 +437,8 @@ class HasarComandos(ComandoInterface):
                 "cant_nc_a_fiscales_a_emitidos"
              ]
         rta = {}
-        print rta
         for i, val in enumerate(datos):
             if len(reply) > i:
-                print("pongo en i=%s el valor=%s y la RTA es %s"%(i,val, reply[i]))
                 rta[val] = reply[i]
             else:
                 break
