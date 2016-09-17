@@ -4,7 +4,7 @@ import json
 import ConfigParser
 import logging
 import importlib
-
+import socket
 import threading
 
 def set_interval(func, sec):
@@ -253,7 +253,13 @@ class TraductoresHandler:
 			traductor = traductores.get( printerName )
 			if traductor:
 				if traductor.comando.conector is not None:
-					rta["rta"] = traductor.run( jsonTicket )
+					try:
+						rta["rta"] = traductor.run( jsonTicket )
+					except socket.error, ex:
+						if err.code == 104:
+							print(str(err))
+							print("reconectando...")
+							traductor.comando.conector.reconnect()
 				else:
 					logging.info("el Driver no esta inicializado para la impresora %s"%printerName)
 			else:

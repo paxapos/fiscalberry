@@ -19,6 +19,14 @@ import ConfigParser
 
 
 
+
+# chdir otherwise will not work fine in rc service
+newpath = os.path.dirname(os.path.realpath(__file__))
+os.chdir(newpath)
+
+
+
+
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 INTERVALO_IMPRESORA_WARNING = 30.0
 
@@ -194,13 +202,6 @@ class FiscalberryServer:
 
 
 
-
-
-
-
-# chdir otherwise will not work fine in rc service
-newpath = os.path.dirname(os.path.realpath(__file__))
-os.chdir(newpath)
 
 
 
