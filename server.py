@@ -88,14 +88,13 @@ class FiscalberryServer:
 
 
 	def __init__(self):
-
+		print("Iniciando Fiscalberry Server")
+		
 		self.http_server = tornado.web.Application([
 			(r'/ws', WSHandler),
 		])
 		
-
 		self.config = ConfigParser.RawConfigParser()
-		print "Reading config file: "+CONFIG_FILE_NAME
 		self.config.read(CONFIG_FILE_NAME)
 
 
@@ -195,11 +194,6 @@ class FiscalberryServer:
 			print "      marca: %s, driver: %s" % (marca, driver)
 		print "\n"
 		
-
-
-		
-
-
 
 
 

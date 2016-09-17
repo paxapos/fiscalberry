@@ -235,6 +235,16 @@ class TraductoresHandler:
 
 
 
+	def manejar_socket_error(self, err, jsonTicket, traductor):
+		print(format(err))
+		traductor.comando.conector.driver.reconnect()
+		#volver a intententar el mismo comando
+		try:
+			rta["rta"] = traductor.run( jsonTicket )
+		except Exception:
+			# ok, no quiere conectar, continuar sin hacer nada
+			print("No hay caso, probe de reconectar pero no se pudo")
+			
 
 	def json_to_comando	( self, jsonTicket ):
 		""" leer y procesar una factura en formato JSON
@@ -255,10 +265,9 @@ class TraductoresHandler:
 				if traductor.comando.conector is not None:
 					try:
 						rta["rta"] = traductor.run( jsonTicket )
-					except socket.error, err:
-						print(str(err))
-						print("reconectando...")
-						traductor.comando.conector.driver.reconnect()
+					except socket.error as err:
+						self.manejar_socket_error(err, jsonTicket, traductor)
+
 				else:
 					logging.info("el Driver no esta inicializado para la impresora %s"%printerName)
 			else:

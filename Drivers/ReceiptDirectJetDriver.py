@@ -8,31 +8,20 @@ import time
 
 
 class ReceiptDirectJetDriver( printer.Network ):
-	port = 9100
 	connected = False
-	host = None
 	
-	def __init__(self, host, port=9100):
+	def __init__(self, host, port=9100, timeout=10):
 		""" escrito aqui solo para tener bien en claro las variables iniciales"""
-		self.host = host
-		self.port = port
-		
-		def daemon_keep_alive(self, host,port):
-			while not self.connected:
-				try:
-					printer.Network.__init__(self,host,port)
-					self.connected = True
-				except Exception as e:
-					self.connected = False
-					time.sleep( 10 )
+		try:
+			printer.Network.__init__(self,host,port, timeout)	
+			self.connected = True
+		except Exception:
+			self.connected = False
 
-
-
-		t = threading.Thread(target=daemon_keep_alive, args = (self, self.host,self.port))
-		t.daemon = True
-		t.start()
-		
-					
 
 	def reconnect(self):
-		self.open()
+		try:
+			self.open()
+			self.connected = True
+		except Exception as e:
+			self.connected = False
