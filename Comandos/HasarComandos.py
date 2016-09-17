@@ -407,6 +407,8 @@ class HasarComandos(ComandoInterface):
         reply = self._sendCommand(self.CMD_DAILY_CLOSE, [type])
         
         datos =  [
+                "status_impresora",
+                "status_fiscal",
                 "zeta_numero",
                 "cant_doc_fiscales_cancelados",
                 "cant_doc_nofiscales_homologados",
