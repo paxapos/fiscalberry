@@ -19,10 +19,8 @@ class ReceiptDirectJetDriver( printer.Network ):
 				try:
 					printer.Network.__init__(self,host,port)
 					self.connected = True
-					print " ** CONECTOO !!!"
 				except Exception as e:
 					self.connected = False
-					print "No esta conectada"
 					time.sleep( 10 )
 
 
