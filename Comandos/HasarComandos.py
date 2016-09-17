@@ -414,6 +414,7 @@ class HasarComandos(ComandoInterface):
                 "cant_doc_nofiscales_homologados",
                 "cant_doc_nofiscales",
                 "cant_doc_fiscales",
+                "RESERVADO_SIEMPRE_CERO",
                 "ultimo_doc_b",
                 "ultimo_doc_a",
                 "monto_ventas_doc_fiscal",
