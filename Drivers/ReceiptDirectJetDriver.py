@@ -17,7 +17,6 @@ class ReceiptDirectJetDriver( printer.Network ):
 		""" escrito aqui solo para tener bien en claro las variables iniciales"""
 		try:
 			p = printer.Network.__init__(self,host,port, timeout)	
-			# p.codepage = "cp858"
 			self.connected = True
 		except Exception:
 			self.connected = False
