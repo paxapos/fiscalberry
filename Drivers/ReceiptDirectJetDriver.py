@@ -11,13 +11,13 @@ class ReceiptDirectJetDriver( printer.Network ):
 	connected = False
 	
 	#default a codepage latino con acentos y eñes
-	codepage = "cp858"
+	# codepage = "cp858"
 
 	def __init__(self, host, port=9100, timeout=10):
 		""" escrito aqui solo para tener bien en claro las variables iniciales"""
 		try:
 			p = printer.Network.__init__(self,host,port, timeout)	
-			p.codepage = "cp858"
+			# p.codepage = "cp858"
 			self.connected = True
 		except Exception:
 			self.connected = False
