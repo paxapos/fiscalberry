@@ -56,8 +56,9 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 			print("***************")
 			response = traductor.json_to_comando( jsonMes )
 		except TypeError:
-			print "error parseando el JSON "
+			print "error parseando el JSON:"
 			print jsonMes
+			print "- - - - - - - - - - - -"
 			response = {"err": "Error parseando el JSON"}
 		except TraductorException, e:
 			response = {"err": "Traductor Comandos: %s"%str(e)}
