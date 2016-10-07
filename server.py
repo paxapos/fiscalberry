@@ -49,6 +49,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 	
 	def on_message(self, message):
 		global traductor
+		print("----- - -- - - - ---")
 		print message
 		try:
 			jsonMes = json.loads(message, strict=False)
