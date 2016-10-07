@@ -369,9 +369,14 @@ class HasarComandos(ComandoInterface):
             @param amount       Importe (sin iva en FC A, sino con IVA)
             @param iva          Porcentaje de Iva
             @param negative True->Descuento, False->Recargo"""
+            
         if negative:
+            if not description:
+                description = "Descuento"
             sign = 'm'
         else:
+            if not description:
+                description = "Recargo"
             sign = 'M'
         priceUnit = amount
         priceUnitStr = str(priceUnit).replace(",", ".")

@@ -17,6 +17,8 @@ class EpsonComandos(ComandoInterface):
     # path al modulo de traductor que este comando necesita
     traductorModule="Traductores.TraductorFiscal"
     
+    _currentDocument = None
+    _currentDocumentType = None
 
     DEFAULT_DRIVER="Epson"
 
@@ -64,15 +66,6 @@ class EpsonComandos(ComandoInterface):
         "NO_CATEGORIZADO": 'F',
     }
 
-    def __init__(self, path=None, speed=9600, modelo="615", driver="Epson"):
-        self.conector = ConectorDriverComando(self, driver, path, speed)
-
-        if not modelo:
-            self.model = "tickeadoras"
-        else:
-            self.model = modelo
-        self._currentDocument = None
-        self._currentDocumentType = None
 
     def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
         print "_sendCommand", commandNumber, parameters
@@ -289,9 +282,14 @@ class EpsonComandos(ComandoInterface):
             @param iva          Porcentaje de Iva
             @param negative True->Descuento, False->Recargo"""
         if negative:
+            if not description:
+                description = "Descuento"
             sign = 'R'
         else:
+            if not description:
+                description = "Recargo"
             sign = 'M'
+        
         quantityStr = "1000"
         bultosStr = "0"
         priceUnit = amount
