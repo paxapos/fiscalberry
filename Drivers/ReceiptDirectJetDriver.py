@@ -33,13 +33,3 @@ class ReceiptDirectJetDriver( printer.Network ):
 		except Exception as e:
 			self.connected = False
 
-
-	def _raw(self, msg):
-		""" Print any command sent in raw format
-
-		:param msg: arbitrary code to be printed
-		:type msg: bytes
-		"""
-		self.open()
-		self.device.sendall(msg)
-		self.close()

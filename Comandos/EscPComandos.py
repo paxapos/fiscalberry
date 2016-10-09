@@ -62,7 +62,7 @@ class EscPComandos(ComandoInterface):
 		setTrailer = kwargs.get("setTrailer", None)
 
 		printer = self.conector.driver
-
+		printer.open()
 		printer.set("CENTER", "A", "A", 1, 1)
 		
 		# colocar en modo ESC P
