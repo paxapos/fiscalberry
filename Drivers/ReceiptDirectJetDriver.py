@@ -10,16 +10,20 @@ import time
 class ReceiptDirectJetDriver( printer.Network ):
 	connected = False
 	
-	#default a codepage latino con acentos y eñes
-	codepage = "cp858"
 
-	def __init__(self, host, port=9100, timeout=10):
+	def __init__(self, host, port=9100, timeout=10, codepage="cp858"):
 		""" escrito aqui solo para tener bien en claro las variables iniciales"""
+		self.codepage = codepage
+
+		#default a codepage latino con acentos y eñes
 		try:
-			p = printer.Network.__init__(self,host,port, timeout)	
+			printer.Network.__init__(self,host,port, timeout, codepage)	
 			self.connected = True
+			self.close()
 		except Exception:
 			self.connected = False
+
+       
 
 
 	def reconnect(self):
@@ -28,3 +32,14 @@ class ReceiptDirectJetDriver( printer.Network ):
 			self.connected = True
 		except Exception as e:
 			self.connected = False
+
+
+	def _raw(self, msg):
+		""" Print any command sent in raw format
+
+		:param msg: arbitrary code to be printed
+		:type msg: bytes
+		"""
+		self.open()
+		self.device.sendall(msg)
+		self.close()
