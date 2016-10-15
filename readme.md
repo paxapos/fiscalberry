@@ -19,6 +19,7 @@ Practicamente todos: Javascript, nodejs, python, php, etc.
 
 Los que se puedan actuar como "cliente Web Socket" y conectarse con el servidor para enviar/recibir JSON's.
 
+mas info en la WIKI: https://github.com/ristorantino/fiscalberry/wiki
 
 ## PROBALO
 
