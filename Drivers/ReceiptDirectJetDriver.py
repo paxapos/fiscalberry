@@ -13,17 +13,30 @@ class ReceiptDirectJetDriver( printer.Network ):
 
 	def __init__(self, host, port=9100, timeout=10, codepage="cp858"):
 		""" escrito aqui solo para tener bien en claro las variables iniciales"""
-		self.codepage = codepage
+		"""
+        :param host : Printer's hostname or IP address
+        :param port : Port to write to
+        :param timeout : timeout in seconds for the socket-library
+		:param codepage : codepage default to cp858
+        """
+        Escpos.__init__(self, *args, **kwargs)
+        self.host = host
+        self.port = port
+        self.timeout = timeout
 
-		#default a codepage latino con acentos y eñes
-		try:
-			printer.Network.__init__(self,host,port, timeout, codepage)	
+    def start(self):
+    	try:
+			self.open()
 			self.connected = True
-			self.close()
-		except Exception:
+		except Exception as e:
 			self.connected = False
 
-       
+	def end(self):
+    	try:
+			self.close()
+			self.connected = False
+		except Exception as e:
+			self.connected = True
 
 
 	def reconnect(self):

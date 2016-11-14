@@ -56,13 +56,14 @@ class EscPComandos(ComandoInterface):
 
 	def printRemito(self, **kwargs):		
 		"imprimir remito"
+		printer = self.conector.driver
+
 		encabezado = kwargs.get("encabezado", None)
 		items = kwargs.get("items", [])
 		addAdditional = kwargs.get("addAdditional", None)
 		setTrailer = kwargs.get("setTrailer", None)
 
-		printer = self.conector.driver
-		printer.open()
+		printer.start()
 		printer.set("CENTER", "A", "A", 1, 1)
 		
 		# colocar en modo ESC P
@@ -138,7 +139,9 @@ class EscPComandos(ComandoInterface):
 		# volver a poner en modo ESC Bematech, temporal para testing
 		printer._raw(chr(0x1D)+chr(0xF9)+chr(0x35)+"0")
 
-	def setTrailer(self, setTrailer):
+		printer.end()
+
+	def setTrailer(self, setTrailer):		
 		self.__preFillTrailer = setTrailer
 
 	def _setTrailer(self, setTrailer):
@@ -155,6 +158,7 @@ class EscPComandos(ComandoInterface):
 	def printComanda(self, comanda, setHeader=None, setTrailer=None):
 		"observacion, entradas{observacion, cant, nombre, sabores}, platos{observacion, cant, nombre, sabores}"
 		printer = self.conector.driver
+		printer.start()
 
 		# 0x1D 0xF9 0x35 1
 		# colocar en modo ESC P
@@ -232,7 +236,8 @@ class EscPComandos(ComandoInterface):
 		printer.cut("PART")
 
 		# volver a poner en modo ESC Bematech, temporal para testing
-		printer._raw(chr(0x1D)+chr(0xF9)+chr(0x35)+"0")
+		#printer._raw(chr(0x1D)+chr(0xF9)+chr(0x35)+"0")
 		
+		printer.end()
 
 	
