@@ -64,13 +64,15 @@ Las opciones son:
 
 ### Instalar Dependencias
 
+
 probado bajo python 2.7.6 en Linux, Ubuntu, Raspian
 
-Se necesitan 2 dependencias:
+Se necesitan las dependencias:
 * serial (para conectarse con impresoras seriales)
 * tornado (para usar como servidor de web sockets)
 
 ```sh
+sudo apt-get install python-pip
 sudo pip install pyserial
 sudo pip install tornado
 ```
@@ -79,6 +81,16 @@ Si se quiere usar las comanderas hay que instalar
 ```sh
 pip install python-escpos
 ```
+
+### Instalar Daemond
+En el archivo "fiscalberry-server-rc" deberas abrirlo y modificar la lionea donde dice "DIR=/insertPATHHERE" colocanmdo el path donde se encuentra la carpeta de fiscalberry. Ej: "DIR=/home/pi/fiscalberry"
+
+luego deberas copiar el archivo a /etc/init.d/
+
+```sh
+sudo update-rc.d fiscalberry-server-rc defaults
+```
+
 
 #### Raspberry
 
