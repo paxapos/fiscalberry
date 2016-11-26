@@ -79,7 +79,8 @@ sudo pip install tornado
 
 Si se quiere usar las comanderas hay que instalar
 ```sh
-pip install python-escpos
+sudo apt-get install python-imaging python-serial python-setuptools
+sudo pip install python-escpos
 ```
 
 ### Instalar Daemond
