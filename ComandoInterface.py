@@ -20,6 +20,7 @@ def formatText(text):
     asciiText = unicodedata.normalize('NFKD', unicode(text)).encode('ASCII', 'ignore')
     asciiText = asciiText.replace("\t", " ").replace("\n", " ").replace("\r", " ")
     asciiText = asciiText.replace("ñ", "n").replace("Ñ", "N").replace("á", "a").replace("Á", "A").replace("é", "e").replace("É", "E").replace("í", "í").replace("Í", "Í").replace("ó", "o").replace("Ó", "O").replace("ú", "u").replace("Ú", "U")
+    asciiText = asciiText.replace("#", "").replace("~", "").replace("?", "")
     return asciiText
 
 

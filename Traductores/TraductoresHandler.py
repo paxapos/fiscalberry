@@ -179,7 +179,16 @@ class TraductoresHandler:
 		msg = self.log.getvalue()
 		return msg    
 
-	
+	def _restartFiscalberry(self):
+		"reinicia el servicio fiscalberry"
+		from subprocess import call
+
+		resdict = {
+				"action": "restartFIscalberry", 
+				"rta": call(["service", "fiscalberry-server-rc", "restart"])
+				}
+
+		return resdict
 
 
 	def _configure(self, printerName, **kwargs):
@@ -276,6 +285,9 @@ class TraductoresHandler:
 		# aciones de comando genericos de Ststus y control
 		elif 'getStatus' in jsonTicket:
 			rta["rta"] =  self._getStatus()
+
+		elif 'restart' in jsonTicket:
+			rta["rta"] =  self._restartFiscalberry()
 
 		elif 'getAvaliablePrinters' in jsonTicket:
 			rta["rta"] =  self._getAvaliablePrinters()
