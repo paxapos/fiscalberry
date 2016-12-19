@@ -74,6 +74,7 @@ Se necesitan las dependencias:
 ```sh
 sudo apt-get install python-pip
 sudo pip install pyserial
+sudo apt-get install build-essential python-dev
 sudo pip install tornado
 ```
 
