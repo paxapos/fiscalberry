@@ -192,6 +192,15 @@ tipo: Json
 			        "tipo_responsable": "RESPONSABLE_INSCRIPTO" // VARIABLE ESTATICA
 			    }
 }
+
+
+// ejemplo Nota de Crédito "A"
+{
+"encabezado": {
+			        "tipo_cbte": "NCB", // tipo tiquet VARIABLE ESTATICA *obligatorio		        
+				"referencia": 000100012 // numero de comprobante impreso
+			    }
+}
                 
 ```
 
