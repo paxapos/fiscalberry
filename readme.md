@@ -31,6 +31,12 @@ git clone https://github.com/ristorantino/fiscalberry.git
 ```
 o directamente el ZIP: https://github.com/ristorantino/fiscalberry/archive/master.zip
 
+## BUG: Cuando se traba impresora fiscal
+
+git clone https://github.com/Intelintec/pyutf8.git
+dentro de la carpeta pyutf8 ejecutar:
+python setup.py install 
+
 ### Crear archivo de configuracion
 
 Renombrar el archivo "config.ini.install" como "config.ini" y configurar la marca, modelo, path y driver de la impresora.
