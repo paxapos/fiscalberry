@@ -3,6 +3,7 @@ from serial import SerialException
 import importlib
 import threading
 
+
 class ConectorError(Exception):
     pass
 

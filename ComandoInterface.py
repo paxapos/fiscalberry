@@ -3,6 +3,9 @@ import ConectorDriverComando
 import unicodedata
 import importlib
 import logging
+import string
+import types
+from pyutf8 import valid_utf8_bytes
 
 class ValidationError(Exception):
     pass
@@ -17,11 +20,38 @@ class ComandoException(RuntimeError):
 
 
 def formatText(text):
-    asciiText = unicodedata.normalize('NFKD', unicode(text)).encode('ASCII', 'ignore')
-    asciiText = asciiText.replace("\t", " ").replace("\n", " ").replace("\r", " ")
-    asciiText = asciiText.replace("ñ", "n").replace("Ñ", "N").replace("á", "a").replace("Á", "A").replace("é", "e").replace("É", "E").replace("í", "í").replace("Í", "Í").replace("ó", "o").replace("Ó", "O").replace("ú", "u").replace("Ú", "U")
-    asciiText = asciiText.replace("#", "").replace("~", "").replace("?", "")
-    return asciiText
+   text = valid_utf8_bytes(text)
+   text = text.replace('á', 'a')
+   text = text.replace('é', 'e')
+   text = text.replace('í', 'i')
+   text = text.replace('ó', 'o')
+   text = text.replace('ú', 'u')
+   text = text.replace('Á', 'A')
+   text = text.replace('É', 'E')
+   text = text.replace('Í', 'I')
+   text = text.replace('Ó', 'O')
+   text = text.replace('Ú', 'U')
+   text = text.replace('Ä', 'A')
+   text = text.replace('Ë', 'E')
+   text = text.replace('Ï', 'I')
+   text = text.replace('Ö', 'O')
+   text = text.replace('Ü', 'U')
+   text = text.replace('ä', 'a')
+   text = text.replace('ë', 'e')
+   text = text.replace('ï', 'i')
+   text = text.replace('ö', 'o')
+   text = text.replace('ü', 'u')
+   text = text.replace('ñ', 'n')
+   text = text.replace('Ñ', 'N')
+   text = text.replace('\\', ' ')
+   text = text.replace('\'', ' ')
+   text = text.replace('º', ' ')
+   text = text.replace('"', ' ')
+   text = text.replace('|', ' ')
+   text = text.replace('¿', ' ')
+   text = text.replace('¡', ' ')
+   text = text.replace('ª', ' ')
+   return text
 
 
 class ComandoInterface:
