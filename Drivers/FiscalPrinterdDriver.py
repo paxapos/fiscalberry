@@ -1,7 +1,6 @@
 # -*- coding: iso-8859-1 -*-
 from DriverInterface import DriverInterface
 
-import serial
 import sys
 
 def debugEnabled( *args ):
@@ -33,28 +32,21 @@ class ProxyError(PrinterException):
     errorNumber = 5
 
 
-class FiscalPrinterDriver(DriverInterface):
+class FiscalPrinterdDriver(DriverInterface):
     WAIT_TIME = 10
     RETRIES = 4
     WAIT_CHAR_TIME = 0.1
     NO_REPLY_TRIES = 200
 
 
-    def __init__( self, path, speed = 9600 ):
-        self._serialPort = serial.Serial( port = path, timeout = None, baudrate = speed )
+    def __init__( self, speed = 9600 ):
+        # self._serialPort = serial.Serial( port = path, timeout = None, baudrate = speed )
         self._initSequenceNumber()
+        bufsize = 1 # line buffer
+        self.file = open("hasard.txt", "a", bufsize)
 
 
-
-    
-
-    def close( self ):
-        try:
-            self._serialPort.close()
-        except:
-            pass
-        del self._serialPort
-
+	
     def sendCommand( self, commandNumber, fields, skipStatusErrors = False ):
         message = chr(0x02) + chr( self._sequenceNumber ) + chr(commandNumber)
         if fields:
@@ -65,6 +57,7 @@ class FiscalPrinterDriver(DriverInterface):
         checkSumHexa = ("0000" + hex(checkSum)[2:])[-4:].upper()
         message += checkSumHexa
         reply = self._sendMessage( message )
+        self.file.write(message+"\n")
         self._incrementSequenceNumber()
         return self._parseReply( reply, skipStatusErrors )
 
@@ -77,16 +70,12 @@ class FiscalPrinterDriver(DriverInterface):
         print(s.encode('ascii', 'ignore'))
         print("*-*-**-*-**-*-**-*-*")
         print(s.encode())
-        self._serialPort.write( s.encode() )
 
-    def _read( self, count ):
-        ret = self._serialPort.read( count )
-        debug( "_read", ", ".join( [ "%x" % ord(c) for c in ret ] ) )
-        return ret
 
     def __del__( self ):
         if hasattr(self, "_serialPort" ):
             try:
+                self.file.close()
                 self.close()
             except:
                 pass
@@ -98,7 +87,6 @@ class FiscalPrinterDriver(DriverInterface):
         fiscalStatus = fields[1]
         if not skipStatusErrors:
             self._parsePrinterStatus( printerStatus )
-            self._parseFiscalStatus( fiscalStatus )
         return fields
 
     def _parsePrinterStatus( self, printerStatus ):
@@ -107,13 +95,7 @@ class FiscalPrinterDriver(DriverInterface):
             if (value & x) == value:
                 raise PrinterStatusError, message
 
-    def _parseFiscalStatus( self, fiscalStatus ):
-        x = int( fiscalStatus, 16 )
-        for value, message in self.fiscalStatusErrors:
-            if (value & x) == value:
-                raise FiscalStatusError, message
-
-    
+   
 
     def _checkReplyBCC( self, reply, bcc ):
         debug( "reply", reply, [ord(x) for x in reply] )

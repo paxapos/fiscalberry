@@ -11,7 +11,7 @@ class FiscalPrinterError(Exception):
 
 
 
-class EpsonComandos(ComandoInterface):
+class EpsondComandos(ComandoInterface):
 
     # el traductor puede ser: TraductorFiscal o TraductorReceipt
     # path al modulo de traductor que este comando necesita
@@ -20,7 +20,7 @@ class EpsonComandos(ComandoInterface):
     _currentDocument = None
     _currentDocumentType = None
 
-    DEFAULT_DRIVER="Epson"
+    DEFAULT_DRIVER="Epsond"
 
 
     DEBUG = True
