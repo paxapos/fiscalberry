@@ -373,7 +373,8 @@ se deberá indicar un nombre para cada impresora.
 Las opciones son: 
 * "Epson"
 * "Hasar"
-
+* "Epsond" Para Dummy
+* "Hasard" Para Dummy
 		
 #### "modelo"
 
@@ -393,6 +394,7 @@ Hasar:
 
 En Windows "COM1"... "COM2", etc.
 En linux "/dev/ttyUSB0"
+No es requerido para Epsond y Hasard
 
 #### "driver" (opcional)
 Es la "salida" o sea, es el medio por donde saldrán las impresiones.
@@ -400,6 +402,8 @@ Es la "salida" o sea, es el medio por donde saldrán las impresiones.
 Opciones: 
 * Hasar
 * Epson
+* Hasard -> Dummy Driver
+* Epsond -> Dummy Driver
 * Dummy
 * File
 
