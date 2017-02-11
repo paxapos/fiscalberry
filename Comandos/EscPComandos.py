@@ -53,6 +53,17 @@ class EscPComandos(ComandoInterface):
 		self.doble_alto_x_linea("Mozo: %s"%mozo);
 
 
+	def printTexto(self, texto):
+		printer = self.conector.driver
+
+		printer.start()
+		printer.text(texto)
+
+		printer.cut("PART")
+
+		printer.end()
+
+
 
 	def printRemito(self, **kwargs):		
 		"imprimir remito"
