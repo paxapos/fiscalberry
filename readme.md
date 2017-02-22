@@ -72,9 +72,8 @@ Se necesitan las dependencias:
 * tornado (para usar como servidor de web sockets)
 
 ```sh
-sudo apt-get install python-pip
+sudo apt-get install python-pip python-yaml build-essential python-dev
 sudo pip install pyserial
-sudo apt-get install build-essential python-dev
 sudo pip install tornado
 ```
 
