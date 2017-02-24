@@ -10,6 +10,7 @@ import json
 import signal
 import logging
 import time
+import ssl
 import os.path
 from threading import Timer
 from Traductores.TraductoresHandler import TraductoresHandler, CONFIG_FILE_NAME, TraductorException
@@ -88,12 +89,34 @@ class FiscalberryServer:
 	def __init__(self):
 		print("Iniciando Fiscalberry Server")
 		
-		self.http_server = tornado.web.Application([
+
+		self.application = tornado.web.Application([
 			(r'/ws', WSHandler),
 		])
-		
+
+
 		self.config = ConfigParser.RawConfigParser()
 		self.config.read(CONFIG_FILE_NAME)
+
+
+		
+		hasCrt = self.config.has_option('SERVIDOR', "ssl_crt_path")
+		hasKey = self.config.has_option('SERVIDOR', "ssl_key_path")
+
+
+		if ( hasCrt and hasKey):
+			ssl_crt_path = self.config.get('SERVIDOR', "ssl_crt_path")
+			ssl_key_path = self.config.get('SERVIDOR', "ssl_key_path")
+
+			context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+			context.load_cert_chain(certfile=ssl_crt_path, keyfile=ssl_key_path)
+
+			self.http_server = tornado.httpserver.HTTPServer(self.application, ssl_options=context)
+			print("iniciando en modo HTTPS")
+		else:
+			self.http_server = tornado.httpserver.HTTPServer(self.application)
+			print("iniciando en modo HTTP")
+
 
 
 	def shutdown(self):
