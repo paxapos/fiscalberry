@@ -255,7 +255,7 @@ class TraductoresHandler:
 
 	def _systemPowerOff(self):
 		import commands
-		commands.getoutput('poweroff')
+		commands.getoutput('halt -h -i -p')
 		
 	def _systemReboot(self):
 		import commands
