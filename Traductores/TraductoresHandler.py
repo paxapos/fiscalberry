@@ -234,7 +234,6 @@ class TraductoresHandler:
 				resdict["rta"][tradu] = "OFFLINE"
 		return resdict
 
-
 	def is_json(self, myjson):
 		try:
 			json_object = json.loads(myjson)
@@ -253,7 +252,14 @@ class TraductoresHandler:
 		except Exception:
 			# ok, no quiere conectar, continuar sin hacer nada
 			print("No hay caso, probe de reconectar pero no se pudo")
-			
+
+	def _systemPowerOff(self):
+		import commands
+		commands.getoutput('poweroff')
+		
+	def _systemReboot(self):
+		import commands
+		commands.getoutput('reboot')
 
 	def json_to_comando	( self, jsonTicket ):
 		""" leer y procesar una factura en formato JSON
@@ -283,6 +289,12 @@ class TraductoresHandler:
 				raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'"%printerName)
 		
 		# aciones de comando genericos de Ststus y control
+		elif 'powerOff' in jsonTicket:
+			rta["rta"] =  self._systemPowerOff()
+			
+		elif 'osReboot' in jsonTicket:
+			rta["rta"] =  self._systemReboot()
+
 		elif 'getStatus' in jsonTicket:
 			rta["rta"] =  self._getStatus()
 
@@ -296,6 +308,6 @@ class TraductoresHandler:
 			rta["rta"] =  self._configure(**jsonTicket["configure"])
 
 		else:
-			rta["err"] = "No se paso un comandio de accion generico ni el nombre de la impresora printerName"
+			rta["err"] = "No se paso un comando de accion generico ni el nombre de la impresora printerName"
 
 		return rta
