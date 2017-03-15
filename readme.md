@@ -423,6 +423,29 @@ Por defecto se utiliza el mismo driver que la impresora, pero en algunas casos (
 			}
 		}
 ```
+### JSON Accion: **osReboot**
+
+Reinicia la maquina en donde este instalado el script, no requiere de parametros.
+
+```
+EJ: 
+{
+  "osReboot": {}
+}
+```
+
+
+### JSON Accion: **powerOff**
+
+Apaga la maquina en donde este instalado el script, no requiere de parametros.
+
+```
+EJ: 
+{
+  "powerOff": {}
+}
+```
+
 
 ### JSON Accion: **openDrawer**
 
