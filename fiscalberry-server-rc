@@ -13,7 +13,7 @@
 # Change the next 3 lines to suit where you install your script and what you want to call it
 
 #DIR current
-DIR=/insertPATHHERE
+DIR=PATH_HERE
 cd $DIR
 DAEMON=$DIR/server.py
 DAEMON_NAME=fiscalberry_server
