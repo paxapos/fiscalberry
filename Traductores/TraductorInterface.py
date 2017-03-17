@@ -1,13 +1,9 @@
-
-
 class TraductorInterface:
 	isRunning=False
 	colaImpresion=[]
 
 	def __init__(self, comando, *args):
 		self.comando = comando
-
-	
 
 	def run(self, jsonTicket):
 		actions = jsonTicket.keys()

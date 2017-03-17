@@ -2,7 +2,6 @@ from Traductores.TraductorInterface import TraductorInterface
 
 class TraductorReceipt(TraductorInterface):
 
-	
 	def printRemito(self, **kwargs):
 		"Imprime un Remito, comando de accion valido solo para Comandos de Receipt"
 		return self.comando.printRemito( **kwargs )
@@ -11,12 +10,9 @@ class TraductorReceipt(TraductorInterface):
 		"Imprime una Comanda, comando de accion valido solo para Comandos de Receipt"
 		return self.comando.printComanda(comanda, setHeader, setTrailer)
 
-
 	def printTexto(self, texto):
 		"Imprime texto libre"
 		return self.comando.printTexto(texto)
-
-
 
 	def setHeader(self, *args):
 		"SetHeader"

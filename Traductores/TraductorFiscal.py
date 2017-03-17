@@ -3,8 +3,6 @@ from Traductores.TraductorInterface import TraductorInterface
 
 class TraductorFiscal(TraductorInterface):
 
-
-
 	def dailyClose(self, type):
 		"Comando X o Z"
 		# cancelar y volver a un estado conocido
@@ -12,8 +10,6 @@ class TraductorFiscal(TraductorInterface):
 		
 		ret = self.comando.dailyClose(type)
 		return ret
-
-
 
 	def setHeader(self, *args):
 		"SetHeader"
@@ -25,11 +21,9 @@ class TraductorFiscal(TraductorInterface):
 		ret = self.comando.setTrailer(list(args))
 		return ret
 
-
 	def openDrawer(self, *args):
 		"Abrir caja registradora"
 		return self.comando.openDrawer()
-
 
 	def getLastNumber(self, tipo_cbte):
 		"Devuelve el último número de comprobante"
@@ -40,7 +34,6 @@ class TraductorFiscal(TraductorInterface):
 	def cancelDocument(self):
 		"Cancelar comprobante en curso"
 		return self.comando.cancelDocument()
-
 
 	def printTicket(self, encabezado=None, items=[], pagos=[], addAdditional=None, setHeader=None, setTrailer=None):
 		if setHeader:
@@ -65,11 +58,6 @@ class TraductorFiscal(TraductorInterface):
 
 		rta = self._cerrarComprobante()
 		return rta
-
-
-
-
-
 	
 	def _abrirComprobante(self, 
 						 tipo_cbte="T", 							# tique
@@ -130,7 +118,6 @@ class TraductorFiscal(TraductorInterface):
 		discount = discountDescription =  None
 		return self.comando.addItem(ds, float(qty), float(importe), float(alic_iva), 
 									discount, discountDescription)
-
 	def _imprimirPago(self, ds, importe):
 		"Imprime una linea con la forma de pago y monto"
 		self.factura["pagos"].append(dict(ds=ds, importe=importe))
