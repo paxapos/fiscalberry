@@ -12,11 +12,6 @@ class TraductorReceipt(TraductorInterface):
 		return self.comando.printComanda(comanda, setHeader, setTrailer)
 
 
-	def printTexto(self, texto):
-		"Imprime texto libre"
-		return self.comando.printTexto(texto)
-
-
 
 	def setHeader(self, *args):
 		"SetHeader"

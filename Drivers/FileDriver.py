@@ -12,6 +12,7 @@ class FileDriver(DriverInterface):
     def sendCommand(self, command, parameters, skipStatusErrors=False):
         import random
         self.file.write("Command: %d, Parameters: %s\n" % (command, parameters))
+        print("*** OUTPUT Command: %d, Parameters: %s\n" % (command, parameters))
         number = random.randint(2, 12432)
         return [str(number)] * 10
 

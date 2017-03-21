@@ -296,6 +296,6 @@ class TraductoresHandler:
 			rta["rta"] =  self._configure(**jsonTicket["configure"])
 
 		else:
-			rta["err"] = "No se paso un comandio de accion generico ni el nombre de la impresora printerName"
+			rta["err"] = "No se paso un comando de accion generico ni el nombre de la impresora printerName"
 
 		return rta
