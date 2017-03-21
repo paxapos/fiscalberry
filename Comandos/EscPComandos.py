@@ -76,7 +76,12 @@ class EscPComandos(ComandoInterface):
 		if encabezado:
 			printer.set("CENTER", "A", "A", 1, 2)
 			if encabezado.has_key("nombre_cliente"):
-				printer.text( '\n%s\n\n'% encabezado.get("nombre_cliente") )
+				printer.text( '\n%s\n'% encabezado.get("nombre_cliente") )
+			if encabezado.has_key("telefono"):
+				printer.text( '\n%s\n'% encabezado.get("telefono") )
+			if encabezado.has_key("domicilio_cliente"):
+				printer.text( '\n%s\n'% encabezado.get("domicilio_cliente") )
+
 
 			if "fecha" in encabezado:
 				printer.set("LEFT", "A", "A", 1, 1)
