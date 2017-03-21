@@ -16,3 +16,17 @@ class DummyDriver(DriverInterface):
 		print commandNumber, parameters, skipStatusErrors
 		number = random.randint(0, 99999999)
 		return ["00", "00"] + [str(number)] * 11
+
+	def start(self):
+		""" iniciar """
+		pass
+
+	def end(self):
+		pass
+
+
+	def reconnect(self):
+		pass
+
+	def set(self):
+		pass

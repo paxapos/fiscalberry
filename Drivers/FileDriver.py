@@ -18,3 +18,20 @@ class FileDriver(DriverInterface):
 
     def close(self):
         self.file.close()
+
+    def start(self):
+        """ iniciar """
+        pass
+
+    def end(self):
+        pass
+
+
+    def reconnect(self):
+        pass
+
+    def set(self):
+        pass
+
+    def _raw(self):
+        pass

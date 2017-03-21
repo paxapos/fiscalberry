@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # -*- coding: latin-1 -*-
 
 import string
