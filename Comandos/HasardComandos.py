@@ -13,13 +13,13 @@ NUMBER = 999990
 
 
 
-class HasarComandos(ComandoInterface):
+class HasardComandos(ComandoInterface):
     # el traductor puede ser: TraductorFiscal o TraductorReceipt
     # path al modulo de traductor que este comando necesita
     traductorModule="Traductores.TraductorFiscal"
 
 
-    DEFAULT_DRIVER="Hasar"
+    DEFAULT_DRIVER="Hasard"
     
     _savedPayments= None
     _currentDocument = None

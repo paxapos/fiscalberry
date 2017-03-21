@@ -3,12 +3,16 @@
 #from hasarPrinter import HasarPrinter
 # Drivers:
 
+from Drivers.EpsondDriver import EpsondDriver
 from Drivers.EpsonDriver import EpsonDriver
 from Drivers.FileDriver import FileDriver
 from Drivers.HasarDriver import HasarDriver
+from Drivers.HasardDriver import HasardDriver
 from Drivers.DummyDriver import DummyDriver
 
+from Comandos.EpsondComandos import EpsondComandos
 from Comandos.EpsonComandos import EpsonComandos
+from Comandos.HasardComandos import HasardComandos
 from Comandos.HasarComandos import HasarComandos
 
 from Traductores.TraductoresHandler import TraductoresHandler

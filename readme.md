@@ -31,6 +31,14 @@ git clone https://github.com/ristorantino/fiscalberry.git
 ```
 o directamente el ZIP: https://github.com/ristorantino/fiscalberry/archive/master.zip
 
+## BUG: Cuando se traba impresora fiscal
+
+git clone https://github.com/Intelintec/pyutf8.git
+
+dentro de la carpeta pyutf8 ejecutar:
+
+python setup.py install 
+
 ### Crear archivo de configuracion
 
 Renombrar el archivo "config.ini.install" como "config.ini" y configurar la marca, modelo, path y driver de la impresora.
@@ -365,7 +373,8 @@ se deberá indicar un nombre para cada impresora.
 Las opciones son: 
 * "Epson"
 * "Hasar"
-
+* "Epsond" Para Dummy
+* "Hasard" Para Dummy
 		
 #### "modelo"
 
@@ -385,6 +394,7 @@ Hasar:
 
 En Windows "COM1"... "COM2", etc.
 En linux "/dev/ttyUSB0"
+No es requerido para Epsond y Hasard
 
 #### "driver" (opcional)
 Es la "salida" o sea, es el medio por donde saldrán las impresiones.
@@ -392,6 +402,8 @@ Es la "salida" o sea, es el medio por donde saldrán las impresiones.
 Opciones: 
 * Hasar
 * Epson
+* Hasard -> Dummy Driver
+* Epsond -> Dummy Driver
 * Dummy
 * File
 
