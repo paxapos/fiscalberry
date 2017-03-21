@@ -240,4 +240,3 @@ class EscPComandos(ComandoInterface):
 		
 		printer.end()
 
-	
