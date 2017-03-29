@@ -4,12 +4,43 @@ from Traductores.TraductorInterface import TraductorInterface
 
 traductores = {}
 CONFIG_FILE_NAME = "config.ini"
+service_name = 'fiscalberry-server-rc'
 
 class TraductorGenerico(TraductorInterface):
 
     def __init__(self):
         config = ConfigParser.ConfigParser()
         pass
+
+    def _serviceStatus(self):
+        import commands
+    
+        resdict = {
+                "action": "serviceStatus", 
+                "rta": commands.getoutput('service '+service_name+' status')
+                }
+
+        return resdict
+
+    def _serviceStart(self):
+        import commands
+    
+        resdict = {
+                "action": "serviceStart", 
+                "rta": commands.getoutput('service '+service_name+' start')
+                }
+
+        return resdict
+
+    def _serviceStop(self):
+        import commands
+    
+        resdict = {
+                "action": "serviceStop", 
+                "rta": commands.getoutput('service '+service_name+' stop')
+                }
+
+        return resdict
 
     def _systemPowerOff(self):# en caso de exito no habra retorno, de existir retorno legible en el cliente sera señal de que algo fue mal
         import commands
@@ -37,13 +68,13 @@ class TraductorGenerico(TraductorInterface):
 
         resdict = {
                 "action": "restartFIscalberry", 
-                "rta": call(["service", "fiscalberry-server-rc", "restart"])
+                "rta": call(["service", service_name, "restart"])
                 }
 
         return resdict
 
     def _configure(self, printerName, **kwargs):
-        "Configura generando o modificando el archivo configure.ini"
+        "Configura generando o modificando el archivo config.ini"
 
         config = ConfigParser.RawConfigParser()
         config.read(CONFIG_FILE_NAME)
@@ -55,12 +86,14 @@ class TraductorGenerico(TraductorInterface):
             config.set(printerName, param, kwargs[param])
 
         with open(CONFIG_FILE_NAME, 'w') as configfile:
-            config.write(configfile)
+             config.write(configfile)
 
-        return {
+        rta = {
             "action": "configure",
             "rta": "ok"
         }
+
+        return rta
 
     def _getAvaliablePrinters(self):
         config = ConfigParser.RawConfigParser()
@@ -86,6 +119,6 @@ class TraductorGenerico(TraductorInterface):
 
     def _testFunction(self,mode):
 
-        resdict = 'un testeo'
+        resdict = {'action':'testeo','rta': service_name}
 
         return resdict    

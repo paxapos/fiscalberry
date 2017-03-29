@@ -65,6 +65,7 @@
 				</div>
 
 				</br></br>
+				<input type="button" id="config-file-edit" value="Modificar Archivo Configuracion" />
 				<input type="button" id="msg-get-printers" value="Listar Impresoras" />
 
 				<input type="button" id="msg-drawer" value="Mensaje Open Drawer" />
@@ -312,7 +313,20 @@
 			$("#msg-get-printers").on('click', function () {
 				ponerJSONenTextarea('{"getAvaliablePrinters": ""}');
 			});
+			$("#config-file-edit").on('click', function () {
+				ponerJSONenTextarea(configString);
+			});
 
+            var configString = 
+'{\
+  "configure": {\
+    "marca": "ABCD",\
+    "modelo": "7777",\
+    "path": "/tmp/testeos.txt",\
+    "driver": "Ninguno"\
+  },\
+  "printerName": "IMPRESORA_RED"\
+}';
 
 			var ticketString = 
 '{"printTicket": {\
@@ -332,6 +346,7 @@
       "qty": 2.0\
     }]\
 }}';
+
 
 			$("#msg-ticket").on('click', function () {
 				ponerJSONenTextarea(ticketString);

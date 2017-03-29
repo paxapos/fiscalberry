@@ -202,7 +202,7 @@ class TraductoresHandler(TraductorGenerico):
             if traductor:
                 if traductor.comando.conector is not None:
                     try:
-                        rta["rta"] = traductor.run( jsonTicket )
+                        rta["rta"] = traductor.run(jsonTicket)
                     except socket.error as err:
                         self.manejar_socket_error(err, jsonTicket, traductor)
 
@@ -212,8 +212,22 @@ class TraductoresHandler(TraductorGenerico):
                 raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'"%printerName)
         
         # aciones de comando genericos de Ststus y control
+        elif 'serviceStatus' in jsonTicket:
+            rta["rta"] =  self._serviceStatus()
+
+        elif 'serviceReboot' in jsonTicket:
+            rta["rta"] =  self._restartFiscalberry()
+
+        elif 'serviceStart' in jsonTicket:
+            rta["rta"] =  self._serviceStart()
+
+        elif 'serviceStop' in jsonTicket:
+            rta["rta"] =  self._serviceStop()
+
+
         elif 'TEST' in jsonTicket:
-            rta["rta"] =  self._testFunction(self)
+            rta["rta"] =  self._testFunction()
+            
 
         elif 'powerOff' in jsonTicket:
             rta["rta"] =  self._systemPowerOff()
@@ -222,16 +236,13 @@ class TraductoresHandler(TraductorGenerico):
             rta["rta"] =  self._systemReboot()
 
         elif 'getStatus' in jsonTicket:
-            rta["rta"] =  self._getStatus(self)
-
-        elif 'restart' in jsonTicket:
-            rta["rta"] =  self._restartFiscalberry()
+            rta["rta"] =  self._getStatus()
 
         elif 'getAvaliablePrinters' in jsonTicket:
             rta["rta"] =  self._getAvaliablePrinters()
 
         elif 'configure' in jsonTicket:
-            rta["rta"] =  self._configure(**jsonTicket["configure"])
+            rta["rta"] =  self._configure(jsonTicket["printerName"], **jsonTicket["configure"])
 
         else:
             rta["err"] = "No se paso un comando de accion generico ni el nombre de la impresora printerName"

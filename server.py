@@ -54,7 +54,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 		print message
 		try:
 			jsonMes = json.loads(message, strict=False)
-			response = traductor.json_to_comando( jsonMes )
+			response = traductor.json_to_comando(jsonMes)
 			self.write_message( response )
 		except TypeError:
 			response = {"err": "Error parseando el JSON"}
