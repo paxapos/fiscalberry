@@ -44,6 +44,76 @@
 	</head>
  
 	<body>
+
+      <div style="float:left; width: 200px; background: silver ">
+        <h1>Configuración</h1>
+        
+         <p>
+          <label>Puerto Server</label>
+          <input type="text" value="12000" />
+        </p>
+        <hr>
+        <div class="existing_printers">
+        
+        </div>
+        <div id="printer">
+       <!-- <p>
+          <button style="float:right; margin-right: 10px;">X</button><br>
+          <label>Nombre Impresora</label>
+          <input type="text" name="nombre" value="" />
+        </p>
+
+        <p>
+        <label>Tipo de impresora</label>
+        <select name="tipo">
+            <option value="Comandera">Comandera</option>
+            <option value="Fiscal">Fiscal</option>
+        </select>
+        </p>
+        
+        <p>
+          <label>Marca</label>
+          <select name="marca">
+          	<option value="Hasar">Hasar</option>
+            <option value="Epson">Epson</option>
+            <option value="EscP">EscP</option>
+        </select>
+      </p>
+
+        <p>
+          <label>Modelo</label>
+          <input type="text" name="modelo"/>
+        </p>
+
+        <p>
+          <label>Path</label>
+          <input type="text" name="path"/>
+        </p>
+
+        <p>
+          <label>Host</label>
+          <input type="text" name="host"/>
+        </p>
+        
+         <p>
+          <label>Driver</label>
+          <select name="driver">
+          	<option value="Hasar">Hasar</option>
+            <option value="Epson">Epson</option>
+            <option value="ReceiptDirectJect">DirectJect</option>
+            <option value="File">File</option>
+        </select>
+      </p> -->
+      </div>
+      
+      <p>
+        <hr>
+      <button id="new_printer">Agregar Impresora</button>
+      <br><br>
+        <input type="submit" value="Guardar Cambios" class="btn-submit"></button>
+      </p>
+      </div>
+
 		<h1>Fiscalberry WS Hello World</h1>
 		<div id="ws-message" class="ws-msg-offline" >OFFLINE</div>
 		<div id="connection_details">
@@ -66,7 +136,6 @@
 
 				</br></br>
 				<input type="button" id="config-file-edit" value="Modificar Archivo Configuracion" />
-				<input type="button" id="msg-get-printers" value="Listar Impresoras" />
 
 				<input type="button" id="msg-drawer" value="Mensaje Open Drawer" />
 
@@ -159,6 +228,9 @@
 
 
 
+
+
+
 			// Handle msg recibido del server.py
 			fbrry.on("fb:err", function( ob, evt){
 				if ( typeof evt.data === 'string' ) {
@@ -221,7 +293,19 @@
 				$(".content", "#select-printers").empty();
 
 				// agregar el select con las impresoras configuradas
-				$select.appendTo( $(".content", "#select-printers") );
+				$select.appendTo( $(".content", "#select-printers") ); 
+
+			});
+
+
+            $(document).on('ready', function () {
+            	var jsonGetPrinters = '{"getAvaliablePrinters": ""}';
+                var delay = 100;  
+                setTimeout(function() {
+		          log("Sending Message: "+$("#message").val());
+						fbrry.send(jsonGetPrinters);
+               }, delay); 
+					
 			});
 
 
@@ -316,6 +400,24 @@
 			$("#config-file-edit").on('click', function () {
 				ponerJSONenTextarea(configString);
 			});
+
+			$("#new_printer").on('click', function () {
+               var printer = document.getElementById("printer");
+
+               printer.innerHTML = "<p><button id='close_form' onclick='return close_form()' style='float:right; margin-right: 10px;'>X</button><br><label>Nombre Impresora</label><input type='text' name='nombre' /> </p>";
+               printer.innerHTML = printer.innerHTML + "<p> <label>Tipo de impresora</label><select name='tipo'><option value='Comandera'>Comandera</option><option value='Fiscal'>Fiscal</option></select></p>";
+               printer.innerHTML = printer.innerHTML + "<p><label>Marca</label><select name='marca'><option value='Hasar'>Hasar</option><option value='Epson'>Epson</option><option value='EscP'>EscP</option></select></p>";
+               printer.innerHTML = printer.innerHTML + "<p><label>Modelo</label><input type='text' name='modelo'/></p>";
+               printer.innerHTML = printer.innerHTML + "<p><label>Path</label><input type='text' name='path'/></p>";
+               printer.innerHTML = printer.innerHTML + "<p><label>Host</label><input type='text' name='host'/></p>";
+               printer.innerHTML = printer.innerHTML + "<p><label>Driver</label><select name='driver'><option value='Hasar'>Hasar</option><option value='Epson'>Epson</option><option value='ReceiptDirectJect'>DirectJect</option><option value='File'>File</option></select></p>";
+
+			});
+
+			function close_form() {
+				var printer = document.getElementById("printer");
+				printer.innerHTML = "";
+			};
 
             var configString = 
 '{\
