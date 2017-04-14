@@ -64,6 +64,7 @@ class FiscalPrinterDriver(DriverInterface):
         checkSum = sum( [ord(x) for x in message ] )
         checkSumHexa = ("0000" + hex(checkSum)[2:])[-4:].upper()
         message += checkSumHexa
+        message = message.encode("latin-1", 'ignore')
         reply = self._sendMessage( message )
         self._incrementSequenceNumber()
         return self._parseReply( reply, skipStatusErrors )
