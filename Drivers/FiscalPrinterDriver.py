@@ -74,11 +74,7 @@ class FiscalPrinterDriver(DriverInterface):
 
     def _write( self, s ):
         debug( "_write", ", ".join( [ "%x" % ord(c) for c in s ] ) )
-        print("Escribiendo ...")
-        print(s.encode('ascii', 'ignore'))
-        print("*-*-**-*-**-*-**-*-*")
-        print(s.encode())
-        self._serialPort.write( s.encode() )
+        self._serialPort.write( s )
 
     def _read( self, count ):
         ret = self._serialPort.read( count )
