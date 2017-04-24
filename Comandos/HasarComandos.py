@@ -98,6 +98,18 @@ class HasarComandos(ComandoInterface):
                   'generalDiscount': 50,
                   'embarkItem': 108,
                  'receiptText': 106,
+                },
+        "615": {
+                'nonFiscalText': 40,
+                'customerName': 30,
+                'custAddressSize': 40,
+                'paymentDescription': 30,
+                'fiscalText': 20,
+                'lineItem': 20,
+                'lastItemDiscount': 20,
+                'generalDiscount': 20,
+                'embarkItem': 108,
+                'receiptText': 106,
                 }
         }
 
