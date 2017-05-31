@@ -288,6 +288,7 @@ class HasarComandos(ComandoInterface):
             type = "R"
         else:
             type = "S"
+        reference = str(reference)
         self._currentDocument = self.CURRENT_DOC_CREDIT_BILL_TICKET
         self._savedPayments = []
         self._sendCommand(self.CMD_CREDIT_NOTE_REFERENCE, ["1", reference])
