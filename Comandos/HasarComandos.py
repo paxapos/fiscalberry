@@ -288,6 +288,7 @@ class HasarComandos(ComandoInterface):
             type = "R"
         else:
             type = "S"
+        reference = str(reference)
         self._currentDocument = self.CURRENT_DOC_CREDIT_BILL_TICKET
         self._savedPayments = []
         self._sendCommand(self.CMD_CREDIT_NOTE_REFERENCE, ["1", reference])
@@ -459,6 +460,12 @@ class HasarComandos(ComandoInterface):
                 rta[val] = reply[i]
             else:
                 break
+
+       # for i, val in enumerate(datos):
+       #     if len(reply) > i:
+       #         rta[val] = reply[i]
+       #     if len(reply) <= i:
+       #         rta[val] = random.randint(2, 20000) * 1.552       
 
         return rta
 
