@@ -455,17 +455,17 @@ class HasarComandos(ComandoInterface):
                 "cant_nc_a_fiscales_a_emitidos"
              ]
         rta = {}
-       # for i, val in enumerate(datos):
-       #     if len(reply) > i:
-       #         rta[val] = reply[i]
-       #     else:
-       #         break
-
         for i, val in enumerate(datos):
             if len(reply) > i:
                 rta[val] = reply[i]
-            if len(reply) <= i:
-                rta[val] = random.randint(2, 20000) * 1.552       
+            else:
+                break
+
+       # for i, val in enumerate(datos):
+       #     if len(reply) > i:
+       #         rta[val] = reply[i]
+       #     if len(reply) <= i:
+       #         rta[val] = random.randint(2, 20000) * 1.552       
 
         return rta
 
