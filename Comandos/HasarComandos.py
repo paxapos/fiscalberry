@@ -281,7 +281,7 @@ class HasarComandos(ComandoInterface):
         self._savedPayments = []
         return self._sendCommand(self.CMD_OPEN_FISCAL_RECEIPT, [type, "T"])
 
-    def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, reference="NC"):
+    def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, posNumero, reference="NC"):
         if doc:
             self._setCustomerData(name, address, doc, docType, ivaType)
         if type == "A":
@@ -289,9 +289,11 @@ class HasarComandos(ComandoInterface):
         else:
             type = "S"
         reference = str(reference)
+        posNumero = str(posNumero)
+        comprobante = posNumero+"-"+"000"+reference
         self._currentDocument = self.CURRENT_DOC_CREDIT_BILL_TICKET
         self._savedPayments = []
-        self._sendCommand(self.CMD_CREDIT_NOTE_REFERENCE, ["1", reference])
+        self._sendCommand(self.CMD_CREDIT_NOTE_REFERENCE, ["1", comprobante])
         return self._sendCommand(self.CMD_OPEN_CREDIT_NOTE, [type, "T"])
 
     def openRemit(self, name, address, doc, docType, ivaType, copies=1):

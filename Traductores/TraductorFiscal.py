@@ -76,6 +76,7 @@ class TraductorFiscal(TraductorInterface):
 						 tipo_responsable="CONSUMIDOR_FINAL",
 						 tipo_doc="SIN_CALIFICADOR", nro_doc=0,     # sin especificar
 						 nombre_cliente="", domicilio_cliente="",
+						 pos_numero="",
 						 referencia=None,                           # comprobante original (ND/NC)
 						 **kwargs
 						 ):
@@ -86,6 +87,7 @@ class TraductorFiscal(TraductorInterface):
 										   tipo_doc=tipo_doc, nro_doc=nro_doc,
 										   nombre_cliente=nombre_cliente, 
 										   domicilio_cliente=domicilio_cliente,
+										   pos_numero = pos_numero,
 										   referencia=referencia),
 						"items": [], "pagos": []}
 		printer = self.comando
@@ -117,8 +119,8 @@ class TraductorFiscal(TraductorInterface):
 		elif tipo_cbte.startswith("NC"):
 			ret = printer.openBillCreditTicket(letra_cbte, nombre_cliente, 
 											   domicilio_cliente, nro_doc, doc_fiscal, 
-											   pos_fiscal, referencia)
-		
+											   pos_fiscal, pos_numero, referencia)
+	 
 		return ret
 
 	def _imprimirItem(self, ds, qty, importe, alic_iva=21.):
