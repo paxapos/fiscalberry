@@ -1,7 +1,7 @@
 # coding=utf-8
 
 import json
-import ConfigParser
+import Configberry
 import logging
 import importlib
 import socket
@@ -16,7 +16,6 @@ def set_interval(func, sec):
     return t
 
 
-CONFIG_FILE_NAME = "config.ini"
 
 # es un diccionario como clave va el nombre de la impresora que funciona como cola
 # cada KEY es una printerName y contiene un a instancia de TraductorReceipt o TraductorFiscal dependiendo
@@ -73,187 +72,12 @@ class TraductoresHandler:
 							99: "DOC_TYPE_SIN_CALIFICADOR",
 						}
 
+	config = Configberry.Configberry()
+
+
 	def __init__(self):
-		config = ConfigParser.ConfigParser()
-		config.read(CONFIG_FILE_NAME)
-
-		self.config = config
-
-		self.__create_config_if_not_exists()
 		self.__init_cola_traductores_printer()
-		#self.__init_keep_looking_for_device_connected()
 
-		
-	def get_traductores():
-		global traductores
-		return traductores
-
-	def __init_keep_looking_for_device_connected(self):
-		def recorrer_traductores_y_comprobar():
-			global traductores
-			logging.info("Iniciando procesamiento de json...")
-			for t in traductores:
-				print "estoy por verificando conexion de %s"%t
-				if not traductores[t].comando.conector:
-					print "*** NO conectada"
-					logging.info("la impresora %s esta desconectada y voy a reintentar conectarla"%t)
-					self.init_printer_traductor(t)
-				else:
-					print "ya estaba conectado"
-
-		set_interval(recorrer_traductores_y_comprobar, 10)
-
-
-
-	def getWarnings(self):
-		""" Recolecta los warning que puedan ir arrojando las impresoraas
-			devuelve un listado de warnings
-		"""
-		global traductores
-		collect_warnings = {}
-		for trad in traductores:
-			if traductores[trad]:
-				warn = traductores[trad].comando.getWarnings()
-				if warn:
-					collect_warnings[trad] = warn
-		return collect_warnings
-
-
-	def get_config_for_printer(self, printerName):
-		dictConf = {s:dict(self.config.items(s)) for s in self.config.sections()}
-
-		return dictConf[printerName]
-
-
-	def get_sections_from_config_file( self):
-		config = ConfigParser.ConfigParser()
-		config.read(CONFIG_FILE_NAME)
-
-		return  config.sections()
-
-	def init_printer_traductor(self, printerName):
-		global traductores
-		dictSectionConf = self.get_config_for_printer(printerName)
-		marca = dictSectionConf.get("marca")
-		del dictSectionConf['marca']
-		# instanciar los comandos dinamicamente
-		libraryName = "Comandos."+marca+"Comandos"
-		comandoModule = importlib.import_module(libraryName)
-		comandoClass = getattr(comandoModule, marca+"Comandos")
-		
-		comando = comandoClass(**dictSectionConf)
-		traductorComando = comando.traductor
-
-		# inicializo la cola por cada seccion o sea cada impresora
-		traductores.setdefault(printerName, traductorComando) 
-
-
-
-	def __init_cola_traductores_printer(self):
-
-		secs = self.get_sections_from_config_file()
-
-		# para cada impresora le voy a crear su juego de comandos con sui respectivo traductor
-		for s in secs:
-			# si la seccion es "SERVIDOR", no hacer caso y continuar con el resto
-			if s != "SERVIDOR":
-				self.init_printer_traductor(s)
-
-
-		
-	def __create_config_if_not_exists(self):
-		import os.path
-		if not os.path.isfile(CONFIG_FILE_NAME):
-			savedPath = os.getcwd()
-			newpath = os.path.dirname(os.path.realpath(__file__))
-			os.chdir(newpath)
-			os.chdir("../")
-			import shutil
-			shutil.copy ("config.ini.install", CONFIG_FILE_NAME)
-			os.chdir(savedPath)
-
-
-
-	def debugLog(self):
-		"Devolver bitácora de depuración"
-		msg = self.log.getvalue()
-		return msg    
-
-	def _restartFiscalberry(self):
-		"reinicia el servicio fiscalberry"
-		from subprocess import call
-
-		resdict = {
-				"action": "restartFIscalberry", 
-				"rta": call(["service", "fiscalberry-server-rc", "restart"])
-				}
-
-		return resdict
-
-
-	def _configure(self, printerName, **kwargs):
-		"Configura generando o modificando el archivo configure.ini"
-
-		config = ConfigParser.RawConfigParser()
-		config.read(CONFIG_FILE_NAME)
-
-		if not config.has_section(printerName):
-			config.add_section(printerName)
-
-		for param in kwargs:
-			config.set(printerName, param, kwargs[param])
-
-		with open(CONFIG_FILE_NAME, 'w') as configfile:
-			config.write(configfile)
-
-		return {
-			"action": "configure",
-			"rta": "ok"
-		}
-
-	def _getAvaliablePrinters(self):
-		config = ConfigParser.RawConfigParser()
-		config.read(CONFIG_FILE_NAME)
-		# la primer seccion corresponde a SERVER, el resto son las impresoras
-		rta = {
-			"action": "getAvaliablePrinters",
-			"rta": config.sections()[1:]
-		}
-
-		return rta
-
-	
-
-	def _getStatus(self, *args):
-		global traductores
-		resdict = {"action": "getStatus", "rta":{}}
-		for tradu in traductores:
-			if traductores[tradu]:
-				resdict["rta"][tradu] = "ONLINE"
-			else:
-				resdict["rta"][tradu] = "OFFLINE"
-		return resdict
-
-
-	def is_json(self, myjson):
-		try:
-			json_object = json.loads(myjson)
-		except ValueError, e:
-			return False
-		return True
-
-
-
-	def manejar_socket_error(self, err, jsonTicket, traductor):
-		print(format(err))
-		traductor.comando.conector.driver.reconnect()
-		#volver a intententar el mismo comando
-		try:
-			rta["rta"] = traductor.run( jsonTicket )
-		except Exception:
-			# ok, no quiere conectar, continuar sin hacer nada
-			print("No hay caso, probe de reconectar pero no se pudo")
-			
 
 	def json_to_comando	( self, jsonTicket ):
 		""" leer y procesar una factura en formato JSON
@@ -275,7 +99,7 @@ class TraductoresHandler:
 					try:
 						rta["rta"] = traductor.run( jsonTicket )
 					except socket.error as err:
-						self.manejar_socket_error(err, jsonTicket, traductor)
+						self.__manejar_socket_error(err, jsonTicket, traductor)
 
 				else:
 					logging.info("el Driver no esta inicializado para la impresora %s"%printerName)
@@ -299,3 +123,130 @@ class TraductoresHandler:
 			rta["err"] = "No se paso un comando de accion generico ni el nombre de la impresora printerName"
 
 		return rta
+
+
+
+	def getWarnings(self):
+		""" Recolecta los warning que puedan ir arrojando las impresoraas
+			devuelve un listado de warnings
+		"""
+		global traductores
+		collect_warnings = {}
+		for trad in traductores:
+			if traductores[trad]:
+				warn = traductores[trad].comando.getWarnings()
+				if warn:
+					collect_warnings[trad] = warn
+		return collect_warnings
+
+
+
+
+
+	def __init_keep_looking_for_device_connected(self):
+		def recorrer_traductores_y_comprobar():
+			global traductores
+			logging.info("Iniciando procesamiento de json...")
+			for t in traductores:
+				print "estoy por verificando conexion de %s"%t
+				if not traductores[t].comando.conector:
+					print "*** NO conectada"
+					logging.info("la impresora %s esta desconectada y voy a reintentar conectarla"%t)
+					self.__init_printer_traductor(t)
+				else:
+					print "ya estaba conectado"
+
+		set_interval(recorrer_traductores_y_comprobar, 10)
+
+
+
+	
+
+
+	def __init_printer_traductor(self, printerName):
+		global traductores
+		dictSectionConf = self.config.get_config_for_printer(printerName)
+		marca = dictSectionConf.get("marca")
+		del dictSectionConf['marca']
+		# instanciar los comandos dinamicamente
+		libraryName = "Comandos."+marca+"Comandos"
+		comandoModule = importlib.import_module(libraryName)
+		comandoClass = getattr(comandoModule, marca+"Comandos")
+		
+		comando = comandoClass(**dictSectionConf)
+		traductorComando = comando.traductor
+
+		# inicializo la cola por cada seccion o sea cada impresora
+		traductores.setdefault(printerName, traductorComando) 
+
+
+
+	def __init_cola_traductores_printer(self):
+
+		secs = self.config.sections()
+
+		# para cada impresora le voy a crear su juego de comandos con sui respectivo traductor
+		for s in secs:
+			# si la seccion es "SERVIDOR", no hacer caso y continuar con el resto
+			if s != "SERVIDOR":
+				self.__init_printer_traductor(s)
+
+
+		
+	def _restartFiscalberry(self):
+		"reinicia el servicio fiscalberry"
+		from subprocess import call
+
+		resdict = {
+				"action": "restartFIscalberry", 
+				"rta": call(["service", "fiscalberry-server-rc", "restart"])
+				}
+
+		return resdict
+
+
+	def _configure(self, printerName, **kwargs):
+		"Configura generando o modificando el archivo configure.ini"
+
+		self.config.writeSectionWithKwargs(printerName, kwargs)
+
+		return {
+			"action": "configure",
+			"rta": "ok"
+		}
+
+	def _getAvaliablePrinters(self):	
+		# la primer seccion corresponde a SERVER, el resto son las impresoras
+		rta = {
+			"action": "getAvaliablePrinters",
+			"rta": config.sections()[1:]
+		}
+
+		return rta
+
+	
+
+	def _getStatus(self, *args):
+		global traductores
+		resdict = {"action": "getStatus", "rta":{}}
+		for tradu in traductores:
+			if traductores[tradu]:
+				resdict["rta"][tradu] = "ONLINE"
+			else:
+				resdict["rta"][tradu] = "OFFLINE"
+		return resdict
+
+
+
+	def __manejar_socket_error(self, err, jsonTicket, traductor):
+		print(format(err))
+		traductor.comando.conector.driver.reconnect()
+		#volver a intententar el mismo comando
+		try:
+			rta["rta"] = traductor.run( jsonTicket )
+		except Exception:
+			# ok, no quiere conectar, continuar sin hacer nada
+			print("No hay caso, probe de reconectar pero no se pudo")
+			
+
+	
