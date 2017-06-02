@@ -20,7 +20,6 @@ class ConectorDriverComando:
 			libraryName = "Drivers."+driver+"Driver"
 			driverModule = importlib.import_module(libraryName)
 			driverClass = getattr(driverModule, driver+"Driver")
-			print(kwargs)
 			self.driver = driverClass(**kwargs)
 
 
