@@ -13,8 +13,8 @@ import time
 import ssl
 import os.path
 from threading import Timer
-from Traductores.TraductoresHandler import TraductoresHandler, CONFIG_FILE_NAME, TraductorException
-import ConfigParser
+from Traductores.TraductoresHandler import TraductoresHandler, TraductorException
+import Configberry
 
 
 
@@ -95,18 +95,16 @@ class FiscalberryServer:
 		])
 
 
-		self.config = ConfigParser.RawConfigParser()
-		self.config.read(CONFIG_FILE_NAME)
-
+		self.configberry = Configberry.Configberry()
 
 		
-		hasCrt = self.config.has_option('SERVIDOR', "ssl_crt_path")
-		hasKey = self.config.has_option('SERVIDOR', "ssl_key_path")
+		hasCrt = self.configberry.config.has_option('SERVIDOR', "ssl_crt_path")
+		hasKey = self.configberry.config.has_option('SERVIDOR', "ssl_key_path")
 
 
 		if ( hasCrt and hasKey):
-			ssl_crt_path = self.config.get('SERVIDOR', "ssl_crt_path")
-			ssl_key_path = self.config.get('SERVIDOR', "ssl_key_path")
+			ssl_crt_path = self.configberry.config.get('SERVIDOR', "ssl_crt_path")
+			ssl_key_path = self.configberry.config.get('SERVIDOR', "ssl_key_path")
 
 			context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
 			context.load_cert_chain(certfile=ssl_crt_path, keyfile=ssl_key_path)
@@ -164,7 +162,7 @@ class FiscalberryServer:
 	def get_config_port(self):
 		"lee el puerto configurado por donde escuchará el servidor de websockets"
 		
-		puerto = self.config.get('SERVIDOR', "puerto")
+		puerto = self.configberry.config.get('SERVIDOR', "puerto")
 		return puerto
 
 
@@ -174,7 +172,7 @@ class FiscalberryServer:
 		"Listar las impresoras configuradas"
 		# el primer indice del array corresponde a info del SERVER,
 		# por eso lo omito. El resto son todas impresoras configuradas
-		printers = self.config.sections()[1:]
+		printers = self.configberry.sections()[1:]
 		return printers
 
 
@@ -208,10 +206,10 @@ class FiscalberryServer:
 		for printer in printers:
 			print "  - %s" % printer
 			modelo = None
-			marca = self.config.get(printer, "marca")
-			driver = self.config.get(printer, "driver")
-			if self.config.has_option(printer, "modelo"):
-				modelo = self.config.get(printer, "modelo")
+			marca = self.configberry.config.get(printer, "marca")
+			driver = self.configberry.config.get(printer, "driver")
+			if self.configberry.config.has_option(printer, "modelo"):
+				modelo = self.configberry.config.get(printer, "modelo")
 			print "      marca: %s, driver: %s" % (marca, driver)
 		print "\n"
 		

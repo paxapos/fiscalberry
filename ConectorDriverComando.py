@@ -9,7 +9,8 @@ class ConectorError(Exception):
 
 
 class ConectorDriverComando:
-	
+	driver = None
+
 	def __init__(self, comando, driver, *args, **kwargs):
 		self._comando = comando
 		print("inicializando ConectorDriverComando driver de %s"%driver)
