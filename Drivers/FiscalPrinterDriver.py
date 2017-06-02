@@ -56,6 +56,7 @@ class FiscalPrinterDriver(DriverInterface):
         del self._serialPort
 
     def sendCommand( self, commandNumber, fields, skipStatusErrors = False ):
+        fields = map(lambda x:x.encode("latin-1", 'ignore'), fields)
         message = chr(0x02) + chr( self._sequenceNumber ) + chr(commandNumber)
         if fields:
             message += chr(0x1c)
@@ -64,7 +65,6 @@ class FiscalPrinterDriver(DriverInterface):
         checkSum = sum( [ord(x) for x in message ] )
         checkSumHexa = ("0000" + hex(checkSum)[2:])[-4:].upper()
         message += checkSumHexa
-        message = message.encode("latin-1", 'ignore')
         reply = self._sendMessage( message )
         self._incrementSequenceNumber()
         return self._parseReply( reply, skipStatusErrors )

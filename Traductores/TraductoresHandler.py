@@ -32,7 +32,6 @@ class TraductoresHandler:
 
 	# traductores = {}
 
-	config = None
 
 	# RG1785/04
 	cbte_fiscal_map = {
@@ -219,7 +218,7 @@ class TraductoresHandler:
 		# la primer seccion corresponde a SERVER, el resto son las impresoras
 		rta = {
 			"action": "getAvaliablePrinters",
-			"rta": config.sections()[1:]
+			"rta": self.config.sections()[1:]
 		}
 
 		return rta

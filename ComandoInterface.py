@@ -263,7 +263,7 @@ class ComandoInterface:
         """
         raise NotImplementedError
 
-    def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, posNumero, reference="NC"):
+    def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, reference="NC"):
         """
         Abre un ticket-NC
             @param  type        Tipo de Factura "A", "B", o "C"
