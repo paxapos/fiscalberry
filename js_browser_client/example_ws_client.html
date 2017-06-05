@@ -74,6 +74,8 @@
 				<input type="button" id="msg-lst-number" value="Last Ticket Number" />
 				<input type="button" id="msg-daily" value="Cierre X" />
 				<input type="button" id="msg-ticket" value="Ticket" />
+				<input type="button" id="msg-nc" value="Nota de Credito" />
+				<input type="button" id="msg-nc-test" value="Nota de Credito (Para TEST)" />
 
 				<br><br />
 				<label for="message">JSON a enviar mediante WS message:</label><br>
@@ -224,6 +226,12 @@
 			});
 
 
+			fbrry.on("fb:rta:printTicket", function( ob, evt) {
+				console.info("Vino RTA DE printTicket: %o", evt.data);
+				
+			});
+
+
 
 
 			// Close Websocket callback
@@ -333,6 +341,44 @@
     }]\
 }}';
 
+			var NCString = 
+'{"printTicket": {\
+    "encabezado": {\
+        "tipo_cbte": "NCB",\
+        "pos_numero": "0002",\
+        "referencia": 66778,\
+        "nombre_cliente": "Carlos Tevez",\
+        "domicilio_cliente": "zaraza",\
+        "nro_doc": 40777888\
+    },\
+    "items": [{\
+      "alic_iva":21.0,\
+      "importe": 0.01,\
+      "ds": "PEPSI",\
+      "qty": 1.0\
+    },\
+    {\
+      "alic_iva": 21.0,\
+      "importe": 0.12,\
+      "ds": "COCA",\
+      "qty": 2.0\
+    }]\
+}}';
+
+			var NCStringTest = 
+'{"printTicket": {\
+    "encabezado": {\
+        "tipo_cbte": "NCB",\
+        "referencia": "0002-00066811"\
+    },\
+    "items": [{\
+      "alic_iva":21.0,\
+      "importe": 1.00,\
+      "ds": "PEPSI",\
+      "qty": 1.0\
+    }]\
+}}';
+
 			$("#msg-ticket").on('click', function () {
 				ponerJSONenTextarea(ticketString);
 			});
@@ -346,6 +392,13 @@
 			});
 
 
+			$("#msg-nc").on('click', function() {
+				ponerJSONenTextarea(NCString);
+			});
+
+			$("#msg-nc-test").on('click', function() {
+				ponerJSONenTextarea(NCStringTest);
+			});
 
 
 				$("div#message_details").hide();

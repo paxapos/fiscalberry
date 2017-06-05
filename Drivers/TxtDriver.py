@@ -11,7 +11,6 @@ class TxtDriver(DriverInterface):
 
 	def sendCommand(self, command, fields, skipStatusErrors=False):
 		import random
-		fields = map(lambda x:x.encode("latin-1", 'ignore'), fields)
 		message = chr(0x02) + chr( 98 ) + chr(command)
 		if fields:
 			message += chr(0x1c)
