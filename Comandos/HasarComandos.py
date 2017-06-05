@@ -220,7 +220,7 @@ class HasarComandos(ComandoInterface):
             self._setHeaderTrailer(line, text)
             line += 1
 
-    def _setCustomerData(self, name, address, doc, docType=" ", ivaType="T"):
+    def _setCustomerData(self, name=" ", address=" ", doc=" ", docType=" ", ivaType="T"):
         # limpio el header y trailer:
 
         #self.setHeader()
@@ -282,8 +282,7 @@ class HasarComandos(ComandoInterface):
         return self._sendCommand(self.CMD_OPEN_FISCAL_RECEIPT, [type, "T"])
 
     def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, reference="NC"):
-        if doc:
-            self._setCustomerData(name, address, doc, docType, ivaType)
+        self._setCustomerData(name, address, doc, docType, ivaType)
         if type == "A":
             type = "R"
         else:
@@ -291,8 +290,8 @@ class HasarComandos(ComandoInterface):
         reference = str(reference)
         self._currentDocument = self.CURRENT_DOC_CREDIT_BILL_TICKET
         self._savedPayments = []
-        self._sendCommand(self.CMD_OPEN_CREDIT_NOTE, [type, "T"])
-        return self._sendCommand(self.CMD_CREDIT_NOTE_REFERENCE, ["1", reference])
+        self._sendCommand(self.CMD_CREDIT_NOTE_REFERENCE, ["1", reference])
+        return self._sendCommand(self.CMD_OPEN_CREDIT_NOTE, [type, "T"])
 
     def openRemit(self, name, address, doc, docType, ivaType, copies=1):
         self._setCustomerData(name, address, doc, docType, ivaType)
