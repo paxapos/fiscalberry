@@ -244,7 +244,7 @@ class HasarComandos(ComandoInterface):
                        ]
         if self.model in ["715v1", "715v2", "320"]:
             parameters.append(self._formatText(address, 'custAddressSize') or " ") # Domicilio
-        self._sendCommand(self.CMD_SET_CUSTOMER_DATA, parameters)
+        return self._sendCommand(self.CMD_SET_CUSTOMER_DATA, parameters)
 
     def openBillTicket(self, type, name, address, doc, docType, ivaType):
         self._setCustomerData(name, address, doc, docType, ivaType)
@@ -282,7 +282,7 @@ class HasarComandos(ComandoInterface):
         return self._sendCommand(self.CMD_OPEN_FISCAL_RECEIPT, [type, "T"])
 
     def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, reference="NC"):
-        self._setCustomerData(name, address, doc, docType, ivaType)
+        print("ZARAZA: ", self._setCustomerData(name, address, doc, docType, ivaType))
         if type == "A":
             type = "R"
         else:
@@ -290,8 +290,8 @@ class HasarComandos(ComandoInterface):
         reference = str(reference)
         self._currentDocument = self.CURRENT_DOC_CREDIT_BILL_TICKET
         self._savedPayments = []
-        self._sendCommand(self.CMD_CREDIT_NOTE_REFERENCE, ["1", reference])
-        return self._sendCommand(self.CMD_OPEN_CREDIT_NOTE, [type, "T"])
+        print("RETURN COMPROBANTE: ", self._sendCommand(self.CMD_CREDIT_NOTE_REFERENCE, ["1", reference]))
+        print("RETURN OPEN NC: ", self._sendCommand(self.CMD_OPEN_CREDIT_NOTE, [type, "T"]))
 
     def openRemit(self, name, address, doc, docType, ivaType, copies=1):
         self._setCustomerData(name, address, doc, docType, ivaType)
