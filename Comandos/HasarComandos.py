@@ -291,8 +291,8 @@ class HasarComandos(ComandoInterface):
         reference = str(reference)
         self._currentDocument = self.CURRENT_DOC_CREDIT_BILL_TICKET
         self._savedPayments = []
-        self._sendCommand(self.CMD_CREDIT_NOTE_REFERENCE, ["1", reference])
-        return self._sendCommand(self.CMD_OPEN_CREDIT_NOTE, [type, "S"])
+        self._sendCommand(self.CMD_OPEN_CREDIT_NOTE, [type, "T"])
+        return self._sendCommand(self.CMD_CREDIT_NOTE_REFERENCE, ["1", reference])
 
     def openRemit(self, name, address, doc, docType, ivaType, copies=1):
         self._setCustomerData(name, address, doc, docType, ivaType)
