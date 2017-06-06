@@ -282,13 +282,13 @@ class HasarComandos(ComandoInterface):
         return self._sendCommand(self.CMD_OPEN_FISCAL_RECEIPT, [type, "T"])
 
     def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, reference="NC"):
+        self._sendCommand(self.CMD_OPEN_FISCAL_RECEIPT, ["NC"])
         print("ZARAZA: ", self._setCustomerData(name, address, doc, docType, ivaType))
         if type == "A":
             type = "R"
         else:
             type = "S"
         reference = str(reference)
-        self._sendCommand(self.CMD_OPEN_FISCAL_RECEIPT, ["NC"])
         self._currentDocument = self.CURRENT_DOC_CREDIT_BILL_TICKET
         self._savedPayments = []
         print("RETURN COMPROBANTE: ", self._sendCommand(self.CMD_CREDIT_NOTE_REFERENCE, ["1", reference]))
