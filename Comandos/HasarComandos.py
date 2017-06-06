@@ -288,7 +288,7 @@ class HasarComandos(ComandoInterface):
         else:
             type = "S"
         reference = str(reference)
-        self.sendCommand(self.CMD_OPEN_NON_FISCAL_RECEIPT, ["NC"])
+        self._sendCommand(self.CMD_OPEN_NON_FISCAL_RECEIPT, ["NC"])
         self._currentDocument = self.CURRENT_DOC_CREDIT_BILL_TICKET
         self._savedPayments = []
         print("RETURN COMPROBANTE: ", self._sendCommand(self.CMD_CREDIT_NOTE_REFERENCE, ["1", reference]))
