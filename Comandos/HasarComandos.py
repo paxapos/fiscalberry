@@ -290,6 +290,7 @@ class HasarComandos(ComandoInterface):
         reference = str(reference)
         self._currentDocument = self.CURRENT_DOC_CREDIT_BILL_TICKET
         self._savedPayments = []
+        print("RETURN CANCELACION ANY DOCUMENT: ", self._sendCommand(self.CMD_CANCEL_ANY_DOCUMENT))
         print("RETURN COMPROBANTE: ", self._sendCommand(self.CMD_CREDIT_NOTE_REFERENCE, ["1", reference]))
         print("RETURN OPEN NC: ", self._sendCommand(self.CMD_OPEN_CREDIT_NOTE, [chr(128), type, "T", reference]))
 

@@ -75,7 +75,7 @@ class TraductorFiscal(TraductorInterface):
 						 tipo_cbte="T", 							# tique
 						 tipo_responsable="CONSUMIDOR_FINAL",
 						 tipo_doc="SIN_CALIFICADOR", nro_doc=0,     # sin especificar
-						 nombre_cliente="", domicilio_cliente="",
+						 nombre_cliente=" ", domicilio_cliente=" ",
 						 referencia=None,                           # comprobante original (ND/NC)
 						 **kwargs
 						 ):
