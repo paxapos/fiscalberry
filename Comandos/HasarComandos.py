@@ -237,8 +237,10 @@ class HasarComandos(ComandoInterface):
         if ivaType != "C" and (not doc or docType != "C" ):
             raise ValidationError("Error, si el tipo de IVA del cliente NO es consumidor final, "
                 "debe ingresar su número de CUIT.")
-        parameters = [ivaType,   # Iva Comprador
-                        docType or " ", # Tipo de Doc.
+        parameters = [self._formatText(name, 'customerName'),
+                       doc or " ",
+                       ivaType,   # Iva Comprador
+                       docType or " ", # Tipo de Doc.
                        ]
         if self.model in ["715v1", "715v2", "320"]:
             parameters.append(self._formatText(address, 'custAddressSize') or " ") # Domicilio
