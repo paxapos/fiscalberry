@@ -241,6 +241,7 @@ class HasarComandos(ComandoInterface):
                        doc or " ",
                        ivaType,   # Iva Comprador
                        docType or " ", # Tipo de Doc.
+                       address or " ",
                        ]
         if self.model in ["715v1", "715v2", "320"]:
             parameters.append(self._formatText(address, 'custAddressSize') or " ") # Domicilio
