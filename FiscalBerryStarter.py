@@ -12,7 +12,7 @@ import ssl
 import Configberry
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
-INTERVALO_IMPRESORA_WARNING = 5.0
+INTERVALO_IMPRESORA_WARNING = 30.0
 
 #global para el listado de clientes conectados
 clients = []
