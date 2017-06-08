@@ -139,8 +139,30 @@ class TraductoresHandler:
 		return collect_warnings
 
 
-
-
+	def getPrintersAndWriteConfig(self):
+		printer = {
+    		"paxaprinter": 
+    		{
+				"marca": "EscP", 
+        		"host": "192.168.1.33", 
+        		"driver": "ReceiptDirectJet"
+    		},
+    		"paxaprinter2": 
+    		{
+        		"marca": "Bematech", 
+        		"host": "192.168.1.34", 
+        		"driver": "ReceiptDirectJet"
+    		}
+		}
+		i = 0
+		for printerName in printer:
+			listadoNames = printer.keys()
+			printerName = listadoNames[i]
+			listadoItems = printer.values()
+			kwargs = listadoItems[i] #Items de la impresora
+			self.config.writeSectionWithKwargs(printerName, kwargs)
+			i +=1
+		return 1
 
 	def __init_keep_looking_for_device_connected(self):
 		def recorrer_traductores_y_comprobar():
@@ -215,6 +237,9 @@ class TraductoresHandler:
 		}
 
 	def _getAvaliablePrinters(self):	
+		#Esta función llama a otra que busca impresoras. Luego se encarga de escribir el config.ini con las impresoras encontradas.
+		self.getPrintersAndWriteConfig()
+
 		# la primer seccion corresponde a SERVER, el resto son las impresoras
 		rta = {
 			"action": "getAvaliablePrinters",
@@ -247,5 +272,3 @@ class TraductoresHandler:
 			# ok, no quiere conectar, continuar sin hacer nada
 			print("No hay caso, probe de reconectar pero no se pudo")
 			
-
-	
