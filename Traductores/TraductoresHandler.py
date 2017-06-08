@@ -138,28 +138,59 @@ class TraductoresHandler:
 					collect_warnings[trad] = warn
 		return collect_warnings
 
+	def __getDeviceData(self, device_list):
+		import nmap
 
-	def getPrintersAndWriteConfig(self):
-		printer = {
-    		"paxaprinter": 
-    		{
-				"marca": "EscP", 
-        		"host": "192.168.1.33", 
-        		"driver": "ReceiptDirectJet"
-    		},
-    		"paxaprinter2": 
-    		{
-        		"marca": "Bematech", 
-        		"host": "192.168.1.34", 
-        		"driver": "ReceiptDirectJet"
-    		}
-		}
+		return_dict = {}  # lo retornado
+
+		device_list_len = len(device_list)
+		device_list_identifier_pos = device_list_len - 1
+
+		nm = nmap.PortScanner()
+		nm.scan('-sP 192.168.1.0/24')  # parametros a nmap, se pueden mejorar mucho
+
+		if device_list[device_list_identifier_pos] == 0:
+
+		 device_list.pop(device_list_identifier_pos)
+
+		 for h in nm.all_hosts():
+				if 'mac' in nm[h]['addresses']:
+							for x in device_list: 
+								if x in nm[h]['addresses']['mac']:
+									return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]] = {'ip' : nm[h]['addresses']['ipv4'], 'state' : nm[h]['status']['state'], 'mac' : nm[h]['addresses']['mac'], 'marca' : 'Hasar', 'modelo' : '715v2', 'driver' : 'File'}
+									
+		 return return_dict
+
+		elif device_list[device_list_identifier_pos] == 1:
+
+			device_list.pop(device_list_identifier_pos)
+
+			for h in nm.all_hosts():
+						 if 'mac' in nm[h]['addresses']:
+
+								for x in device_list:
+										if x in nm[h]['vendor'][nm[h]['addresses']['mac']]:
+												return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]] = {'ip' : nm[h]['addresses']['ipv4'], 'state' : nm[h]['status']['state'], 'mac' : nm[h]['addresses']['mac'], 'marca' : 'Hasar', 'modelo' : '715v2', 'driver' : 'File'}
+			return return_dict  
+				
+		else:
+			 print 'Parametro erroneo en getDeviceData, mode'
+			 quit()
+
+
+	def __getPrintersAndWriteConfig(self):
+		vendors = ['Sony Mobile', 'Objeros y Servicios', 'Sunplus Technology', 1]  # vendors // 1 as vendor identifier
+		macs = ['88:A7:3C', '11:11:11', '00:11:05', 'D8:61:94', '44:D4:E0',0]  # macs // 0 as mac identifier
+
+		printer = self.__getDeviceData(vendors)
+
 		i = 0
 		for printerName in printer:
 			listadoNames = printer.keys()
 			printerName = listadoNames[i]
 			listadoItems = printer.values()
-			kwargs = listadoItems[i] #Items de la impresora
+
+			kwargs = printer[printerName] #Items de la impresora
 			self.config.writeSectionWithKwargs(printerName, kwargs)
 			i +=1
 		return 1
@@ -238,7 +269,7 @@ class TraductoresHandler:
 
 	def _getAvaliablePrinters(self):	
 		#Esta función llama a otra que busca impresoras. Luego se encarga de escribir el config.ini con las impresoras encontradas.
-		self.getPrintersAndWriteConfig()
+		self.__getPrintersAndWriteConfig()
 
 		# la primer seccion corresponde a SERVER, el resto son las impresoras
 		rta = {

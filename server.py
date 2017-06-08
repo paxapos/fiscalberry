@@ -6,6 +6,8 @@ import signal
 import os.path
 import logging
 import FiscalBerryStarter
+from Traductores.TraductoresHandler import TraductoresHandler
+from threading import Thread
 
 def sig_handler(sig, frame):
 	logging.info('Caught signal: %s', sig)
