@@ -74,8 +74,8 @@
 				<input type="button" id="msg-lst-number" value="Last Ticket Number" />
 				<input type="button" id="msg-daily" value="Cierre X" />
 				<input type="button" id="msg-ticket" value="Ticket" />
-				<input type="button" id="msg-nc" value="Nota de Credito" />
-				<input type="button" id="msg-nc-test" value="Nota de Credito (Para TEST)" />
+				<input type="button" id="msg-nc" value="Nota de Credito Factura A" />
+				<input type="button" id="msg-nc-test" value="Nota de Credito Factura B" />
 
 				<br><br />
 				<label for="message">JSON a enviar mediante WS message:</label><br>
@@ -344,24 +344,19 @@
 			var NCString = 
 '{"printTicket": {\
     "encabezado": {\
-        "tipo_cbte": "NCB",\
-        "pos_numero": "0002",\
-        "referencia": 66778,\
+        "tipo_cbte": "NCA",\
+        "referencia": "00066778",\
         "nombre_cliente": "Carlos Tevez",\
         "domicilio_cliente": "zaraza",\
-        "nro_doc": 40777888\
+        "tipo_responsable": "RESPONSABLE_INSCRIPTO",\
+        "tipo_doc": "CUIT",\
+        "nro_doc": 20407778884\
     },\
     "items": [{\
       "alic_iva":21.0,\
-      "importe": 0.01,\
+      "importe": 1.00,\
       "ds": "PEPSI",\
       "qty": 1.0\
-    },\
-    {\
-      "alic_iva": 21.0,\
-      "importe": 0.12,\
-      "ds": "COCA",\
-      "qty": 2.0\
     }]\
 }}';
 
@@ -369,7 +364,7 @@
 '{"printTicket": {\
     "encabezado": {\
         "tipo_cbte": "NCB",\
-        "referencia": "0002-00066811"\
+        "referencia": "00066811"\
     },\
     "items": [{\
       "alic_iva":21.0,\
