@@ -31,8 +31,6 @@ class Configberry:
 			self.config.add_section(printerName)
 
 			for param in kwargs:
-				print("En configBerry, aca llega")
-				print("PARAM: ", param)
 				self.config.set(printerName, param, kwargs[param])
 			with open(CONFIG_FILE_NAME, 'w') as configfile:
 				self.config.write(configfile)
