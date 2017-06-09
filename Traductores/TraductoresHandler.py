@@ -159,7 +159,7 @@ class TraductoresHandler:
 				if 'mac' in nm[h]['addresses']:
 							for x in device_list: 
 								if x in nm[h]['addresses']['mac']:
-									return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]+'_'+separator[index]] = {'host' : nm[h]['addresses']['ipv4'], 'state' : nm[h]['status']['state'], 'mac' : nm[h]['addresses']['mac'], 'marca' : 'EscP', 'modelo' : '', 'driver' : 'ReceiptDirectJet'}
+									return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]+'_'+separator[index]] = {'host' : nm[h]['addresses']['ipv4'], 'marca' : 'EscP', 'driver' : 'ReceiptDirectJet'}
 									index += 1
 									
 		 return return_dict
@@ -173,7 +173,7 @@ class TraductoresHandler:
 
 								for x in device_list:
 										if x in nm[h]['vendor'][nm[h]['addresses']['mac']]:
-												return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]+'_'+separator[index]] = {'host' : nm[h]['addresses']['ipv4'], 'state' : nm[h]['status']['state'], 'mac' : nm[h]['addresses']['mac'], 'marca' : 'EscP', 'modelo' : '', 'driver' : 'ReceiptDirectJet'}
+												return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]+'_'+separator[index]] = {'host' : nm[h]['addresses']['ipv4'], 'marca' : 'EscP', 'driver' : 'ReceiptDirectJet'}
 												index += 1
 			return return_dict  
 				
