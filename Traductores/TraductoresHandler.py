@@ -174,15 +174,15 @@ class TraductoresHandler:
 			return return_dict  
 				
 		else:
-			 print 'Parametro erroneo en getDeviceData, mode'
+			 print 'identificador erroneo'
 			 quit()
 
 
 	def __getPrintersAndWriteConfig(self):
-		vendors = ['Sony Mobile', 'Objeros y Servicios', 'Sunplus Technology', 1]  # vendors // 1 as vendor identifier
-		macs = ['88:A7:3C', '11:11:11', '00:11:05', 'D8:61:94', '44:D4:E0',0]  # macs // 0 as mac identifier
+		vendors = ['Bematech', 1]  # vendors // 1 as vendor identifier
+		macs = ['00:07:25',0]  # macs // 0 as mac identifier
 
-		printer = self.__getDeviceData(vendors)
+		printer = self.__getDeviceData(macs)
 
 		i = 0
 		for printerName in printer:

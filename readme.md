@@ -84,6 +84,7 @@ sudo apt-get install python-pip
 sudo pip install pyserial
 sudo apt-get install build-essential python-dev
 sudo pip install tornado
+sudo pip install python-nmap
 ```
 
 Si se quiere usar las comanderas hay que instalar

@@ -11,12 +11,3 @@ driver = File
 marca = EscP
 host = 127.0.0.1
 driver = ReceiptDirectJet
-
-[Sunplus Technology]
-state = up
-driver = File
-host = 192.168.1.39
-marca = Hasar
-mac = 00:11:05:44:8F:4B
-modelo = 715v2
-
