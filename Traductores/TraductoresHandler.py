@@ -146,7 +146,7 @@ class TraductoresHandler:
 		device_list_len = len(device_list)
 		device_list_identifier_pos = device_list_len - 1
 		index = 0
-		separator = 'abcdefgh'
+		separator = 'abcdefghijklmnopqrstuvwxyz'
 
 		nm = nmap.PortScanner()
 		nm.scan('-sP 192.168.1.0/24')  # parametros a nmap, se pueden mejorar mucho
@@ -186,7 +186,7 @@ class TraductoresHandler:
 		vendors = ['Bematech', 1]  # vendors // 1 as vendor identifier
 		macs = ['00:07:25',0]  # macs // 0 as mac identifier
 
-		printer = self.__getDeviceData(vendors)
+		printer = self.__getDeviceData(macs)
 
 		i = 0
 		for printerName in printer:
