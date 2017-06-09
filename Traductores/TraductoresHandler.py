@@ -145,6 +145,8 @@ class TraductoresHandler:
 
 		device_list_len = len(device_list)
 		device_list_identifier_pos = device_list_len - 1
+		index = 0
+		separator = 'abcdefgh'
 
 		nm = nmap.PortScanner()
 		nm.scan('-sP 192.168.1.0/24')  # parametros a nmap, se pueden mejorar mucho
@@ -157,7 +159,8 @@ class TraductoresHandler:
 				if 'mac' in nm[h]['addresses']:
 							for x in device_list: 
 								if x in nm[h]['addresses']['mac']:
-									return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]] = {'host' : nm[h]['addresses']['ipv4'], 'marca' : 'EscP', 'driver' : 'ReceiptDirectJet'}
+									return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]+'_'+separator[index]] = {'host' : nm[h]['addresses']['ipv4'], 'state' : nm[h]['status']['state'], 'mac' : nm[h]['addresses']['mac'], 'marca' : 'EscP', 'modelo' : '', 'driver' : 'ReceiptDirectJet'}
+									index += 1
 									
 		 return return_dict
 
@@ -170,7 +173,8 @@ class TraductoresHandler:
 
 								for x in device_list:
 										if x in nm[h]['vendor'][nm[h]['addresses']['mac']]:
-												return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]] = {'host' : nm[h]['addresses']['ipv4'], 'marca' : 'EscP', 'driver' : 'ReceiptDirectJet'}
+												return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]+'_'+separator[index]] = {'host' : nm[h]['addresses']['ipv4'], 'state' : nm[h]['status']['state'], 'mac' : nm[h]['addresses']['mac'], 'marca' : 'EscP', 'modelo' : '', 'driver' : 'ReceiptDirectJet'}
+												index += 1
 			return return_dict  
 				
 		else:
@@ -182,7 +186,7 @@ class TraductoresHandler:
 		vendors = ['Bematech', 1]  # vendors // 1 as vendor identifier
 		macs = ['00:07:25',0]  # macs // 0 as mac identifier
 
-		printer = self.__getDeviceData(macs)
+		printer = self.__getDeviceData(vendors)
 
 		i = 0
 		for printerName in printer:
