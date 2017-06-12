@@ -56,6 +56,7 @@ class FiscalPrinterDriver(DriverInterface):
         del self._serialPort
 
     def sendCommand( self, commandNumber, fields, skipStatusErrors = False ):
+        fields = map(lambda x:x.encode("latin-1", 'ignore'), fields)
         message = chr(0x02) + chr( self._sequenceNumber ) + chr(commandNumber)
         if fields:
             message += chr(0x1c)
