@@ -459,13 +459,7 @@ class HasarComandos(ComandoInterface):
             if len(reply) > i:
                 rta[val] = reply[i]
             else:
-                break
-
-       # for i, val in enumerate(datos):
-       #     if len(reply) > i:
-       #         rta[val] = reply[i]
-       #     if len(reply) <= i:
-       #         rta[val] = random.randint(2, 20000) * 1.552       
+                break      
 
         return rta
 

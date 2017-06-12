@@ -27,15 +27,15 @@ class Configberry:
 	def writeSectionWithKwargs(self, printerName, kwargs):
 		self.config = ConfigParser.RawConfigParser()
 		self.config.read(CONFIG_FILE_NAME)
-
 		if not self.config.has_section(printerName):
 			self.config.add_section(printerName)
 
-		for param in kwargs:
-			self.config.set(printerName, param, kwargs[param])
+			for param in kwargs:
+				self.config.set(printerName, param, kwargs[param])
+			with open(CONFIG_FILE_NAME, 'w') as configfile:
+				self.config.write(configfile)
 
-		with open(CONFIG_FILE_NAME, 'w') as configfile:
-			self.config.write(configfile)
+		return 1;
 
 
 	def __create_config_if_not_exists(self):

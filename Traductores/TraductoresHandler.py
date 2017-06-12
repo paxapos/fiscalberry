@@ -138,9 +138,66 @@ class TraductoresHandler:
 					collect_warnings[trad] = warn
 		return collect_warnings
 
+	def __getDeviceData(self, device_list):
+		import nmap
+
+		return_dict = {}  # lo retornado
+
+		device_list_len = len(device_list)
+		device_list_identifier_pos = device_list_len - 1
+		index = 0
+		separator = 'abcdefghijklmnopqrstuvwxyz'
+
+		nm = nmap.PortScanner()
+		nm.scan('-sP 192.168.1.0/24')  # parametros a nmap, se pueden mejorar mucho
+
+		if device_list[device_list_identifier_pos] == 0:
+
+		 device_list.pop(device_list_identifier_pos)
+
+		 for h in nm.all_hosts():
+				if 'mac' in nm[h]['addresses']:
+							for x in device_list: 
+								if x in nm[h]['addresses']['mac']:
+									return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]+'_'+separator[index]] = {'host' : nm[h]['addresses']['ipv4'], 'marca' : 'EscP', 'driver' : 'ReceiptDirectJet'}
+									index += 1
+									
+		 return return_dict
+
+		elif device_list[device_list_identifier_pos] == 1:
+
+			device_list.pop(device_list_identifier_pos)
+
+			for h in nm.all_hosts():
+						 if 'mac' in nm[h]['addresses']:
+
+								for x in device_list:
+										if x in nm[h]['vendor'][nm[h]['addresses']['mac']]:
+												return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]+'_'+separator[index]] = {'host' : nm[h]['addresses']['ipv4'], 'marca' : 'EscP', 'driver' : 'ReceiptDirectJet'}
+												index += 1
+			return return_dict  
+				
+		else:
+			 print 'identificador erroneo'
+			 quit()
 
 
+	def __getPrintersAndWriteConfig(self):
+		vendors = ['Bematech', 1]  # vendors // 1 as vendor identifier
+		macs = ['00:07:25',0]  # macs // 0 as mac identifier
 
+		printer = self.__getDeviceData(macs)
+
+		i = 0
+		for printerName in printer:
+			listadoNames = printer.keys()
+			printerName = listadoNames[i]
+			listadoItems = printer.values()
+
+			kwargs = printer[printerName] #Items de la impresora
+			self.config.writeSectionWithKwargs(printerName, kwargs)
+			i +=1
+		return 1
 
 	def __init_keep_looking_for_device_connected(self):
 		def recorrer_traductores_y_comprobar():
@@ -215,6 +272,9 @@ class TraductoresHandler:
 		}
 
 	def _getAvaliablePrinters(self):	
+		#Esta función llama a otra que busca impresoras. Luego se encarga de escribir el config.ini con las impresoras encontradas.
+		self.__getPrintersAndWriteConfig()
+
 		# la primer seccion corresponde a SERVER, el resto son las impresoras
 		rta = {
 			"action": "getAvaliablePrinters",
@@ -247,5 +307,3 @@ class TraductoresHandler:
 			# ok, no quiere conectar, continuar sin hacer nada
 			print("No hay caso, probe de reconectar pero no se pudo")
 			
-
-	
