@@ -17,7 +17,7 @@ class BematechComandos(ComandoInterface):
 
 	# el traductor puede ser: TraductorFiscal o TraductorReceipt
     # path al modulo de traductor que este comando necesita
-    traductorModule="Traductores.TraductorReceipt"
+	traductorModule="Traductores.TraductorReceipt"
 
 	INICIAR           = 0x40 #@
 	RETORNO_DE_CARRO  = 0x0D
@@ -51,7 +51,7 @@ class BematechComandos(ComandoInterface):
 	def __init__(self, path=None, driver="ReceipDirectJet", *args):
 		"path indica la IP o puerto donde se encuentra la impresora"
 
-        ComandoInterface.__init__(args)
+		ComandoInterface.__init__(args)
 
 		self.conector = ConectorDriverComando(self, driver, path)
 

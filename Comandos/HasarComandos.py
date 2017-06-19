@@ -220,7 +220,7 @@ class HasarComandos(ComandoInterface):
             self._setHeaderTrailer(line, text)
             line += 1
 
-    def _setCustomerData(self, name, address, doc, docType=" ", ivaType="T"):
+    def _setCustomerData(self, name=" ", address=" ", doc=" ", docType=" ", ivaType="T"):
         # limpio el header y trailer:
 
         #self.setHeader()
@@ -241,10 +241,11 @@ class HasarComandos(ComandoInterface):
                        doc or " ",
                        ivaType,   # Iva Comprador
                        docType or " ", # Tipo de Doc.
+                       address or " ",
                        ]
         if self.model in ["715v1", "715v2", "320"]:
             parameters.append(self._formatText(address, 'custAddressSize') or " ") # Domicilio
-        self._sendCommand(self.CMD_SET_CUSTOMER_DATA, parameters)
+        return self._sendCommand(self.CMD_SET_CUSTOMER_DATA, parameters)
 
     def openBillTicket(self, type, name, address, doc, docType, ivaType):
         self._setCustomerData(name, address, doc, docType, ivaType)
@@ -282,8 +283,7 @@ class HasarComandos(ComandoInterface):
         return self._sendCommand(self.CMD_OPEN_FISCAL_RECEIPT, [type, "T"])
 
     def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, reference="NC"):
-        if doc:
-            self._setCustomerData(name, address, doc, docType, ivaType)
+        self._setCustomerData(name, address, doc, docType, ivaType)
         if type == "A":
             type = "R"
         else:
@@ -292,7 +292,7 @@ class HasarComandos(ComandoInterface):
         self._currentDocument = self.CURRENT_DOC_CREDIT_BILL_TICKET
         self._savedPayments = []
         self._sendCommand(self.CMD_CREDIT_NOTE_REFERENCE, ["1", reference])
-        return self._sendCommand(self.CMD_OPEN_CREDIT_NOTE, [type, "T"])
+        self._sendCommand(self.CMD_OPEN_CREDIT_NOTE, [type, "T", reference])
 
     def openRemit(self, name, address, doc, docType, ivaType, copies=1):
         self._setCustomerData(name, address, doc, docType, ivaType)
@@ -459,13 +459,7 @@ class HasarComandos(ComandoInterface):
             if len(reply) > i:
                 rta[val] = reply[i]
             else:
-                break
-
-       # for i, val in enumerate(datos):
-       #     if len(reply) > i:
-       #         rta[val] = reply[i]
-       #     if len(reply) <= i:
-       #         rta[val] = random.randint(2, 20000) * 1.552       
+                break      
 
         return rta
 

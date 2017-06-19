@@ -84,6 +84,7 @@ sudo apt-get install python-pip
 sudo pip install pyserial
 sudo apt-get install build-essential python-dev
 sudo pip install tornado
+sudo apt-get install python-nmap
 ```
 
 Si se quiere usar las comanderas hay que instalar
@@ -115,7 +116,7 @@ https://python-escpos.readthedocs.io/en/latest/user/raspi.html
 ### Iniciar el servicio
 
 ```sh
-python server.py
+sudo python server.py
 ```
 
 ### Iniciar el cliente para probarlo

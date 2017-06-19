@@ -7,8 +7,6 @@ modelo = 715v2
 path = /tmp/respuestas.txt
 driver = File
 
-
-
 [IMPRESORA_RED]
 marca = EscP
 host = 127.0.0.1
