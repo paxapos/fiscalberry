@@ -45,7 +45,8 @@ class Configberry:
 			os.chdir(newpath)
 			os.chdir("../")
 			import shutil
-			shutil.copy ("config.ini.install", CONFIG_FILE_NAME)
+			newpath += "/config.ini.install"
+			shutil.copy (newpath, CONFIG_FILE_NAME)
 			os.chdir(savedPath)
 
 
