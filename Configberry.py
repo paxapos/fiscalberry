@@ -39,13 +39,11 @@ class Configberry:
 
 
 	def __create_config_if_not_exists(self):
+		newpath = os.path.dirname(os.path.realpath(__file__))
+		os.chdir(newpath)
 		if not os.path.isfile(CONFIG_FILE_NAME):
-			savedPath = os.getcwd()
-			newpath = os.path.dirname(os.path.realpath(__file__))
-			os.chdir(newpath)
 			import shutil
 			shutil.copy ("config.ini.install", CONFIG_FILE_NAME)
-			os.chdir(savedPath)
 
 
 	def get_config_for_printer(self, printerName):
