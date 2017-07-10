@@ -273,7 +273,7 @@ class TraductoresHandler:
 
 	def _getAvaliablePrinters(self):	
 		#Esta función llama a otra que busca impresoras. Luego se encarga de escribir el config.ini con las impresoras encontradas.
-		self.__getPrintersAndWriteConfig()
+		#self.__getPrintersAndWriteConfig()
 
 		# la primer seccion corresponde a SERVER, el resto son las impresoras
 		rta = {
