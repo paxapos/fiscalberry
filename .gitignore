@@ -11,6 +11,7 @@ bemafix.py
 fiscaltest.py
 tornado.*
 comanderatest.py
+test.py
 test_scripts/*
 env/*
 

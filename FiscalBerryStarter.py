@@ -82,6 +82,7 @@ class FiscalberryServer:
 
 		self.configberry = Configberry.Configberry()
 
+		# send discover data to your server if the is no URL configured, so nothing will be sent
 		discoverUrl = self.configberry.config.has_option('SERVIDOR', "discover_url")
 		if discoverUrl:
 			discoverUrl = self.configberry.config.get('SERVIDOR', "discover_url")
