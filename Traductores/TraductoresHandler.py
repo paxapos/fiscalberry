@@ -148,21 +148,24 @@ class TraductoresHandler:
 		index = 0
 		separator = 'abcdefghijklmnopqrstuvwxyz'
 
+		logging.info('Iniciando la busqueda por nmap')
+		
 		nm = nmap.PortScanner()
 		nm.scan('-sP 192.168.1.0/24')  # parametros a nmap, se pueden mejorar mucho
 
 		if device_list[device_list_identifier_pos] == 0:
 
-		 device_list.pop(device_list_identifier_pos)
+			device_list.pop(device_list_identifier_pos)
 
-		 for h in nm.all_hosts():
+			for h in nm.all_hosts():
 				if 'mac' in nm[h]['addresses']:
 							for x in device_list: 
 								if x in nm[h]['addresses']['mac']:
 									return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]+'_'+separator[index]] = {'host' : nm[h]['addresses']['ipv4'], 'marca' : 'EscP', 'driver' : 'ReceiptDirectJet'}
 									index += 1
-									
-		 return return_dict
+			print(return_dict)
+			logging.info('Finalizó la busqueda por nmap')
+		 	return return_dict
 
 		elif device_list[device_list_identifier_pos] == 1:
 
@@ -172,9 +175,12 @@ class TraductoresHandler:
 						 if 'mac' in nm[h]['addresses']:
 
 								for x in device_list:
+									if "vendor" in nm[h]:
 										if x in nm[h]['vendor'][nm[h]['addresses']['mac']]:
-												return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]+'_'+separator[index]] = {'host' : nm[h]['addresses']['ipv4'], 'marca' : 'EscP', 'driver' : 'ReceiptDirectJet'}
-												index += 1
+											return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]+'_'+separator[index]] = {'host' : nm[h]['addresses']['ipv4'], 'marca' : 'EscP', 'driver' : 'ReceiptDirectJet'}
+											index += 1
+			print(return_dict)
+			logging.info('Finalizó la busqueda por nmap')
 			return return_dict  
 				
 		else:
@@ -273,7 +279,7 @@ class TraductoresHandler:
 
 	def _getAvaliablePrinters(self):	
 		#Esta función llama a otra que busca impresoras. Luego se encarga de escribir el config.ini con las impresoras encontradas.
-		#self.__getPrintersAndWriteConfig()
+		self.__getPrintersAndWriteConfig()
 
 		# la primer seccion corresponde a SERVER, el resto son las impresoras
 		rta = {

@@ -19,6 +19,10 @@ if (!Array.isArray) {
 		// WebSocket instance
 		var ws;
 
+		if ( typeof host == 'undefined' || !host) {
+			host = "localhost"; // default fiscalberry host
+		}
+		
 		if ( typeof port == 'undefined' ) {
 			port = 12000; // default fiscalberry port
 		}
