@@ -10,6 +10,7 @@ import logging
 import time
 import ssl
 import Configberry
+import FiscalberryDiscover
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 INTERVALO_IMPRESORA_WARNING = 30.0
@@ -80,6 +81,12 @@ class FiscalberryServer:
 
 
 		self.configberry = Configberry.Configberry()
+
+		discoverUrl = self.configberry.config.has_option('SERVIDOR', "discover_url")
+		if discoverUrl:
+			discoverUrl = self.configberry.config.get('SERVIDOR', "discover_url")
+			fbdiscover = new FiscalberryDiscover.send(discoverUrl);
+
 
 		
 		hasCrt = self.configberry.config.has_option('SERVIDOR', "ssl_crt_path")
