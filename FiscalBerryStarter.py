@@ -86,7 +86,7 @@ class FiscalberryServer:
 		discoverUrl = self.configberry.config.has_option('SERVIDOR', "discover_url")
 		if discoverUrl:
 			discoverUrl = self.configberry.config.get('SERVIDOR', "discover_url")
-			fbdiscover = new FiscalberryDiscover.send(discoverUrl);
+			fbdiscover = FiscalberryDiscover.send(discoverUrl);
 
 
 		
