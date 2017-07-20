@@ -29,10 +29,6 @@ class EpsonDriver( FiscalPrinterDriver ):
                           (1<<14, "Impresora sin papel"),
                           ]
 
-    def __init__( self, deviceFile, speed = 9600 ):
-        self._serialPort = serial.Serial( port = deviceFile, timeout = None, baudrate = speed )
-        self._initSequenceNumber()
-
     def _initSequenceNumber( self ):
         self._sequenceNumber = random.randint( 0x20, 0x7f )
 
