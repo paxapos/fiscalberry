@@ -129,6 +129,9 @@ class TraductorFiscal(TraductorInterface):
 										  discount=discount, discountDescription=discountDescription, discountNegative=discountNegative))
 		##ds = unicode(ds, "latin1") # convierto a latin1
 		# Nota: no se calcula neto, iva, etc (deben venir calculados!)
+		if discountDescription == '':
+			discountDescription = ds
+			print("DS: ", discountDescription)
 		return self.comando.addItem(ds, float(qty), float(importe), float(alic_iva), 
 									itemNegative, float(discount), discountDescription, discountNegative)
 
