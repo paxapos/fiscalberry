@@ -98,20 +98,8 @@ class HasarComandos(ComandoInterface):
                   'generalDiscount': 50,
                   'embarkItem': 108,
                  'receiptText': 106,
-                },
-        "615": {
-                'nonFiscalText': 40,
-                'customerName': 30,
-                'custAddressSize': 40,
-                'paymentDescription': 30,
-                'fiscalText': 20,
-                'lineItem': 20,
-                'lastItemDiscount': 20,
-                'generalDiscount': 20,
-                'embarkItem': 108,
-                'receiptText': 106,
                 }
-        }
+    }
 
 
     docTypeNames = {
@@ -241,10 +229,11 @@ class HasarComandos(ComandoInterface):
                        doc or " ",
                        ivaType,   # Iva Comprador
                        docType or " ", # Tipo de Doc.
-                       address or " ",
                        ]
         if self.model in ["715v1", "715v2", "320"]:
             parameters.append(self._formatText(address, 'custAddressSize') or " ") # Domicilio
+        else:
+            parameters.append(address or " ")
         return self._sendCommand(self.CMD_SET_CUSTOMER_DATA, parameters)
 
     def openBillTicket(self, type, name, address, doc, docType, ivaType):
@@ -349,10 +338,10 @@ class HasarComandos(ComandoInterface):
             return status
         raise NotImplementedError
 
-    def addItem(self, description, quantity, price, iva, discount=0, discountDescription='', negative=False):
+    def addItem(self, description, quantity, price, iva, itemNegative=False, discount=0, discountDescription='', discountNegative=True):
         if type(description) in types.StringTypes:
             description = [description]
-        if negative:
+        if itemNegative:
             sign = 'm'
         else:
             sign = 'M'
@@ -366,10 +355,14 @@ class HasarComandos(ComandoInterface):
                                    [self._formatText(description[-1], 'lineItem'),
                                      quantityStr, priceUnitStr, ivaStr, sign, "0.0", "1", "T"])
         if discount:
+            if discountNegative:
+                sign = 'm'
+            else:
+                sign = 'M'
             discountStr = str(float(discount)).replace(",", ".")
             self._sendCommand(self.CMD_LAST_ITEM_DISCOUNT,
                 [self._formatText(discountDescription, 'discountDescription'), discountStr,
-                  "m", "1", "T"])
+                  sign, "1", "T"])
         return reply
 
     def addPayment(self, description, payment):
