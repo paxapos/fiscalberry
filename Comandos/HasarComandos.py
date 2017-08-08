@@ -233,7 +233,7 @@ class HasarComandos(ComandoInterface):
         if self.model in ["715v1", "715v2", "320"]:
             parameters.append(self._formatText(address, 'custAddressSize') or " ") # Domicilio
         else:
-            parameters.append(address or " ")
+            parameters.append(formatText(address) or " ")
         return self._sendCommand(self.CMD_SET_CUSTOMER_DATA, parameters)
 
     def openBillTicket(self, type, name, address, doc, docType, ivaType):
