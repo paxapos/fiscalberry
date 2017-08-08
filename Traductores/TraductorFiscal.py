@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from Traductores.TraductorInterface import TraductorInterface
+import math
 
 class TraductorFiscal(TraductorInterface):
 
@@ -124,14 +125,19 @@ class TraductorFiscal(TraductorInterface):
 
 	def _imprimirItem(self, ds, qty, importe, alic_iva=21., itemNegative=False, discount=0, discountDescription='', discountNegative=True):
 		"Envia un item (descripcion, cantidad, etc.) a una factura"
+
+		if importe < 0:
+			importe = math.fabs(importe)
+			itemNegative = True
+
 		self.factura["items"].append(dict(ds=ds, qty=qty, 
 										  importe=importe, alic_iva=alic_iva, itemNegative=itemNegative,
 										  discount=discount, discountDescription=discountDescription, discountNegative=discountNegative))
-		##ds = unicode(ds, "latin1") # convierto a latin1
+		
 		# Nota: no se calcula neto, iva, etc (deben venir calculados!)
 		if discountDescription == '':
 			discountDescription = ds
-			print("DS: ", discountDescription)
+
 		return self.comando.addItem(ds, float(qty), float(importe), float(alic_iva), 
 									itemNegative, float(discount), discountDescription, discountNegative)
 

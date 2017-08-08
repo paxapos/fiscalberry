@@ -230,10 +230,10 @@ class EpsonComandos(ComandoInterface):
             return self.closeDocument()
         raise NotImplementedError
 
-    def addItem(self, description, quantity, price, iva, discount, discountDescription, negative=False):
+    def addItem(self, description, quantity, price, iva, itemNegative=False, discount=0, discountDescription='', discountNegative=True):
         if type(description) in types.StringTypes:
             description = [description]
-        if negative:
+        if itemNegative:
             sign = 'R'
         else:
             sign = 'M'
