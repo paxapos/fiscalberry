@@ -74,11 +74,13 @@ class TraductorFiscal(TraductorInterface):
 
 	
 	def _abrirComprobante(self, 
-						 tipo_cbte="T", 							# tique
+						 tipo_cbte="T", # tique
 						 tipo_responsable="CONSUMIDOR_FINAL",
-						 tipo_doc="SIN_CALIFICADOR", nro_doc=" ",     # sin especificar
-						 nombre_cliente=" ", domicilio_cliente=" ",
-						 referencia=None,                           # comprobante original (ND/NC)
+						 tipo_doc="SIN_CALIFICADOR", 
+						 nro_doc=" ",     # sin especificar
+						 nombre_cliente=" ", 
+						 domicilio_cliente=" ",
+						 referencia=None, # comprobante original (ND/NC)
 						 **kwargs
 						 ):
 		"Creo un objeto factura (internamente) e imprime el encabezado"
