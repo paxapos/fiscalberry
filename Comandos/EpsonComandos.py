@@ -117,16 +117,18 @@ class EpsonComandos(ComandoInterface):
         return self._openBillCreditTicket(type, name, address, doc, docType, ivaType, isCreditNote=True)
 
     def openBillTicket(self, type, name, address, doc, docType, ivaType):
+        print("zarasasaposapospoaospaosoaisa")
         return self._openBillCreditTicket(type, name, address, doc, docType, ivaType, isCreditNote=False)
 
     def _openBillCreditTicket(self, type, name, address, doc, docType, ivaType, isCreditNote,
             reference=None):
-        if not doc or filter(lambda x: x not in string.digits + "-.", doc or "") or not \
-                docType in self.docTypeNames:
+
+        if not doc or not docType in self.docTypeNames:
             doc, docType = "", ""
         else:
             doc = doc.replace("-", "").replace(".", "")
             docType = self.docTypeNames[docType]
+       
         self._type = type
         if self.model == "epsonlx300+":
             parameters = [isCreditNote and "N" or "F", # Por ahora no soporto ND, que sería "D"
