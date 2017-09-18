@@ -1,4 +1,4 @@
-# fiscalberry
+# fiscalberry POS Imprimir mediante Web Sockets
 
 ## NOTA IMPORTANTE: Este proyecto es una mejora del original https://github.com/reingart/pyfiscalprinter
 
