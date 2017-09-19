@@ -5,12 +5,14 @@ import tornado.web
 from threading import Timer
 from Traductores.TraductoresHandler import TraductoresHandler, TraductorException
 import socket
+import os
 import json
 import logging
 import time
 import ssl
 import Configberry
 import FiscalberryDiscover
+from  tornado import web
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 INTERVALO_IMPRESORA_WARNING = 30.0
@@ -20,11 +22,28 @@ clients = []
 # leer los parametros de configuracion de la impresora fiscal 
 # en config.ini 
 
+root = os.path.dirname(__file__)
+
 traductor = TraductoresHandler()
 
 class WebSocketException(Exception):
 	pass
 
+
+
+class PageHandler(tornado.web.RequestHandler):
+	def get(self):
+		try:
+			with open(os.path.join(root+"/js_browser_client", 'example_ws_client.html')) as f:
+				self.write(f.read())
+		except IOError as e:
+			self.write("404: Not Found")
+   
+
+
+
+# inicializar intervalo para verificar que la impresora tenga papel
+#		timerPrinterWarnings = Timer(INTERVALO_IMPRESORA_WARNING, self.send_printer_warnings).start()
  
 class WSHandler(tornado.websocket.WebSocketHandler):
 
@@ -50,7 +69,24 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 			import sys, traceback
 			traceback.print_exc(file=sys.stdout)
 
-		
+	
+	def send_printer_warnings( self ):
+	    "enviar un broadcast a los clientes con los warnings de impresora, si existen"
+	    global clients
+	    global traductor
+
+	    warns = traductor.getWarnings()
+	    if warns:
+			print warns
+	    	# envia broadcast a todos los clientes
+			msg = json.dumps( {"msg": warns } )
+			for cli in clients:
+				cli.write_message( msg )
+	    #volver a comprobar segun intervalo seleccionado  
+	    self.timerPrinterWarnings = Timer(INTERVALO_IMPRESORA_WARNING, self.send_printer_warnings)
+	    self.timerPrinterWarnings.start()
+
+
  
 	def on_close(self):
 		global clients
@@ -77,6 +113,8 @@ class FiscalberryServer:
 
 		self.application = tornado.web.Application([
 			(r'/ws', WSHandler),
+			(r'/', PageHandler),
+			(r"/(.*)", web.StaticFileHandler, dict(path=root+"/js_browser_client")),
 		])
 
 
@@ -136,14 +174,13 @@ class FiscalberryServer:
 
 		self.print_printers_resume()
 		puerto = self.get_config_port()
-		self.http_server.listen( puerto )
+		self.http_server.bind( puerto )
+		self.http_server.start(0)
+
 		myIP = socket.gethostbyname(socket.gethostname())
-
-		# inicializar intervalo para verificar que la impresora tenga papel
-		timerPrinterWarnings = Timer(INTERVALO_IMPRESORA_WARNING, self.send_printer_warnings).start()
-
 		print '*** Websocket Server Started at %s port %s***' % (myIP, puerto)
-		tornado.ioloop.IOLoop.instance().start()
+		# tornado.ioloop.IOLoop.instance().start()
+		tornado.ioloop.IOLoop.current().start()
 
 		print "Bye!"
 		logging.info("Exit...")
@@ -168,22 +205,6 @@ class FiscalberryServer:
 		return printers
 
 
-
-	def send_printer_warnings( self ):
-	    "enviar un broadcast a los clientes con los warnings de impresora, si existen"
-	    global clients
-	    global traductor
-
-	    warns = traductor.getWarnings()
-	    if warns:
-			print warns
-	    	# envia broadcast a todos los clientes
-			msg = json.dumps( {"msg": warns } )
-			for cli in clients:
-				cli.write_message( msg )
-	    #volver a comprobar segun intervalo seleccionado  
-	    self.timerPrinterWarnings = Timer(INTERVALO_IMPRESORA_WARNING, self.send_printer_warnings)
-	    self.timerPrinterWarnings.start()
 
 
 
