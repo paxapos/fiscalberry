@@ -1,4 +1,4 @@
-# fiscalberry
+# fiscalberry POS Imprimir mediante Web Sockets
 
 ## NOTA IMPORTANTE: Este proyecto es una mejora del original https://github.com/reingart/pyfiscalprinter
 
@@ -93,6 +93,18 @@ Si se quiere usar las comanderas hay que instalar
 sudo apt-get install python-imaging python-serial python-dev python-setuptools
 sudo pip install python-escpos
 ```
+
+Si te encontrs con el error "socket.gaierror:  Name or service not known"
+
+A veces, en Linux, ser necesario poner el nombre del equipo (hostname) en el archivo /etc/hosts, si es que aun no lo tenias.
+Generalmente el archivo hosts viene solo con la direccion "127.0.0.1 localhost", 
+
+para solucionarlo debés ejecutar el comando 
+```bash
+hostname
+```
+y ver cual es el nombre de la máquina para agregarlo al archivo /etc/hosts
+127.0.0.1 nombre-PC localhost
 
 ### Instalar Daemond
 En el archivo "fiscalberry-server-rc" deberas abrirlo y modificar la lionea donde dice "DIR=/insertPATHHERE" colocanmdo el path donde se encuentra la carpeta de fiscalberry. Ej: "DIR=/home/pi/fiscalberry"
