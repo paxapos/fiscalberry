@@ -19,8 +19,7 @@ import signal
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 INTERVALO_IMPRESORA_WARNING = 30.0
 
-#global para el listado de clientes conectados
-clients = []
+
 # leer los parametros de configuracion de la impresora fiscal 
 # en config.ini 
 
@@ -177,6 +176,7 @@ class FiscalberryApp:
 
 		self.http_server = tornado.httpserver.HTTPServer(self.application)
 
+		self.https_server = None
 		if ( hasCrt and hasKey):
 			ssl_crt_path = self.configberry.config.get('SERVIDOR', "ssl_crt_path")
 			ssl_key_path = self.configberry.config.get('SERVIDOR', "ssl_key_path")
