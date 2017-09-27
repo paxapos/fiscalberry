@@ -17,7 +17,7 @@ from  tornado import web
 import signal
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
-INTERVALO_IMPRESORA_WARNING = 30.0
+
 
 
 # leer los parametros de configuracion de la impresora fiscal 
@@ -50,11 +50,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 
 	def initialize(self):
 		self.clients = []
-
-		self.traductor = TraductoresHandler()
-
-		tornado.ioloop.IOLoop.current().spawn_callback(self.send_printer_warnings, self.clients)
-
+		self.traductor = TraductoresHandler(self)
 
 	def open(self):
 		self.clients.append(self)
@@ -66,6 +62,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 		print message
 		try:
 			jsonMes = json.loads(message, strict=False)
+
 			response = traductor.json_to_comando( jsonMes )
 			self.write_message( response )
 		except TypeError:
@@ -77,23 +74,6 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 			import sys, traceback
 			traceback.print_exc(file=sys.stdout)
 	
-
-	def __procesarImpresoraEterna(self, clients):
-	    warns = self.traductor.getWarnings()
-	    if warns:
-			print warns
-	    	# envia broadcast a todos los clientes
-			msg = json.dumps( {"msg": warns } )
-			for cli in clients:
-				cli.write_message( msg )
-
-
-	@gen.coroutine
-	def send_printer_warnings( self, clients ):
-		while True:
-			yield self.__procesarImpresoraEterna(clients)
-			yield gen.sleep(INTERVALO_IMPRESORA_WARNING)
-
 
 	def on_close(self):
 		self.clients.remove(self)
@@ -116,12 +96,14 @@ class FiscalberryApp:
 	def __init__(self):
 		print("Iniciando Fiscalberry Server")
 
+		newpath = os.path.dirname(os.path.realpath(__file__))
+		os.chdir(newpath)	
+
+		# evento para terminar ejecucion mediante CTRL+C
 		def sig_handler(sig, frame):
 			logging.info('Caught signal: %s', sig)
 			tornado.ioloop.IOLoop.instance().add_callback(self.shutdown)
 
-		newpath = os.path.dirname(os.path.realpath(__file__))
-		os.chdir(newpath)		
 		signal.signal(signal.SIGTERM, sig_handler)
 		signal.signal(signal.SIGINT, sig_handler)
 
@@ -201,7 +183,6 @@ class FiscalberryApp:
 			self.https_server.start()
 			print '*** Websocket Server Started as HTTPS at %s port %s***' % (myIP, puerto )
 
-		# tornado.ioloop.IOLoop.instance().start()
 		tornado.ioloop.IOLoop.current().start()
 
 		print "Bye!"
