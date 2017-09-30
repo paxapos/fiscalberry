@@ -7,6 +7,7 @@ import importlib
 import socket
 import threading
 import tornado.ioloop
+from tornado.concurrent import Future
 
 
 INTERVALO_IMPRESORA_WARNING = 30.0
@@ -36,6 +37,48 @@ class TraductoresHandler:
 
 	config = Configberry.Configberry()
 	webSocket = None
+
+
+	
+
+	# RG1785/04
+	cbte_fiscal_map = {
+							1: 'FA', 
+							2: 'NDA', 
+							3: 'NCA', 
+							6: 'FB', 
+							7: 'NDB', 
+							8: 'NCB', 
+							11: 'FC', 
+							12: 'NDC', 
+							13: 'NDC',
+							81:	'FA', #tique factura A
+							82: 'FB', #tique factura B
+							83: 'T',  # tiques
+						}
+
+	pos_fiscal_map = {
+							1:  "IVA_TYPE_RESPONSABLE_INSCRIPTO",
+							2:	"IVA_TYPE_RESPONSABLE_NO_INSCRIPTO",
+							3:	"IVA_TYPE_NO_RESPONSABLE",
+							4:	"IVA_TYPE_EXENTO",
+							5:	"IVA_TYPE_CONSUMIDOR_FINAL",
+							6:	"IVA_TYPE_RESPONSABLE_MONOTRIBUTO",
+							7:	"IVA_TYPE_NO_CATEGORIZADO",
+							12:	"IVA_TYPE_PEQUENIO_CONTRIBUYENTE_EVENTUAL",
+							13: "IVA_TYPE_MONOTRIBUTISTA_SOCIAL",
+							14:	"IVA_TYPE_PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL",
+						}
+	doc_fiscal_map = {
+							96: "DOC_TYPE_DNI",
+							80: "DOC_TYPE_CUIT",
+							89: "DOC_TYPE_LIBRETA_ENROLAMIENTO",
+							90: "DOC_TYPE_LIBRETA_CIVICA",
+							00: "DOC_TYPE_CEDULA",
+							94: "DOC_TYPE_PASAPORTE", 
+							99: "DOC_TYPE_SIN_CALIFICADOR",
+					  	}
+
 
 	def __init__(self, webSocket):
 		self.webSocket = webSocket

@@ -23,9 +23,8 @@ class ConectorDriverComando:
 			self.driver = driverClass(**kwargs)
 
 
-		t = threading.Thread(target=init_driver, args = (self, comando, driver, args))
-		t.daemon = True
-		t.start()
+		init_driver(self, comando, driver, *args)
+		
 
    	
    	def sendCommand(self, *args):

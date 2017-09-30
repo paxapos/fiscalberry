@@ -62,9 +62,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 		print message
 		try:
 			jsonMes = json.loads(message, strict=False)
-
 			response = traductor.json_to_comando( jsonMes )
-			self.write_message( response )
 		except TypeError:
 			response = {"err": "Error parseando el JSON"}
 		except TraductorException, e:
@@ -73,7 +71,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 			response = {"err": repr(e)+"- "+str(e)}
 			import sys, traceback
 			traceback.print_exc(file=sys.stdout)
-	
+		self.write_message( response )
 
 	def on_close(self):
 		self.clients.remove(self)
@@ -111,26 +109,17 @@ class FiscalberryApp:
 		self.start()
 
 
-	@gen.coroutine		
 	def shutdown(self):
 		logging.info('Stopping http server')
 
 		logging.info('Will shutdown in %s seconds ...', MAX_WAIT_SECONDS_BEFORE_SHUTDOWN)
-		io_loop = tornado.ioloop.IOLoop.instance()
+		io_loop = tornado.ioloop.IOLoop.current()
 
 		deadline = time.time() + MAX_WAIT_SECONDS_BEFORE_SHUTDOWN
 
 
-		def stop_loop():
-			now = time.time()
-			if now < deadline and (io_loop._callbacks or io_loop._timeouts):
-				io_loop.add_timeout(now + 1, stop_loop)
-			else:
-				io_loop.stop()
-				logging.info('Shutdown')
-
-		yield stop_loop()
-
+		io_loop.stop()
+		logging.info('Shutdown')
 
 
 	def start( self ):

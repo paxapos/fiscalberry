@@ -3,7 +3,6 @@ import string
 import types
 import logging
 from ComandoInterface import ComandoInterface, ComandoException, ValidationError, FiscalPrinterError, formatText
-from ConectorDriverComando import ConectorDriverComando
 from Drivers.FiscalPrinterDriver import PrinterException
 
 class FiscalPrinterError(Exception):
@@ -117,7 +116,6 @@ class EpsonComandos(ComandoInterface):
         return self._openBillCreditTicket(type, name, address, doc, docType, ivaType, isCreditNote=True)
 
     def openBillTicket(self, type, name, address, doc, docType, ivaType):
-        print("zarasasaposapospoaospaosoaisa")
         return self._openBillCreditTicket(type, name, address, doc, docType, ivaType, isCreditNote=False)
 
     def _openBillCreditTicket(self, type, name, address, doc, docType, ivaType, isCreditNote,
@@ -195,8 +193,10 @@ class EpsonComandos(ComandoInterface):
 
     def openTicket(self, defaultLetter='B'):
         if self.model == "epsonlx300+":
+            print self.ivaTypes
+            print self.ivaTypes.get("CONSUMIDOR_FINAL")
             return self.openBillTicket(defaultLetter, "CONSUMIDOR FINAL", "", None, None,
-                self.IVA_TYPE_CONSUMIDOR_FINAL)
+                self.ivaTypes.get("CONSUMIDOR_FINAL"))
         else:
             self._sendCommand(self.CMD_OPEN_FISCAL_RECEIPT, ["C"])
             self._currentDocument = self.CURRENT_DOC_TICKET

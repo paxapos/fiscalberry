@@ -1,5 +1,5 @@
 # -*- coding: iso-8859-1 -*-
-import ConectorDriverComando
+from ConectorDriverComando import ConectorDriverComando
 import unicodedata
 import importlib
 import logging
@@ -138,7 +138,7 @@ class ComandoInterface:
         driver = kwargs.pop("driver", self.DEFAULT_DRIVER)
         if driver:
             try:
-                self.conector = ConectorDriverComando.ConectorDriverComando(self, driver, **kwargs)
+                self.conector = ConectorDriverComando(self, driver, **kwargs)
             except Exception, e:
                 logging.info( "no se pudo conectar con el driver: %s"%driver )
                 self.conector = None

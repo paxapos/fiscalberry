@@ -4,7 +4,6 @@ import types
 import logging
 import unicodedata
 from ComandoInterface import ComandoInterface, ComandoException, ValidationError, FiscalPrinterError, formatText
-from ConectorDriverComando import ConectorDriverComando
 from Drivers.FiscalPrinterDriver import PrinterException
 
 
