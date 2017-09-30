@@ -86,6 +86,9 @@ class TraductoresHandler:
 		elif 'restart' in jsonTicket:
 			rta["rta"] =  self._restartFiscalberry()
 
+		elif 'findAvaliablePrinters' in jsonTicket:
+			rta["rta"] =  self._findAvaliablePrinters()
+
 		elif 'getAvaliablePrinters' in jsonTicket:
 			rta["rta"] =  self._getAvaliablePrinters()
 
@@ -124,13 +127,20 @@ class TraductoresHandler:
 		logging.info('Iniciando la busqueda por nmap')
 		
 		nm = nmap.PortScanner()
-		nm.scan('-sP 192.168.1.0/24')  # parametros a nmap, se pueden mejorar mucho
+
+		ipPrivada = self.config.config.get('SERVIDOR','ip_privada')
+		iplist = ipPrivada.split('.')
+		ipBroadcast = iplist[0]+"."+iplist[1]+"."+iplist[2]+"0/24"
+		ret = nm.scan('-sP '+ipBroadcast)  # parametros a nmap, se pueden mejorar mucho
+		print "nmap "+'-sP '+ipBroadcast
+		print ret 
 
 		if device_list[device_list_identifier_pos] == 0:
 
 			device_list.pop(device_list_identifier_pos)
 
 			for h in nm.all_hosts():
+				print "encontre este coso %s"%h
 				if 'mac' in nm[h]['addresses']:
 							for x in device_list: 
 								if x in nm[h]['addresses']['mac']:
@@ -222,9 +232,12 @@ class TraductoresHandler:
 			"rta": "ok"
 		}
 
-	def _getAvaliablePrinters(self):	
+	def _findAvaliablePrinters(self):	
 		#Esta función llama a otra que busca impresoras. Luego se encarga de escribir el config.ini con las impresoras encontradas.
-		#self.__getPrintersAndWriteConfig()
+		self.__getPrintersAndWriteConfig()
+
+
+	def _getAvaliablePrinters(self):	
 
 		# la primer seccion corresponde a SERVER, el resto son las impresoras
 		rta = {

@@ -20,6 +20,7 @@ MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 
 
 
+
 # leer los parametros de configuracion de la impresora fiscal 
 # en config.ini 
 
@@ -130,14 +131,16 @@ class FiscalberryApp:
 			(r"/(.*)", web.StaticFileHandler, dict(path=root+"/js_browser_client")),
 		])
 
-
 		self.configberry = Configberry.Configberry()
 
+		# actualizar ip privada por si cambio
+		ip = self.get_ip()
+		self.configberry.writeSectionWithKwargs('SERVIDOR', {'ip_privada':ip})
+
+
 		# send discover data to your server if the is no URL configured, so nothing will be sent
-		discoverUrl = self.configberry.config.has_option('SERVIDOR', "discover_url")
-		if discoverUrl:
-			discoverUrl = self.configberry.config.get('SERVIDOR', "discover_url")
-			fbdiscover = FiscalberryDiscover.send(discoverUrl);
+		if self.configberry.config.has_option('SERVIDOR', "discover_url"):
+			fbdiscover = FiscalberryDiscover.send( self.configberry );
 
 
 		
@@ -177,6 +180,19 @@ class FiscalberryApp:
 		print "Bye!"
 		logging.info("Exit...")
 			
+
+
+	def get_ip(self):
+	    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+	    try:
+	        # doesn't even have to be reachable
+	        s.connect(('10.255.255.255', 1))
+	        IP = s.getsockname()[0]
+	    except:
+	        IP = '127.0.0.1'
+	    finally:
+	        s.close()
+	    return IP
 
 
 
