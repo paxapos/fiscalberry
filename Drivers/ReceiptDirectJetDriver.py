@@ -4,10 +4,11 @@ import socket
 from escpos import printer,escpos
 import threading
 import time
+from DriverInterface import DriverInterface
 # TCP_PORT = 9100
 
 
-class ReceiptDirectJetDriver( printer.Network ):
+class ReceiptDirectJetDriver( printer.Network, DriverInterface ):
 	connected = False
 	
 
