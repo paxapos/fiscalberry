@@ -12,19 +12,15 @@ class ConectorDriverComando:
 	driver = None
 
 	def __init__(self, comando, driver, *args, **kwargs):
-		self._comando = comando
 		print("inicializando ConectorDriverComando driver de %s"%driver)
-
-		def init_driver(self, *args):
-			# instanciar el driver dinamicamente segun el driver pasado como parametro
-			libraryName = "Drivers."+driver+"Driver"
-			driverModule = importlib.import_module(libraryName)
-			driverClass = getattr(driverModule, driver+"Driver")
-			self.driver = driverClass(**kwargs)
-
-
-		init_driver(self, comando, driver, *args)
 		
+		self._comando = comando
+
+		# instanciar el driver dinamicamente segun el driver pasado como parametro
+		libraryName = "Drivers."+driver+"Driver"
+		driverModule = importlib.import_module(libraryName)
+		driverClass = getattr(driverModule, driver+"Driver")
+		self.driver = driverClass(**kwargs)
 
    	
    	def sendCommand(self, *args):

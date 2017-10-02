@@ -59,19 +59,43 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 	
 	def on_message(self, message):
 		traductor = self.traductor
+		response = {}
 		print("----- - -- - - - ---")
 		print message
 		try:
 			jsonMes = json.loads(message, strict=False)
 			response = traductor.json_to_comando( jsonMes )
-		except TypeError:
-			response = {"err": "Error parseando el JSON"}
-		except TraductorException, e:
-			response = {"err": "Traductor Comandos: %s"%str(e)}
-		except Exception, e:
-			response = {"err": repr(e)+"- "+str(e)}
+		except TypeError, e:
+			errtxt = "Error parseando el JSON %s"%e
+			logging.error(errtxt)
+			response["err"] = errtxt
 			import sys, traceback
 			traceback.print_exc(file=sys.stdout)
+		except TraductorException, e:
+			errtxt = "Traductor Comandos: %s"%str(e)
+			logging.error(errtxt)
+			response["err"] = errtxt
+			import sys, traceback
+			traceback.print_exc(file=sys.stdout)
+		except KeyError as e:
+			errtxt = "El comando no es valido para ese tipo de impresora: %s"%e
+			logging.error(errtxt)
+			response["err"] = errtxt
+			import sys, traceback
+			traceback.print_exc(file=sys.stdout)
+		except socket.error as err:
+			errtxt = "Socket error: %s"%err
+			logging.error(errtxt)
+			response["err"] = errtxt
+			import sys, traceback
+			traceback.print_exc(file=sys.stdout)
+		except Exception, e:
+			errtxt = repr(e)+"- "+str(e)
+			logging.error(errtxt)
+			response["err"] = errtxt
+			import sys, traceback
+			traceback.print_exc(file=sys.stdout)
+			
 		self.write_message( response )
 
 	def on_close(self):

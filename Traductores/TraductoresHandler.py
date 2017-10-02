@@ -7,6 +7,7 @@ import importlib
 import socket
 import threading
 import tornado.ioloop
+import nmap
 
 
 INTERVALO_IMPRESORA_WARNING = 30.0
@@ -50,6 +51,7 @@ class TraductoresHandler:
 
 		print jsonTicket
 
+		traductor = None
 		
 		rta = {"rta":""}
 		# seleccionar impresora
@@ -61,22 +63,10 @@ class TraductoresHandler:
 
 			if traductor:
 				if traductor.comando.conector is not None:
-					try:
-						rta["rta"] = traductor.run( jsonTicket )
-					except KeyError as e:
-						rta["err"] = "El comando no es válido para ese tipo de impresora: %s"%e
-						logging.error("El comando no es válido para ese tipo de impresora: %s"%e)	
-					except socket.error as err:
-						self.__manejar_socket_error(err, jsonTicket, traductor)
-						logging.error("Socket error: %s"%err)
-					except Exception as e:
-						rta["err"] = "Error inesperado: %s"%e
-						logging.error("Error inesperado: %s"%e)	
+					rta["rta"] = traductor.run( jsonTicket )
 				else:
-					rta["err"] = "el Driver no esta inicializado para la impresora %s"%printerName
-					logging.error("el Driver no esta inicializado para la impresora %s"%printerName)
+					raise TraductorException("el Driver no esta inicializado para la impresora %s"%printerName)
 			else:
-				rta["err"] = "En el archivo de configuracion no existe la impresora: '%s'"%printerName
 				raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'"%printerName)
 		
 		# aciones de comando genericos de Ststus y control
@@ -87,7 +77,8 @@ class TraductoresHandler:
 			rta["rta"] =  self._restartFiscalberry()
 
 		elif 'findAvaliablePrinters' in jsonTicket:
-			rta["rta"] =  self._findAvaliablePrinters()
+			self._findAvaliablePrinters()
+			rta["rta"] =  self._getAvaliablePrinters()
 
 		elif 'getAvaliablePrinters' in jsonTicket:
 			rta["rta"] =  self._getAvaliablePrinters()
@@ -96,7 +87,12 @@ class TraductoresHandler:
 			rta["rta"] =  self._configure(**jsonTicket["configure"])
 
 		else:
-			rta["err"] = "No se paso un comando de accion generico ni el nombre de la impresora printerName"
+			logging.error("No se pasó un comando válido")
+			raise TraductorException("No se pasó un comando válido")
+
+		# cerrar el driver
+		if traductor and traductor.comando:
+			traductor.comando.close()
 
 		return rta
 
@@ -114,15 +110,13 @@ class TraductoresHandler:
 					collect_warnings[trad] = warn
 		return collect_warnings
 
-	def __getDeviceData(self, device_list):
-		import nmap
+	def __getDeviceData(self):
+		# avaliable mac address list
+		device_list = [
+					'00:07:25', # Bematech
+				]  
 
-		return_dict = {}  # lo retornado
-
-		device_list_len = len(device_list)
-		device_list_identifier_pos = device_list_len - 1
-		index = 0
-		separator = 'abcdefghijklmnopqrstuvwxyz'
+		avaliablePrinters = []  # lo retornado
 
 		logging.info('Iniciando la busqueda por nmap')
 		
@@ -132,61 +126,46 @@ class TraductoresHandler:
 		iplist = ipPrivada.split('.')
 		ipBroadcast = iplist[0]+"."+iplist[1]+"."+iplist[2]+"0/24"
 		ret = nm.scan('-sP '+ipBroadcast)  # parametros a nmap, se pueden mejorar mucho
-		print "nmap "+'-sP '+ipBroadcast
-		print ret 
+		print("Ejecutando comando: nmap "+'-sP '+ipBroadcast)
+		print(ret)
 
-		if device_list[device_list_identifier_pos] == 0:
+		for h in nm.all_hosts():
+			print("Dispositivo encontrado %s"%h)
+			if 'mac' in nm[h]['addresses']:
+				for x in device_list: 
+					if x in nm[h]['addresses']['mac']:
+						print("Dispositivo VALIDO DETECTADO %s"%h)
 
-			device_list.pop(device_list_identifier_pos)
+						encontrada = {
+										'host' : nm[h]['addresses']['ipv4'], 
+										'marca' : 'EscP', 
+										'driver' : 'ReceiptDirectJet',
+										'mac': nm[h]['addresses']['mac']
+										}
+						avaliablePrinters.append(encontrada)
+		logging.info('Finalizó la busqueda por nmap')
+	 	return avaliablePrinters
 
-			for h in nm.all_hosts():
-				print "encontre este coso %s"%h
-				if 'mac' in nm[h]['addresses']:
-							for x in device_list: 
-								if x in nm[h]['addresses']['mac']:
-									return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]+'_'+separator[index]] = {'host' : nm[h]['addresses']['ipv4'], 'marca' : 'EscP', 'driver' : 'ReceiptDirectJet'}
-									index += 1
-			print(return_dict)
-			logging.info('Finalizó la busqueda por nmap')
-		 	return return_dict
-
-		elif device_list[device_list_identifier_pos] == 1:
-
-			device_list.pop(device_list_identifier_pos)
-
-			for h in nm.all_hosts():
-						 if 'mac' in nm[h]['addresses']:
-
-								for x in device_list:
-									if "vendor" in nm[h]:
-										if x in nm[h]['vendor'][nm[h]['addresses']['mac']]:
-											return_dict[nm[h]['vendor'][nm[h]['addresses']['mac']]+'_'+separator[index]] = {'host' : nm[h]['addresses']['ipv4'], 'marca' : 'EscP', 'driver' : 'ReceiptDirectJet'}
-											index += 1
-			print(return_dict)
-			logging.info('Finalizó la busqueda por nmap')
-			return return_dict  
-				
-		else:
-			 print 'identificador erroneo'
-			 quit()
 
 
 	def __getPrintersAndWriteConfig(self):
-		vendors = ['Bematech', 1]  # vendors // 1 as vendor identifier
-		macs = ['00:07:25',0]  # macs // 0 as mac identifier
 
-		printer = self.__getDeviceData(macs)
 
-		i = 0
-		for printerName in printer:
-			listadoNames = printer.keys()
-			printerName = listadoNames[i]
-			listadoItems = printer.values()
-
-			kwargs = printer[printerName] #Items de la impresora
-			self.config.writeSectionWithKwargs(printerName, kwargs)
-			i +=1
-		return 1
+		printerlist = self.__getDeviceData()
+		for data in printerlist:
+			(s, encontrada) = self.config.findByMac(data['mac'])
+			print "LA ENCONTRADA ESSSSSS"
+			print encontrada
+			if encontrada:
+				encontrada['host'] = data['host']
+				data = encontrada
+				printerName = s
+			else:
+				printerName = "Impresora-%s"%data['mac']
+				data['marca'] = 'EscP'
+				data['driver'] = 'ReceiptDirectJet'
+			print("la data es %s"%data)
+			self.config.writeSectionWithKwargs(printerName, data)
 
 		
 
@@ -202,11 +181,7 @@ class TraductoresHandler:
 		comandoClass = getattr(comandoModule, marca+"Comandos")
 		
 		comando = comandoClass(**dictSectionConf)
-		traductorComando = comando.traductor
-
-		return traductorComando
-
-
+		return comando.traductor
 
 
 		

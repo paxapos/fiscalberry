@@ -14,6 +14,10 @@ def send( configberry ):
 		"ip_privada": configberry.config.get('SERVIDOR', 'ip_privada')
 	}
 
+
+	for s in configberry.sections():
+		senddata[s] = configberry.config.items(s)
+
 	discoverUrl = configberry.config.get('SERVIDOR', "discover_url")
 
 	resp = requests.post(discoverUrl, data=senddata)

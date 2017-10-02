@@ -3,8 +3,9 @@ import string
 import types
 import logging
 import unicodedata
-from ComandoInterface import ComandoInterface, ComandoException, ValidationError, FiscalPrinterError, formatText
+from Comandos.ComandoFiscalInterface import ComandoFiscalInterface
 from Drivers.FiscalPrinterDriver import PrinterException
+from ComandoInterface import formatText
 
 
 NUMBER = 999990
@@ -12,7 +13,7 @@ NUMBER = 999990
 
 
 
-class HasarComandos(ComandoInterface):
+class HasarComandos(ComandoFiscalInterface):
     # el traductor puede ser: TraductorFiscal o TraductorReceipt
     # path al modulo de traductor que este comando necesita
     traductorModule="Traductores.TraductorFiscal"

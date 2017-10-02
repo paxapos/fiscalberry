@@ -2,7 +2,9 @@
 import string
 import types
 import logging
-from ComandoInterface import ComandoInterface, ComandoException, ValidationError, FiscalPrinterError, formatText
+from Comandos.ComandoFiscalInterface import ComandoFiscalInterface
+from ComandoInterface import formatText
+
 from Drivers.FiscalPrinterDriver import PrinterException
 
 class FiscalPrinterError(Exception):
@@ -10,7 +12,7 @@ class FiscalPrinterError(Exception):
 
 
 
-class EpsonComandos(ComandoInterface):
+class EpsonComandos(ComandoFiscalInterface):
 
     # el traductor puede ser: TraductorFiscal o TraductorReceipt
     # path al modulo de traductor que este comando necesita

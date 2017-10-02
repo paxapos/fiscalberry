@@ -22,19 +22,6 @@ class EscPComandos(ComandoInterface):
 
 	__preFillTrailer = None
 
-	tipoCbte = {
-			"T": "Consumidor Final",
-			"FA":  "A", 
-			"FB": "Consumidor Final", 
-			"NDA": "NDA", 
-			"NCA": "NCA", 
-			"NDB": "NDB", 
-			"NCB": "NCB", 
-			"FC": "C", 
-			"NDC": "NCC",
-			"NDC": "NDC"
-	}
-
 	
 	
 	def _sendCommand(self, comando, skipStatusErrors=False):

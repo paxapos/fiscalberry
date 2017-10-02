@@ -23,6 +23,19 @@ class Configberry:
 
 		return  self.config.sections()
 
+	def findByMac(self, mac):
+		"Busca entre todas las sections por la mac"
+		for s in self.sections()[1:]:
+			if self.config.has_option(s,'mac') :
+				mymac = self.config.get(s, 'mac')
+				print("mymac %s y la otra es mac %s"%(mymac, mac ))
+				if mymac == mac:
+					print "SON LO MISMMOOOOOOOOO"
+					print(s)
+					return (s, self.get_config_for_printer(s))
+		return False
+		
+
 	def writeSectionWithKwargs(self, printerName, kwargs):
 		self.config = ConfigParser.RawConfigParser()
 		self.config.read(CONFIG_FILE_NAME)
