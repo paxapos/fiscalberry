@@ -159,6 +159,7 @@ class FiscalberryApp:
 
 		# actualizar ip privada por si cambio
 		ip = self.get_ip()
+		print("La IP es %s"%ip)
 		self.configberry.writeSectionWithKwargs('SERVIDOR', {'ip_privada':ip})
 
 
