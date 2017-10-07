@@ -124,7 +124,7 @@ class TraductoresHandler:
 
 		ipPrivada = self.config.config.get('SERVIDOR','ip_privada')
 		iplist = ipPrivada.split('.')
-		ipBroadcast = iplist[0]+"."+iplist[1]+"."+iplist[2]+"0/24"
+		ipBroadcast = iplist[0]+"."+iplist[1]+"."+iplist[2]+".0/24"
 		ret = nm.scan('-sP '+ipBroadcast)  # parametros a nmap, se pueden mejorar mucho
 		print("Ejecutando comando: nmap "+'-sP '+ipBroadcast)
 		print(ret)
