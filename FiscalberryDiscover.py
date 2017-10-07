@@ -22,6 +22,8 @@ def send( configberry ):
 	discoverUrl = configberry.config.get('SERVIDOR', "discover_url")
 
 	resp = requests.post(discoverUrl, data=senddata)
-	resp.raise_for_status()
+
+	print resp
+	#resp.raise_for_status()
 
 	return resp

@@ -8,6 +8,7 @@ import socket
 import threading
 import tornado.ioloop
 import nmap
+import os
 
 
 INTERVALO_IMPRESORA_WARNING = 30.0
@@ -209,6 +210,10 @@ class TraductoresHandler:
 
 	def _findAvaliablePrinters(self):	
 		#Esta función llama a otra que busca impresoras. Luego se encarga de escribir el config.ini con las impresoras encontradas.
+		if os.geteuid() != 0:
+			print os.geteuid()
+			return {"rta": "Error, no es superusuario (%s)"%os.geteuid()}
+
 		self.__getPrintersAndWriteConfig()
 
 
