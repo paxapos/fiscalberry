@@ -114,6 +114,7 @@ class TraductoresHandler:
 	def __getDeviceData(self):
 		# avaliable mac address list
 		device_list = [
+					'00:0E:C3', # Logic Controls BEMATECH
 					'00:07:25', # Bematech
 				]  
 
@@ -126,19 +127,20 @@ class TraductoresHandler:
 		ipPrivada = self.config.config.get('SERVIDOR','ip_privada')
 		iplist = ipPrivada.split('.')
 		ipBroadcast = iplist[0]+"."+iplist[1]+"."+iplist[2]+".0/24"
-		ret = nm.scan('-sP '+ipBroadcast)  # parametros a nmap, se pueden mejorar mucho
+		
+		ret = nm.scan(hosts=ipBroadcast, arguments='-sP')
+
 		print("Ejecutando comando: nmap "+'-sP '+ipBroadcast)
 		print(ret)
 
 		for h in nm.all_hosts():
-			print("Dispositivo encontrado %s"%h)
 			if 'mac' in nm[h]['addresses']:
 				for x in device_list: 
 					if x in nm[h]['addresses']['mac']:
-						print("Dispositivo VALIDO DETECTADO %s"%h)
-
+						print(nm[h])
 						encontrada = {
 										'host' : nm[h]['addresses']['ipv4'], 
+										'vendor' : nm[h]['vendor'][ nm[h]['addresses']['mac'] ], 
 										'marca' : 'EscP', 
 										'driver' : 'ReceiptDirectJet',
 										'mac': nm[h]['addresses']['mac']
@@ -150,19 +152,20 @@ class TraductoresHandler:
 
 
 	def __getPrintersAndWriteConfig(self):
-
-
 		printerlist = self.__getDeviceData()
 		for data in printerlist:
-			(s, encontrada) = self.config.findByMac(data['mac'])
-			print "LA ENCONTRADA ESSSSSS"
-			print encontrada
-			if encontrada:
-				encontrada['host'] = data['host']
-				data = encontrada
-				printerName = s
+			elqueencontro = self.config.findByMac(data['mac'])
+			if elqueencontro:
+				(s, encontrada) = elqueencontro
+				if encontrada:
+					print("::::::IMPRESORA ENCONTRADA::::::")
+					print(encontrada)
+					print("::::::********************::::::")
+					encontrada['host'] = data['host']
+					data = encontrada
+					printerName = s
 			else:
-				printerName = "Impresora-%s"%data['mac']
+				printerName = data['vendor']+"-%s"%data['mac']
 				data['marca'] = 'EscP'
 				data['driver'] = 'ReceiptDirectJet'
 			print("la data es %s"%data)
@@ -212,7 +215,9 @@ class TraductoresHandler:
 		#Esta función llama a otra que busca impresoras. Luego se encarga de escribir el config.ini con las impresoras encontradas.
 		if os.geteuid() != 0:
 			print os.geteuid()
-			return {"rta": "Error, no es superusuario (%s)"%os.geteuid()}
+			return {"action": "findAvaliablePrinters",
+					"rta": "Error, no es superusuario (%s)"%os.geteuid()
+					}
 
 		self.__getPrintersAndWriteConfig()
 
