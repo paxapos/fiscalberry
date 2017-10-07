@@ -12,6 +12,13 @@ class Configberry:
 
 		self.__create_config_if_not_exists()
 
+	def getJSON(self):
+		jsondata = {}
+		for s in self.sections():
+			jsondata.setdefault(s, {})
+			for (k,data) in self.config.items(s):
+				jsondata[s].setdefault(k, data)
+		return jsondata
 
 	def items(self):
 		self.config.read(CONFIG_FILE_NAME)
@@ -20,7 +27,6 @@ class Configberry:
 
 	def sections(self):
 		self.config.read(CONFIG_FILE_NAME)
-
 		return  self.config.sections()
 
 	def findByMac(self, mac):

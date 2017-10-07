@@ -1,6 +1,8 @@
+# -*- coding: utf-8 -*-
+
 import requests
 import uuid
-
+import json
 
 def send( configberry ):
 
@@ -11,16 +13,15 @@ def send( configberry ):
 
 	senddata = {
 		"uuid": configberry.config.get('SERVIDOR', 'uuid'),
-		"ip_privada": configberry.config.get('SERVIDOR', 'ip_privada')
+		"ip_privada": configberry.config.get('SERVIDOR', 'ip_privada'),
+		"raw_data": json.dumps(configberry.getJSON())
 	}
 
-
-	for s in configberry.sections():
-		senddata[s] = configberry.config.items(s)
+	print senddata
 
 	discoverUrl = configberry.config.get('SERVIDOR', "discover_url")
 
 	resp = requests.post(discoverUrl, data=senddata)
-	print senddata
-	print resp
+	resp.raise_for_status()
+
 	return resp
