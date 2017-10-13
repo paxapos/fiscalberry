@@ -13,7 +13,7 @@ if (!Array.isArray) {
         __conected = false;
 
     /** Singleton, devuelve siempre la instancia $fb **/
-    var Fiscalberry = function (host, port, uri) {
+    Fiscalberry = function (host, port, uri) {
         // WebSocket instance
         var ws;
 
@@ -171,7 +171,6 @@ if (!Array.isArray) {
             // solo responde si me vino un JSON válido, caso contrario lo omite
             ws.onmessage = function (ev) {
                 var response = jQuery.parseJSON(ev.data);
-                var action;
 
                 if (typeof response == 'object') {
 
