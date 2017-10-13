@@ -6,4 +6,5 @@ pip install python-nmap
 pip install requests
 pip install tornado
 pip install python-escpos
+pip install pyutf8
 
