@@ -47,9 +47,9 @@ Renombrar el archivo "config.ini.install" como "config.ini" y configurar la marc
 Las opciones son:
 
   para marca: [Hasar, Epson]
-
   modelo: 
-  	(para Hasar)
+  ```
+    (para Hasar)
 		"615"
 		"715v1"
 		"715v2"
@@ -58,7 +58,7 @@ Las opciones son:
 	(para Epson)
 		"tickeadoras"
 		"epsonlx300+"
-
+  ```
 
   path:
   	en windows: (COM1, COM2, etc)
@@ -105,6 +105,16 @@ hostname
 ```
 y ver cual es el nombre de la máquina para agregarlo al archivo /etc/hosts
 127.0.0.1 nombre-PC localhost
+
+#### Dev Dependencias
+Usa python 2
+```sh
+sudo apt install build-essential python-dev python-serial python-setuptools nmap
+mkvirtualenv -p python2 fiscalberry
+workon fiscalberry
+(fiscalberry) pip install -r requirements.txt
+```
+
 
 ### Instalar Daemond
 En el archivo "fiscalberry-server-rc" deberas abrirlo y modificar la lionea donde dice "DIR=/insertPATHHERE" colocanmdo el path donde se encuentra la carpeta de fiscalberry. Ej: "DIR=/home/pi/fiscalberry"
