@@ -213,7 +213,7 @@ Es una comprobación útil que ahorrará dolores de cabeza y posibilidades de bl
 #### Encabezado (Obligatorio)
 tipo: Json
 
-```json
+```javascript
 {
     "encabezado": {
         "tipo_cbte": "FA", // tipo tiquet VARIABLE ESTATICA *obligatorio
@@ -226,7 +226,7 @@ tipo: Json
 }     
 ```
 ejemplo Nota de Crédito "A"     
-```json
+```javascript
 {
     "encabezado": {
         "tipo_cbte": "NCB", // tipo tiquet VARIABLE ESTATICA *obligatorio		        
@@ -416,9 +416,9 @@ Hasar:
 
 #### "path"
 
-En Windows "COM1"... "COM2", etc.
-En linux "/dev/ttyUSB0"
-No es requerido para Epsond y Hasard
+En Windows "COM1"... "COM2", etc.  
+En linux "/dev/ttyUSB0". Pueden listarse con `lsusb`  
+No es requerido para Epson y Hasard  
 
 #### "driver" (opcional)
 Es la "salida" o sea, es el medio por donde saldrán las impresiones.
