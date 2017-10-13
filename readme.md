@@ -80,7 +80,7 @@ Se necesitan las dependencias:
 * tornado (para usar como servidor de web sockets)
 
 ```sh
-sudo apt-get install python-pip
+sudo apt-get install python-pip libjpeg-dev
 sudo pip install pyserial requests
 sudo apt-get install build-essential python-dev
 sudo pip install tornado
@@ -109,7 +109,7 @@ y ver cual es el nombre de la máquina para agregarlo al archivo /etc/hosts
 #### Dev Dependencias
 Usa python 2
 ```sh
-sudo apt install build-essential python-dev python-serial python-setuptools nmap
+sudo apt install build-essential libjpeg-dev python-dev python-serial python-setuptools nmap
 mkvirtualenv -p python2 fiscalberry
 workon fiscalberry
 (fiscalberry) pip install -r requirements.txt
