@@ -417,7 +417,7 @@ Hasar:
 #### "path"
 
 En Windows "COM1"... "COM2", etc.  
-En linux "/dev/ttyUSB0". Pueden listarse con `lsusb`  
+En linux "/dev/ttyUSB0". Pueden listarse con `./linux_ls_ttyusb.sh`  
 No es requerido para Epson y Hasard  
 
 #### "driver" (opcional)
