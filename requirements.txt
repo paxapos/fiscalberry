@@ -20,9 +20,9 @@ PyYAML==3.12
 qrcode==5.3
 query-string==0.0.0
 requests==2.18.4
-serial==0.0.0
 setupfiles==0.0.50
 singledispatch==3.4.0.3
 six==1.11.0
 tornado==4.5.2
+typing==3.6.2
 urllib3==1.22

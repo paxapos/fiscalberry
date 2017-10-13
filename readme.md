@@ -90,7 +90,7 @@ sudo pip install python-nmap
 
 Si se quiere usar las comanderas hay que instalar
 ```sh
-sudo apt-get install python-imaging python-serial python-dev python-setuptools
+sudo apt-get install python-imaging python-dev python-setuptools
 sudo pip install python-escpos
 ```
 
