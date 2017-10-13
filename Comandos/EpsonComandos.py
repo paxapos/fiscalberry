@@ -3,7 +3,7 @@ import string
 import types
 import logging
 from Comandos.ComandoFiscalInterface import ComandoFiscalInterface
-from ComandoInterface import formatText
+from ComandoInterface import formatText, ComandoException
 
 from Drivers.FiscalPrinterDriver import PrinterException
 
@@ -26,7 +26,7 @@ class EpsonComandos(ComandoFiscalInterface):
 
     CMD_OPEN_FISCAL_RECEIPT = 0x40
     CMD_OPEN_BILL_TICKET = 0x60
-    ##    CMD_PRINT_TEXT_IN_FISCAL = (0x41, 0x61)
+    ## CMD_PRINT_TEXT_IN_FISCAL = (0x41, 0x61)
     CMD_PRINT_TEXT_IN_FISCAL = 0x41
     CMD_PRINT_LINE_ITEM = (0x42, 0x62)
     CMD_PRINT_SUBTOTAL = (0x43, 0x63)
@@ -48,7 +48,7 @@ class EpsonComandos(ComandoFiscalInterface):
     CURRENT_DOC_CREDIT_TICKET = 4
     CURRENT_DOC_NON_FISCAL = 3
 
-    models = ["tickeadoras", "epsonlx300+", "tm-220-af"]
+    models = ["tickeadoras", "epsonlx300+", "tm-220-af", "tm-t900fa"]
 
     ivaTypes = {
         "RESPONSABLE_INSCRIPTO": 'I',
@@ -245,7 +245,7 @@ class EpsonComandos(ComandoFiscalInterface):
             # enviar con el iva incluido
             priceUnitStr = str(int(round(price * 100, 0)))
         else:
-            if self.model == "tm-220-af":
+            if self.model == "tm-220-af" or self.model == "tm-t900fa":
                 # enviar sin el iva (factura A)
                 priceUnitStr = "%0.4f" % (price / ((100.0 + iva) / 100.0))
             else:
