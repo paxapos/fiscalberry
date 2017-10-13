@@ -3,10 +3,10 @@
 from DriverInterface import DriverInterface
 import logging
 
-class FileDriver(DriverInterface):
 
+class FileDriver(DriverInterface):
     def __init__(self, path):
-        bufsize = 1 # line buffer
+        bufsize = 1  # line buffer
         self.file = open(path, "a", bufsize)
 
     def sendCommand(self, command, parameters, skipStatusErrors=False):
@@ -25,7 +25,6 @@ class FileDriver(DriverInterface):
 
     def end(self):
         pass
-
 
     def reconnect(self):
         pass
