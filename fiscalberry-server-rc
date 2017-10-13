@@ -1,13 +1,17 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides:          myservice
-# Required-Start:    $remote_fs $syslog
-# Required-Stop:     $remote_fs $syslog
+# Provides:          fiscalberry_server
+# Required-Start:    $local_fs $network $remote_fs $named $time
+# Required-Stop:     $local_fs $network $remote_fs $named
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Put a short description of the service here
-# Description:       Put a long description of the service here
+# Short-Description: Inicializacion de Fiscablerry server
+# Description:       Fiscalberry ayuda a los programadores para manejar 
+#			impresoras fiscales, comanderas, sensores y distintos 
+#			tipos de dispositivos que requieran comunicarse entre 
+#			una pagina web y los dispositovos, mediante el uso de 
+#			web sockets
 ### END INIT INFO
 
 # Change the next 3 lines to suit where you install your script and what you want to call it
