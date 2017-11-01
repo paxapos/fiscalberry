@@ -84,6 +84,9 @@ class TraductoresHandler:
 		elif 'getAvaliablePrinters' in jsonTicket:
 			rta["rta"] =  self._getAvaliablePrinters()
 
+		elif 'getPrinterInfo' in jsonTicket:
+			rta["rta"] =  self._getPrinterInfo(jsonTicket["getPrinterInfo"])
+
 		elif 'configure' in jsonTicket:
 			rta["rta"] =  self._configure(**jsonTicket["configure"])
 
@@ -232,7 +235,9 @@ class TraductoresHandler:
 
 		return rta
 
-	
+	def _getPrinterInfo(self, printerName):
+		rta = self.config.get_config_for_printer(printerName)
+		return rta
 
 	def _getStatus(self, *args):
 
