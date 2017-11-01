@@ -12,6 +12,13 @@ class Configberry:
 
 		self.__create_config_if_not_exists()
 
+	def getJSON(self):
+		jsondata = {}
+		for s in self.sections():
+			jsondata.setdefault(s, {})
+			for (k,data) in self.config.items(s):
+				jsondata[s].setdefault(k, data)
+		return jsondata
 
 	def items(self):
 		self.config.read(CONFIG_FILE_NAME)
@@ -20,20 +27,33 @@ class Configberry:
 
 	def sections(self):
 		self.config.read(CONFIG_FILE_NAME)
-
 		return  self.config.sections()
 
+	def findByMac(self, mac):
+		"Busca entre todas las sections por la mac"
+		for s in self.sections()[1:]:
+			if self.config.has_option(s,'mac') :
+				mymac = self.config.get(s, 'mac')
+				print("mymac %s y la otra es mac %s"%(mymac, mac ))
+				if mymac == mac:
+					print "SON LO MISMMOOOOOOOOO"
+					print(s)
+					return (s, self.get_config_for_printer(s))
+		return False
+		
 
 	def writeSectionWithKwargs(self, printerName, kwargs):
 		self.config = ConfigParser.RawConfigParser()
 		self.config.read(CONFIG_FILE_NAME)
+
 		if not self.config.has_section(printerName):
 			self.config.add_section(printerName)
 
-			for param in kwargs:
-				self.config.set(printerName, param, kwargs[param])
-			with open(CONFIG_FILE_NAME, 'w') as configfile:
-				self.config.write(configfile)
+		for param in kwargs:
+			self.config.set(printerName, param, kwargs[param])
+		
+		with open(CONFIG_FILE_NAME, 'w') as configfile:
+			self.config.write(configfile)
 
 		return 1;
 

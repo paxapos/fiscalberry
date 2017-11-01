@@ -2,8 +2,9 @@
 import string
 import types
 import logging
-from ComandoInterface import ComandoInterface, ComandoException, ValidationError, FiscalPrinterError, formatText
-from ConectorDriverComando import ConectorDriverComando
+from Comandos.ComandoFiscalInterface import ComandoFiscalInterface
+from ComandoInterface import formatText
+
 from Drivers.FiscalPrinterDriver import PrinterException
 
 class FiscalPrinterError(Exception):
@@ -11,7 +12,7 @@ class FiscalPrinterError(Exception):
 
 
 
-class EpsonComandos(ComandoInterface):
+class EpsonComandos(ComandoFiscalInterface):
 
     # el traductor puede ser: TraductorFiscal o TraductorReceipt
     # path al modulo de traductor que este comando necesita
@@ -121,12 +122,13 @@ class EpsonComandos(ComandoInterface):
 
     def _openBillCreditTicket(self, type, name, address, doc, docType, ivaType, isCreditNote,
             reference=None):
-        if not doc or filter(lambda x: x not in string.digits + "-.", doc or "") or not \
-                docType in self.docTypeNames:
+
+        if not doc or not docType in self.docTypeNames:
             doc, docType = "", ""
         else:
             doc = doc.replace("-", "").replace(".", "")
             docType = self.docTypeNames[docType]
+       
         self._type = type
         if self.model == "epsonlx300+":
             parameters = [isCreditNote and "N" or "F", # Por ahora no soporto ND, que sería "D"
@@ -193,8 +195,10 @@ class EpsonComandos(ComandoInterface):
 
     def openTicket(self, defaultLetter='B'):
         if self.model == "epsonlx300+":
+            print self.ivaTypes
+            print self.ivaTypes.get("CONSUMIDOR_FINAL")
             return self.openBillTicket(defaultLetter, "CONSUMIDOR FINAL", "", None, None,
-                self.IVA_TYPE_CONSUMIDOR_FINAL)
+                self.ivaTypes.get("CONSUMIDOR_FINAL"))
         else:
             self._sendCommand(self.CMD_OPEN_FISCAL_RECEIPT, ["C"])
             self._currentDocument = self.CURRENT_DOC_TICKET
@@ -230,10 +234,10 @@ class EpsonComandos(ComandoInterface):
             return self.closeDocument()
         raise NotImplementedError
 
-    def addItem(self, description, quantity, price, iva, discount, discountDescription, negative=False):
+    def addItem(self, description, quantity, price, iva, itemNegative=False, discount=0, discountDescription='', discountNegative=True):
         if type(description) in types.StringTypes:
             description = [description]
-        if negative:
+        if itemNegative:
             sign = 'R'
         else:
             sign = 'M'

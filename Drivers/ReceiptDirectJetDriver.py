@@ -4,14 +4,15 @@ import socket
 from escpos import printer,escpos
 import threading
 import time
+from DriverInterface import DriverInterface
 # TCP_PORT = 9100
 
 
-class ReceiptDirectJetDriver( printer.Network ):
+class ReceiptDirectJetDriver( printer.Network, DriverInterface ):
 	connected = False
 	
 
-	def __init__(self, host, port=9100, timeout=10, codepage="cp858", *args, **kwargs):
+	def __init__(self, host, port=9100, timeout=10, codepage="cp858", mac="", *args, **kwargs):
 		""" escrito aqui solo para tener bien en claro las variables iniciales"""
 		"""
 		:param host : Printer's hostname or IP address
@@ -34,6 +35,8 @@ class ReceiptDirectJetDriver( printer.Network ):
 	def end(self):
 		self.close()
 		self.connected = False
+
+
 
 
 	def reconnect(self):

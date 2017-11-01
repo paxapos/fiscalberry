@@ -3,9 +3,9 @@ import string
 import types
 import logging
 import unicodedata
-from ComandoInterface import ComandoInterface, ComandoException, ValidationError, FiscalPrinterError, formatText
-from ConectorDriverComando import ConectorDriverComando
+from Comandos.ComandoFiscalInterface import ComandoFiscalInterface
 from Drivers.FiscalPrinterDriver import PrinterException
+from ComandoInterface import formatText
 
 
 NUMBER = 999990
@@ -13,7 +13,7 @@ NUMBER = 999990
 
 
 
-class HasarComandos(ComandoInterface):
+class HasarComandos(ComandoFiscalInterface):
     # el traductor puede ser: TraductorFiscal o TraductorReceipt
     # path al modulo de traductor que este comando necesita
     traductorModule="Traductores.TraductorFiscal"
@@ -233,7 +233,7 @@ class HasarComandos(ComandoInterface):
         if self.model in ["715v1", "715v2", "320"]:
             parameters.append(self._formatText(address, 'custAddressSize') or " ") # Domicilio
         else:
-            parameters.append(address or " ")
+            parameters.append(formatText(address) or " ")
         return self._sendCommand(self.CMD_SET_CUSTOMER_DATA, parameters)
 
     def openBillTicket(self, type, name, address, doc, docType, ivaType):

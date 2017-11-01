@@ -14,6 +14,7 @@ comanderatest.py
 test.py
 test_scripts/*
 env/*
+ssl/*
 
 # C extensions
 *.so

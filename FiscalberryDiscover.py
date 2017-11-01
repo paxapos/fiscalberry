@@ -1,33 +1,29 @@
+# -*- coding: utf-8 -*-
+
 import requests
 import uuid
+import json
 
-import socket
-def get_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        # doesn't even have to be reachable
-        s.connect(('10.255.255.255', 1))
-        IP = s.getsockname()[0]
-    except:
-        IP = '127.0.0.1'
-    finally:
-        s.close()
-    return IP
+def send( configberry ):
 
-
-
-def send(discoverUrl):
-	print uuid.getnode()
-	uuidvalue = str(uuid.uuid1(uuid.getnode(),0))[24:]
-
-	ip = get_ip()
+	if not configberry.config.has_option('SERVIDOR', "uuid"):
+		print uuid.getnode()
+		uuidvalue = str(uuid.uuid1(uuid.getnode(),0))[24:]
+		configberry.writeSectionWithKwargs('SERVIDOR', {'uuid':uuidvalue})
 
 	senddata = {
-		'uuid': uuidvalue,
-		'ip_private': ip
+		"uuid": configberry.config.get('SERVIDOR', 'uuid'),
+		"ip_privada": configberry.config.get('SERVIDOR', 'ip_privada'),
+		"raw_data": json.dumps(configberry.getJSON())
 	}
 
-	resp = requests.post(discoverUrl, data=senddata)
 	print senddata
+
+	discoverUrl = configberry.config.get('SERVIDOR', "discover_url")
+
+	resp = requests.post(discoverUrl, data=senddata)
+
 	print resp
+	#resp.raise_for_status()
+
 	return resp

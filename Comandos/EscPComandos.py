@@ -5,7 +5,6 @@ import types
 import logging
 import unicodedata
 from ComandoInterface import ComandoInterface, ComandoException, ValidationError, FiscalPrinterError, formatText
-from ConectorDriverComando import ConectorDriverComando
 import time
 import datetime
 from math import ceil
@@ -22,19 +21,6 @@ class EscPComandos(ComandoInterface):
 	DEFAULT_DRIVER="ReceipDirectJet"
 
 	__preFillTrailer = None
-
-	tipoCbte = {
-			"T": "Consumidor Final",
-			"FA":  "A", 
-			"FB": "Consumidor Final", 
-			"NDA": "NDA", 
-			"NCA": "NCA", 
-			"NDB": "NDB", 
-			"NCB": "NCB", 
-			"FC": "C", 
-			"NDC": "NCC",
-			"NDC": "NDC"
-	}
 
 	
 	
