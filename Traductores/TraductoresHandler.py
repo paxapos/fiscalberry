@@ -237,6 +237,7 @@ class TraductoresHandler:
 
 	def _getPrinterInfo(self, printerName):
 		rta = {
+			"printerName": printerName,
 			"action": "getPrinterInfo",
 			"rta": self.config.get_config_for_printer(printerName)
 		}
