@@ -9,24 +9,22 @@ class ConectorError(Exception):
 
 
 class ConectorDriverComando:
-	driver = None
+    driver = None
 
-	def __init__(self, comando, driver, *args, **kwargs):
-		print("inicializando ConectorDriverComando driver de %s"%driver)
-		
-		self._comando = comando
+    def __init__(self, comando, driver, *args, **kwargs):
+        print("inicializando ConectorDriverComando driver de %s" % driver)
 
-		# instanciar el driver dinamicamente segun el driver pasado como parametro
-		libraryName = "Drivers."+driver+"Driver"
-		driverModule = importlib.import_module(libraryName)
-		driverClass = getattr(driverModule, driver+"Driver")
-		self.driver = driverClass(**kwargs)
+        self._comando = comando
 
-   	
-   	def sendCommand(self, *args):
-		return self.driver.sendCommand(*args)
+        # instanciar el driver dinamicamente segun el driver pasado como parametro
+        libraryName = "Drivers." + driver + "Driver"
+        driverModule = importlib.import_module(libraryName)
+        driverClass = getattr(driverModule, driver + "Driver")
+        self.driver = driverClass(**kwargs)
 
+    def sendCommand(self, *args):
+        return self.driver.sendCommand(*args)
 
-	def close(self):
-		self.driver.close()
-		self.driver = None
+    def close(self):
+        self.driver.close()
+        self.driver = None

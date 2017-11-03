@@ -3,32 +3,30 @@ import string
 import types
 import logging
 from Comandos.ComandoFiscalInterface import ComandoFiscalInterface
-from ComandoInterface import formatText
+from ComandoInterface import formatText, ComandoException
 
 from Drivers.FiscalPrinterDriver import PrinterException
+
 
 class FiscalPrinterError(Exception):
     pass
 
 
-
 class EpsonComandos(ComandoFiscalInterface):
-
     # el traductor puede ser: TraductorFiscal o TraductorReceipt
     # path al modulo de traductor que este comando necesita
-    traductorModule="Traductores.TraductorFiscal"
-    
+    traductorModule = "Traductores.TraductorFiscal"
+
     _currentDocument = None
     _currentDocumentType = None
 
-    DEFAULT_DRIVER="Epson"
-
+    DEFAULT_DRIVER = "Epson"
 
     DEBUG = True
 
     CMD_OPEN_FISCAL_RECEIPT = 0x40
     CMD_OPEN_BILL_TICKET = 0x60
-##    CMD_PRINT_TEXT_IN_FISCAL = (0x41, 0x61)
+    ## CMD_PRINT_TEXT_IN_FISCAL = (0x41, 0x61)
     CMD_PRINT_TEXT_IN_FISCAL = 0x41
     CMD_PRINT_LINE_ITEM = (0x42, 0x62)
     CMD_PRINT_SUBTOTAL = (0x43, 0x63)
@@ -50,8 +48,7 @@ class EpsonComandos(ComandoFiscalInterface):
     CURRENT_DOC_CREDIT_TICKET = 4
     CURRENT_DOC_NON_FISCAL = 3
 
-    models = ["tickeadoras", "epsonlx300+", "tm-220-af"]
-
+    models = ["tickeadoras", "epsonlx300+", "tm-220-af", "tm-t900fa"]
 
     ivaTypes = {
         "RESPONSABLE_INSCRIPTO": 'I',
@@ -67,13 +64,12 @@ class EpsonComandos(ComandoFiscalInterface):
         "NO_CATEGORIZADO": 'F',
     }
 
-
     def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
         print "_sendCommand", commandNumber, parameters
         try:
             logging.getLogger().info("sendCommand: SEND|0x%x|%s|%s" % (commandNumber,
-                skipStatusErrors and "T" or "F",
-                                                                     str(parameters)))
+                                                                       skipStatusErrors and "T" or "F",
+                                                                       str(parameters)))
             return self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
         except PrinterException, e:
             logging.getLogger().error("PrinterException: %s" % str(e))
@@ -88,8 +84,6 @@ class EpsonComandos(ComandoFiscalInterface):
     def printNonFiscalText(self, text):
         return self._sendCommand(self.CMD_PRINT_NON_FISCAL_TEXT, [formatText(text[:40] or " ")])
 
-
-
     ADDRESS_SIZE = 30
 
     def _setHeaderTrailer(self, line, text):
@@ -100,8 +94,8 @@ class EpsonComandos(ComandoFiscalInterface):
         if not header:
             header = []
         line = 3
-        for text in (header + [chr(0x7f)]*3)[:3]: # Agrego chr(0x7f) (DEL) al final para limpiar las
-                                                  # líneas no utilizadas
+        for text in (header + [chr(0x7f)] * 3)[:3]:  # Agrego chr(0x7f) (DEL) al final para limpiar las
+            # líneas no utilizadas
             self._setHeaderTrailer(line, text)
             line += 1
 
@@ -121,61 +115,61 @@ class EpsonComandos(ComandoFiscalInterface):
         return self._openBillCreditTicket(type, name, address, doc, docType, ivaType, isCreditNote=False)
 
     def _openBillCreditTicket(self, type, name, address, doc, docType, ivaType, isCreditNote,
-            reference=None):
+                              reference=None):
 
         if not doc or not docType in self.docTypeNames:
             doc, docType = "", ""
         else:
             doc = doc.replace("-", "").replace(".", "")
             docType = self.docTypeNames[docType]
-       
+
         self._type = type
         if self.model == "epsonlx300+":
-            parameters = [isCreditNote and "N" or "F", # Por ahora no soporto ND, que sería "D"
-                "C",
-                type, # Tipo de FC (A/B/C)
-                "1",   # Copias - Ignorado
-                "P",   # "P" la impresora imprime la lineas(hoja en blanco) o "F" preimpreso
-                "17",   # Tamaño Carac - Ignorado
-                "I",   # Responsabilidad en el modo entrenamiento - Ignorado
-                self.ivaTypes.get(ivaType, "F"),   # Iva Comprador
-                formatText(name[:40]), # Nombre
-                formatText(name[40:80]), # Segunda parte del nombre - Ignorado
-                formatText(docType) or (isCreditNote and "-" or ""),
-                 # Tipo de Doc. - Si es NC obligado pongo algo
-                doc or (isCreditNote and "-" or ""), # Nro Doc - Si es NC obligado pongo algo
-                "N", # No imprime leyenda de BIENES DE USO
-                formatText(address[:self.ADDRESS_SIZE] or "-"), # Domicilio
-                formatText(address[self.ADDRESS_SIZE:self.ADDRESS_SIZE * 2]), # Domicilio 2da linea
-                formatText(address[self.ADDRESS_SIZE * 2:self.ADDRESS_SIZE * 3]), # Domicilio 3ra linea
-                (isCreditNote or self.ivaTypes.get(ivaType, "F") != "F") and "-" or "",
-                # Remito primera linea - Es obligatorio si el cliente no es consumidor final
-                "", # Remito segunda linea
-                "C", # No somos una farmacia
-                ]
+            parameters = [isCreditNote and "N" or "F",  # Por ahora no soporto ND, que sería "D"
+                          "C",
+                          type,  # Tipo de FC (A/B/C)
+                          "1",  # Copias - Ignorado
+                          "P",  # "P" la impresora imprime la lineas(hoja en blanco) o "F" preimpreso
+                          "17",  # Tamaño Carac - Ignorado
+                          "I",  # Responsabilidad en el modo entrenamiento - Ignorado
+                          self.ivaTypes.get(ivaType, "F"),  # Iva Comprador
+                          formatText(name[:40]),  # Nombre
+                          formatText(name[40:80]),  # Segunda parte del nombre - Ignorado
+                          formatText(docType) or (isCreditNote and "-" or ""),
+                          # Tipo de Doc. - Si es NC obligado pongo algo
+                          doc or (isCreditNote and "-" or ""),  # Nro Doc - Si es NC obligado pongo algo
+                          "N",  # No imprime leyenda de BIENES DE USO
+                          formatText(address[:self.ADDRESS_SIZE] or "-"),  # Domicilio
+                          formatText(address[self.ADDRESS_SIZE:self.ADDRESS_SIZE * 2]),  # Domicilio 2da linea
+                          formatText(address[self.ADDRESS_SIZE * 2:self.ADDRESS_SIZE * 3]),  # Domicilio 3ra linea
+                          (isCreditNote or self.ivaTypes.get(ivaType, "F") != "F") and "-" or "",
+                          # Remito primera linea - Es obligatorio si el cliente no es consumidor final
+                          "",  # Remito segunda linea
+                          "C",  # No somos una farmacia
+                          ]
         else:
-            parameters = [isCreditNote and "M" or "T", # Ticket NC o Factura
-                "C",  # Tipo de Salida - Ignorado
-                type, # Tipo de FC (A/B/C)
-                "1",   # Copias - Ignorado
-                "P",   # Tipo de Hoja - Ignorado
-                "17",   # Tamaño Carac - Ignorado
-                "E",   # Responsabilidad en el modo entrenamiento - Ignorado
-                self.ivaTypes.get(ivaType, "F"),   # Iva Comprador
-                formatText(name[:40]), # Nombre
-                formatText(name[40:80]), # Segunda parte del nombre - Ignorado
-                formatText(docType) or (isCreditNote and "-" or ""),
-                 # Tipo de Doc. - Si es NC obligado pongo algo
-                doc or (isCreditNote and "-" or ""), # Nro Doc - Si es NC obligado pongo algo
-                "N", # No imprime leyenda de BIENES DE USO
-                formatText(address[:self.ADDRESS_SIZE] or "-"), # Domicilio
-                formatText(address[self.ADDRESS_SIZE:self.ADDRESS_SIZE * 2]), # Domicilio 2da linea
-                formatText(address[self.ADDRESS_SIZE * 2:self.ADDRESS_SIZE * 3]), # Domicilio 3ra linea
-                (isCreditNote or self.ivaTypes.get(ivaType, "F") != "F") and "-" or "",
-                # Remito primera linea - Es obligatorio si el cliente no es consumidor final
-                "", # Remito segunda linea
-                "C", # No somos una farmacia
-                ]
+            parameters = [isCreditNote and "M" or "T",  # Ticket NC o Factura
+                          "C",  # Tipo de Salida - Ignorado
+                          type,  # Tipo de FC (A/B/C)
+                          "1",  # Copias - Ignorado
+                          "P",  # Tipo de Hoja - Ignorado
+                          "17",  # Tamaño Carac - Ignorado
+                          "E",  # Responsabilidad en el modo entrenamiento - Ignorado
+                          self.ivaTypes.get(ivaType, "F"),  # Iva Comprador
+                          formatText(name[:40]),  # Nombre
+                          formatText(name[40:80]),  # Segunda parte del nombre - Ignorado
+                          formatText(docType) or (isCreditNote and "-" or ""),
+                          # Tipo de Doc. - Si es NC obligado pongo algo
+                          doc or (isCreditNote and "-" or ""),  # Nro Doc - Si es NC obligado pongo algo
+                          "N",  # No imprime leyenda de BIENES DE USO
+                          formatText(address[:self.ADDRESS_SIZE] or "-"),  # Domicilio
+                          formatText(address[self.ADDRESS_SIZE:self.ADDRESS_SIZE * 2]),  # Domicilio 2da linea
+                          formatText(address[self.ADDRESS_SIZE * 2:self.ADDRESS_SIZE * 3]),  # Domicilio 3ra linea
+                          (isCreditNote or self.ivaTypes.get(ivaType, "F") != "F") and "-" or "",
+                          # Remito primera linea - Es obligatorio si el cliente no es consumidor final
+                          "",  # Remito segunda linea
+                          "C",  # No somos una farmacia
+                          ]
         if isCreditNote:
             self._currentDocument = self.CURRENT_DOC_CREDIT_TICKET
         else:
@@ -198,7 +192,7 @@ class EpsonComandos(ComandoFiscalInterface):
             print self.ivaTypes
             print self.ivaTypes.get("CONSUMIDOR_FINAL")
             return self.openBillTicket(defaultLetter, "CONSUMIDOR FINAL", "", None, None,
-                self.ivaTypes.get("CONSUMIDOR_FINAL"))
+                                       self.ivaTypes.get("CONSUMIDOR_FINAL"))
         else:
             self._sendCommand(self.CMD_OPEN_FISCAL_RECEIPT, ["C"])
             self._currentDocument = self.CURRENT_DOC_TICKET
@@ -212,29 +206,30 @@ class EpsonComandos(ComandoFiscalInterface):
             return reply[2]
         if self._currentDocument == self.CURRENT_DOC_BILL_TICKET:
             reply = self._sendCommand(self.CMD_CLOSE_FISCAL_RECEIPT[self._getCommandIndex()],
-                [self.model == "epsonlx300+" and "F" or "T", self._type, "FINAL"])
+                                      [self.model == "epsonlx300+" and "F" or "T", self._type, "FINAL"])
             del self._type
             return reply[2]
         if self._currentDocument == self.CURRENT_DOC_CREDIT_TICKET:
             reply = self._sendCommand(self.CMD_CLOSE_FISCAL_RECEIPT[self._getCommandIndex()],
-                [self.model == "epsonlx300+" and "N" or "M", self._type, "FINAL"])
+                                      [self.model == "epsonlx300+" and "N" or "M", self._type, "FINAL"])
             del self._type
             return reply[2]
-        if self._currentDocument in (self.CURRENT_DOC_NON_FISCAL, ):
+        if self._currentDocument in (self.CURRENT_DOC_NON_FISCAL,):
             return self._sendCommand(self.CMD_CLOSE_NON_FISCAL_RECEIPT, ["T"])
         raise NotImplementedError
 
     def cancelDocument(self):
         if self._currentDocument in (self.CURRENT_DOC_TICKET, self.CURRENT_DOC_BILL_TICKET,
-                self.CURRENT_DOC_CREDIT_TICKET):
+                                     self.CURRENT_DOC_CREDIT_TICKET):
             status = self._sendCommand(self.CMD_ADD_PAYMENT[self._getCommandIndex()], ["Cancelar", "0", 'C'])
             return status
-        if self._currentDocument in (self.CURRENT_DOC_NON_FISCAL, ):
+        if self._currentDocument in (self.CURRENT_DOC_NON_FISCAL,):
             self.printNonFiscalText("CANCELADO")
             return self.closeDocument()
         raise NotImplementedError
 
-    def addItem(self, description, quantity, price, iva, itemNegative=False, discount=0, discountDescription='', discountNegative=True):
+    def addItem(self, description, quantity, price, iva, itemNegative=False, discount=0, discountDescription='',
+                discountNegative=True):
         if type(description) in types.StringTypes:
             description = [description]
         if itemNegative:
@@ -250,27 +245,27 @@ class EpsonComandos(ComandoFiscalInterface):
             # enviar con el iva incluido
             priceUnitStr = str(int(round(price * 100, 0)))
         else:
-            if self.model == "tm-220-af":
+            if self.model == "tm-220-af" or self.model == "tm-t900fa":
                 # enviar sin el iva (factura A)
-                priceUnitStr =  "%0.4f" % (price / ((100.0 + iva) / 100.0))
+                priceUnitStr = "%0.4f" % (price / ((100.0 + iva) / 100.0))
             else:
                 # enviar sin el iva (factura A)
                 priceUnitStr = str(int(round((price / ((100 + iva) / 100)) * 100, 0)))
         ivaStr = str(int(iva * 100))
         extraparams = self._currentDocument in (self.CURRENT_DOC_BILL_TICKET,
-            self.CURRENT_DOC_CREDIT_TICKET) and ["", "", ""] or []
+                                                self.CURRENT_DOC_CREDIT_TICKET) and ["", "", ""] or []
         if self._getCommandIndex() == 0:
             for d in description[:-1]:
                 self._sendCommand(self.CMD_PRINT_TEXT_IN_FISCAL,
-                                   [formatText(d)[:20]])
+                                  [formatText(d)[:20]])
         reply = self._sendCommand(self.CMD_PRINT_LINE_ITEM[self._getCommandIndex()],
-                          [formatText(description[-1][:20]),
-                            quantityStr, priceUnitStr, ivaStr, sign, bultosStr, "0" * 8] + extraparams)
+                                  [formatText(description[-1][:20]),
+                                   quantityStr, priceUnitStr, ivaStr, sign, bultosStr, "0" * 8] + extraparams)
         if discount:
             discountStr = str(int(discount * 100))
             self._sendCommand(self.CMD_PRINT_LINE_ITEM[self._getCommandIndex()],
-                [formatText(discountDescription[:20]), "1000",
-                  discountStr, ivaStr, 'R', "0", "0"] + extraparams)
+                              [formatText(discountDescription[:20]), "1000",
+                               discountStr, ivaStr, 'R', "0", "0"] + extraparams)
         return reply
 
     def addPayment(self, description, payment):
@@ -293,7 +288,7 @@ class EpsonComandos(ComandoFiscalInterface):
             if not description:
                 description = "Recargo"
             sign = 'M'
-        
+
         quantityStr = "1000"
         bultosStr = "0"
         priceUnit = amount
@@ -305,10 +300,10 @@ class EpsonComandos(ComandoFiscalInterface):
             priceUnitStr = str(int(round((priceUnit / ((100 + iva) / 100)) * 100, 0)))
         ivaStr = str(int(iva * 100))
         extraparams = self._currentDocument in (self.CURRENT_DOC_BILL_TICKET,
-            self.CURRENT_DOC_CREDIT_TICKET) and ["", "", ""] or []
+                                                self.CURRENT_DOC_CREDIT_TICKET) and ["", "", ""] or []
         reply = self._sendCommand(self.CMD_PRINT_LINE_ITEM[self._getCommandIndex()],
-                          [formatText(description[:20]),
-                            quantityStr, priceUnitStr, ivaStr, sign, bultosStr, "0"] + extraparams)
+                                  [formatText(description[:20]),
+                                   quantityStr, priceUnitStr, ivaStr, sign, bultosStr, "0"] + extraparams)
         return reply
 
     def dailyClose(self, type):
@@ -318,7 +313,7 @@ class EpsonComandos(ComandoFiscalInterface):
     def getLastNumber(self, letter):
         reply = self._sendCommand(self.CMD_STATUS_REQUEST, ["A"], True)
         if len(reply) < 3:
-# La respuesta no es válida. Vuelvo a hacer el pedido y si hay algún error que se reporte como excepción
+            # La respuesta no es válida. Vuelvo a hacer el pedido y si hay algún error que se reporte como excepción
             reply = self._sendCommand(self.CMD_STATUS_REQUEST, ["A"], False)
         if letter == "A":
             return int(reply[6])
@@ -328,7 +323,7 @@ class EpsonComandos(ComandoFiscalInterface):
     def getLastCreditNoteNumber(self, letter):
         reply = self._sendCommand(self.CMD_STATUS_REQUEST, ["A"], True)
         if len(reply) < 3:
-# La respuesta no es válida. Vuelvo a hacer el pedido y si hay algún error que se reporte como excepción
+            # La respuesta no es válida. Vuelvo a hacer el pedido y si hay algún error que se reporte como excepción
             reply = self._sendCommand(self.CMD_STATUS_REQUEST, ["A"], False)
         if letter == "A":
             return int(reply[10])

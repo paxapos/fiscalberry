@@ -8,10 +8,7 @@ import logging
 from FiscalberryApp import FiscalberryApp
 from threading import Thread
 
-
-
-
 if __name__ == "__main__":
-	# chdir otherwise will not work fine in rc service
-	
-	fbserver = FiscalberryApp()
+    # chdir otherwise will not work fine in rc service
+
+    fbserver = FiscalberryApp()

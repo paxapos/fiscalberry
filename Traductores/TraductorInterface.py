@@ -1,32 +1,28 @@
-
-
 class TraductorInterface:
-	isRunning=False
-	colaImpresion=[]
+    isRunning = False
+    colaImpresion = []
 
-	def __init__(self, comando, *args):
-		self.comando = comando
+    def __init__(self, comando, *args):
+        self.comando = comando
 
-	
+    def run(self, jsonTicket):
+        actions = jsonTicket.keys()
+        rta = []
 
-	def run(self, jsonTicket):
-		actions = jsonTicket.keys()
-		rta = []
+        for action in actions:
+            fnAction = getattr(self, action)
 
-		for action in actions:
-			fnAction = getattr(self, action)
+            if isinstance(jsonTicket[action], list):
+                res = fnAction(*jsonTicket[action])
+                rta.append({"action": action, "rta": res})
 
-			if isinstance( jsonTicket[action], list):
-				res = fnAction( *jsonTicket[action] )
-				rta.append( {"action":  action, "rta": res } )
+            elif isinstance(jsonTicket[action], dict):
+                res = fnAction(**jsonTicket[action])
+                rta.append({"action": action, "rta": res})
 
-			elif isinstance( jsonTicket[action], dict):
-				res = fnAction( **jsonTicket[action] )
-				rta.append( {"action":  action, "rta": res } )
+            else:
+                res = fnAction(jsonTicket[action])
+                rta.append({"action": action, "rta": res})
 
-			else:
-				res = fnAction( jsonTicket[action] )
-				rta.append( {"action":  action, "rta": res } )
-
-		# vuelvo a poner la impresora que estaba por default inicializada
-		return rta
+        # vuelvo a poner la impresora que estaba por default inicializada
+        return rta
