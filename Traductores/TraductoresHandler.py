@@ -74,6 +74,9 @@ class TraductoresHandler:
         elif 'restart' in jsonTicket:
             rta["rta"] = self._restartFiscalberry()
 
+        elif 'getPrinterInfo' in jsonTicket:
+            rta["rta"] =  self._getPrinterInfo(jsonTicket["getPrinterInfo"])
+
         elif 'findAvaliablePrinters' in jsonTicket:
             self._findAvaliablePrinters()
             rta["rta"] = self._getAvaliablePrinters()
@@ -176,6 +179,16 @@ class TraductoresHandler:
 
         comando = comandoClass(**dictSectionConf)
         return comando.traductor
+
+
+    def _getPrinterInfo(self, printerName):
+        rta = {
+            "printerName": printerName,
+            "action": "getPrinterInfo",
+            "rta": self.config.get_config_for_printer(printerName)
+        }
+        print(rta)
+        return rta
 
     def _restartFiscalberry(self):
         "reinicia el servicio fiscalberry"
