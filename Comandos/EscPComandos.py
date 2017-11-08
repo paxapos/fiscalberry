@@ -53,7 +53,7 @@ class EscPComandos(ComandoInterface):
 
         printer.set("CENTER", "A", "A", 1, 1)
         fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M %x')
-        printer.text("Fecha de emisión del remito: %s" % fecha)
+        printer.text("Fecha de emision del remito: %s" % fecha)
         printer.text("Verifique su cuenta por favor\n")
         printer.text("COMPROBANTE NO VALIDO COMO FACTURA\n\n")
 
