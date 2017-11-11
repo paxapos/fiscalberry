@@ -33,11 +33,11 @@ o directamente el ZIP: https://github.com/ristorantino/fiscalberry/archive/maste
 
 ## BUG: Cuando se traba impresora fiscal
 
+```sh
 git clone https://github.com/Intelintec/pyutf8.git
-
-dentro de la carpeta pyutf8 ejecutar:
-
-python setup.py install 
+cd pyutf8
+python setup.py install # con sudo, tal vez.
+```  
 
 ### Crear archivo de configuracion
 
@@ -46,10 +46,10 @@ Renombrar el archivo "config.ini.install" como "config.ini" y configurar la marc
 
 Las opciones son:
 
-  para marca: [Hasar, Epson]
-
+  para marca: [`Hasar`, `Epson`]  
   modelo: 
-  	(para Hasar)
+  ```
+    (para Hasar)
 		"615"
 		"715v1"
 		"715v2"
@@ -58,7 +58,7 @@ Las opciones son:
 	(para Epson)
 		"tickeadoras"
 		"epsonlx300+"
-
+  ```
 
   path:
   	en windows: (COM1, COM2, etc)
@@ -68,7 +68,7 @@ Las opciones son:
   	(puede quedar vacio, en ese caso si la marca setteada es Hasar, el driver sera Hasar, lo mismo con Epson. Modificar File o Dummy es útil para hacer pruebas o desarrollo)
   	Hasar, Epson, Dummy, File
 
-  	En el caso de seleccionar File, en la variable "path" hay que colocar el nombre del archivo que deseo crear para que se escriban las salidas. Ej en linux: "/tmp/archivo.txt"
+  En el caso de seleccionar File, en la variable "path" hay que colocar el nombre del archivo que deseo crear para que se escriban las salidas. Ej en linux: "/tmp/archivo.txt"
 
 ### Instalar Dependencias
 
@@ -80,8 +80,8 @@ Se necesitan las dependencias:
 * tornado (para usar como servidor de web sockets)
 
 ```sh
-sudo apt-get install python-pip
-sudo pip install pyserial
+sudo apt-get install python-pip libjpeg-dev
+sudo pip install pyserial requests
 sudo apt-get install build-essential python-dev
 sudo pip install tornado
 sudo apt-get install nmap
@@ -90,7 +90,7 @@ sudo pip install python-nmap
 
 Si se quiere usar las comanderas hay que instalar
 ```sh
-sudo apt-get install python-imaging python-serial python-dev python-setuptools
+sudo apt-get install python-imaging python-dev python-setuptools
 sudo pip install python-escpos
 ```
 
@@ -105,6 +105,16 @@ hostname
 ```
 y ver cual es el nombre de la máquina para agregarlo al archivo /etc/hosts
 127.0.0.1 nombre-PC localhost
+
+#### Dev Dependencias
+Usa python 2
+```sh
+sudo apt install build-essential libjpeg-dev python-dev python-serial python-setuptools nmap
+mkvirtualenv -p python2 fiscalberry
+workon fiscalberry
+(fiscalberry) pip install -r requirements.txt
+```
+
 
 ### Instalar Daemond
 En el archivo "fiscalberry-server-rc" deberas abrirlo y modificar la lionea donde dice "DIR=/insertPATHHERE" colocanmdo el path donde se encuentra la carpeta de fiscalberry. Ej: "DIR=/home/pi/fiscalberry"
@@ -145,10 +155,10 @@ el archivo fiscalberry.js te servirá si queres enviar a imprimir desde el brows
 Supongamos que tenemos este JSON genérico:
 ```
 {
- "ACCION_A_EJECUTAR": {
+    "ACCION_A_EJECUTAR": {
         PARAMETROS_DE_LA_ACCION
         ...
-        }
+    }
 }
 ```
 Lo enviamos usando websockets a un host y puerto determinado (el servidor fiscalberry), éste lo procesa, envia a imprimir, y responde al cliente con la respuesta de la impresora. Por ejemplo, devolviendo el número del último comprobante impreso.
@@ -159,22 +169,22 @@ Otro ejemplo más concreto: queremos imprimir un ticket, esta acción en el prot
 El "encabezado" indica el tipo de comprobante a imprimir (y también podria agregarle datos del cliente, que son opcionales). 
 Los ítems son una lista de productos a imprimir donde, en este ejemplo, tenemos una coca cola, con impuesto de 21%, importe $10, descripción del producto "COCA COLA" y la cantidad vendida es 2.
 
-```javascript
+```json
 {
-"printTicket": {
-			"encabezado": {
-		        "tipo_cbte": "T",      // tipo tiquet *obligatorio
-		    },
-		    "items": [
-		        {
-		            "alic_iva": 21.0,  // impuesto
-		            "importe": 10,     // importe
-		            "ds": "COCA COLA", // descripcion producto
-		            "qty": 2.0         // cantidad
-		        }
-		    ]
-			}
-		}
+    "printTicket": {
+        "encabezado": {
+            "tipo_cbte": "T",      // tipo tiquet *obligatorio
+        },
+        "items": [
+            {
+                "alic_iva": 21.0,  // impuesto
+                "importe": 10,     // importe
+                "ds": "COCA COLA", // descripcion producto
+                "qty": 2.0         // cantidad
+            }
+        ]
+    }
+}
 ```
 
 
@@ -205,23 +215,23 @@ tipo: Json
 
 ```javascript
 {
-"encabezado": {
-			        "tipo_cbte": "FA", // tipo tiquet VARIABLE ESTATICA *obligatorio
-			        "nro_doc": "20267565393", // identificacion cliente
-			        "domicilio_cliente": "Rua 76 km 34.5 Alagoas", // domicilio
-			        "tipo_doc": "DNI", // tipo documento VARIABLE ESTATICA (mas abajo se detallan)
-			        "nombre_cliente": "Joao Da Silva", // nombre cliente
-			        "tipo_responsable": "RESPONSABLE_INSCRIPTO" // VARIABLE ESTATICA
-			    }
-}
-
-
-// ejemplo Nota de Crédito "A"
+    "encabezado": {
+        "tipo_cbte": "FA", // tipo tiquet VARIABLE ESTATICA *obligatorio
+        "nro_doc": "20267565393", // identificacion cliente
+        "domicilio_cliente": "Rua 76 km 34.5 Alagoas", // domicilio
+        "tipo_doc": "DNI", // tipo documento VARIABLE ESTATICA (mas abajo se detallan)
+        "nombre_cliente": "Joao Da Silva", // nombre cliente
+        "tipo_responsable": "RESPONSABLE_INSCRIPTO" // VARIABLE ESTATICA
+    }
+}     
+```
+ejemplo Nota de Crédito "A"     
+```javascript
 {
-"encabezado": {
-			        "tipo_cbte": "NCB", // tipo tiquet VARIABLE ESTATICA *obligatorio		        
-				"referencia": 000100012 // numero de comprobante impreso
-			    }
+    "encabezado": {
+        "tipo_cbte": "NCB", // tipo tiquet VARIABLE ESTATICA *obligatorio		        
+        "referencia": 000100012 // numero de comprobante impreso
+    }
 }
                 
 ```
@@ -241,8 +251,7 @@ tipo: Json
 	        "NDC", 
 	        "NDC",
 
-
-	        
+        
 	tipo_responsable
 	        "RESPONSABLE_INSCRIPTO"
 	        "RESPONSABLE_NO_INSCRIPTO"
@@ -273,20 +282,20 @@ tipo: list
 
 ```javascript
 {
- "items": [
-    {
-        "alic_iva": 21.0, // * Obligatorio
-        "importe": 0.01, // * Obligatorio
-        "ds": "Descripcion Producto", // * Obligatorio
-        "qty": 1.0 // * Obligatorio
-    },
-    {
-        "alic_iva": 21.0,
-        "importe": 0.22,
-        "ds": "COCA COLA",
-        "qty": 2.0
-    }
-]
+    "items": [
+        {
+            "alic_iva": 21.0, // * Obligatorio
+            "importe": 0.01, // * Obligatorio
+            "ds": "Descripcion Producto", // * Obligatorio
+            "qty": 1.0 // * Obligatorio
+        },
+        {
+            "alic_iva": 21.0,
+            "importe": 0.22,
+            "ds": "COCA COLA",
+            "qty": 2.0
+        }
+    ]  
 }               
                 
 ```
@@ -296,71 +305,71 @@ __Todos los campos del ítem son obligatorios__
 
 #### Pagos (Opcional)
 tipo: list
-```
+```javascript
 {
-"pagos": [
-        {
-        "ds": "efectivo", // * Obligatorio
-        "importe": 1.0    // * Obligatorio
-        }
-    ]
-}
+    "pagos": [
+            {
+            "ds": "efectivo", // * Obligatorio
+            "importe": 1.0    // * Obligatorio
+            }
+        ]
+    }
 ```
 
 #### Ejemplo completo de "printTicket"
 
-```
-		json = {		
-			"printTicket": {
-				"encabezado": {
-			        "tipo_cbte": "FA",
-			        "nro_doc": "20267565393",
-			        "domicilio_cliente": "Rua 76 km 34.5 Alagoas",
-			        "tipo_doc": "DNI",
-			        "nombre_cliente": "Joao Da Silva",
-			        "tipo_responsable": "RESPONSABLE_INSCRIPTO"
-			    },
-			    "items": [
-			        {
-			            "alic_iva": 21.0,
-			            "importe": 0.01,
-			            "ds": "PIPI",
-			            "qty": 1.0
-			        },
-			        {
-			            "alic_iva": 21.0,
-			            "importe": 0.22,
-			            "ds": "COCA",
-			            "qty": 2.0
-			        }
-			    ],
-			    "pagos": [
-			        {
-			            "ds": "efectivo",
-			            "importe": 1.0
-			        }
-			    ]
-				}
-			}
+```javascript
+json = {		
+    "printTicket": {
+        "encabezado": {
+            "tipo_cbte": "FA",
+            "nro_doc": "20267565393",
+            "domicilio_cliente": "Rua 76 km 34.5 Alagoas",
+            "tipo_doc": "DNI",
+            "nombre_cliente": "Joao Da Silva",
+            "tipo_responsable": "RESPONSABLE_INSCRIPTO"
+        },
+        "items": [
+            {
+                "alic_iva": 21.0,
+                "importe": 0.01,
+                "ds": "PIPI",
+                "qty": 1.0
+            },
+            {
+                "alic_iva": 21.0,
+                "importe": 0.22,
+                "ds": "COCA",
+                "qty": 2.0
+            }
+        ],
+        "pagos": [
+            {
+                "ds": "efectivo",
+                "importe": 1.0
+            }
+        ]
+    }
+}
 
-		json = {
-				"printTicket": {
-					"encabezado": {
-						"tipo_cbte": "T"
-					},
-					"items": [{
-						"alic_iva": 21.0,
-						"importe": 0.01,
-						"ds": "PEPSI",
-						"qty": 1.0
-					}, {
-						"alic_iva": 21.0,
-						"importe": 0.12,
-						"ds": "COCA",
-						"qty": 2.0
-					}]
-				}
-			}
+json = {
+    "printTicket": {
+        "encabezado": {
+            "tipo_cbte": "T"
+        },
+        "items": [{
+            "alic_iva": 21.0,
+            "importe": 0.01,
+            "ds": "PEPSI",
+            "qty": 1.0
+        }, {
+            "alic_iva": 21.0,
+            "importe": 0.12,
+            "ds": "COCA",
+            "qty": 2.0
+        }]
+    }
+}
 ```
 
 
@@ -396,6 +405,7 @@ Epson:
 * "tickeadoras"
 * "epsonlx300+"
 * "tm-220-af"
+* "tm-t900fa"
 
 Hasar:
 * "615"
@@ -406,9 +416,9 @@ Hasar:
 
 #### "path"
 
-En Windows "COM1"... "COM2", etc.
-En linux "/dev/ttyUSB0"
-No es requerido para Epsond y Hasard
+En Windows "COM1"... "COM2", etc.  
+En linux "/dev/ttyUSB0". Pueden listarse con `./linux_ls_ttyusb.sh`  
+No es requerido para Epson y Hasard  
 
 #### "driver" (opcional)
 Es la "salida" o sea, es el medio por donde saldrán las impresiones.
@@ -428,25 +438,24 @@ Por defecto se utiliza el mismo driver que la impresora, pero en algunas casos (
 
 ```javascript
 // EJ: 
-		{
-			"configure": {
-				"printerName": "IMPRESORA_FISCAL",
-				"marca": "Hasar",
-				"modelo": "715v2",
-				"path": "/dev/ttyUSB0"
-			}
-		}
+{
+    "configure": {
+        "printerName": "IMPRESORA_FISCAL",
+        "marca": "Hasar",
+        "modelo": "715v2",
+        "path": "/dev/ttyUSB0"
+    }
+}
 
-
-		{
-			"configure": {
-				"printerName": "IMPRESORA_FISCAL",
-				"marca": "Epson",
-				"modelo": "tm-220-af",
-				"path": "/tmp/respuestas.txt",
-				"driver": "File"
-			}
-		}
+{
+    "configure": {
+        "printerName": "IMPRESORA_FISCAL",
+        "marca": "Epson",
+        "modelo": "tm-220-af",
+        "path": "/tmp/respuestas.txt",
+        "driver": "File"
+    }
+}
 ```
 
 ### JSON Accion: **openDrawer**
@@ -457,7 +466,7 @@ Abre la gaveta de dinero. No es necesario pasar parámetros extra.
 ```javascript
 // EJ:
 {
-  "openDrawer": true
+    "openDrawer": true
 }
 ```
 
@@ -466,10 +475,10 @@ Abre la gaveta de dinero. No es necesario pasar parámetros extra.
 
 retorna la configuracon actual del servidor.  No es necesario pasar parámetros extra.
 
-```
-EJ: 
+```javascript
+// EJ: 
 {
-  "getStatus": {}
+    "getStatus": {}
 }
 ```
 
@@ -482,12 +491,12 @@ Imprime un cierre fiscal X o Z dependiendo el parámetro enviado
 ```javascript
 // EJ: Imprime un cierre "Zeta"
 {
-  "dailyClose": "Z"
+    "dailyClose": "Z"
 }
 
 // Ej: imprimiendo un "X"
 {
-  "dailyClose": "X"
+    "dailyClose": "X"
 }
 ```
 
@@ -501,13 +510,13 @@ lista todas las impresoras configuradas en el archivo config.ini
 
 Permite agregar lineas al encabezado
 
-```javascript
+```json
 {
-	"setHeader": [
-		"Linea 1",
-		"Linea 22 22",
-		"Linea 3 3 3 3 3"
-	]
+    "setHeader": [
+        "Linea 1",
+        "Linea 22 22",
+        "Linea 3 3 3 3 3"
+    ]
 }
 
 ```
@@ -518,19 +527,19 @@ Permite agregar lineas al encabezado
 
 ```javascript
 {
-	"setTrailer": [
-		"Linea 1",
-		"Linea 22 22",
-		"Linea 3 3 3 3 3"
-	]
+    "setTrailer": [
+        "Linea 1",
+        "Linea 22 22",
+        "Linea 3 3 3 3 3"
+    ]
 }
 
 // cada item de la lista es una linea a modificar, por ejemplo
 {
-	"setTrailer": [
-		"", 				// dejara la linea 1 vacia
-		"Linea 22 modif",   // modificara la linea 2		
-	]
+    "setTrailer": [
+        "", 				// dejara la linea 1 vacia
+        "Linea 22 modif",   // modificara la linea 2		
+    ]
 }
 
 ```
@@ -544,18 +553,18 @@ como parámetro hay que pasarle una variable estatica "tipo_cbte"
 ```javascript
 // EJ: ultimo numero de tiquet
 {
-	"getLastNumber": "T"
+    "getLastNumber": "T"
 }
 
 // EJ: ultimo comprobante Factura A
 {
-	"getLastNumber": "FA"
+    "getLastNumber": "FA"
 }
 
 
 // EJ: ultimo comprobante Nota de Credito A
 {
-	"getLastNumber": "NCA"
+    "getLastNumber": "NCA"
 }
 
 ```

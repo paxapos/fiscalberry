@@ -10,13 +10,12 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
         print "_sendCommand", commandNumber, parameters
         try:
             logging.getLogger().info("sendCommand: SEND|0x%x|%s|%s" % (commandNumber,
-                skipStatusErrors and "T" or "F",
-                                                                     str(parameters)))
+                                                                       skipStatusErrors and "T" or "F",
+                                                                       str(parameters)))
             return self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
         except epsonFiscalDriver.ComandoException, e:
             logging.getLogger().error("epsonFiscalDriver.ComandoException: %s" % str(e))
             raise ComandoException("Error de la impresora fiscal: " + str(e))
-
 
     # Documentos no fiscales
 
@@ -28,7 +27,7 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
         """Imprime texto fiscal. Si supera el límite de la linea se trunca."""
         raise NotImplementedError
 
-    NON_FISCAL_TEXT_MAX_LENGTH = 40 # Redefinir
+    NON_FISCAL_TEXT_MAX_LENGTH = 40  # Redefinir
 
     def closeDocument(self):
         """Cierra el documento que esté abierto"""
@@ -57,9 +56,6 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
             @param payment      Importe
         """
         raise NotImplementedError
-
-
-    
 
     docTypeNames = {
         "DOC_TYPE_CUIT": "CUIT",
@@ -94,7 +90,6 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
         "PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL": 'W',
         "NO_CATEGORIZADO": 'T',
     }
-   
 
     # Ticket fiscal (siempre es a consumidor final, no permite datos del cliente)
 
@@ -208,7 +203,6 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
             @param type     Z (diario), X (parcial)
         """
         raise NotImplementedError
-
 
     def getWarnings(self):
         return []
