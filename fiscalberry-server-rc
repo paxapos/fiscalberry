@@ -1,10 +1,12 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides:          fiscalberry_server
-# Required-Start:    $ALL
-# Required-Stop:     $local_fs $network
-# Default-Start:     3 4 5
+# Provides:          fiscalberry
+# Required-Start:    $network $portmap
+# Should-Start:      $network $portmap
+# Required-Stop:     
+# Should-Stop:       $network portmap
+# Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: Inicializacion de Fiscablerry server
 # Description:       Fiscalberry ayuda a los programadores para manejar 
@@ -14,58 +16,94 @@
 #			web sockets
 ### END INIT INFO
 
-# Change the next 3 lines to suit where you install your script and what you want to call it
 
 #DIR current
-DIR=WRITEPATHHERE
-cd $DIR
-DAEMON=$DIR/server.py
-DAEMON_NAME=fiscalberry_server
+DIR=/opt/fiscalberry
+DAEMON=$DIR/rundaemon.py
+DAEMON_NAME=fiscalberry
 
-# Add any command line options for your daemon here
-DAEMON_OPTS=""
+#
+# Source function library.
+#
+if [ -f /etc/rc.d/init.d/functions ]; then
+    . /etc/rc.d/init.d/functions
+fi
 
-# This next line determines what user the script runs as.
-# Root generally not recommended but necessary if you are using the Raspberry Pi GPIO from Python.
-DAEMON_USER=root
+if [ -f /lib/lsb/init-functions ]; then
+    . /lib/lsb/init-functions
+fi
 
-# The process ID of the script when it runs is stored here:
-PIDFILE=/var/run/$DAEMON_NAME.pid
+if [ -f $DIR ]; then
+        . $DIR
+fi
 
-. /lib/lsb/init-functions
+prog=DAEMON
+pidfile=${PIDFILE-/var/run/$DAEMON_NAME.pid}
+RETVAL=0
 
-do_start () {
-    log_daemon_msg "Starting system $DAEMON_NAME daemon $DAEMON"
-    start-stop-daemon --start --background --pidfile $PIDFILE --make-pidfile --user $DAEMON_USER --chuid $DAEMON_USER --startas $DAEMON -- $DAEMON_OPTS
-    log_end_msg $?
+OPTIONS=""
+
+start() {
+        echo -n "Starting $prog: "
+
+        if [ -e $pidfile ]; then
+            pid=$( cat $pidfile  )
+            isrunning=$( ps -elf | grep  $pid | grep $prog | grep -v grep )
+
+            if [ -n $isrunning ]; then
+                echo "$DAEMON already running"
+                return 0
+            fi
+        fi
+        $DAEMON -p $pidfile $OPTIONS
+        RETVAL=$?
+        return $RETVAL
 }
-do_stop () {
-    log_daemon_msg "Stopping system $DAEMON_NAME daemon"
-    start-stop-daemon --stop --pidfile $PIDFILE --retry 10
-    log_end_msg $?
+
+stop() {
+    if [ -f $pidfile ]; then
+        pid=$( cat $pidfile )
+        isrunning=$( ps -elf | grep $pid | grep $prog | grep -v grep | awk '{print $4}' )
+        echo $isrunning
+        if [ -n $isrunning ] ; then
+            echo "Stopping $prog: "
+            kill $pid
+        else
+            echo "No paro nada Stopping $prog: "
+        fi
+        RETVAL=$?
+    fi
+    echo
+    return $RETVAL
 }
 
+reload() {
+    echo -n "Reloading $prog: "
+    echo
+}
+
+# See how we were called.
 case "$1" in
-
-    start|stop)
-	echo "STARTTTT"
-        do_${1}
-        ;;
-
-    restart|reload|force-reload)
-        do_stop
-        do_start
-        ;;
-
-    status)
-        status_of_proc "$DAEMON_NAME" "$DAEMON" && exit 0 || exit $?
-        ;;
-
-    *)
-        echo "Usage: /etc/init.d/$DAEMON_NAME {start|stop|restart|status}"
-        exit 1
-        ;;
-
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  status)
+    status $pidfile $DAEMON
+    RETVAL=$?
+    ;;
+  restart)
+    stop
+    start
+    ;;
+  force-reload|reload)
+    reload
+    ;;
+  *)
+    echo $"Usage: $prog {start|stop|restart|force-reload|reload|status}"
+    RETVAL=2
 esac
-exit 0
 
+exit $RETVAL

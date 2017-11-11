@@ -119,7 +119,6 @@ class FiscalberryApp:
         signal.signal(signal.SIGTERM, sig_handler)
         signal.signal(signal.SIGINT, sig_handler)
 
-        self.start()
 
     def shutdown(self):
         logging.info('Stopping http server')
