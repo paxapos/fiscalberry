@@ -9,12 +9,15 @@ import socket
 import os
 import json
 import logging
+import logging.config
 import time
 import ssl
 import Configberry
 import FiscalberryDiscover
 from  tornado import web
-import signal
+from signal import signal, SIGPIPE, SIG_DFL, SIGTERM, SIGINT
+signal(SIGPIPE,SIG_DFL) 
+
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 
@@ -23,6 +26,9 @@ MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 
 root = os.path.dirname(__file__)
 
+
+logging.config.fileConfig(root+'/logging.ini')
+logger = logging.getLogger(__name__)
 
 class WebSocketException(Exception):
     pass
@@ -47,43 +53,43 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 
     def open(self):
         self.clients.append(self)
-        print 'new connection'
+        logger.info( 'new connection' )
 
     def on_message(self, message):
         traductor = self.traductor
         response = {}
-        print("----- - -- - - - ---")
-        print message
+        logger.info("----- - -- - - - ---")
+        logger.info(message)
         try:
             jsonMes = json.loads(message, strict=False)
             response = traductor.json_to_comando(jsonMes)
         except TypeError, e:
             errtxt = "Error parseando el JSON %s" % e
-            logging.error(errtxt)
+            logger.error(errtxt)
             response["err"] = errtxt
             import sys, traceback
             traceback.print_exc(file=sys.stdout)
         except TraductorException, e:
             errtxt = "Traductor Comandos: %s" % str(e)
-            logging.error(errtxt)
+            logger.error(errtxt)
             response["err"] = errtxt
             import sys, traceback
             traceback.print_exc(file=sys.stdout)
         except KeyError as e:
             errtxt = "El comando no es valido para ese tipo de impresora: %s" % e
-            logging.error(errtxt)
+            logger.error(errtxt)
             response["err"] = errtxt
             import sys, traceback
             traceback.print_exc(file=sys.stdout)
         except socket.error as err:
             errtxt = "Socket error: %s" % err
-            logging.error(errtxt)
+            logger.error(errtxt)
             response["err"] = errtxt
             import sys, traceback
             traceback.print_exc(file=sys.stdout)
         except Exception, e:
             errtxt = repr(e) + "- " + str(e)
-            logging.error(errtxt)
+            logger.error(errtxt)
             response["err"] = errtxt
             import sys, traceback
             traceback.print_exc(file=sys.stdout)
@@ -92,7 +98,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 
     def on_close(self):
         self.clients.remove(self)
-        print 'connection closed'
+        logger.info('connection closed')
 
     def check_origin(self, origin):
         return True
@@ -106,33 +112,33 @@ class FiscalberryApp:
     timerPrinterWarnings = None
 
     def __init__(self):
-        print("Iniciando Fiscalberry Server")
+        logger.info("Preparando Fiscalberry Server")
 
         newpath = os.path.dirname(os.path.realpath(__file__))
         os.chdir(newpath)
 
         # evento para terminar ejecucion mediante CTRL+C
         def sig_handler(sig, frame):
-            logging.info('Caught signal: %s', sig)
+            logger.info('Caught signal: %s', sig)
             tornado.ioloop.IOLoop.instance().add_callback(self.shutdown)
 
-        signal.signal(signal.SIGTERM, sig_handler)
-        signal.signal(signal.SIGINT, sig_handler)
+        signal(SIGTERM, sig_handler)
+        signal(SIGINT, sig_handler)
 
 
     def shutdown(self):
-        logging.info('Stopping http server')
+        logger.info('Stopping http server')
 
-        logging.info('Will shutdown in %s seconds ...', MAX_WAIT_SECONDS_BEFORE_SHUTDOWN)
+        logger.info('Will shutdown in %s seconds ...', MAX_WAIT_SECONDS_BEFORE_SHUTDOWN)
         io_loop = tornado.ioloop.IOLoop.current()
 
         deadline = time.time() + MAX_WAIT_SECONDS_BEFORE_SHUTDOWN
 
         io_loop.stop()
-        logging.info('Shutdown')
+        logger.info('Shutdown')
 
     def start(self):
-
+        logger.info("Iniciando Fiscalberry Server")
         self.application = tornado.web.Application([
             (r'/ws', WSHandler),
             (r'/', PageHandler),
@@ -143,7 +149,7 @@ class FiscalberryApp:
 
         # actualizar ip privada por si cambio
         ip = self.get_ip()
-        print("La IP es %s" % ip)
+        logger.info("La IP es %s" % ip)
         self.configberry.writeSectionWithKwargs('SERVIDOR', {'ip_privada': ip})
 
         # send discover data to your server if the is no URL configured, so nothing will be sent
@@ -170,18 +176,17 @@ class FiscalberryApp:
         puerto = self.configberry.config.get('SERVIDOR', "puerto")
         self.http_server.bind(puerto)
         self.http_server.start()
-        print '*** Websocket Server Started as HTTP at %s port %s***' % (myIP, puerto)
+        logger.info('*** Websocket Server Started as HTTP at %s port %s***' % (myIP, puerto))
 
         if self.https_server:
             puerto = int(puerto) + 1
             self.https_server.bind(puerto)
             self.https_server.start()
-            print '*** Websocket Server Started as HTTPS at %s port %s***' % (myIP, puerto)
+            logger.info('*** Websocket Server Started as HTTPS at %s port %s***' % (myIP, puerto))
 
         tornado.ioloop.IOLoop.current().start()
 
-        print "Bye!"
-        logging.info("Exit...")
+        logger.info("Bye!")
 
     def get_ip(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -200,15 +205,14 @@ class FiscalberryApp:
         printers = self.configberry.sections()[1:]
 
         if len(printers) > 1:
-            print "Hay %s impresoras disponibles" % len(printers)
+            logger.info("Hay %s impresoras disponibles" % len(printers))
         else:
-            print "Impresora disponible:"
+            logger.info("Impresora disponible:")
         for printer in printers:
-            print "  - %s" % printer
+            logger.info("  - %s" % printer)
             modelo = None
             marca = self.configberry.config.get(printer, "marca")
             driver = self.configberry.config.get(printer, "driver")
             if self.configberry.config.has_option(printer, "modelo"):
                 modelo = self.configberry.config.get(printer, "modelo")
-            print "      marca: %s, driver: %s" % (marca, driver)
-        print "\n"
+            logger.info("      marca: %s, driver: %s" % (marca, driver))

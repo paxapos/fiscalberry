@@ -2,12 +2,11 @@
 
 ### BEGIN INIT INFO
 # Provides:          fiscalberry
-# Required-Start:    $network $portmap
-# Should-Start:      $network $portmap
-# Required-Stop:     
-# Should-Stop:       $network portmap
+# Required-Start:    $local_fs $remote_fs $network $syslog
+# Required-Stop:     $local_fs $remote_fs $network $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
+# X-Interactive:     true
 # Short-Description: Inicializacion de Fiscablerry server
 # Description:       Fiscalberry ayuda a los programadores para manejar 
 #			impresoras fiscales, comanderas, sensores y distintos 
@@ -16,6 +15,7 @@
 #			web sockets
 ### END INIT INFO
 
+echo "INICIANSIAOS" > /tmp/garmpa.txt
 
 #DIR current
 DIR=/opt/fiscalberry
@@ -44,7 +44,8 @@ RETVAL=0
 OPTIONS=""
 
 start() {
-        echo -n "Starting $prog: "
+        echo "INICIANSIAOS" > /tmp/garmpa.txt
+        echo -n "Starting $prog: \n"
 
         if [ -e $pidfile ]; then
             pid=$( cat $pidfile  )
