@@ -32,6 +32,19 @@ class EscPComandos(ComandoInterface):
             raise ComandoException("Error de la impresora: %s.\nComando enviado: %s" % \
                                    (str(e), commandString))
 
+
+    def printTexto(self, texto):
+       printer = self.conector.driver
+ 
+       printer.start()
+       printer.text(texto)
+ 
+       printer.cut("PART")
+ 
+       printer.end()
+       
+ 
+
     def print_mesa_mozo(self, mesa, mozo):
         self.doble_alto_x_linea("Mesa: %s" % mesa);
         self.doble_alto_x_linea("Mozo: %s" % mozo);
