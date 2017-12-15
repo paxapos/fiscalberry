@@ -1,2 +1,2 @@
-SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", ATTRS{serial}=="A900J8LH", SYMLINK+="fiscalprinter"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", ATTRS{serial}=="A900J8LH", SYMLINK+="paxapos_fiscal_hasar_441"
 
