@@ -10,7 +10,6 @@ from FiscalberryApp import FiscalberryApp
 
 def do_something():
     ### This does the "work" of the daemon
-    print("aisjaoisjoajsoja")
     fbserver = FiscalberryApp()
     fbserver.start()
 
