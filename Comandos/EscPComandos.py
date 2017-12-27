@@ -42,12 +42,11 @@ class EscPComandos(ComandoInterface):
        printer.cut("PART")
  
        printer.end()
-       
- 
 
-    def print_mesa_mozo(self, mesa, mozo):
-        self.doble_alto_x_linea("Mesa: %s" % mesa);
-        self.doble_alto_x_linea("Mozo: %s" % mozo);
+    def print_mesa_mozo(self, setTrailer):
+    	for key in setTrailer:
+    		self.doble_alto_x_linea(key)
+
 
     def printRemito(self, **kwargs):
         "imprimir remito"
