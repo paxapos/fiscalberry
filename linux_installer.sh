@@ -36,3 +36,4 @@ else
   else
     echo "Finalizó todo correctamente sin instalar el daemond ni el servicio. Deberá iniciarlos manualmente."
   fi
+fi
