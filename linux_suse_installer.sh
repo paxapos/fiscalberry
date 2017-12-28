@@ -14,6 +14,7 @@ echo -n "Instalar el servicio fiscalberry.service (y/n)? "
 read answer
 if echo "$answer" | grep -iq "^y" ;then
 	cp fiscalberry.service /etc/systemd/system/
+    cd /etc/systemd/system/
 	sudo systemctl start fiscalberry.service
     echo "Se inicializo el servicio "
 else
