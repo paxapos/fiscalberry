@@ -203,7 +203,7 @@ class EscPComandos(ComandoInterface):
             printer.text("\n")
 
             if 'observacion' in plato:
-                printer.set("LEFT", "B", "B", 1, 1)
+                printer.set("LEFT", "A", "B", 1, 2)
                 printer.text("   OBS: %s\n" % plato['observacion'])
 
         printer.text("\n")
