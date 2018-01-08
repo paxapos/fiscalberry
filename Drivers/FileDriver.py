@@ -29,8 +29,16 @@ class FileDriver(DriverInterface):
     def reconnect(self):
         pass
 
-    def set(self):
+    def set(self, *kwargs):
         pass
 
-    def _raw(self):
+    def _raw(self, *kwargs):
+        pass
+
+    def text(self, *kwargs):
+        for texto in kwargs:
+            self.file.write(texto)
+        pass
+
+    def cut(self, *kwargs):
         pass
