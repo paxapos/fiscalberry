@@ -47,6 +47,77 @@ class EscPComandos(ComandoInterface):
     	for key in setTrailer:
     		self.doble_alto_x_linea(key)
 
+    def printPedido(self, **kwargs):
+        "imprimir pedido de compras"
+        printer = self.conector.driver
+
+        encabezado = kwargs.get("encabezado", None)
+        items = kwargs.get("items", [])
+
+        printer.start()
+        
+        printer.set("CENTER", "A", "A", 1, 1)
+        
+        # colocar en modo ESC P
+        printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "1")
+
+        printer.set("CENTER", "A", "A", 1, 1)
+        printer.text("\n")
+        fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M %x')
+        printer.text("Fecha: %s \n\n\n" % fecha)
+
+        if encabezado:
+            if encabezado.has_key("nombre_proveedor"):
+                printer.text("Proveedor: ", encabezado.get("nombre_proveedor") )
+
+        printer.set("LEFT", "A", "A", 1, 1)
+
+        printer.text("CANT\tDESCRIPCION\t\tPRECIO\n")
+        printer.text("\n")
+        tot_chars = 40
+        tot_importe = 0.0
+        for item in items:
+            desc = item.get('ds')[0:24]
+            cant = float(item.get('qty'))
+            unidad_de_medida = item.get('unidad_de_medida')
+            if item.get('importe'):
+                precio = float(item.get('importe'))
+            else:
+                precio = 0;
+            observacion = item.get('observacion')
+            tot_importe += precio
+            cant_tabs = 3
+            can_tabs_final = cant_tabs - ceil(len(desc) / 8)
+            strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
+
+            printer.text("%g%s\t%s$%g\n" % (cant, " "+unidad_de_medida, strTabs, precio))
+
+            if observacion:
+                printer.set("LEFT", "B", "B", 1, 1)
+                printer.text("   OBS: %s\n" % observacion)
+
+        printer.text("\n")
+
+        # imprimir total
+        printer.set("RIGHT", "A", "A", 2, 2)
+        printer.text("TOTAL: $%g\n" % tot_importe)
+        printer.text("\n\n\n")
+
+        barcode = kwargs.get("barcode", None)
+        if barcode:            
+            printer.barcode(str(barcode).rjust(8, "0"), 'EAN13')
+
+        printer.set("CENTER", "A", "B", 2, 2)  
+
+        printer.cut("PART")
+
+        # volver a poner en modo ESC Bematech, temporal para testing
+        # printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "0")
+
+        # dejar letra chica alineada izquierda
+        printer.set("LEFT", "A", "B", 1, 2)
+        printer.end()
+
 
     def printRemito(self, **kwargs):
         "imprimir remito"
