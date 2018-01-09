@@ -82,11 +82,13 @@ class WSHandler(tornado.websocket.WebSocketHandler):
             import sys, traceback
             traceback.print_exc(file=sys.stdout)
         except socket.error as err:
-            errtxt = "Socket error: %s" % err
-            logger.error(errtxt)
-            response["err"] = errtxt
-            import sys, traceback
-            traceback.print_exc(file=sys.stdout)
+            import errno
+            if err.errno != errno.EBADF:
+                errtxt = "Socket error: %s" % err
+                logger.error(errtxt)
+                response["err"] = errtxt
+                import sys, traceback
+                traceback.print_exc(file=sys.stdout)
         except Exception, e:
             errtxt = repr(e) + "- " + str(e)
             logger.error(errtxt)
