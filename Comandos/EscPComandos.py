@@ -61,18 +61,21 @@ class EscPComandos(ComandoInterface):
         # colocar en modo ESC P
         printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "1")
 
-        printer.set("CENTER", "A", "A", 1, 1)
-        printer.text("\n")
+        printer.text("Nueva órden de compra \n")
+        printer.set("LEFT", "A", "A", 1, 1)
         fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M %x')
-        printer.text("Fecha: %s \n\n\n" % fecha)
-
         if encabezado:
             if encabezado.has_key("nombre_proveedor"):
                 printer.text("Proveedor: ", encabezado.get("nombre_proveedor") )
+                printer.text("\n")
+            if encabezado.has_key("pedido_recepcionado"):
+                if encabezado.get("pedido_recepcionado") == 1:
+                    printer.text("Esta órden de compra ya ha sido recepcionada\n")
+        printer.text("Fecha: %s \n\n\n" % fecha)
 
-        printer.set("LEFT", "A", "A", 1, 1)
 
-        printer.text("CANT\tDESCRIPCION\t\tPRECIO\n")
+
+        printer.text("CANT\tU/M\tDESCRIPCION\t\tPRECIO\n")
         printer.text("\n")
         tot_chars = 40
         tot_importe = 0.0
@@ -90,11 +93,11 @@ class EscPComandos(ComandoInterface):
             can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            printer.text("%g%s\t%s$%g\n" % (cant, " "+unidad_de_medida, strTabs, precio))
+            printer.text("%g\t%s\t%s$%g\n" % (cant, " "+unidad_de_medida, strTabs, precio))
 
             if observacion:
                 printer.set("LEFT", "B", "B", 1, 1)
-                printer.text("   OBS: %s\n" % observacion)
+                printer.text("OBS de ",desc,": %s\n" % observacion)
 
         printer.text("\n")
 
