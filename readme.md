@@ -14,16 +14,12 @@ Impresoras Fiscales compatibles: Hasar y Epson
 Impresoras Receipt (de comandas) compatibles: las que soportan ESC/P
 
 
-## NOTA IMPORTANTE: Este proyecto es una adaptación del original https://github.com/reingart/pyfiscalprinter
-
-Realizé un refactor del proyecto original para adaptarlo a una necesidad distinta y moderna, mejorándolo para usar mediante websockets con un protocolo genérico JSON.
-
 ## Fiscalberry como servidor de impresión (print-server) de impresoras receipt (comanderas) y fiscales
 Fiscalberry es un 3x1, actúa como: protocolo, servidor y driver facilitando al programador la impresión de tickets, facturas o comprobantes fiscales.
 
 - _PROCOLO_: Siguiendo la estructura del JSON indicado, se podrá imprimir independientemente de la impresora conectada. Fiscalberry se encargará de conectarse y pelear con los códigos y comandos especiales de cada marca/modelo.
 - _SERVIDOR_: gracias al servidor de websockets es posible conectar tu aplicación para que ésta fácilmente pueda enviar JSON's y recibir las respuestas de manera asíncrona.
-- _DRIVER_: Es el encargado de transformar el JSON genérico en un conjunto de comandos especiales según marca y modelo de la impresora. Aquí es donde reutilicé el código del proyecto de Reingart (https://github.com/reingart/pyfiscalprinter) para impresoras Hasar y Epson.
+- _DRIVER_: Es el encargado de transformar el JSON genérico en un conjunto de comandos especiales según marca y modelo de la impresora. Aquí es donde se adaptó el código del proyecto de Reingart (https://github.com/reingart/pyfiscalprinter) para impresoras Hasar y Epson.
 
 Funciona en cualquier PC con cualquier sistema operativo que soporte python.
 
