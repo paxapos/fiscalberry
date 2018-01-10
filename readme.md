@@ -1,10 +1,23 @@
-# fiscalberry POS Imprimir mediante Web Sockets
+# ¿Para qué sirve?
+Para enviar un JSON (mediante websocket), que fiscalberry lo reciba, lo transforme en un conjunto de comandos compatible con la impresora instalada, conecte con la impresora y responda al websocket con la respuesta que nos envió la impresora.
 
-## NOTA IMPORTANTE: Este proyecto es una mejora del original https://github.com/reingart/pyfiscalprinter
+# ¿Qué es?
+Fiscalberry es un servidor de websockets desarrollado en python pensado para que corra en una raspberry-pi (de ahi viene el nombre de este proyecto). **Pero funciona perfectamente en otros sistemas operativos.**
+![fiscalberry JSON](http://alevilar.com/uploads/entendiendo%20fiscalberry.jpg)
 
-Realizé un refactor del proyecto original para adaptarlo a una necesidad distinta y moderna, mejorándolo para tal uso.
+# ¿Qué impresoras son compatibles?
+Fiscalberry tiene drivers desarrollados para conectarse con 2 tipos de impresoras: Fiscales y Receipt.
 
-## ¿Qué es?
+Impresoras Fiscales compatibles: Hasar y Epson
+
+Impresoras Receipt (de comandas) compatibles: las que soportan ESC/P
+
+
+## NOTA IMPORTANTE: Este proyecto es una adaptación del original https://github.com/reingart/pyfiscalprinter
+
+Realizé un refactor del proyecto original para adaptarlo a una necesidad distinta y moderna, mejorándolo para usar mediante websockets con un protocolo genérico JSON.
+
+## Fiscalberry como servidor de impresión (print-server) de impresoras receipt (comanderas) y fiscales
 Fiscalberry es un 3x1, actúa como: protocolo, servidor y driver facilitando al programador la impresión de tickets, facturas o comprobantes fiscales.
 
 - _PROCOLO_: Siguiendo la estructura del JSON indicado, se podrá imprimir independientemente de la impresora conectada. Fiscalberry se encargará de conectarse y pelear con los códigos y comandos especiales de cada marca/modelo.
@@ -12,14 +25,11 @@ Fiscalberry es un 3x1, actúa como: protocolo, servidor y driver facilitando al 
 - _DRIVER_: Es el encargado de transformar el JSON genérico en un conjunto de comandos especiales según marca y modelo de la impresora. Aquí es donde reutilicé el código del proyecto de Reingart (https://github.com/reingart/pyfiscalprinter) para impresoras Hasar y Epson.
 
 Funciona en cualquier PC con cualquier sistema operativo que soporte python.
-La idea original fue pensada para que funcione en una raspberry pi, cuyo fin es integrar las fiscales al mundo de la Internet de las Cosas (IOT). Yo tengo funcionando varias fiscales conectadas a una raspberry pi.
 
-## ¿Qué lenguajes de programación pueden usarlo?
-Practicamente todos: Javascript, nodejs, python, php, etc.
+La idea original fue pensada para que funcione en una raspberry pi, cuyo fin es integrar las fiscales al mundo de la Internet de las Cosas (IOT).
 
-Los que se puedan actuar como "cliente Web Socket" y conectarse con el servidor para enviar/recibir JSON's.
-
-mas info en la WIKI: https://github.com/ristorantino/fiscalberry/wiki
+## ¿Para quienes esta pensado?
+Para los desarrolladores que desean enviar a imprimir mediante JSON (es decir, desde algun lugar de la red, internet, intranet, etc, etc) de una forma "estandar" y que funcione en cualquier impresora, marca y modelo.
 
 ## PROBALO
 
@@ -27,58 +37,17 @@ mas info en la WIKI: https://github.com/ristorantino/fiscalberry/wiki
 
 usando git
 ```sh
-git clone https://github.com/ristorantino/fiscalberry.git
+git clone https://github.com/paxapos/fiscalberry.git
 ```
-o directamente el ZIP: https://github.com/ristorantino/fiscalberry/archive/master.zip
-
-## BUG: Cuando se traba impresora fiscal
-
-```sh
-git clone https://github.com/Intelintec/pyutf8.git
-cd pyutf8
-python setup.py install # con sudo, tal vez.
-```  
-
-### Crear archivo de configuracion
-
-Renombrar el archivo "config.ini.install" como "config.ini" y configurar la marca, modelo, path y driver de la impresora.
-(al inicializar el servicio "server.py", si el archivo no existe, lo crea automáticamente)
-
-Las opciones son:
-
-  para marca: [`Hasar`, `Epson`]  
-  modelo: 
-  ```
-    (para Hasar)
-		"615"
-		"715v1"
-		"715v2"
-		"320"
-
-	(para Epson)
-		"tickeadoras"
-		"epsonlx300+"
-  ```
-
-  path:
-  	en windows: (COM1, COM2, etc)
-  	en linux: (/dev/ttyUSB0, /dev/ttyS0, etc)
-
-  driver:
-  	(puede quedar vacio, en ese caso si la marca setteada es Hasar, el driver sera Hasar, lo mismo con Epson. Modificar File o Dummy es útil para hacer pruebas o desarrollo)
-  	Hasar, Epson, Dummy, File
-
-  En el caso de seleccionar File, en la variable "path" hay que colocar el nombre del archivo que deseo crear para que se escriban las salidas. Ej en linux: "/tmp/archivo.txt"
+o directamente el ZIP: https://github.com/paxapos/fiscalberry/archive/master.zip
 
 ### Instalar Dependencias
 
+ATENCION: Funciona con python 2.7.* NO en python 3!
 
-probado bajo python 2.7.6 en Linux, Ubuntu, Raspian
+probado bajo python 2.7.6 en Linux, Raspian, Ubuntu, Open Suse y Windows
 
-Se necesitan las dependencias:
-* serial (para conectarse con impresoras seriales)
-* tornado (para usar como servidor de web sockets)
-
+Se necesitan varias dependencias:
 ```sh
 sudo apt-get install python-pip libjpeg-dev
 sudo pip install pyserial requests
@@ -86,15 +55,11 @@ sudo apt-get install build-essential python-dev
 sudo pip install tornado
 sudo apt-get install nmap
 sudo pip install python-nmap
-```
-
-Si se quiere usar las comanderas hay que instalar
-```sh
 sudo apt-get install python-imaging python-dev python-setuptools
 sudo pip install python-escpos
 ```
 
-Si te encontrs con el error "socket.gaierror:  Name or service not known"
+Si te encontras con el error "socket.gaierror:  Name or service not known"
 
 A veces, en Linux, ser necesario poner el nombre del equipo (hostname) en el archivo /etc/hosts, si es que aun no lo tenias.
 Generalmente el archivo hosts viene solo con la direccion "127.0.0.1 localhost", 
@@ -106,51 +71,25 @@ hostname
 y ver cual es el nombre de la máquina para agregarlo al archivo /etc/hosts
 127.0.0.1 nombre-PC localhost
 
-#### Dev Dependencias
-Usa python 2
-```sh
-sudo apt install build-essential libjpeg-dev python-dev python-serial python-setuptools nmap
-mkvirtualenv -p python2 fiscalberry
-workon fiscalberry
-(fiscalberry) pip install -r requirements.txt
-```
-
 
 ### Instalar Daemond
-En el archivo "fiscalberry-server-rc" deberas abrirlo y modificar la lionea donde dice "DIR=/insertPATHHERE" colocanmdo el path donde se encuentra la carpeta de fiscalberry. Ej: "DIR=/home/pi/fiscalberry"
-
-luego deberas copiar el archivo a /etc/init.d/
-
-```sh
-sudo update-rc.d fiscalberry-server-rc defaults
+```
+// TODO
 ```
 
-
-#### Raspberry
-
-para usar impresora de comandas ESCP en raspbian
-```sh
-sudo apt-get install libjpeg-dev
-```
-Además será necesario seguir una serie de pasos adicionales detallados en esta libreria utilizada por fiscalberry:
-https://python-escpos.readthedocs.io/en/latest/user/raspi.html
-
-
-### Iniciar el servicio
+### Iniciar el programa
 
 ```sh
 sudo python server.py
+
+# o iniciar como demonio
+sudo python rundaemon.py
 ```
 
-### Iniciar el cliente para probarlo
+Ahora ya puedes conectarte en el puerto 12000
+entrando a un browser y la direccion http://localhost:12000
 
-Hay un ejemplo de página web con javascript dentro de la carpeta __js_browser_client__. Deberás abrir el HTML en un browser y jugar un poco con él.
-el archivo fiscalberry.js te servirá si queres enviar a imprimir desde el browser.
-
-
-
-
-## ¿Cómo funciona?
+## Conceptos básicos ¿Cómo funciona?
 
 Supongamos que tenemos este JSON genérico:
 ```
@@ -187,11 +126,6 @@ Los ítems son una lista de productos a imprimir donde, en este ejemplo, tenemos
 }
 ```
 
-
-
-
-
-## Documentación
 
 
 
