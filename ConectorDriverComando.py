@@ -15,6 +15,7 @@ class ConectorDriverComando:
         print("inicializando ConectorDriverComando driver de %s" % driver)
 
         self._comando = comando
+        self.driver_name = driver
 
         # instanciar el driver dinamicamente segun el driver pasado como parametro
         libraryName = "Drivers." + driver + "Driver"
@@ -29,5 +30,9 @@ class ConectorDriverComando:
         return self.driver.sendCommand(*args)
 
     def close(self):
+        # Si el driver es Receipt, se cierra desde la misma clase del driver, sino, tira error de Bad File Descriptor por querer cerrarlo dos veces.
+        if self.driver_name == "ReceiptDirectJet":
+            if self.driver.connected is False:
+                return None
         self.driver.close()
         self.driver = None
