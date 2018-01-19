@@ -1,13 +1,30 @@
-# -*- coding: iso-8859-1 -*-
-import ComandoInterface
+# -*- coding: utf-8 -*-
 import logging
 
+NUMBER = 999990
 
-class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
-    """Interfaz que deben cumplir las impresoras fiscales."""
 
+class Hasar2GenComandos:
+    # el traductor puede ser: TraductorFiscal o TraductorReceipt
+    # path al modulo de traductor que este comando necesita
+    traductorModule = "Traductores.TraductorFiscal"
+
+    DEFAULT_DRIVER = "ReceiptDirectJet"
 
     
+    AVAILABLE_MODELS = ["PT-1000F","PT-250F", "P-HAS-5100-FAR"]
+
+
+    docTypeNames = {
+        "DOC_TYPE_CUIT": "CUIT",
+        "DOC_TYPE_LIBRETA_ENROLAMIENTO": 'L.E.',
+        "DOC_TYPE_LIBRETA_CIVICA": 'L.C.',
+        "DOC_TYPE_DNI": 'DNI',
+        "DOC_TYPE_PASAPORTE": 'PASAP',
+        "DOC_TYPE_CEDULA": 'CED',
+        "DOC_TYPE_SIN_CALIFICADOR": 'S/C'
+    }
+
     docTypes = {
         "CUIT": 'C',
         "LIBRETA_ENROLAMIENTO": '0',
@@ -33,36 +50,34 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
     }
 
 
-    def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
-        print "_sendCommand", commandNumber, parameters
-        try:
-            logging.getLogger().info("sendCommand: SEND|0x%x|%s|%s" % (commandNumber,
-                                                                       skipStatusErrors and "T" or "F",
-                                                                       str(parameters)))
-            return self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
-        except epsonFiscalDriver.ComandoException, e:
-            logging.getLogger().error("epsonFiscalDriver.ComandoException: %s" % str(e))
-            raise ComandoException("Error de la impresora fiscal: " + str(e))
+    def printTicket(self, **kargs): 
+    	pass
+
+    
+
+
+	def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
+		pass
 
     # Documentos no fiscales
 
     def openNonFiscalReceipt(self):
         """Abre documento no fiscal"""
-        raise NotImplementedError
+        pass
 
     def printNonFiscalText(self, text):
         """Imprime texto fiscal. Si supera el límite de la linea se trunca."""
-        raise NotImplementedError
+        pass
 
     NON_FISCAL_TEXT_MAX_LENGTH = 40  # Redefinir
 
     def closeDocument(self):
         """Cierra el documento que esté abierto"""
-        raise NotImplementedError
+        pass
 
     def cancelDocument(self):
         """Cancela el documento que esté abierto"""
-        raise NotImplementedError
+        pass
 
     def addItem(self, description, quantity, price, iva, discount, discountDescription, negative=False):
         """Agrega un item a la FC.
@@ -75,14 +90,14 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
             @param discount             Importe de descuento
             @param discountDescription  Descripción del descuento
         """
-        raise NotImplementedError
+        pass
 
     def addPayment(self, description, payment):
         """Agrega un pago a la FC.
             @param description  Descripción
             @param payment      Importe
         """
-        raise NotImplementedError
+        pass
 
     docTypeNames = {
         "DOC_TYPE_CUIT": "CUIT",
@@ -98,7 +113,7 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
 
     def openTicket(self):
         """Abre documento fiscal"""
-        raise NotImplementedError
+        pass
 
     def openBillTicket(self, type, name, address, doc, docType, ivaType):
         """
@@ -110,7 +125,7 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
             @param  docType     Tipo de documento
             @param  ivaType     Tipo de IVA
         """
-        raise NotImplementedError
+        pass
 
     def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, reference="NC"):
         """
@@ -123,7 +138,7 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
             @param  ivaType     Tipo de IVA
             @param  reference
         """
-        raise NotImplementedError
+        pass
 
     def openDebitNoteTicket(self, type, name, address, doc, docType, ivaType):
         """
@@ -136,7 +151,7 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
             @param  ivaType     Tipo de IVA
             @param  reference
         """
-        raise NotImplementedError
+        pass
 
     def openRemit(self, name, address, doc, docType, ivaType):
         """
@@ -147,7 +162,7 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
             @param  docType     Tipo de documento
             @param  ivaType     Tipo de IVA
         """
-        raise NotImplementedError
+        pass
 
     def openReceipt(self, name, address, doc, docType, ivaType, number):
         """
@@ -159,21 +174,21 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
             @param  ivaType     Tipo de IVA
             @param  number      Número de identificación del recibo (arbitrario)
         """
-        raise NotImplementedError
+        pass
 
     def addRemitItem(self, description, quantity):
         """Agrega un item al remito
             @param description  Descripción
             @param quantity     Cantidad
         """
-        raise NotImplementedError
+        pass
 
     def addReceiptDetail(self, descriptions, amount):
         """Agrega el detalle del recibo
             @param descriptions Lista de descripciones (lineas)
             @param amount       Importe total del recibo
         """
-        raise NotImplementedError
+        pass
 
     def addAdditional(self, description, amount, iva, negative=False):
         """Agrega un adicional a la FC.
@@ -181,35 +196,43 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
             @param amount       Importe (sin iva en FC A, sino con IVA)
             @param iva          Porcentaje de Iva
             @param negative True->Descuento, False->Recargo"""
-        raise NotImplementedError
+        pass
 
     def getLastNumber(self, letter):
         """Obtiene el último número de FC"""
-        raise NotImplementedError
+        pass
 
     def getLastCreditNoteNumber(self, letter):
         """Obtiene el último número de FC"""
-        raise NotImplementedError
+        pass
 
     def getLastRemitNumber(self):
         """Obtiene el último número de Remtio"""
-        raise NotImplementedError
+        pass
 
     def cancelAnyDocument(self):
         """Cancela cualquier documento abierto, sea del tipo que sea.
            No requiere que previamente se haya abierto el documento por este objeto.
            Se usa para destrabar la impresora."""
-        raise NotImplementedError
+        pass
 
     def dailyClose(self, type):
         """Cierre Z (diario) o X (parcial)
             @param type     Z (diario), X (parcial)
         """
-        raise NotImplementedError
+        pass
 
     def getWarnings(self):
         return []
 
     def openDrawer(self):
         """Abrir cajón del dinero - No es mandatory implementarlo"""
-        pass
+        print("vino comando aca")
+    	jdata = {
+			"AbrirDocumento":
+			{
+			"CodigoComprobante" : "TiqueFacturaB"
+			}
+		}
+    
+    	self.conector.driver.sendCommand( jdata )
