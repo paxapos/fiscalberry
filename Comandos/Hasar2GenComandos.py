@@ -1,15 +1,21 @@
-# -*- coding: utf-8 -*-
+# -*- coding: iso-8859-1 -*-
+import string
+import types
 import logging
+import unicodedata
+from Comandos.ComandoFiscalInterface import ComandoFiscalInterface
+from Drivers.FiscalPrinterDriver import PrinterException
+from ComandoInterface import formatText
 
 NUMBER = 999990
 
 
-class Hasar2GenComandos:
+class Hasar2GenComandos(ComandoFiscalInterface):
     # el traductor puede ser: TraductorFiscal o TraductorReceipt
     # path al modulo de traductor que este comando necesita
     traductorModule = "Traductores.TraductorFiscal"
 
-    DEFAULT_DRIVER = "ReceiptDirectJet"
+    DEFAULT_DRIVER = "Json"
 
     
     AVAILABLE_MODELS = ["PT-1000F","PT-250F", "P-HAS-5100-FAR"]
@@ -52,8 +58,6 @@ class Hasar2GenComandos:
 
     def printTicket(self, **kargs): 
     	pass
-
-    
 
 
 	def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
@@ -235,4 +239,4 @@ class Hasar2GenComandos:
 			}
 		}
     
-    	self.conector.driver.sendCommand( jdata )
+    	self.conector.sendCommand( jdata, 1,1 )
