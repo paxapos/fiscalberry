@@ -84,7 +84,7 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 	def printFiscalText(self, text):
 		jdata = {"ImprimirTextoFiscal":{
 			"Atributos" : [ "Centrado" ],
-			"Texto" : "Producto en oferta: Sólo por hoy !",
+			"Texto" : text,
 			"ModoDisplay" : "DisplayNo"
 		}}
 
