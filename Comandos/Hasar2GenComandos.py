@@ -31,27 +31,43 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 	}
 
 	docTypes = {
-		"CUIT": 'C',
-		"LIBRETA_ENROLAMIENTO": '0',
-		"LIBRETA_CIVICA": '1',
-		"DNI": '2',
-		"PASAPORTE": '3',
-		"CEDULA": '4',
+		"CUIT": 'TipoCUIT',
+		"CUIL": 'TipoCUIL',
+		"LIBRETA_ENROLAMIENTO": 'TipoLE',
+		"LIBRETA_CIVICA": 'TipoLC',
+		"DNI": 'TipoDNI',
+		"PASAPORTE": 'TipoPasaporte',
+		"CEDULA": 'TipoCI',
 		"SIN_CALIFICADOR": ' ',
 	}
 
+
 	ivaTypes = {
-		"RESPONSABLE_INSCRIPTO": 'I',
+		"RESPONSABLE_INSCRIPTO": 'ResponsableInscripto',
 		"RESPONSABLE_NO_INSCRIPTO": 'N',
-		"EXENTO": 'E',
-		"NO_RESPONSABLE": 'A',
-		"CONSUMIDOR_FINAL": 'C',
+		"EXENTO": 'ResponsableExento',
+		"NO_RESPONSABLE": 'NoResponsable',
+		"CONSUMIDOR_FINAL": 'ConsumidorFinal',
 		"RESPONSABLE_NO_INSCRIPTO_BIENES_DE_USO": 'B',
-		"RESPONSABLE_MONOTRIBUTO": 'M',
-		"MONOTRIBUTISTA_SOCIAL": 'S',
-		"PEQUENIO_CONTRIBUYENTE_EVENTUAL": 'V',
-		"PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL": 'W',
-		"NO_CATEGORIZADO": 'T',
+		"RESPONSABLE_MONOTRIBUTO": 'Monotributo',
+		"MONOTRIBUTISTA_SOCIAL": 'MonotributoSocial',
+		"PEQUENIO_CONTRIBUYENTE_EVENTUAL": 'Eventual',
+		"PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL": 'EventualSocial',
+		"NO_CATEGORIZADO": 'NoCategorizado',
+	}
+
+	comprobanteTypes = {
+		"T": 'Tique',
+		"FB": 'TiqueFacturaB',
+		"FA": 'TiqueFacturaA',
+		"FC": 'TiqueFacturaC',
+		"NCT": 'TiqueNotaCredito',
+		"NCA": 'TiqueNotaCreditoA',
+		"NCB": 'TiqueNotaCreditoB',
+		"NCC": 'TiqueNotaCreditoC',
+		"NDA": 'TiqueNotaDebitoA',
+		"NDB": 'TiqueNotaDebitoB',
+		"NDC": 'TiqueNotaDebitoC',
 	}
 
 
@@ -67,15 +83,16 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 
 	def _setCustomerData(self, name=" ", address=" ", doc=" ", docType=" ", ivaType="T"):
 
+		docTypeCode = self.docTypes.get(docType)
+		ivaTypesCode = self.ivaTypes.get(ivaType)
 		jdata = {
-			"CargarDatosCliente":
-			{
-			"RazonSocial" : name,
-			"NumeroDocumento" : doc,
-			"ResponsabilidadIVA" : "ResponsableInscripto",
-			"TipoDocumento" : "TipoCUIT",
-			"Domicilio" : address
-			}
+			"CargarDatosCliente":{
+				"RazonSocial" : name,
+				"NumeroDocumento" : doc,
+				"ResponsabilidadIVA" : "ResponsableInscripto",
+				"TipoDocumento" : docTypeCode,
+				"Domicilio" : address
+				}
 			}
 
 		self.conector.sendCommand( jdata )
@@ -182,17 +199,21 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 		self.conector.sendCommand( jdata )
 
 	
-
-	# Ticket fiscal (siempre es a consumidor final, no permite datos del cliente)
-
-	def openTicket(self):
-		"""Abre documento fiscal"""
+	def __openTicket(self, tipoComprobante):
+		ctype = self.comprobanteTypes.get( comprobanteType )
 		jdata = {"AbrirDocumento":{
-			"CodigoComprobante" : "TiqueFacturaB"
+			"CodigoComprobante" : ctype
 			}
 		}
 	
-		self.conector.sendCommand( jdata )
+		return self.conector.sendCommand( jdata )
+
+
+	# Ticket fiscal (siempre es a consumidor final, no permite datos del cliente)
+
+	def openTicket(self, comprobanteType = "T"):
+		"""Abre documento fiscal"""
+		self.__openTicket( comprobanteType )
 
 	def openBillTicket(self, type, name, address, doc, docType, ivaType):
 		"""
@@ -207,12 +228,8 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 		if name and doc:
 			_setCustomerData(name, address, doc, docType, ivaType)
 
-		jdata = {"AbrirDocumento":{
-			"CodigoComprobante" : "TiqueFacturaB"
-			}
-		}
-	
-		self.conector.sendCommand( jdata )
+		return self.__openTicket( "F"+type )
+		
 
 	def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, reference="NC"):
 		"""
@@ -225,7 +242,30 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 			@param  ivaType     Tipo de IVA
 			@param  reference
 		"""
-		pass
+		if name and doc:
+			_setCustomerData(name, address, doc, docType, ivaType)
+
+		self.__cargarNumReferencia(reference)
+		return self.__openTicket( "NC"+type )
+
+	def __cargarNumReferencia(self, numero):
+
+		jdata = {"ConsultarDatosInicializacion" : {}}
+		retdata = self.conector.sendCommand( jdata )
+
+		numpos = 1
+		if retdata.has_key("ConsultarDatosInicializacion") and retdata["ConsultarDatosInicializacion"].has_key("NumeroPos"):
+			# agarro el numero de punto de venta directo desde la fiscal
+			numpos = retdata["ConsultarDatosInicializacion"]["NumeroPos"]
+
+		jdata = {"CargarDocumentoAsociado":{
+			"NumeroLinea" : "1",
+			"CodigoComprobante" : "RemitoR",
+			"NumeroPos" : numpos,
+			"NumeroComprobante" : numero
+		}}
+
+		return self.conector.sendCommand( jdata )
 
 	def openDebitNoteTicket(self, type, name, address, doc, docType, ivaType):
 		"""
@@ -238,7 +278,10 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 			@param  ivaType     Tipo de IVA
 			@param  reference
 		"""
-		pass
+		if name and doc:
+			_setCustomerData(name, address, doc, docType, ivaType)
+
+		return self.__openTicket( "ND"+type )
 
 	def openRemit(self, name, address, doc, docType, ivaType):
 		"""

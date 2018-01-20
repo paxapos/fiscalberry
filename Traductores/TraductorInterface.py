@@ -20,10 +20,6 @@ class TraductorInterface:
                 rta.append({"action": action, "rta": res})
 
             else:
-                print("asjkhashahsaishauhsiahiushaihs")
-                print(fnAction)
-                print(jsonTicket[action])
-                print("asjkhashahsaishauhsiahiushaihs")
                 res = fnAction(jsonTicket[action])
                 rta.append({"action": action, "rta": res})
 
