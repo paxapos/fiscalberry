@@ -55,6 +55,11 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 	}
 
 
+	def getStatus(self, *args):
+		jdata = {"ConsultarEstado":{"CodigoComprobante" : "81"}}
+
+		self.conector.sendCommand( jdata )
+
 
 	def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
 		pass

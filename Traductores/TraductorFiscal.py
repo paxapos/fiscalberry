@@ -12,6 +12,11 @@ class TraductorFiscal(TraductorInterface):
         ret = self.comando.dailyClose(type)
         return ret
 
+    def getStatus(self, *args):
+        "getStatus"
+        ret = self.comando.getStatus(list(args))
+        return ret
+
     def setHeader(self, *args):
         "SetHeader"
         ret = self.comando.setHeader(list(args))
