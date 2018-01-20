@@ -46,9 +46,9 @@ class JsonDriver(DriverInterface):
 
 		try: 
 			if self.password:
-				r = requests.post(url, json=json.dumps(jsonData), headers=headers, auth=(self.user, self.password))
+				r = requests.post(url, data=json.dumps(jsonData), headers=headers, auth=(self.user, self.password))
 			else:
-				r = requests.post(url, json=json.dumps(jsonData), headers=headers)
+				r = requests.post(url, data=json.dumps(jsonData), headers=headers)
 			print("INICIANDO::::")
 			print(r)
 			print("salio la respuesta")
