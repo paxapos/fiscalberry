@@ -114,6 +114,7 @@ class TraductoresHandler:
         device_list = [
             '00:0E:C3',  # Logic Controls BEMATECH
             '00:07:25',  # Bematech
+            'D8:D8:D8',  # Hasar 2Gen
         ]
 
         avaliablePrinters = []  # lo retornado
