@@ -8,7 +8,6 @@ class TraductorInterface:
     def run(self, jsonTicket):
         actions = jsonTicket.keys()
         rta = []
-
         for action in actions:
             fnAction = getattr(self, action)
 
@@ -21,6 +20,10 @@ class TraductorInterface:
                 rta.append({"action": action, "rta": res})
 
             else:
+                print("asjkhashahsaishauhsiahiushaihs")
+                print(fnAction)
+                print(jsonTicket[action])
+                print("asjkhashahsaishauhsiahiushaihs")
                 res = fnAction(jsonTicket[action])
                 rta.append({"action": action, "rta": res})
 
