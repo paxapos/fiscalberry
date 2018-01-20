@@ -51,6 +51,8 @@ class JsonDriver(DriverInterface):
 				r = requests.post(url, data=json.dumps(jsonData), headers=headers)
 			print("INICIANDO::::")
 			print(r)
+			print(r.json())
+			print(r.content)
 			print("salio la respuesta")
 			
 			return r
