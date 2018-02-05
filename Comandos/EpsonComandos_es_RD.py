@@ -20,10 +20,11 @@ class EpsonComandos(ComandoFiscalInterface):
     _currentDocument = None
     _currentDocumentType = None
 
+    # por ahora el mismo Driver Epson cumple igual para RD, si falla se crea uno pro pais asi: Epson_es_RD o Epson_es_AR
     DEFAULT_DRIVER = "Epson"
 
     DEBUG = True
-
+# ini TODO definir todos lso comandos del kit loq ue estan son de argentina aun
     CMD_OPEN_FISCAL_RECEIPT = 0x40
     CMD_OPEN_BILL_TICKET = 0x60
     ## CMD_PRINT_TEXT_IN_FISCAL = (0x41, 0x61)
@@ -47,27 +48,20 @@ class EpsonComandos(ComandoFiscalInterface):
     CURRENT_DOC_BILL_TICKET = 2
     CURRENT_DOC_CREDIT_TICKET = 4
     CURRENT_DOC_NON_FISCAL = 3
-
-    models = ["tickeadoras", "epsonlx300+", "tm-220-af", "tm-t900fa"]
+# fin TODO definir todos lso comandos del kit loq ue estan son de argentina aun
+    models = ["tickeadoras", "epsonlx300+", "tm-220-af"] # la , "tm-t900fa" no la pude probar y no me aparece en RD
 
     ivaTypes = {
-        "RESPONSABLE_INSCRIPTO": 'I',
-        "RESPONSABLE_NO_INSCRIPTO": 'R',
-        "EXENTO": 'E',
-        "NO_RESPONSABLE": 'N',
+        "CREDITO_FISCAL": 'C',
         "CONSUMIDOR_FINAL": 'F',
-        "RESPONSABLE_NO_INSCRIPTO_BIENES_DE_USO": 'R',
-        "RESPONSABLE_MONOTRIBUTO": 'M',
-        "MONOTRIBUTISTA_SOCIAL": 'M',
-        "PEQUENIO_CONTRIBUYENTE_EVENTUAL": 'F',
-        "PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL": 'F',
-        "NO_CATEGORIZADO": 'F',
+        "GUBERNAMENTAL": 'G',
+        "NO_CATEGORIZADO": 'N',
     }
 
     def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
         print "_sendCommand", commandNumber, parameters
         try:
-            logging.getLogger().info("sendCommand: SEND|0x%x|%s|%s" % (commandNumber,
+            logging.getLogger().info("sendCommand: SEND|0x%x0x%x|%s|%s" % (commandNumber, # por confirmar, send command aqui en rd recibe dos exa en vez uno
                                                                        skipStatusErrors and "T" or "F",
                                                                        str(parameters)))
             return self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
@@ -245,7 +239,7 @@ class EpsonComandos(ComandoFiscalInterface):
             # enviar con el iva incluido
             priceUnitStr = str(int(round(price * 100, 0)))
         else:
-            if self.model == "tm-220-af" or self.model == "tm-t900fa":
+            if self.model == "tm-220-af": # la impresona , "tm-t900fa" aun no me aparece en RD
                 # enviar sin el iva (factura A)
                 priceUnitStr = "%0.4f" % (price / ((100.0 + iva) / 100.0))
             else:
