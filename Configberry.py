@@ -35,7 +35,6 @@ class Configberry:
                 mymac = self.config.get(s, 'mac')
                 print("mymac %s y la otra es mac %s" % (mymac, mac))
                 if mymac == mac:
-                    print "SON LO MISMMOOOOOOOOO"
                     print(s)
                     return (s, self.get_config_for_printer(s))
         return False
