@@ -84,6 +84,9 @@ class TraductoresHandler:
         elif 'getAvaliablePrinters' in jsonTicket:
             rta["rta"] = self._getAvaliablePrinters()
 
+        elif 'getActualConfig' in jsonTicket:
+            rta["rta"] = self._getActualConfig()
+
         elif 'configure' in jsonTicket:
             rta["rta"] = self._configure(**jsonTicket["configure"])
 
@@ -250,3 +253,11 @@ class TraductoresHandler:
         except Exception:
             # ok, no quiere conectar, continuar sin hacer nada
             print("No hay caso, probe de reconectar pero no se pudo")
+
+    def _getActualConfig(self):
+        rta = {
+            "action": "getActualConfig",
+            "rta": self.config.get_actual_config()
+        }
+
+        return rta

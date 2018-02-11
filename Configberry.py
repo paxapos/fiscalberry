@@ -65,3 +65,8 @@ class Configberry:
         dictConf = {s: dict(self.config.items(s)) for s in self.config.sections()}
 
         return dictConf[printerName]
+
+    def get_actual_config(self):
+        dictConf = {s: dict(self.config.items(s)) for s in self.config.sections()}
+
+        return dictConf
