@@ -34,6 +34,19 @@
             background: #2196F3;
             color: white;
         }
+        #configPanel {
+            float:left; 
+            width: 250px;
+            background: silver;
+            display: none;
+        }
+        #sectionServidor, #listadoImpresoras, .modelo_impresora {
+            display: none;
+        }
+        label input[type="textbox"] {
+            display: inline-block;
+            width: 80%;
+        }
     </style>
     <script src="http://code.jquery.com/jquery.min.js"></script>
 
@@ -45,105 +58,76 @@
 
 <body>
     <!-- Template para añadir nueva impresora-->
-    <script id="NuevaImpresora" type="text/x-jquery-tmpl">
+    <script id="nuevaImpresora" type="text/x-jquery-tmpl">
         <div class="impresora">
-            <button class="eliminar_impresora" style="float:right; margin-right: 10px;">X</button><br>
-            <label>Nombre Impresora</label>
+            <button class="eliminar_impresora" style="float:right; margin-right: 10px;">X</button>
+            <br><br>
+            <label>Nombre: </label>
             <input type="textbox" name="nombre_impresora" />
 
             <br><br>
-            <label>Marca</label>
+
+            <label>Marca: </label>
             <select name="marca_impresora">
+                <option value="EscP">EscP</option>
                 <option value="Hasar">Hasar</option>
-                <option value="Hasar">Epson</option>
-                <option value="Hasar">EscP</option>
+                <option value="Epson">Epson</option>
             </select>
 
             <br><br>
 
-            <label>Driver</label>
+            <div class="modelo_impresora">
+                <label>Modelo: </label>
+                <input type="textbox" name="modelo_impresora" />
+                <br><br>
+            </div>
+
+
+            <label>Driver: </label>
             <select name="driver_impresora">
+                <option value="ReceiptDirectJet">ReceiptDirectJet</option>
+                <option value="Epson">Epson</option>
                 <option value="Hasar">Hasar</option>
-                <option value="Hasar">Epson</option>
-                <option value="Hasar">DirectJect</option>
-                <option value="Hasar">File</option>
+                <option value="File">File</option>
             </select>
+
+            <br><br>
+
+            <label>Codepage: </label>
+            <input type="textbox" name="codepage_impresora" />
+
+            <br><br>
+
+            <label>Tipo de conexión: </label>
+            <select name="tipo_conexion_impresora">
+                <option value="host">Host (Ethernet)</option>
+                <option value="path">Path</option>
+            </select>
+            <br><br>
+            <label class="nombre_tipo_conexion">Host: </label>
+            <input type="textbox" name="host_path" />
+
             <hr>
           </div>
     </script>
+    <!-- Template para la sección SERVIDOR -->
+    <script id="inputsServidor" type="text/x-jquery-tmpl">
+          <label>Puerto: </label>
+          <input type="textbox" name="server_port" />
+    </script>
 
-
-    <div id="ConfigPanel" style="float:left; width: 200px; background: silver; display: none">
-        <h1>Configuracion</h1>
+    <!-- CONFIG PANEL -->
+    <div id="configPanel">
+        <h1>Configuración</h1>
         
-         <p>
-          <label>Puerto Server</label>
-          <input type="text" value="12000" />
-        </p>
+        <div id="sectionServidor">
+
+        </div>
         <hr>
         <div id="listadoImpresoras">
-            <div class="impresora">
-              <button class="eliminar_impresora" style="float:right; margin-right: 10px;">X</button><br>
-              <label>Nombre Impresora</label>
-              <input type="text" value="Comandera barra" />
 
-            
-            <p>
-              <label>Marca</label>
-              <select>
-                <option value="Hasar">Hasar</option>
-              <option value="Hasar">Epson</option>
-                <option value="Hasar">EscP</option>
-            </select>
-          </p>
-            
-             <p>
-              <label>Driver</label>
-              <select>
-                <option value="Hasar">Hasar</option>
-              <option value="Hasar">Epson</option>
-                <option value="Hasar">DirectJect</option>
-                <option value="Hasar">File</option>
-            </select>
-            <hr>
-          </div>
-              
-            
-            <p>
-              <button class="eliminar_impresora" style="float:right; margin-right: 10px;">X</button><br>
-              <label>Nombre Impresora</label>
-              
-              <input type="text" value="Cocina" />
-            </p>
-            
-            <p>
-              <label>Marca</label>
-              <select>
-                <option value="Hasar">Hasar</option>
-              <option value="Hasar" selected="selected">Epson</option>
-                <option value="Hasar">EscP</option>
-            </select>
-          </p>
-            
-             <p>
-              <label>Driver</label>
-              <select>
-                <option value="Hasar">Hasar</option>
-              <option value="Hasar" selected="selected">Epson</option>
-                <option value="Hasar">DirectJect</option>
-                <option value="Hasar">File</option>
-            </select>
-               <br>
-               
-          </p>
-              
-      
-            </p>
-          
-          <p>
-            <hr>
         </div>
-        <button id="AgregarImpresora">Agregar Impresora</button>
+        <button id="agregarImpresora">Agregar Impresora</button>
         <button>GUARDAR</button>
       </p>
     </div>
@@ -367,10 +351,15 @@
     fbrry.on('close', function (evt) {
         console.info("CLOSE");
         $("#ws-message").html("OFFLINE").addClass("ws-msg-offline").removeClass("ws-msg-online");
+        $("#configPanel").hide();
+        $(".panel_configuracion").hide();
     });
     fbrry.on('open', function (evt) {
         console.info("OPEN CONECTADO");
         $("#ws-message").html("ONLINE").removeClass("ws-msg-offline").addClass("ws-msg-online");
+        $(".panel_configuracion").show();
+        $(".panel_configuracion").val("Abrir panel de configuración de Fiscalberry");
+        fbrry.send('{ "getActualConfig":"" }');
     });
 
 
