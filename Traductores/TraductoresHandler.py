@@ -204,10 +204,12 @@ class TraductoresHandler:
 
         return resdict
 
-    def _configure(self, printerName, **kwargs):
+    def _configure(self, **kwargs):
         "Configura generando o modificando el archivo configure.ini"
-
-        self.config.writeSectionWithKwargs(printerName, kwargs)
+        printerName = kwargs["printerName"]
+        propiedadesImpresora = kwargs
+        del propiedadesImpresora["printerName"]
+        self.config.writeSectionWithKwargs(printerName, propiedadesImpresora)
 
         return {
             "action": "configure",
