@@ -93,10 +93,12 @@
 
             <br><br>
 
-            <label>Codepage: </label>
-            <input type="textbox" name="codepage_impresora" />
+            <div class="codepage_impresora">
+                <label>Codepage: </label>
+                <input type="textbox" name="codepage_impresora" />
+                <br><br>
+            </div>
 
-            <br><br>
 
             <label>Tipo de conexión: </label>
             <select name="tipo_conexion_impresora">
@@ -112,7 +114,7 @@
     </script>
     <!-- Template para la sección SERVIDOR -->
     <script id="inputsServidor" type="text/x-jquery-tmpl">
-          <label>Puerto: </label>
+          <label name="port_label">Puerto: </label>
           <input type="textbox" name="server_port" />
     </script>
 
@@ -128,7 +130,7 @@
 
         </div>
         <button id="agregarImpresora">Agregar Impresora</button>
-        <button>GUARDAR</button>
+        <button id="guardarConfiguracion">GUARDAR</button>
       </p>
     </div>
 
@@ -359,6 +361,8 @@
         $("#ws-message").html("ONLINE").removeClass("ws-msg-offline").addClass("ws-msg-online");
         $(".panel_configuracion").show();
         $(".panel_configuracion").val("Abrir panel de configuración de Fiscalberry");
+        $("#listadoImpresoras").children(".impresora").remove();
+        $("#sectionServidor").children("label[name='port_label'], input[name='server_port']").remove();
         fbrry.send('{ "getActualConfig":"" }');
     });
 
