@@ -70,3 +70,15 @@ class Configberry:
         dictConf = {s: dict(self.config.items(s)) for s in self.config.sections()}
 
         return dictConf
+
+    def delete_printer_from_config(self, printerName):
+        self.config = ConfigParser.RawConfigParser()
+        self.config.read(CONFIG_FILE_NAME)
+
+        if self.config.has_section(printerName):
+            resultado = self.config.remove_section(printerName)
+
+        with open(CONFIG_FILE_NAME, 'w') as configfile:
+            self.config.write(configfile)
+
+        return 1;
