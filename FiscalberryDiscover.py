@@ -21,9 +21,10 @@ def send(configberry):
 
     discoverUrl = configberry.config.get('SERVIDOR', "discover_url")
 
-    resp = requests.post(discoverUrl, data=senddata)
+    try:
+        print requests.post(discoverUrl, data=senddata)
+    except Exception, e:
+        print("Mensaje de exception del discover: ", e)
 
-    print resp
     # resp.raise_for_status()
 
-    return resp

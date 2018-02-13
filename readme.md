@@ -3,7 +3,7 @@
 Para enviar un JSON (mediante websocket), que fiscalberry lo reciba, lo transforme en un conjunto de comandos compatible con la impresora instalada, conecte con la impresora y responda al websocket con la respuesta que nos envió la impresora.
 
 # ¿Qué es?
-Fiscalberry es un servidor de websockets desarrollado en python pensado para que corra en una raspberry-pi (de ahi viene el nombre de este proyecto). **Pero funciona perfectamente en otros sistemas operativos.**
+Fiscalberry es un servidor de websockets desarrollado en Python pensado para que corra en una raspberry-pi (de ahí viene el nombre de este proyecto). **Pero funciona perfectamente en otros sistemas operativos.**
 ![fiscalberry JSON](http://alevilar.com/uploads/entendiendo%20fiscalberry.jpg)
 
 # ¿Qué impresoras son compatibles?
@@ -17,16 +17,16 @@ Impresoras Receipt (de comandas) compatibles: las que soportan ESC/P
 ## Fiscalberry como servidor de impresión (print-server) de impresoras receipt (comanderas) y fiscales
 Fiscalberry es un 3x1, actúa como: protocolo, servidor y driver facilitando al programador la impresión de tickets, facturas o comprobantes fiscales.
 
-- _PROCOLO_: Siguiendo la estructura del JSON indicado, se podrá imprimir independientemente de la impresora conectada. Fiscalberry se encargará de conectarse y pelear con los códigos y comandos especiales de cada marca/modelo.
+- _PROTOCOLO_: Siguiendo la estructura del JSON indicado, se podrá imprimir independientemente de la impresora conectada. Fiscalberry se encargará de conectarse y pelear con los códigos y comandos especiales de cada marca/modelo.
 - _SERVIDOR_: gracias al servidor de websockets es posible conectar tu aplicación para que ésta fácilmente pueda enviar JSON's y recibir las respuestas de manera asíncrona.
 - _DRIVER_: Es el encargado de transformar el JSON genérico en un conjunto de comandos especiales según marca y modelo de la impresora. Aquí es donde se adaptó el código del proyecto de Reingart (https://github.com/reingart/pyfiscalprinter) para impresoras Hasar y Epson.
 
-Funciona en cualquier PC con cualquier sistema operativo que soporte python.
+Funciona en cualquier PC con cualquier sistema operativo que soporte Python.
 
 La idea original fue pensada para que funcione en una raspberry pi, cuyo fin es integrar las fiscales al mundo de la Internet de las Cosas (IOT).
 
-## ¿Para quienes esta pensado?
-Para los desarrolladores que desean enviar a imprimir mediante JSON (es decir, desde algun lugar de la red, internet, intranet, etc, etc) de una forma "estandar" y que funcione en cualquier impresora, marca y modelo.
+## ¿Para quienes está pensado?
+Para los desarrolladores que desean enviar a imprimir mediante JSON (es decir, desde algún lugar de la red, internet, intranet, etc, etc) de una forma "estándar" y que funcione en cualquier impresora, marca y modelo.
 
 ## PROBALO
 
@@ -40,7 +40,7 @@ o directamente el ZIP: https://github.com/paxapos/fiscalberry/archive/master.zip
 
 ### Instalar Dependencias
 
-ATENCION: Funciona con python 2.7.* NO en python 3!
+ATENCIÓN: Funciona con Python 2.7.* NO en Python 3!
 
 probado bajo python 2.7.6 en Linux, Raspian, Ubuntu, Open Suse y Windows
 
@@ -58,14 +58,14 @@ sudo pip install python-escpos
 
 Si te encontras con el error "socket.gaierror:  Name or service not known"
 
-A veces, en Linux, ser necesario poner el nombre del equipo (hostname) en el archivo /etc/hosts, si es que aun no lo tenias.
-Generalmente el archivo hosts viene solo con la direccion "127.0.0.1 localhost", 
+A veces, en Linux, ser necesario poner el nombre del equipo (hostname) en el archivo /etc/hosts, si es que aún no lo tenías.
+Generalmente el archivo hosts viene solo con la dirección "127.0.0.1 localhost", 
 
 para solucionarlo debés ejecutar el comando 
 ```bash
 hostname
 ```
-y ver cual es el nombre de la máquina para agregarlo al archivo /etc/hosts
+y ver cuál es el nombre de la máquina para agregarlo al archivo /etc/hosts
 127.0.0.1 nombre-PC localhost
 
 
@@ -80,7 +80,7 @@ sudo python rundaemon.py
 ```
 
 Ahora ya puedes conectarte en el puerto 12000
-entrando a un browser y la direccion http://localhost:12000
+entrando a un browser y la dirección http://localhost:12000
 
 ## Conceptos básicos ¿Cómo funciona?
 
@@ -93,12 +93,12 @@ Supongamos que tenemos este JSON genérico:
     }
 }
 ```
-Lo enviamos usando websockets a un host y puerto determinado (el servidor fiscalberry), éste lo procesa, envia a imprimir, y responde al cliente con la respuesta de la impresora. Por ejemplo, devolviendo el número del último comprobante impreso.
+Lo enviamos usando websockets a un host y puerto determinado (el servidor fiscalberry), éste lo procesa, envía a imprimir, y responde al cliente con la respuesta de la impresora. Por ejemplo, devolviendo el número del último comprobante impreso.
 
 
-Otro ejemplo más concreto: queremos imprimir un ticket, esta acción en el protocolo fiscalberry se lo llama como accion "printTicket" y está compuesta de 2 parámetros obligatorios: "encabezado" e "items".
+Otro ejemplo más concreto: queremos imprimir un ticket, esta acción en el protocolo fiscalberry se lo llama como acción "printTicket" y está compuesta de 2 parámetros obligatorios: "encabezado" e "items".
 
-El "encabezado" indica el tipo de comprobante a imprimir (y también podria agregarle datos del cliente, que son opcionales). 
+El "encabezado" indica el tipo de comprobante a imprimir (y también podría agregarle datos del cliente, que son opcionales). 
 Los ítems son una lista de productos a imprimir donde, en este ejemplo, tenemos una coca cola, con impuesto de 21%, importe $10, descripción del producto "COCA COLA" y la cantidad vendida es 2.
 
 ```json
@@ -141,4 +141,4 @@ Aquellos que son un mensaje directo de algun dispositivo conectado, vienen con "
 
 
 #### NOTA:
-Deberas enviar JSON válidos al servidor. Recomendamos usar la pagina http://jsonlint.com/ para verificar como tu programa esta generando los JSON.
+Deberás enviar JSON válidos al servidor. Recomendamos usar la pagina http://jsonlint.com/ para verificar como tu programa esta generando los JSON.
