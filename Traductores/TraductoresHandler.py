@@ -90,6 +90,9 @@ class TraductoresHandler:
         elif 'configure' in jsonTicket:
             rta["rta"] = self._configure(**jsonTicket["configure"])
 
+        elif 'removerImpresora' in jsonTicket:
+            rta["rta"] =  self._removerImpresora(jsonTicket["removerImpresora"])
+
         else:
             logging.error("No se pasó un comando válido")
             raise TraductorException("No se pasó un comando válido")
@@ -208,13 +211,27 @@ class TraductoresHandler:
         "Configura generando o modificando el archivo configure.ini"
         printerName = kwargs["printerName"]
         propiedadesImpresora = kwargs
+        if "nombre_anterior" in kwargs:
+            self._removerImpresora(kwargs["nombre_anterior"])
+            del propiedadesImpresora["nombre_anterior"]
         del propiedadesImpresora["printerName"]
         self.config.writeSectionWithKwargs(printerName, propiedadesImpresora)
 
         return {
             "action": "configure",
-            "rta": "ok"
+            "rta": "La seccion "+printerName+" ha sido guardada" 
         }
+
+    def _removerImpresora(self, printerName):
+        "elimina la sección del config.ini"
+
+        self.config.delete_printer_from_config(printerName)
+
+        return {
+            "action": "removerImpresora",
+            "rta": "La impresora "+printerName+" fue removida con exito"
+        }
+
 
     def _findAvaliablePrinters(self):
         # Esta función llama a otra que busca impresoras. Luego se encarga de escribir el config.ini con las impresoras encontradas.
