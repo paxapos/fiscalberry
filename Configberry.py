@@ -35,7 +35,6 @@ class Configberry:
                 mymac = self.config.get(s, 'mac')
                 print("mymac %s y la otra es mac %s" % (mymac, mac))
                 if mymac == mac:
-                    print "SON LO MISMMOOOOOOOOO"
                     print(s)
                     return (s, self.get_config_for_printer(s))
         return False
@@ -66,3 +65,20 @@ class Configberry:
         dictConf = {s: dict(self.config.items(s)) for s in self.config.sections()}
 
         return dictConf[printerName]
+
+    def get_actual_config(self):
+        dictConf = {s: dict(self.config.items(s)) for s in self.config.sections()}
+
+        return dictConf
+
+    def delete_printer_from_config(self, printerName):
+        self.config = ConfigParser.RawConfigParser()
+        self.config.read(CONFIG_FILE_NAME)
+
+        if self.config.has_section(printerName):
+            self.config.remove_section(printerName)
+
+        with open(CONFIG_FILE_NAME, 'w') as configfile:
+            self.config.write(configfile)
+
+        return 1;

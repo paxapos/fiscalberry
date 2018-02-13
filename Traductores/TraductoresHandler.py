@@ -84,8 +84,14 @@ class TraductoresHandler:
         elif 'getAvaliablePrinters' in jsonTicket:
             rta["rta"] = self._getAvaliablePrinters()
 
+        elif 'getActualConfig' in jsonTicket:
+            rta["rta"] = self._getActualConfig()
+
         elif 'configure' in jsonTicket:
             rta["rta"] = self._configure(**jsonTicket["configure"])
+
+        elif 'removerImpresora' in jsonTicket:
+            rta["rta"] =  self._removerImpresora(jsonTicket["removerImpresora"])
 
         else:
             logging.error("No se pasó un comando válido")
@@ -201,15 +207,31 @@ class TraductoresHandler:
 
         return resdict
 
-    def _configure(self, printerName, **kwargs):
+    def _configure(self, **kwargs):
         "Configura generando o modificando el archivo configure.ini"
-
-        self.config.writeSectionWithKwargs(printerName, kwargs)
+        printerName = kwargs["printerName"]
+        propiedadesImpresora = kwargs
+        if "nombre_anterior" in kwargs:
+            self._removerImpresora(kwargs["nombre_anterior"])
+            del propiedadesImpresora["nombre_anterior"]
+        del propiedadesImpresora["printerName"]
+        self.config.writeSectionWithKwargs(printerName, propiedadesImpresora)
 
         return {
             "action": "configure",
-            "rta": "ok"
+            "rta": "La seccion "+printerName+" ha sido guardada" 
         }
+
+    def _removerImpresora(self, printerName):
+        "elimina la sección del config.ini"
+
+        self.config.delete_printer_from_config(printerName)
+
+        return {
+            "action": "removerImpresora",
+            "rta": "La impresora "+printerName+" fue removida con exito"
+        }
+
 
     def _findAvaliablePrinters(self):
         # Esta función llama a otra que busca impresoras. Luego se encarga de escribir el config.ini con las impresoras encontradas.
@@ -250,3 +272,11 @@ class TraductoresHandler:
         except Exception:
             # ok, no quiere conectar, continuar sin hacer nada
             print("No hay caso, probe de reconectar pero no se pudo")
+
+    def _getActualConfig(self):
+        rta = {
+            "action": "getActualConfig",
+            "rta": self.config.get_actual_config()
+        }
+
+        return rta
