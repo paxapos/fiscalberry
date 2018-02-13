@@ -76,7 +76,7 @@ class Configberry:
         self.config.read(CONFIG_FILE_NAME)
 
         if self.config.has_section(printerName):
-            resultado = self.config.remove_section(printerName)
+            self.config.remove_section(printerName)
 
         with open(CONFIG_FILE_NAME, 'w') as configfile:
             self.config.write(configfile)

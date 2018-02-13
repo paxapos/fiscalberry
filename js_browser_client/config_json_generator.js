@@ -2,7 +2,6 @@ $(document).on("ready", function(){
 
     function json_remover_impresora(printerName) {
         jsonRemoverImpresora = '{"removerImpresora": "'+printerName+'"}';
-        console.log(jsonRemoverImpresora);
         fbrry.send(jsonRemoverImpresora);
     }
 
