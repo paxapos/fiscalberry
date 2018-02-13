@@ -1,5 +1,11 @@
 $(document).on("ready", function(){
 
+    function json_remover_impresora(printerName) {
+        jsonRemoverImpresora = '{"removerImpresora": "'+printerName+'"}';
+        console.log(jsonRemoverImpresora);
+        fbrry.send(jsonRemoverImpresora);
+    }
+
 	$(".panel_configuracion").on("click", function(){
 		var button_string = "Abrir panel de configuración de Fiscalberry";
 		$(this).val() == button_string ? al_mostrar_panel() : al_cerrar_panel();
@@ -17,7 +23,15 @@ $(document).on("ready", function(){
 	$("#listadoImpresoras").on("click", ".eliminar_impresora", function(){
 		var confirmacion = confirm("¿Esta seguro que desea eliminar esa impresora del config.ini?");
 		if(confirmacion) {
-			$(this).parent().remove();
+            var nombre_impresora = $(this).parent().attr("name");
+            if(nombre_impresora){
+                json_remover_impresora(nombre_impresora);
+                fbrry.on("fb:rta:removerImpresora", function(){
+			         $(this).parent().remove();
+                });
+            } else {
+                $(this).parent().remove();
+            }
 		}
 	}); 
 
@@ -50,6 +64,7 @@ $(document).on("ready", function(){
         		var div_impresora = $("#listadoImpresoras > .impresora:last-child");
         		
         		$(div_impresora).children("input[name='nombre_impresora']").val(nombre_impresora);
+                $(div_impresora).attr('name', nombre_impresora);
         		$(div_impresora).children("select[name='marca_impresora']").val(marca_impresora).trigger("change");
         		$(div_impresora).children("select[name='driver_impresora']").val(driver_impresora).trigger("change");
         		
@@ -131,6 +146,8 @@ $(document).on("ready", function(){
 
     		var host_path = $(printer).children("input[name='host_path']").val();
 
+            var nombre_anterior = $(printer).attr("name");
+
     		jsonConfig['configure'] = {};
     		jsonConfig['configure']['marca'] = marca_impresora;
     		jsonConfig['configure']['driver'] = driver_impresora;
@@ -143,6 +160,9 @@ $(document).on("ready", function(){
     		if(codepage_impresora) {
     			jsonConfig['configure']['codepage'] = codepage_impresora;
     		}
+            if(nombre_anterior !== nombre_impresora) {
+                jsonConfig['configure']['nombre_anterior'] = nombre_anterior;
+            }
     		
     		//vamos enviando para guardar la configuración de cada printer por separado.
 	    	jsonConfigString = JSON.stringify(jsonConfig);
