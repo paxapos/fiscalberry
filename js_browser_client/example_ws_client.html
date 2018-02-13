@@ -34,15 +34,106 @@
             background: #2196F3;
             color: white;
         }
+        #configPanel {
+            float:left; 
+            width: 250px;
+            background: silver;
+            display: none;
+        }
+        #sectionServidor, #listadoImpresoras, .modelo_impresora {
+            display: none;
+        }
+        label input[type="textbox"] {
+            display: inline-block;
+            width: 80%;
+        }
     </style>
     <script src="http://code.jquery.com/jquery.min.js"></script>
 
     <script src="fiscalberry.js"></script>
+    <script src="config_json_generator.js"></script>
 
 
 </head>
 
 <body>
+    <!-- Template para añadir nueva impresora-->
+    <script id="nuevaImpresora" type="text/x-jquery-tmpl">
+        <div class="impresora">
+            <button class="eliminar_impresora" style="float:right; margin-right: 10px;">X</button>
+            <br><br>
+            <label>Nombre: </label>
+            <input type="textbox" name="nombre_impresora" />
+
+            <br><br>
+
+            <label>Marca: </label>
+            <select name="marca_impresora">
+                <option value="EscP">EscP</option>
+                <option value="Hasar">Hasar</option>
+                <option value="Epson">Epson</option>
+            </select>
+
+            <br><br>
+
+            <div class="modelo_impresora">
+                <label>Modelo: </label>
+                <input type="textbox" name="modelo_impresora" />
+                <br><br>
+            </div>
+
+
+            <label>Driver: </label>
+            <select name="driver_impresora">
+                <option value="ReceiptDirectJet">ReceiptDirectJet</option>
+                <option value="Epson">Epson</option>
+                <option value="Hasar">Hasar</option>
+                <option value="File">File</option>
+            </select>
+
+            <br><br>
+
+            <div class="codepage_impresora">
+                <label>Codepage: </label>
+                <input type="textbox" name="codepage_impresora" />
+                <br><br>
+            </div>
+
+
+            <label>Tipo de conexión: </label>
+            <select name="tipo_conexion_impresora">
+                <option value="host">Host (Ethernet)</option>
+                <option value="path">Path</option>
+            </select>
+            <br><br>
+            <label class="nombre_tipo_conexion">Host: </label>
+            <input type="textbox" name="host_path" />
+
+            <hr>
+          </div>
+    </script>
+    <!-- Template para la sección SERVIDOR -->
+    <script id="inputsServidor" type="text/x-jquery-tmpl">
+          <label name="port_label">Puerto: </label>
+          <input type="textbox" name="server_port" />
+    </script>
+
+    <!-- CONFIG PANEL -->
+    <div id="configPanel">
+        <h1>Configuración</h1>
+        
+        <div id="sectionServidor">
+
+        </div>
+        <hr>
+        <div id="listadoImpresoras">
+
+        </div>
+        <button id="agregarImpresora">Agregar Impresora</button>
+        <button id="guardarConfiguracion">GUARDAR</button>
+      </p>
+    </div>
+
 <h1>Fiscalberry WS Hello World</h1>
 <div id="ws-message" class="ws-msg-offline">OFFLINE</div>
 <div id="connection_details">
@@ -57,6 +148,8 @@
 
 
 <div id="message_details">
+    <br>
+        <input type="button" class="panel_configuracion" value="Abrir panel de configuración de Fiscalberry"/>
     <div id="select-printers">
         <h3>Seleccionar Impresora</h3>
         <div class="content">
@@ -261,10 +354,17 @@
     fbrry.on('close', function (evt) {
         console.info("CLOSE");
         $("#ws-message").html("OFFLINE").addClass("ws-msg-offline").removeClass("ws-msg-online");
+        $("#configPanel").hide();
+        $(".panel_configuracion").hide();
     });
     fbrry.on('open', function (evt) {
         console.info("OPEN CONECTADO");
         $("#ws-message").html("ONLINE").removeClass("ws-msg-offline").addClass("ws-msg-online");
+        $(".panel_configuracion").show();
+        $(".panel_configuracion").val("Abrir panel de configuración de Fiscalberry");
+        $("#listadoImpresoras").children(".impresora").remove();
+        $("#sectionServidor").children("label[name='port_label'], input[name='server_port']").remove();
+        fbrry.send('{ "getActualConfig":"" }');
     });
 
 
