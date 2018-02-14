@@ -11,6 +11,10 @@ Fiscalberry tiene drivers desarrollados para conectarse con 2 tipos de impresora
 
 Impresoras Fiscales compatibles: Hasar y Epson
 
+Nueva versión con soporte para las últimas impresoras Fiscales de segunda generación HASAR y EPSON <br>
+Modelos compatibles (HASAR: SMH/PT-250F, EPSON: TM-T900FA)
+
+
 Impresoras Receipt (de comandas) compatibles: las que soportan ESC/P
 
 
