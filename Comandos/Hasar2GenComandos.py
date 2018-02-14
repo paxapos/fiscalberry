@@ -200,7 +200,7 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 
 	
 	def __openTicket(self, tipoComprobante):
-		ctype = self.comprobanteTypes.get( comprobanteType )
+		ctype = self.comprobanteTypes.get( tipoComprobante )
 		jdata = {"AbrirDocumento":{
 			"CodigoComprobante" : ctype
 			}

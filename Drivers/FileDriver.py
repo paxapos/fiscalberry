@@ -9,10 +9,23 @@ class FileDriver(DriverInterface):
         bufsize = 1  # line buffer
         self.file = open(path, "a", bufsize)
 
-    def sendCommand(self, command, parameters, skipStatusErrors=False):
+    def sendCommand(self, command=0, parameters=None, skipStatusErrors=False):
         import random
-        self.file.write("Command: %d, Parameters: %s\n" % (command, parameters))
-        print("*** OUTPUT Command: %d, Parameters: %s\n" % (command, parameters))
+
+        if isinstance(command,dict):
+            dt={'d': 2, 'f': 2, 'g': 2, 'q': 5, 'w': 3}
+            st=""
+            for key,val in dt.iteritems():
+                st = st + key + str(val)
+            command = st
+
+        if command:
+            self.file.write("Command: %s\n" % command)
+            print("*** OUTPUT Command: %s\n" % command)
+        if parameters:
+            self.file.write("Parameters: %s\n" % command)
+            print("*** OUTPUT Parameters: %s\n" % parameters)
+
         number = random.randint(2, 12432)
         return [str(number)] * 10
 
