@@ -76,6 +76,9 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 
 		self.conector.sendCommand( jdata )
 
+	def setTrailer(self, trailer=None):
+		"""Establecer pie"""
+		pass
 
 	def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
 		pass
@@ -226,7 +229,7 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 			@param  ivaType     Tipo de IVA
 		"""
 		if name and doc:
-			_setCustomerData(name, address, doc, docType, ivaType)
+			self._setCustomerData(name, address, doc, docType, ivaType)
 
 		return self.__openTicket( "F"+type )
 		
@@ -243,7 +246,7 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 			@param  reference
 		"""
 		if name and doc:
-			_setCustomerData(name, address, doc, docType, ivaType)
+			self._setCustomerData(name, address, doc, docType, ivaType)
 
 		self.__cargarNumReferencia(reference)
 		return self.__openTicket( "NC"+type )
@@ -279,7 +282,7 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 			@param  reference
 		"""
 		if name and doc:
-			_setCustomerData(name, address, doc, docType, ivaType)
+			self._setCustomerData(name, address, doc, docType, ivaType)
 
 		return self.__openTicket( "ND"+type )
 

@@ -29,9 +29,8 @@ class TxtDriver(DriverInterface):
             checkSum = sum([ord(x) for x in message])
             checkSumHexa = ("0000" + hex(checkSum)[2:])[-4:].upper()
             message += checkSumHexa
-        print message
+            self.file.write(message + "\n")
 
-        self.file.write(message + "\n")
 
         number = random.randint(2, 12432)
         return [str(number)] * 10

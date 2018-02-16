@@ -60,6 +60,11 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
         """Cierra el documento que esté abierto"""
         raise NotImplementedError
 
+
+    def setTrailer(self, trailer=None):
+        """Establecer pie"""
+        raise NotImplementedError
+
     def cancelDocument(self):
         """Cancela el documento que esté abierto"""
         raise NotImplementedError

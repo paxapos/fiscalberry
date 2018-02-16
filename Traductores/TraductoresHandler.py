@@ -176,7 +176,11 @@ class TraductoresHandler:
 
     def __init_printer_traductor(self, printerName):
 
-        dictSectionConf = self.config.get_config_for_printer(printerName)
+        try:
+            dictSectionConf = self.config.get_config_for_printer(printerName)
+        except KeyError as e:
+            raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'" % printerName)
+
         marca = dictSectionConf.get("marca")
         del dictSectionConf['marca']
         # instanciar los comandos dinamicamente
