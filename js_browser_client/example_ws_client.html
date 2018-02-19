@@ -71,6 +71,7 @@
             <select name="marca_impresora">
                 <option value="EscP">EscP</option>
                 <option value="Hasar">Hasar</option>
+                <option value="Hasar2Gen">Hasar2Gen</option>
                 <option value="Epson">Epson</option>
             </select>
 
@@ -88,6 +89,7 @@
                 <option value="ReceiptDirectJet">ReceiptDirectJet</option>
                 <option value="Epson">Epson</option>
                 <option value="Hasar">Hasar</option>
+                <option value="Hasar2Gen">Hasar2Gen</option>
                 <option value="File">File</option>
             </select>
 
@@ -165,6 +167,7 @@
 
     <input type="button" id="msg-status" value="Mensaje Status (get Config values)"/>
     <input type="button" id="msg-lst-number" value="Last Ticket Number"/>
+    <input type="button" id="msg-cancel" value="Cancelar Comprobante en curso"/>
     <input type="button" id="msg-daily" value="Cierre X"/>
     <input type="button" id="msg-ticket" value="Ticket"/>
     <input type="button" id="msg-nc" value="Nota de Credito Factura A"/>
@@ -405,6 +408,10 @@
 
     $("#msg-daily").on('click', function () {
         ponerJSONenTextarea('{"dailyClose": "X"}');
+    });
+
+    $("#msg-cancel").on('click', function () {
+        ponerJSONenTextarea('{"cancelDocument": ""}');
     });
 
     $("#msg-get-printers").on('click', function () {

@@ -213,7 +213,9 @@ class FiscalberryApp:
             logger.info("  - %s" % printer)
             modelo = None
             marca = self.configberry.config.get(printer, "marca")
-            driver = self.configberry.config.get(printer, "driver")
+            driver = "default"
+            if self.configberry.config.has_option(printer, "driver"):
+                driver = self.configberry.config.get(printer, "driver")
             if self.configberry.config.has_option(printer, "modelo"):
                 modelo = self.configberry.config.get(printer, "modelo")
             logger.info("      marca: %s, driver: %s" % (marca, driver))

@@ -120,6 +120,7 @@ class TraductoresHandler:
         device_list = [
             '00:0E:C3',  # Logic Controls BEMATECH
             '00:07:25',  # Bematech
+            'D8:D8:D8',  # Hasar 2Gen
         ]
 
         avaliablePrinters = []  # lo retornado
@@ -175,14 +176,18 @@ class TraductoresHandler:
 
     def __init_printer_traductor(self, printerName):
 
-        dictSectionConf = self.config.get_config_for_printer(printerName)
+        try:
+            dictSectionConf = self.config.get_config_for_printer(printerName)
+        except KeyError as e:
+            raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'" % printerName)
+
         marca = dictSectionConf.get("marca")
         del dictSectionConf['marca']
         # instanciar los comandos dinamicamente
         libraryName = "Comandos." + marca + "Comandos"
         comandoModule = importlib.import_module(libraryName)
         comandoClass = getattr(comandoModule, marca + "Comandos")
-
+        
         comando = comandoClass(**dictSectionConf)
         return comando.traductor
 

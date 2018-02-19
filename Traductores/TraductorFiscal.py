@@ -12,6 +12,11 @@ class TraductorFiscal(TraductorInterface):
         ret = self.comando.dailyClose(type)
         return ret
 
+    def getStatus(self, *args):
+        "getStatus"
+        ret = self.comando.getStatus(list(args))
+        return ret
+
     def setHeader(self, *args):
         "SetHeader"
         ret = self.comando.setHeader(list(args))
@@ -32,7 +37,7 @@ class TraductorFiscal(TraductorInterface):
         letra_cbte = tipo_cbte[-1] if len(tipo_cbte) > 1 else None
         return self.comando.getLastNumber(letra_cbte)
 
-    def cancelDocument(self):
+    def cancelDocument(self, *args):
         "Cancelar comprobante en curso"
         return self.comando.cancelDocument()
 
@@ -136,6 +141,6 @@ class TraductorFiscal(TraductorInterface):
         self.factura["pagos"].append(dict(ds=ds, importe=importe))
         return self.comando.addPayment(ds, float(importe))
 
-    def _cerrarComprobante(self):
+    def _cerrarComprobante(self, *args):
         "Envia el comando para cerrar un comprobante Fiscal"
         return self.comando.closeDocument()

@@ -1,5 +1,7 @@
 [SERVIDOR]
 puerto = 12000
+discover_url = 
+
 
 [IMPRESORA_FISCAL]
 marca = Hasar
