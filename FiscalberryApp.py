@@ -29,10 +29,10 @@ MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 # leer los parametros de configuracion de la impresora fiscal
 # en config.ini 
 
-root = os.path.dirname(__file__)
+root = os.path.dirname(os.path.abspath(__file__))
 
 
-logging.config.fileConfig(root+'/logging.ini')
+logging.config.fileConfig(root+'\logging.ini')
 logger = logging.getLogger(__name__)
 
 class WebSocketException(Exception):
