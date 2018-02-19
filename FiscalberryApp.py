@@ -5,6 +5,7 @@ import tornado.ioloop
 import tornado.web
 from threading import Timer
 from Traductores.TraductoresHandler import TraductoresHandler, TraductorException
+import sys
 import socket
 import os
 import json
@@ -15,8 +16,12 @@ import ssl
 import Configberry
 import FiscalberryDiscover
 from  tornado import web
-from signal import signal, SIGPIPE, SIG_DFL, SIGTERM, SIGINT
-signal(SIGPIPE,SIG_DFL) 
+if sys.platform == 'win32':
+    from signal import signal, SIG_DFL, SIGTERM, SIGINT
+else:
+    from signal import signal, SIGPIPE, SIG_DFL, SIGTERM, SIGINT
+    print "IMPORTA SIGPIPE PORQUE EL SISTEMA EN EL QUE ESTAS NO ES WINDOWS"
+    signal(SIGPIPE,SIG_DFL) 
 
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
