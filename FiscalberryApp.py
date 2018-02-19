@@ -32,7 +32,7 @@ MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 root = os.path.dirname(os.path.abspath(__file__))
 
 
-logging.config.fileConfig(root+'\logging.ini')
+logging.config.fileConfig(root+'/logging.ini')
 logger = logging.getLogger(__name__)
 
 class WebSocketException(Exception):
