@@ -23,7 +23,7 @@ def start_daemon(pidf, logf):
 
 
 
-    rootpath = os.path.dirname(__file__)
+    rootpath = os.path.dirname(os.path.abspath(__file__))
     ### XXX pidfile is a context
     with daemon.DaemonContext(
         stdout=handler.stream,
