@@ -140,7 +140,11 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 	def cancelDocument(self):
 		"""Cancela el documento que esté abierto"""
 		jdata = {"Cancelar" : {}}
-		self.conector.sendCommand( jdata )
+
+		ret = self.conector.sendCommand( jdata )
+
+		print("*---------------------------------*")
+		print(ret)
 
 	def addItem(self, description, quantity, price, iva, discount, discountDescription, negative=False, *kargs):
 		"""Agrega un item a la FC.
