@@ -355,6 +355,10 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 		"""Obtiene el último número de Remtio"""
 		pass
 
+	def cancelAnyDocument(self):
+		"""Este comando no esta disponible en la 2da generación de impresoras, es necesaria su declaración por el uso del TraductorFiscal """
+		return self.cancelDocument()
+
 	def dailyClose(self, type):
 		"""Cierre Z (diario) o X (parcial)
 			@param type     Z (diario), X (parcial)
@@ -363,7 +367,6 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 			reporteTal = "ReporteZ"
 		else:
 			reporteTal = "ReporteX"
-			self.cancelDocument()
 
 		jdata = {"CerrarJornadaFiscal":{
 			"Reporte" : reporteTal
