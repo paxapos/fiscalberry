@@ -155,13 +155,13 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 		"""
 		jdata = {"ImprimirItem": {
 					"Descripcion" : description,
-					"Cantidad" : str(quantity),
-					"PrecioUnitario" : str(price),
+					"Cantidad" : quantity,
+					"PrecioUnitario" : price,
 					"CondicionIVA" : "Gravado",
-					"AlicuotaIVA" : str(iva),
+					"AlicuotaIVA" : iva,
 					"OperacionMonto" : "ModoSumaMonto",
 					"TipoImpuestoInterno" : "IIVariableKIVA",
-					"MagnitudImpuestoInterno" : "0.00",
+					"MagnitudImpuestoInterno" : 0.00,
 					"ModoBaseTotal" : "ModoPrecioTotal",
 					}
 				}
