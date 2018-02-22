@@ -153,39 +153,47 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 			@param discount             Importe de descuento
 			@param discountDescription  Descripción del descuento
 		"""
-		jdata = {"ImprimirItem": {
-					"Descripcion" : description,
-					"Cantidad" : quantity,
-					"PrecioUnitario" : price,
-					"CondicionIVA" : "Gravado",
-					"AlicuotaIVA" : iva,
-					"OperacionMonto" : "ModoSumaMonto",
-					"TipoImpuestoInterno" : "IIVariableKIVA",
-					"MagnitudImpuestoInterno" : "0.00",
-					"ModoDisplay" : "DisplayNo",
-					"ModoBaseTotal" : "ModoPrecioTotal",
+		jdataItem = {
+					"ImprimirItem":
+						{
+							"Descripcion" : description,
+							"Cantidad" : quantity,
+							"PrecioUnitario" : price,
+							"CondicionIVA" : "Gravado",
+							"AlicuotaIVA" : iva,
+							"OperacionMonto" : "ModoSumaMonto",
+							"TipoImpuestoInterno" : "IIVariableKIVA",
+							"MagnitudImpuestoInterno" : "0.00",
+							"ModoDisplay" : "DisplayNo",
+							"ModoBaseTotal" : "ModoPrecioTotal",
+							"UnidadReferencia" : "1",
+							"CodigoProducto" : "",
+							"CodigoInterno" : description,
+							"UnidadMedida" : "Unidad"
+						}
 					}
-				}
-		self.conector.sendCommand( jdata )
+
 
 		if discount and not negative:
-			jdata= {"ImprimirDescuentoItem": {
+			jdataDiscount = {"ImprimirDescuentoItem": {
 				"Descripcion" : discountDescription,
 				"Monto" : discount,
 				"ModoDisplay" : "DisplayNo",
 				"ModoBaseTotal" : "ModoPrecioTotal"
 				}}
-			self.conector.sendCommand( jdata )
+			self.conector.sendCommand( jdataDiscount )
 
 		if discount and negative:
-			jdata = {"ImprimirAjuste":{
+			jdataDiscount = {"ImprimirAjuste":{
 				"Descripcion" : discountDescription,
 				"Monto" : discount,
 				"ModoDisplay" : "DisplayNo",
 				"Operacion" : "AjusteNeg"
 			}}
 
-			self.conector.sendCommand( jdata )
+			self.conector.sendCommand( jdataDiscount )
+		
+		return self.conector.sendCommand( jdataItem )
 
 	def addPayment(self, description, payment):
 		"""Agrega un pago a la FC.
@@ -216,7 +224,7 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 
 	def openTicket(self, comprobanteType = "T"):
 		"""Abre documento fiscal"""
-		self.__openTicket( comprobanteType )
+		return self.__openTicket( comprobanteType )
 
 	def openBillTicket(self, type, name, address, doc, docType, ivaType):
 		"""
@@ -356,10 +364,8 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 		pass
 
 	def cancelAnyDocument(self):
-		"""Cancela cualquier documento abierto, sea del tipo que sea.
-		   No requiere que previamente se haya abierto el documento por este objeto.
-		   Se usa para destrabar la impresora."""
-		pass
+		"""Este comando no esta disponible en la 2da generación de impresoras, es necesaria su declaración por el uso del TraductorFiscal """
+		return self.cancelDocument()
 
 	def dailyClose(self, type):
 		"""Cierre Z (diario) o X (parcial)
@@ -369,11 +375,90 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 			reporteTal = "ReporteZ"
 		else:
 			reporteTal = "ReporteX"
+
 		jdata = {"CerrarJornadaFiscal":{
 			"Reporte" : reporteTal
 		}}
 
-		self.conector.sendCommand( jdata )
+		return self.conector.sendCommand( jdata )
+
+		#rjson = r.json()
+		#return rjson
+
+		"""
+		rta = {}
+		rta = rjson["CerrarJornadaFiscal"].get("Numero")
+ 				
+ 				"Reporte": "ReporteZ",
+                "Numero": "3",
+                "Fecha": "180219",
+                "": "0.00",
+                "DF_TotalGravado": "0.00",
+                "DF_TotalNoGravado": "0.00",
+                "DF_TotalExento": "0.00",
+                "": "0.00",
+                "DF_TotalTributos": "0.00",
+                "": "1",
+                "DF_CantidadCancelados": "1",
+                "NC_Total": "0.00",
+                "NC_TotalGravado": "0.00",
+                "NC_TotalNoGravado": "0.00",
+                "NC_TotalExento": "0.00",
+                "NC_TotalIVA": "0.00",
+                "NC_TotalTributos": "0.00",
+                "NC_CantidadEmitidos": "0",
+                "NC_CantidadCancelados": "0",
+                "DNFH_Total": "0.00",
+                "": "0"
+		datos = {
+            "status_impresora": rjson["Estado"].get("Impresora"),
+            "status_fiscal": rjson["Estado"].get("Fiscal"),
+            "zeta_numero": rjson["Estado"].get("Numero"),
+            "cant_doc_fiscales_cancelados": rjson["Estado"].get("DF_CantidadCancelados"),
+            "cant_doc_nofiscales_homologados": rjson["Estado"].get("DNFH_CantidadEmitidos"),
+            "cant_doc_nofiscales":rjson["Estado"].get("DNFH_CantidadEmitidos"),
+            "cant_doc_fiscales":rjson["Estado"].get("DF_CantidadEmitidos"),
+           
+            "ultimo_doc_b",
+            "ultimo_doc_a",
+           
+            "monto_ventas_doc_fiscal":rjson["Estado"].get("DF_Total"),
+            "monto_iva_doc_fiscal":rjson["Estado"].get("DF_TotalIVA"),
+            "monto_imp_internos":rjson["Estado"].get("DF_TotalIVA"),
+            "monto_percepciones",
+            "monto_iva_no_inscripto",
+            "ultima_nc_b",
+            "ultima_nc_a",
+            "monto_credito_nc",
+            "monto_iva_nc",
+            "monto_imp_internos_nc",
+            "monto_percepciones_nc",
+            "monto_iva_no_inscripto_nc",
+            "ultimo_remito",
+            "cant_nc_canceladas",
+            "cant_doc_fiscales_bc_emitidos",
+            "cant_doc_fiscales_a_emitidos",
+            "cant_nc_bc_emitidos",
+            "cant_nc_a_fiscales_a_emitidos"
+        }
+
+
+			<Numero>1</Numero>
+			<FechaInicio>150202</FechaInicio>
+			<HoraInicio>105842</HoraInicio>
+			<FechaCierre>150202</FechaCierre>
+			<HoraCierre>121145</HoraCierre>
+			<DF_Total>750.00</DF_Total>
+			<DF_TotalIVA>43.42</DF_TotalIVA>
+			<DF_TotalTributos>35.26</DF_TotalTributos>
+			<DF_CantidadEmitidos>1</DF_CantidadEmitidos>
+			<NC_Total>0.00</NC_Total>
+			<NC_TotalIVA>0.00</NC_TotalIVA>
+			<NC_TotalTributos>0.00</NC_TotalTributos>
+			<NC_CantidadEmitidos>0</NC_CantidadEmitidos>
+			<DNFH_CantidadEmitidos>1</DNFH_CantidadEmitidos>
+			</CerrarJornadaFiscal>
+		"""
 
 	def getWarnings(self):
 		return []
