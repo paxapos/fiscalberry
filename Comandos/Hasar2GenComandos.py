@@ -126,7 +126,7 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 
 		self.conector.sendCommand( jdata )
 
-	def closeDocument(self, copias = 1, email = None):
+	def closeDocument(self, copias = 0, email = None):
 		"""Cierra el documento que esté abierto"""
 		jdata = {"CerrarDocumento": {
 			"Copias" : str(copias),		
@@ -161,8 +161,7 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 					"AlicuotaIVA" : iva,
 					"OperacionMonto" : "ModoSumaMonto",
 					"TipoImpuestoInterno" : "IIVariableKIVA",
-					"MagnitudImpuestoInterno" : "0.00",
-					"ModoDisplay" : "DisplayNo",
+					"MagnitudImpuestoInterno" : 0.00,
 					"ModoBaseTotal" : "ModoPrecioTotal",
 					}
 				}
