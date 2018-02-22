@@ -153,46 +153,47 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 			@param discount             Importe de descuento
 			@param discountDescription  Descripción del descuento
 		"""
-		jdata = {
+		jdataItem = {
 					"ImprimirItem":
 						{
 							"Descripcion" : description,
 							"Cantidad" : quantity,
 							"PrecioUnitario" : price,
-							"CondicionIVA" : "",
+							"CondicionIVA" : "Gravado",
 							"AlicuotaIVA" : iva,
 							"OperacionMonto" : "ModoSumaMonto",
 							"TipoImpuestoInterno" : "IIVariableKIVA",
 							"MagnitudImpuestoInterno" : "0.00",
-							"ModoDisplay" : "",
+							"ModoDisplay" : "DisplayNo",
 							"ModoBaseTotal" : "ModoPrecioTotal",
-							"UnidadReferencia" : "",
+							"UnidadReferencia" : "1",
 							"CodigoProducto" : "",
-							"CodigoInterno" : "",
-							"UnidadMedida" : ""
+							"CodigoInterno" : description,
+							"UnidadMedida" : "Unidad"
 						}
 					}
 
-		self.conector.sendCommand( jdata )
 
 		if discount and not negative:
-			jdata= {"ImprimirDescuentoItem": {
+			jdataDiscount = {"ImprimirDescuentoItem": {
 				"Descripcion" : discountDescription,
 				"Monto" : discount,
 				"ModoDisplay" : "DisplayNo",
 				"ModoBaseTotal" : "ModoPrecioTotal"
 				}}
-			self.conector.sendCommand( jdata )
+			self.conector.sendCommand( jdataDiscount )
 
 		if discount and negative:
-			jdata = {"ImprimirAjuste":{
+			jdataDiscount = {"ImprimirAjuste":{
 				"Descripcion" : discountDescription,
 				"Monto" : discount,
 				"ModoDisplay" : "DisplayNo",
 				"Operacion" : "AjusteNeg"
 			}}
 
-			self.conector.sendCommand( jdata )
+			self.conector.sendCommand( jdataDiscount )
+		
+		return self.conector.sendCommand( jdataItem )
 
 	def addPayment(self, description, payment):
 		"""Agrega un pago a la FC.
@@ -223,7 +224,7 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 
 	def openTicket(self, comprobanteType = "T"):
 		"""Abre documento fiscal"""
-		self.__openTicket( comprobanteType )
+		return self.__openTicket( comprobanteType )
 
 	def openBillTicket(self, type, name, address, doc, docType, ivaType):
 		"""
@@ -379,7 +380,7 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 			"Reporte" : reporteTal
 		}}
 
-		self.conector.sendCommand( jdata )
+		return self.conector.sendCommand( jdata )
 
 		#rjson = r.json()
 		#return rjson
