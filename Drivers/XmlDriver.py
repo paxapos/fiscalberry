@@ -3,20 +3,15 @@
 
 from JsonDriver import JsonDriver
 from dicttoxml import dicttoxml
+import logging
+from FiscalPrinterDriver import PrinterException
+import requests
 
 
 
 class XmlDriver(JsonDriver):
 
 	__name__ = "XmlDriver"
-
-
-	def __init__(self, host, user = None, password = None, port=80):
-		logging.getLogger().info("conexion con JSON Driver en host: %s puerto: %s" % (host, port))
-		self.host = host
-		self.user = user
-		self.password = password
-		self.port = port
 
 	def sendCommand(self, jsonData, parameters = None, skipStatusErrors = None):
 		"""Envia comando a impresora"""
@@ -25,7 +20,6 @@ class XmlDriver(JsonDriver):
 		logging.getLogger().info("conectando a la URL %s"%url)
 		headers = {'Content-type': 'text/xml'}
 
-		xml = dicttoxml(some_dict)
 		xmlData = dicttoxml(jsonData)
 		print(xmlData)
 

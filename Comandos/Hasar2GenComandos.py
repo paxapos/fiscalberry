@@ -373,8 +373,8 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 
 		self.conector.sendCommand( jdata )
 
-		rjson = r.json()
-		return rjson
+		#rjson = r.json()
+		#return rjson
 
 		"""
 		rta = {}
