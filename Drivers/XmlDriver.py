@@ -10,6 +10,14 @@ class XmlDriver(JsonDriver):
 
 	__name__ = "XmlDriver"
 
+
+	def __init__(self, host, user = None, password = None, port=80):
+		logging.getLogger().info("conexion con JSON Driver en host: %s puerto: %s" % (host, port))
+		self.host = host
+		self.user = user
+		self.password = password
+		self.port = port
+
 	def sendCommand(self, jsonData, parameters = None, skipStatusErrors = None):
 		"""Envia comando a impresora"""
 		url = "http://%s:%s/fiscal.xml" % (self.host, self.port)
