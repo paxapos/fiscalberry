@@ -153,18 +153,26 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 			@param discount             Importe de descuento
 			@param discountDescription  Descripción del descuento
 		"""
-		jdata = {"ImprimirItem": {
-					"Descripcion" : description,
-					"Cantidad" : quantity,
-					"PrecioUnitario" : price,
-					"CondicionIVA" : "Gravado",
-					"AlicuotaIVA" : iva,
-					"OperacionMonto" : "ModoSumaMonto",
-					"TipoImpuestoInterno" : "IIVariableKIVA",
-					"MagnitudImpuestoInterno" : 0.00,
-					"ModoBaseTotal" : "ModoPrecioTotal",
+		jdata = {
+					"ImprimirItem":
+						{
+							"Descripcion" : description,
+							"Cantidad" : quantity,
+							"PrecioUnitario" : price,
+							"CondicionIVA" : "",
+							"AlicuotaIVA" : iva,
+							"OperacionMonto" : "ModoSumaMonto",
+							"TipoImpuestoInterno" : "IIVariableKIVA",
+							"MagnitudImpuestoInterno" : "0.00",
+							"ModoDisplay" : "",
+							"ModoBaseTotal" : "ModoPrecioTotal",
+							"UnidadReferencia" : "",
+							"CodigoProducto" : "",
+							"CodigoInterno" : "",
+							"UnidadMedida" : ""
+						}
 					}
-				}
+
 		self.conector.sendCommand( jdata )
 
 		if discount and not negative:
