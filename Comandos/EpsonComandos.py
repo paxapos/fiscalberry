@@ -2,6 +2,7 @@
 import string
 import types
 import logging
+import json
 from Comandos.ComandoFiscalInterface import ComandoFiscalInterface
 from ComandoInterface import formatText, ComandoException
 
@@ -319,6 +320,121 @@ class EpsonComandos(ComandoFiscalInterface):
             return int(reply[6])
         else:
             return int(reply[4])
+
+    def parse_status(self, res):
+        assert type(res) is list, 'res must be a list'
+        assert len(res) == 10, 'The printer should return a list with 10 elements'
+        # Guardamos las respuestas
+        d = {}
+        print res
+        # TODO: Review values from here, they are not coincident from what printer reports.
+        printer_status_response = int(res[0], 16)
+        fiscal_status_response = int(res[1], 16)
+        d['last_inv_B_C_doc'] = int(res[2])
+        d['aux_status'] = int(res[3], 16)
+        d['last_inv_A_doc'] = int(res[4], 16)
+        d['document_status'] = int(res[5], 16)
+        d['last_nc_B_C_doc'] = int(res[6], 16)
+        d['last_nc_A_doc'] = int(res[7], 16)
+
+        # Status fiscal
+        if ((1 << 0) & fiscal_status_response) == (1 << 0):
+            status_fiscal = "Error en chequeo de memoria fiscal. \n"
+#                    "Al encenderse la impresora se produjo un error en el " \
+#                    "checksum.  La impresora no funcionara."
+        elif ((1 << 1) & fiscal_status_response) == (1 << 1):
+            status_fiscal = "Error en chequeo de memoria de trabajo.\n"
+#                    "Al encenderse la impresora se produjo un error en el " \
+#                    "checksum.  La impresora no funcionara."
+        elif ((1 << 3) & fiscal_status_response) == (1 << 3):
+            status_fiscal = "Comando desconocido.\n"
+#                    "El comando recibido no fue reconocido."
+        elif ((1 << 4) & fiscal_status_response) == (1 << 4):
+            status_fiscal = "Datos no válidos en un campo.\n"
+#                    "Uno de los campos del comando recibido tiene datos no " \
+#                    "válidos por ejemplo, datos no numéricos en un campo numérico)."
+        elif ((1 << 5) & fiscal_status_response) == (1 << 5):
+            status_fiscal = "Comando no válido para el estado fiscal actual.\n "
+#                "Se ha recibido un comando que no es válido en el estado " \
+#                "actual del controlador (por ejemplo, abrir un recibo no " \
+#                "fiscal cuando se encuentra abierto un recibo fiscal)."
+
+        elif ((1 << 6) & fiscal_status_response) == (1 << 6):
+            status_fiscal = "Desborde del Total.\n"
+#                    "El acumulador de una transacción, del total diario o " \
+#                    "del IVA se desbordará a raíz de un comando recibido." \
+#                    "El comando no es ejecutado. Este bit debe ser monitoreado " \
+#                    "por el host para emitir un aviso de error."
+
+        elif ((1 << 7) & fiscal_status_response) == (1 << 7):
+            status_fiscal = "Memoria fiscal llena, bloqueada o dada de baja.\n"
+#                "En caso de que la memoria fiscal esté llena, bloqueada o " \
+#                "dada de baja, no se per mite abrir un comprobante fiscal."
+
+        elif ((1 << 8) & fiscal_status_response) == (1 << 8):
+            status_fiscal = "Memoria fiscal a punto de llenarse.\n"
+#                "La memoria fiscal tiene 30 o menos registros libres." \
+#                "Este bit debe ser monitoreado por el host para emitir " \
+#                "el correspondiente aviso."
+        elif ((1 << 9) & fiscal_status_response) == (1 << 9):
+            status_fiscal = "Terminal fiscal certificada.\n"
+#                "Indica que la impresora ha sido inicializada."
+        elif ((1 << 10) & fiscal_status_response) == (1 << 10):
+            status_fiscal = "Terminal fiscal certificada.\n"
+#                "Indica que la impresora ha sido inicializada."
+
+        elif ((1 << 11) & fiscal_status_response) == (1 << 11):
+            status_fiscal = "Error en ingreso de fecha.\n"
+#                "Se ha ingresado una fecha no válida." \
+#                "Para volver al bit a 0 debe ingresarse una fecha válida."
+
+        elif ((1 << 12) & fiscal_status_response) == (1 << 12):
+            status_fiscal = "Documento fiscal abierto.\n"
+#                "Este bit se encuentra en 1 siempre que un documento " \
+#                "fiscal (factura, recibo oficial o nota de crédito) se " \
+#                "encuentra abierto."
+
+        elif ((1 << 13) & fiscal_status_response) == (1 << 13):
+            status_fiscal = "Documento abierto.\n"
+#                "Este bit se encuentra en 1 siempre que un documento " \
+#                "(fiscal, no fiscal o no fiscal homologado) se encuentra abierto."
+
+        elif ((1 << 14) & fiscal_status_response) == (1 << 14):
+            status_fiscal = "STATPRN activado.\n"
+#                "Este bit se encuentra en 1 cuando se intenta enviar " \
+#                "un comando estando activado el STATPRN. El comando es rechazado."
+
+        elif ((1 << 3) & fiscal_status_response) == (1 << 3):
+            status_fiscal = "OR lógico de los bits 0 a 8.\n"
+#                "Este bit se encuentra en 1 siempre que alguno de los bits " \
+#                "mencionados se encuentre en 1."
+
+        if ((1 << 0) & printer_status_response) == (1 << 0):
+            status_printer = "Impresora Ocupada"
+        elif ((1 << 2) & printer_status_response) == (1 << 2):
+            status_printer = "Error de Impresora."
+        elif ((1 << 3) & printer_status_response) == (1 << 3):
+            status_printer = "Impresora Offline"
+        elif ((1 << 4) & printer_status_response) == (1 << 4):
+            status_printer = "Falta papel"
+        elif ((1 << 5) & printer_status_response) == (1 << 5):
+            status_printer = "Falta papel de tickets"
+        elif ((1 << 6) & printer_status_response) == (1 << 6):
+            status_printer = "Buffer de Impresora lleno"
+        elif ((1 << 7) & printer_status_response) == (1 << 7):
+            status_printer = "Impresora lista"
+        elif ((1 << 8) & printer_status_response) == (1 << 8):
+            status_printer = "Tapa de Impresora Abierta"
+
+        d['statusPrinter'] = status_printer
+        d['statusFiscal'] = status_fiscal
+
+        return status_printer, status_fiscal, d
+
+    def getStatus(self, *args):
+        status_lst = self._sendCommand(self.CMD_STATUS_REQUEST, ["N"], True)
+        st_prn, st_fis, dd = self.parse_status(status_lst)
+        return json.dumps(dd)
 
     def getLastCreditNoteNumber(self, letter):
         reply = self._sendCommand(self.CMD_STATUS_REQUEST, ["A"], True)
