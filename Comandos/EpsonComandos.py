@@ -202,21 +202,23 @@ class EpsonComandos(ComandoFiscalInterface):
         self._sendCommand(self.CMD_OPEN_DRAWER, [])
 
     def closeDocument(self):
+        # Ignore errors, because when the z close is not done we end up with this error
+        # ComandoException: Error de la impresora fiscal: Es necesario hacer un cierre de la jornada fiscal
         if self._currentDocument == self.CURRENT_DOC_TICKET:
-            reply = self._sendCommand(self.CMD_CLOSE_FISCAL_RECEIPT[self._getCommandIndex()], ["T"])
+            reply = self._sendCommand(self.CMD_CLOSE_FISCAL_RECEIPT[self._getCommandIndex()], ["T"], True)
             return reply[2]
         if self._currentDocument == self.CURRENT_DOC_BILL_TICKET:
             reply = self._sendCommand(self.CMD_CLOSE_FISCAL_RECEIPT[self._getCommandIndex()],
-                                      [self.model == "epsonlx300+" and "F" or "T", self._type, "FINAL"])
+                                      [self.model == "epsonlx300+" and "F" or "T", self._type, "FINAL"], True)
             del self._type
             return reply[2]
         if self._currentDocument == self.CURRENT_DOC_CREDIT_TICKET:
             reply = self._sendCommand(self.CMD_CLOSE_FISCAL_RECEIPT[self._getCommandIndex()],
-                                      [self.model == "epsonlx300+" and "N" or "M", self._type, "FINAL"])
+                                      [self.model == "epsonlx300+" and "N" or "M", self._type, "FINAL"], True)
             del self._type
             return reply[2]
         if self._currentDocument in (self.CURRENT_DOC_NON_FISCAL,):
-            return self._sendCommand(self.CMD_CLOSE_NON_FISCAL_RECEIPT, ["T"])
+            return self._sendCommand(self.CMD_CLOSE_NON_FISCAL_RECEIPT, ["T"], True)
         raise NotImplementedError
 
     def cancelDocument(self):

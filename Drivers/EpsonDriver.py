@@ -4,6 +4,16 @@ from Drivers.FiscalPrinterDriver import FiscalPrinterDriver, ComunicationError
 import random
 import time
 import serial
+import signal
+
+
+def signalHandler(signum, frame):
+    """
+    Catches the signal and raises appropiate exception
+    """
+    raise ComunicationError, "Expiró el tiempo de espera para una respuesta de la impresora. Revise la conexión."
+
+signal.signal(signal.SIGALRM, signalHandler)  # Register handler
 
 
 class EpsonDriver(FiscalPrinterDriver):
@@ -44,6 +54,7 @@ class EpsonDriver(FiscalPrinterDriver):
         self._write(message)
         timeout = time.time() + self.WAIT_TIME
         retries = 0
+        signal.alarm(10)  # In 10 secs the handler will be called
         while 1:
             if time.time() > timeout:
                 raise ComunicationError, "Expiró el tiempo de espera para una respuesta de la impresora. Revise la conexión."
@@ -95,4 +106,5 @@ class EpsonDriver(FiscalPrinterDriver):
                 else:
                     # Respuesta OK
                     break
+        signal.alarm(0)  # Deactivate alarm
         return reply
