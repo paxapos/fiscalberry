@@ -21,7 +21,9 @@ HTTP_CODE_BAD_REQUEST = 400
 HTTP_CODE_NOT_METHOD = 405
 HTTP_CODE_INTERNAL_ERROR = 500
 
-
+#
+# API REST AUTH CONTROLLER
+#
 class AuthHandler(tornado.web.RequestHandler):
     def initialize(self):
         self.config= AuthConfig()
@@ -37,7 +39,6 @@ class AuthHandler(tornado.web.RequestHandler):
         body= self.body
 
         try:
-            time.sleep(15)
             users= self.config.get_users();
             if not('user' in body and 'key' in body):
                 response = {'err': 'Campos Incorrectos'}
@@ -67,6 +68,10 @@ class AuthHandler(tornado.web.RequestHandler):
 
         self.write(response)
 
+#
+# API REST CONTROLLER
+# DECORATOR TO VALIDATE AUTH
+#
 @jwtauth
 class ApiRestHandler(tornado.web.RequestHandler):
     def initialize(self):
