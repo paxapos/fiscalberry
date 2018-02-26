@@ -324,14 +324,35 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 		"""
 		pass
 
-	def addAdditional(self, description, amount, iva, negative=False):
-		"""Agrega un adicional a la FC.
+	def ImprimirAnticipoBonificacionEnvases(self, description, amount, iva, negative=False):
+		"""Agrega un descuento general a la Factura o Ticket.
 			@param description  Descripción
 			@param amount       Importe (sin iva en FC A, sino con IVA)
 			@param iva          Porcentaje de Iva
-			@param negative True->Descuento, False->Recargo"""
-		pass
+			@param negative     Si negative = True, se añadira el monto como descuento, sino, sera un recargo
+		"""
+		tipo_operacion = "CobroAnticipo"
 
+		if negative:
+			tipo_operacion = "DescuentoAnticipo"
+		
+		jdata = {
+					"ImprimirAnticipoBonificacionEnvases":
+						{
+							"Descripcion" : description,
+							"Monto" : amount,
+							"CondicionIVA" : "Gravado",
+							"AlicuotaIVA" : iva,
+							"TipoImpuestoInterno" : "IIVariableKIVA",
+							"MagnitudImpuestoInterno" : "0.00",
+							"ModoDisplay" : "DisplayNo",
+							"ModoBaseTotal" : "ModoPrecioTotal",
+							"CodigoProducto" : "",
+							"Operacion" : tipo_operacion
+						}
+			}
+
+		return self.conector.sendCommand(jdata)
 		
 
 	def setCodigoBarras(self, numero , tipoCodigo = "CodigoTipoI2OF5", imprimeNumero =  "ImprimeNumerosCodigo" ):
