@@ -353,6 +353,32 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 			}
 
 		return self.conector.sendCommand(jdata)
+
+	def addAdditional(self, description, amount, iva, negative=False):
+		"""Agrega un descuento general a la Factura o Ticket.
+			@param description  Descripción
+			@param amount       Importe (sin iva en FC A, sino con IVA)
+			@param iva          Porcentaje de Iva
+			@param negative     Si negative = True, se añadira el monto como descuento, sino, sera un recargo
+		"""
+		tipo_operacion = "AjustePos"
+
+		if negative:
+			tipo_operacion = "AjusteNeg"
+		
+		jdata = {
+					"ImprimirAjuste":
+						{
+							"Descripcion" : description,
+							"Monto" : amount,
+							"ModoDisplay" : "DisplayNo",
+							"ModoBaseTotal" : "ModoPrecioTotal",
+							"CodigoProducto" : "",
+							"Operacion" : tipo_operacion
+						}
+			}
+
+		return self.conector.sendCommand(jdata)
 		
 
 	def setCodigoBarras(self, numero , tipoCodigo = "CodigoTipoI2OF5", imprimeNumero =  "ImprimeNumerosCodigo" ):
