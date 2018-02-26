@@ -1,2 +1,1 @@
-python server.py
-pause
+start /B server.py

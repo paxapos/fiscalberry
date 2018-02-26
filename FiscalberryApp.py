@@ -20,7 +20,6 @@ if sys.platform == 'win32':
     from signal import signal, SIG_DFL, SIGTERM, SIGINT
 else:
     from signal import signal, SIGPIPE, SIG_DFL, SIGTERM, SIGINT
-    print "IMPORTA SIGPIPE PORQUE EL SISTEMA EN EL QUE ESTAS NO ES WINDOWS"
     signal(SIGPIPE,SIG_DFL) 
 
 
