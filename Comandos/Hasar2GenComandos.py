@@ -142,17 +142,19 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 		jdata = {"Cancelar" : {}}
 		return self.conector.sendCommand( jdata )
 
-	def addItem(self, description, quantity, price, iva, discount, discountDescription, negative=False, *kargs):
+	def addItem(self, description, quantity, price, iva, itemNegative = False, discount=0, discountDescription='', discountNegative=False):
 		"""Agrega un item a la FC.
 			@param description          Descripción del item. Puede ser un string o una lista.
 				Si es una lista cada valor va en una línea.
 			@param quantity             Cantidad
 			@param price                Precio (incluye el iva si la FC es B o C, si es A no lo incluye)
 			@param iva                  Porcentaje de iva
-			@param negative             True->Resta de la FC
+			@param itemNegative         Sin efecto en 2GEN, se agrega este parametro para respetar la interfaz del TraductorFiscal
 			@param discount             Importe de descuento
 			@param discountDescription  Descripción del descuento
+			@param discountNegative     True->Resta de la FC
 		"""
+
 		jdataItem = {
 					"ImprimirItem":
 						{
@@ -173,8 +175,8 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 						}
 					}
 
-
-		if discount and not negative:
+		item = self.conector.sendCommand( jdataItem )
+		if discount and discountNegative:
 			jdataDiscount = {"ImprimirDescuentoItem": {
 				"Descripcion" : discountDescription,
 				"Monto" : discount,
@@ -182,18 +184,9 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 				"ModoBaseTotal" : "ModoPrecioTotal"
 				}}
 			self.conector.sendCommand( jdataDiscount )
-
-		if discount and negative:
-			jdataDiscount = {"ImprimirAjuste":{
-				"Descripcion" : discountDescription,
-				"Monto" : discount,
-				"ModoDisplay" : "DisplayNo",
-				"Operacion" : "AjusteNeg"
-			}}
-
-			self.conector.sendCommand( jdataDiscount )
+		#Si el negative viene en false, no se hara nada, ya que los recargos de los items no son permitidos en Hasar2G
 		
-		return self.conector.sendCommand( jdataItem )
+		return item
 
 	def addPayment(self, description, payment):
 		"""Agrega un pago a la FC.
