@@ -44,16 +44,14 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 
 	ivaTypes = {
 		"RESPONSABLE_INSCRIPTO": 'ResponsableInscripto',
-		"RESPONSABLE_NO_INSCRIPTO": 'N',
 		"EXENTO": 'ResponsableExento',
 		"NO_RESPONSABLE": 'NoResponsable',
 		"CONSUMIDOR_FINAL": 'ConsumidorFinal',
-		"RESPONSABLE_NO_INSCRIPTO_BIENES_DE_USO": 'B',
+		"NO_CATEGORIZADO": 'NoCategorizado',
 		"RESPONSABLE_MONOTRIBUTO": 'Monotributo',
 		"MONOTRIBUTISTA_SOCIAL": 'MonotributoSocial',
 		"PEQUENIO_CONTRIBUYENTE_EVENTUAL": 'Eventual',
 		"PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL": 'EventualSocial',
-		"NO_CATEGORIZADO": 'NoCategorizado',
 	}
 
 	comprobanteTypes = {
@@ -86,14 +84,15 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 
 	def _setCustomerData(self, name=" ", address=" ", doc=" ", docType=" ", ivaType="T"):
 
-		docTypeCode = self.docTypes.get(docType)
-		ivaTypesCode = self.ivaTypes.get(ivaType)
+		self.docTypes.get(docType)
+		self.ivaTypes.get(ivaType)
+
 		jdata = {
 			"CargarDatosCliente":{
 				"RazonSocial" : name,
 				"NumeroDocumento" : doc,
-				"ResponsabilidadIVA" : "ResponsableInscripto",
-				"TipoDocumento" : docTypeCode,
+				"ResponsabilidadIVA" : ivaType,
+				"TipoDocumento" : docType,
 				"Domicilio" : address
 				}
 			}
