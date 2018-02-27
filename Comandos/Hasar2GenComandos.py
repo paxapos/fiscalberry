@@ -44,16 +44,14 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 
 	ivaTypes = {
 		"RESPONSABLE_INSCRIPTO": 'ResponsableInscripto',
-		"RESPONSABLE_NO_INSCRIPTO": 'N',
 		"EXENTO": 'ResponsableExento',
 		"NO_RESPONSABLE": 'NoResponsable',
 		"CONSUMIDOR_FINAL": 'ConsumidorFinal',
-		"RESPONSABLE_NO_INSCRIPTO_BIENES_DE_USO": 'B',
+		"NO_CATEGORIZADO": 'NoCategorizado',
 		"RESPONSABLE_MONOTRIBUTO": 'Monotributo',
 		"MONOTRIBUTISTA_SOCIAL": 'MonotributoSocial',
 		"PEQUENIO_CONTRIBUYENTE_EVENTUAL": 'Eventual',
 		"PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL": 'EventualSocial',
-		"NO_CATEGORIZADO": 'NoCategorizado',
 	}
 
 	comprobanteTypes = {
@@ -86,14 +84,15 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 
 	def _setCustomerData(self, name=" ", address=" ", doc=" ", docType=" ", ivaType="T"):
 
-		docTypeCode = self.docTypes.get(docType)
-		ivaTypesCode = self.ivaTypes.get(ivaType)
+		self.docTypes.get(docType)
+		self.ivaTypes.get(ivaType)
+
 		jdata = {
 			"CargarDatosCliente":{
 				"RazonSocial" : name,
 				"NumeroDocumento" : doc,
-				"ResponsabilidadIVA" : "ResponsableInscripto",
-				"TipoDocumento" : docTypeCode,
+				"ResponsabilidadIVA" : ivaType,
+				"TipoDocumento" : docType,
 				"Domicilio" : address
 				}
 			}
@@ -142,17 +141,19 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 		jdata = {"Cancelar" : {}}
 		return self.conector.sendCommand( jdata )
 
-	def addItem(self, description, quantity, price, iva, discount, discountDescription, negative=False, *kargs):
+	def addItem(self, description, quantity, price, iva, itemNegative = False, discount=0, discountDescription='', discountNegative=False):
 		"""Agrega un item a la FC.
 			@param description          Descripción del item. Puede ser un string o una lista.
 				Si es una lista cada valor va en una línea.
 			@param quantity             Cantidad
 			@param price                Precio (incluye el iva si la FC es B o C, si es A no lo incluye)
 			@param iva                  Porcentaje de iva
-			@param negative             True->Resta de la FC
+			@param itemNegative         Sin efecto en 2GEN, se agrega este parametro para respetar la interfaz del TraductorFiscal
 			@param discount             Importe de descuento
 			@param discountDescription  Descripción del descuento
+			@param discountNegative     True->Resta de la FC
 		"""
+
 		jdataItem = {
 					"ImprimirItem":
 						{
@@ -173,8 +174,8 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 						}
 					}
 
-
-		if discount and not negative:
+		item = self.conector.sendCommand( jdataItem )
+		if discount and discountNegative:
 			jdataDiscount = {"ImprimirDescuentoItem": {
 				"Descripcion" : discountDescription,
 				"Monto" : discount,
@@ -182,18 +183,9 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 				"ModoBaseTotal" : "ModoPrecioTotal"
 				}}
 			self.conector.sendCommand( jdataDiscount )
-
-		if discount and negative:
-			jdataDiscount = {"ImprimirAjuste":{
-				"Descripcion" : discountDescription,
-				"Monto" : discount,
-				"ModoDisplay" : "DisplayNo",
-				"Operacion" : "AjusteNeg"
-			}}
-
-			self.conector.sendCommand( jdataDiscount )
+		#Si el negative viene en false, no se hara nada, ya que los recargos de los items no son permitidos en Hasar2G
 		
-		return self.conector.sendCommand( jdataItem )
+		return item
 
 	def addPayment(self, description, payment):
 		"""Agrega un pago a la FC.
@@ -331,14 +323,61 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 		"""
 		pass
 
-	def addAdditional(self, description, amount, iva, negative=False):
-		"""Agrega un adicional a la FC.
+	def ImprimirAnticipoBonificacionEnvases(self, description, amount, iva, negative=False):
+		"""Agrega un descuento general a la Factura o Ticket.
 			@param description  Descripción
 			@param amount       Importe (sin iva en FC A, sino con IVA)
 			@param iva          Porcentaje de Iva
-			@param negative True->Descuento, False->Recargo"""
-		pass
+			@param negative     Si negative = True, se añadira el monto como descuento, sino, sera un recargo
+		"""
+		tipo_operacion = "CobroAnticipo"
 
+		if negative:
+			tipo_operacion = "DescuentoAnticipo"
+		
+		jdata = {
+					"ImprimirAnticipoBonificacionEnvases":
+						{
+							"Descripcion" : description,
+							"Monto" : amount,
+							"CondicionIVA" : "Gravado",
+							"AlicuotaIVA" : iva,
+							"TipoImpuestoInterno" : "IIVariableKIVA",
+							"MagnitudImpuestoInterno" : "0.00",
+							"ModoDisplay" : "DisplayNo",
+							"ModoBaseTotal" : "ModoPrecioTotal",
+							"CodigoProducto" : "",
+							"Operacion" : tipo_operacion
+						}
+			}
+
+		return self.conector.sendCommand(jdata)
+
+	def addAdditional(self, description, amount, iva, negative=False):
+		"""Agrega un descuento general a la Factura o Ticket.
+			@param description  Descripción
+			@param amount       Importe (sin iva en FC A, sino con IVA)
+			@param iva          Porcentaje de Iva
+			@param negative     Si negative = True, se añadira el monto como descuento, sino, sera un recargo
+		"""
+		tipo_operacion = "AjustePos"
+
+		if negative:
+			tipo_operacion = "AjusteNeg"
+		
+		jdata = {
+					"ImprimirAjuste":
+						{
+							"Descripcion" : description,
+							"Monto" : amount,
+							"ModoDisplay" : "DisplayNo",
+							"ModoBaseTotal" : "ModoPrecioTotal",
+							"CodigoProducto" : "",
+							"Operacion" : tipo_operacion
+						}
+			}
+
+		return self.conector.sendCommand(jdata)
 		
 
 	def setCodigoBarras(self, numero , tipoCodigo = "CodigoTipoI2OF5", imprimeNumero =  "ImprimeNumerosCodigo" ):
