@@ -5,11 +5,9 @@ from JsonDriver import JsonDriver
 from dicttoxml import dicttoxml
 
 
-
 class XmlDriver(JsonDriver):
 
 	__name__ = "XmlDriver"
-
 
 	def sendCommand(self, jsonData, parameters = None, skipStatusErrors = None):
 		"""Envia comando a impresora"""

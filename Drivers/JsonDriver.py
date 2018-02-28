@@ -46,20 +46,20 @@ class JsonDriver(DriverInterface):
 
 		try: 
 			if self.password:
-				r = requests.post(url, data=json.dumps(jsonData), headers=headers, auth=(self.user, self.password))
+				reply = requests.post(url, data=json.dumps(jsonData), headers=headers, auth=(self.user, self.password))
 			else:
-				r = requests.post(url, data=json.dumps(jsonData), headers=headers)
+				reply = requests.post(url, data=json.dumps(jsonData), headers=headers)
 			print("INICIANDO::::")
-			print(r)
-			print(r.json())
-			print(r.content)
+			print(reply)
+			print(reply.json())
+			print(reply.content)
 			print("salio la respuesta")
 			
-			return r
+			return reply.content
 			
 		except requests.exceptions.Timeout:			
 		    # Maybe set up for a retry, or continue in a retry loop
-		    logging.getLogger().error("titeout de conexion con la fiscal")
+		    logging.getLogger().error("timeout de conexion con la impresora fiscal")
 		except requests.exceptions.RequestException as e:
 		    # catastrophic error. bail.
 		    logging.getLogger().error(str(e))
