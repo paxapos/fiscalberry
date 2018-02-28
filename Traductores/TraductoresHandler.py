@@ -207,7 +207,7 @@ class TraductoresHandler:
 
         resdict = {
             "action": "restartFIscalberry",
-            "rta": call(["service", "fiscalberry-server-rc", "restart"])
+            "rta": call(["systemctl", "restart", "fiscalberry.service"])
         }
 
         return resdict
