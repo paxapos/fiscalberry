@@ -157,7 +157,7 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 		jdataItem = {
 					"ImprimirItem":
 						{
-							"Descripcion2" : description,
+							"Descripcion" : description,
 							"Cantidad" : quantity,
 							"PrecioUnitario" : price,
 							"CondicionIVA" : "Gravado",
