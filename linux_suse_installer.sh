@@ -9,6 +9,7 @@ pip install tornado
 pip install python-escpos
 pip install pyutf8
 pip install python-daemon
+pip install PyJWT
 
 echo -n "Instalar el servicio fiscalberry.service (y/n)? "
 read answer

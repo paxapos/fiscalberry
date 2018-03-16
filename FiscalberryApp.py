@@ -20,13 +20,14 @@ if sys.platform == 'win32':
     from signal import signal, SIG_DFL, SIGTERM, SIGINT
 else:
     from signal import signal, SIGPIPE, SIG_DFL, SIGTERM, SIGINT
-    signal(SIGPIPE,SIG_DFL) 
-
+    signal(SIGPIPE,SIG_DFL)
+#API
+from ApiRest.ApiRestHandler import ApiRestHandler, AuthHandler
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 
 # leer los parametros de configuracion de la impresora fiscal
-# en config.ini 
+# en config.ini
 
 root = os.path.dirname(os.path.abspath(__file__))
 
@@ -45,7 +46,6 @@ class PageHandler(tornado.web.RequestHandler):
                 self.write(f.read())
         except IOError as e:
             self.write("404: Not Found")
-
 
 # inicializar intervalo para verificar que la impresora tenga papel
 #		
@@ -144,11 +144,16 @@ class FiscalberryApp:
 
     def start(self):
         logger.info("Iniciando Fiscalberry Server")
+        settings = {            
+        }
+
         self.application = tornado.web.Application([
             (r'/ws', WSHandler),
+            (r'/api', ApiRestHandler),
+            (r'/api/auth', AuthHandler),
             (r'/', PageHandler),
             (r"/(.*)", web.StaticFileHandler, dict(path=root + "/js_browser_client")),
-        ])
+        ], **settings)
 
         self.configberry = Configberry.Configberry()
 

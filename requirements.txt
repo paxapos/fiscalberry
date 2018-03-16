@@ -27,3 +27,5 @@ tornado==4.5.2
 typing==3.6.2
 urllib3==1.22
 python-daemon==2.1.2
+
+PyJWT==1.5.3
