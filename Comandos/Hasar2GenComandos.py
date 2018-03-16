@@ -257,7 +257,7 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 		retdata = self.conector.sendCommand( jdata )
 
 		numpos = 1
-		if retdata.has_key("ConsultarDatosInicializacion") and retdata["ConsultarDatosInicializacion"].has_key("NumeroPos"):
+		if hasattr(retdata, "ConsultarDatosInicializacion") and hasattr(retdata["ConsultarDatosInicializacion"], "NumeroPos"):
 			# agarro el numero de punto de venta directo desde la fiscal
 			numpos = retdata["ConsultarDatosInicializacion"]["NumeroPos"]
 
