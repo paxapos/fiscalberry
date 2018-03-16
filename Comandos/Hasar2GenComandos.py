@@ -506,4 +506,4 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 		"""Abrir cajón del dinero - No es mandatory implementarlo"""
 		jdata = {"AbrirCajonDinero" : {}}
 
-		self.conector.sendCommand( jdata )
+		return self.conector.sendCommand( jdata )
