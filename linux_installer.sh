@@ -17,6 +17,7 @@ pip install requests
 pip install tornado
 pip install python-escpos
 pip install pyutf8
+pip install PyJWT
 
 echo -n "Crear daemond fiscalberry-server-rc (y/n)? "
 read answer
