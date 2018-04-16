@@ -332,6 +332,7 @@ class HasarComandos(ComandoFiscalInterface):
             description = [description]
         if itemNegative:
             sign = 'm'
+            iva = 0.00
         else:
             sign = 'M'
         quantityStr = str(float(quantity)).replace(',', '.')
