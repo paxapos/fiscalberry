@@ -141,6 +141,8 @@ class HasarComandos(ComandoFiscalInterface):
             return ret
         except PrinterException, e:
             logging.getLogger().error("PrinterException: %s" % str(e))
+            raise Exception("Error de la impresora fiscal: %s.\nComando enviado: %s" % \
+                                   (str(e), commandString))
 
     def openNonFiscalReceipt(self):
         status = self._sendCommand(self.CMD_OPEN_NON_FISCAL_RECEIPT, [])
