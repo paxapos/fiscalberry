@@ -11,7 +11,7 @@ AUTHORIZATION_METHOD = 'bearer'
 #SECRET_KEY = "my_secret_key"
 INVALID_HEADER_MESSAGE = "invalid header authorization"
 MISSING_AUTHORIZATION_KEY = "Missing authorization"
-AUTHORIZTION_ERROR_CODE = 401
+AUTHORIZATION_ERROR_CODE = 401
 
 jwt_options = {
     'verify_signature': True,
@@ -69,7 +69,7 @@ def return_auth_error(handler, message):
     """
     response= {}
     handler._transforms = []
-    handler.set_status(AUTHORIZTION_ERROR_CODE)
+    handler.set_status(AUTHORIZATION_ERROR_CODE)
     response['err']= message
     handler.write(response)
     handler.finish()
@@ -105,6 +105,7 @@ def jwtauth(handler_class):
 
             else:
                 handler._transforms = []
+                handler.set_status(AUTHORIZATION_ERROR_CODE)
                 handler.write(MISSING_AUTHORIZATION_KEY)
                 handler.finish()
 
