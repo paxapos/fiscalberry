@@ -226,7 +226,10 @@ class EpsonComandos(ComandoFiscalInterface):
         if self._currentDocument in (self.CURRENT_DOC_NON_FISCAL,):
             self.printNonFiscalText("CANCELADO")
             return self.closeDocument()
-        raise NotImplementedError
+        #Esto es por si alguna razon un printTicket quedo sin completarse. Ya que si no, no hay manera de cancelar el documento abierto
+        self.cancelAnyDocument()
+        return []
+        #raise NotImplementedError
 
     def addItem(self, description, quantity, price, iva, itemNegative=False, discount=0, discountDescription='',
                 discountNegative=True):
