@@ -85,6 +85,7 @@ class EscPComandos(ComandoInterface):
         tot_chars = 40
         tot_importe = 0.0
         for item in items:
+            printer.set("LEFT", "A", "A", 1, 1)
             desc = item.get('ds')[0:24]
             cant = float(item.get('qty'))
             unidad_de_medida = item.get('unidad_de_medida')
