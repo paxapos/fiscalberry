@@ -61,26 +61,26 @@ class EscPComandos(ComandoInterface):
         # colocar en modo ESC P
         printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "1")
 
-        printer.text("Nueva órden de compra \n")
+        printer.text("Nueva orden de compra \n")
         printer.set("LEFT", "A", "A", 1, 1)
         fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M %x')
         if encabezado:
             if encabezado.has_key("nombre_proveedor"):
-                printer.text("Proveedor: ", encabezado.get("nombre_proveedor") )
+                printer.text("Proveedor: "+encabezado.get("nombre_proveedor") )
                 printer.text("\n")
             if encabezado.has_key("cuit") and len(encabezado.get("cuit")) > 1: 
-                printer.text("CUIT: ", encabezado.get("cuit") )
+                printer.text("CUIT: "+encabezado.get("cuit") )
             if encabezado.has_key("telefono") and len(encabezado.get("telefono")) > 1:
-                printer.text(" - Telefono: ", encabezado.get("telefono") )
+                printer.text(" - Telefono: "+encabezado.get("telefono") )
             printer.text("\n")
             if encabezado.has_key("pedido_recepcionado"):
                 if encabezado.get("pedido_recepcionado") == 1:
-                    printer.text("Esta órden de compra ya ha sido recepcionada\n")
+                    printer.text("Esta orden de compra ya ha sido recepcionada\n")
         printer.text("Fecha: %s \n\n\n" % fecha)
 
 
 
-        printer.text("CANT\tU/M\tDESCRIPCION\t\tPRECIO\n")
+        printer.text("CANT\tDESCRIPCION\t\tPRECIO\n")
         printer.text("\n")
         tot_chars = 40
         tot_importe = 0.0
@@ -98,11 +98,11 @@ class EscPComandos(ComandoInterface):
             can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            printer.text("%g\t%s\t%s$%g\n" % (cant, " "+unidad_de_medida, strTabs, precio))
+            printer.text("%g%s%s\t%s$%g\n" % (cant," ",unidad_de_medida, strTabs, precio))
 
             if observacion:
                 printer.set("LEFT", "B", "B", 1, 1)
-                printer.text("OBS de ",desc,": %s\n" % observacion)
+                printer.text("OBS de "+desc+": %s\n" % observacion)
 
         printer.text("\n")
 
