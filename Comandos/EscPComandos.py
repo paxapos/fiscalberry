@@ -102,7 +102,7 @@ class EscPComandos(ComandoInterface):
 
             if observacion:
                 printer.set("LEFT", "B", "B", 1, 1)
-                printer.text("OBS de: %s\n" % observacion)
+                printer.text("OBS: %s\n" % observacion)
 
         printer.text("\n")
 
