@@ -73,14 +73,18 @@ class EscPComandos(ComandoInterface):
                 printer.text("\n")
             if encabezado.has_key("cuit") and len(encabezado.get("cuit")) > 1: 
                 printer.text("CUIT: "+encabezado.get("cuit") )
+                printer.text("\n")
             if encabezado.has_key("telefono") and len(encabezado.get("telefono")) > 1:
-                printer.text(" - Telefono: "+encabezado.get("telefono") )
+                printer.text("Telefono: "+encabezado.get("telefono") )
+                printer.text("\n")
+            if encabezado.has_key("email") and len(encabezado.get("email")) > 1:
+                printer.text("E-mail: "+encabezado.get("email") )
             printer.text("\n")
             if encabezado.has_key("pedido_recepcionado"):
                 if encabezado.get("pedido_recepcionado") == 1:
                     printer.text("Esta orden de compra ya ha sido recepcionada\n")
         printer.text("Fecha: %s \n\n\n" % fecha)
-        
+
         printer.text("CANT\tDESCRIPCION\n")
         printer.text("\n")
         tot_chars = 40
