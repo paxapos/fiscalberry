@@ -83,26 +83,20 @@ class EscPComandos(ComandoInterface):
 
 
 
-        printer.text("CANT\tDESCRIPCION\t\tPRECIO\n")
+        printer.text("CANT\tDESCRIPCION\n")
         printer.text("\n")
         tot_chars = 40
-        tot_importe = 0.0
         for item in items:
             printer.set("LEFT", "A", "A", 1, 1)
             desc = item.get('ds')[0:24]
             cant = float(item.get('qty'))
             unidad_de_medida = item.get('unidad_de_medida')
-            if item.get('importe'):
-                precio = float(item.get('importe'))
-            else:
-                precio = 0;
             observacion = item.get('observacion')
-            tot_importe += precio
             cant_tabs = 3
             can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            printer.text("%g%s%s\t%s$%g\n" % (cant," ",unidad_de_medida, strTabs, precio))
+            printer.text("%g%s%s\t%s$%g\n" % (cant," ",unidad_de_medida, strTabs))
 
             if observacion:
                 printer.set("LEFT", "B", "B", 1, 1)
