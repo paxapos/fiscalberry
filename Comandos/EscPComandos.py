@@ -80,9 +80,7 @@ class EscPComandos(ComandoInterface):
                 if encabezado.get("pedido_recepcionado") == 1:
                     printer.text("Esta orden de compra ya ha sido recepcionada\n")
         printer.text("Fecha: %s \n\n\n" % fecha)
-
-
-
+        
         printer.text("CANT\tDESCRIPCION\n")
         printer.text("\n")
         tot_chars = 40
@@ -96,18 +94,13 @@ class EscPComandos(ComandoInterface):
             can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            printer.text("%g%s%s\t%s$%g\n" % (cant," ",unidad_de_medida, strTabs))
+            printer.text("%g%s%s\t%s\n" % (cant," ",unidad_de_medida, strTabs))
 
             if observacion:
                 printer.set("LEFT", "B", "B", 1, 1)
                 printer.text("OBS de: %s\n" % observacion)
 
         printer.text("\n")
-
-        # imprimir total
-        printer.set("RIGHT", "A", "A", 2, 2)
-        printer.text("TOTAL: $%g\n" % tot_importe)
-        printer.text("\n\n\n")
 
         barcode = kwargs.get("barcode", None)
         if barcode:            
