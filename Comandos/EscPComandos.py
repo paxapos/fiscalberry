@@ -61,7 +61,10 @@ class EscPComandos(ComandoInterface):
         # colocar en modo ESC P
         printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "1")
 
-        printer.text("Nueva orden de compra \n")
+        if encabezado.has_key("es_pedido"):
+            printer.text("Nuevo Pedido \n")
+        else:
+            printer.text("Nueva OC \n")
         printer.set("LEFT", "A", "A", 1, 1)
         fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M %x')
         if encabezado:
