@@ -110,14 +110,17 @@ class EpsonComandos(ComandoFiscalInterface):
             line += 1
 
     def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, reference="NC"):
+        if docType == 'C':
+            docType = 'DOC_TYPE_CUIT'
         return self._openBillCreditTicket(type, name, address, doc, docType, ivaType, isCreditNote=True)
 
     def openBillTicket(self, type, name, address, doc, docType, ivaType):
+        if docType == 'C':
+            docType = 'DOC_TYPE_CUIT'
         return self._openBillCreditTicket(type, name, address, doc, docType, ivaType, isCreditNote=False)
 
     def _openBillCreditTicket(self, type, name, address, doc, docType, ivaType, isCreditNote,
                               reference=None):
-
         if not doc or not docType in self.docTypeNames:
             doc, docType = "", ""
         else:
@@ -149,6 +152,8 @@ class EpsonComandos(ComandoFiscalInterface):
                           "C",  # No somos una farmacia
                           ]
         else:
+            if not ivaType:
+                ivaType = 'F'  # Default is Consumidor Final
             parameters = [isCreditNote and "M" or "T",  # Ticket NC o Factura
                           "C",  # Tipo de Salida - Ignorado
                           type,  # Tipo de FC (A/B/C)
@@ -156,17 +161,16 @@ class EpsonComandos(ComandoFiscalInterface):
                           "P",  # Tipo de Hoja - Ignorado
                           "17",  # Tamaño Carac - Ignorado
                           "E",  # Responsabilidad en el modo entrenamiento - Ignorado
-                          self.ivaTypes.get(ivaType, "F"),  # Iva Comprador
+                          ivaType,  # Iva Comprador
                           formatText(name[:40]),  # Nombre
                           formatText(name[40:80]),  # Segunda parte del nombre - Ignorado
-                          formatText(docType) or (isCreditNote and "-" or ""),
-                          # Tipo de Doc. - Si es NC obligado pongo algo
+                          formatText(docType) or (isCreditNote and "-" or ""), # Tipo de Doc. - Si es NC obligado pongo algo
                           doc or (isCreditNote and "-" or ""),  # Nro Doc - Si es NC obligado pongo algo
                           "N",  # No imprime leyenda de BIENES DE USO
                           formatText(address[:self.ADDRESS_SIZE] or "-"),  # Domicilio
                           formatText(address[self.ADDRESS_SIZE:self.ADDRESS_SIZE * 2]),  # Domicilio 2da linea
                           formatText(address[self.ADDRESS_SIZE * 2:self.ADDRESS_SIZE * 3]),  # Domicilio 3ra linea
-                          (isCreditNote or self.ivaTypes.get(ivaType, "F") != "F") and "-" or "",
+                          (isCreditNote or (ivaType != "F")) and "-" or "",
                           # Remito primera linea - Es obligatorio si el cliente no es consumidor final
                           "",  # Remito segunda linea
                           "C",  # No somos una farmacia
