@@ -250,7 +250,8 @@ class EpsonComandos(ComandoFiscalInterface):
             bultosStr = "0" * 5  # No se usa en TM220AF ni TM300AF ni TMU220AF
         if self._currentDocumentType != 'A':
             # enviar con el iva incluido
-            priceUnitStr = str(int(round(price * 100, 0)))
+            # priceUnitStr = str(int(round(price * 100, 0)))
+            priceUnitStr = "%0.4f" % price
         else:
             if self.model == "tm-220-af" or self.model == "tm-t900fa":
                 # enviar sin el iva (factura A)
