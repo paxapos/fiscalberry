@@ -35,6 +35,7 @@ class EpsonComandos(ComandoFiscalInterface):
     CMD_CLOSE_FISCAL_RECEIPT = (0x45, 0x65)
     CMD_DAILY_CLOSE = 0x39
     CMD_STATUS_REQUEST = 0x2a
+    CMD_PERCEPTIONS = 0x66
 
     CMD_OPEN_DRAWER = 0x7b
 
@@ -281,6 +282,17 @@ class EpsonComandos(ComandoFiscalInterface):
         status = self._sendCommand(self.CMD_ADD_PAYMENT[self._getCommandIndex()],
                                    [formatText(description)[:20], paymentStr, 'T'])
         return status
+
+    def addPerception(self, description, amount):
+        tipoPerc = 'O'
+        montoPerc = str(int(amount * 100))
+        status = self._sendCommand(self.CMD_PERCEPTIONS, [formatText(description)[:20], tipoPerc, montoPerc])
+        return status
+        # paymentStr = str(int(amount * 100))
+        # status = self._sendCommand(self.CMD_ADD_PERCEPTION,
+        #                            [formatText(description)[:20], "O", "1.1", 'T'])
+        # return status
+
 
     def addAdditional(self, description, amount, iva, negative=False):
         """Agrega un adicional a la FC.

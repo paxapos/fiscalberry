@@ -41,7 +41,7 @@ class TraductorFiscal(TraductorInterface):
         "Cancelar comprobante en curso"
         return self.comando.cancelDocument()
 
-    def printTicket(self, encabezado=None, items=[], pagos=[], addAdditional=None, setHeader=None, setTrailer=None):
+    def printTicket(self, encabezado=None, items=[], pagos=[], percepciones=[], addAdditional=None, setHeader=None, setTrailer=None):
         if setHeader:
             self.setHeader(*setHeader)
 
@@ -55,6 +55,10 @@ class TraductorFiscal(TraductorInterface):
 
         for item in items:
             self._imprimirItem(**item)
+
+        if percepciones:
+            for percepcion in percepciones:
+                self._imprimirPercepcion(**percepcion)
 
         if pagos:
             for pago in pagos:
@@ -84,7 +88,7 @@ class TraductorFiscal(TraductorInterface):
                                            nombre_cliente=nombre_cliente,
                                            domicilio_cliente=domicilio_cliente,
                                            referencia=referencia),
-                        "items": [], "pagos": []}
+                                           "items": [], "pagos": [], "percepciones": []}
         printer = self.comando
 
         letra_cbte = tipo_cbte[-1] if len(tipo_cbte) > 1 else None
@@ -140,6 +144,11 @@ class TraductorFiscal(TraductorInterface):
         "Imprime una linea con la forma de pago y monto"
         self.factura["pagos"].append(dict(ds=ds, importe=importe))
         return self.comando.addPayment(ds, float(importe))
+
+    def _imprimirPercepcion(self, ds, importe):
+        "Imprime una linea con nombre de percepcion y monto"
+        self.factura["percepciones"].append(dict(ds=ds, importe=importe))
+        return self.comando.addPerception(ds, float(importe))
 
     def _cerrarComprobante(self, *args):
         "Envia el comando para cerrar un comprobante Fiscal"
