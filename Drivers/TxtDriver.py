@@ -48,5 +48,14 @@ class TxtDriver(DriverInterface):
     def reconnect(self):
         pass
 
-    def set(self):
+    def set(self, *args):
+        pass
+
+    def _raw(self, *args):
+        pass
+
+    def text(self, *args):
+        pass
+
+    def cut(self, *args):
         pass
