@@ -177,9 +177,11 @@ class FiscalberryApp:
             ssl_crt_path = self.configberry.config.get('SERVIDOR', "ssl_crt_path")
             ssl_key_path = self.configberry.config.get('SERVIDOR', "ssl_key_path")
             if ( ssl_crt_path and ssl_key_path ):
-                context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-                context.load_cert_chain(certfile=ssl_crt_path, keyfile=ssl_key_path)
-                self.https_server = tornado.httpserver.HTTPServer(self.application, ssl_options=context)
+                self.https_server = tornado.httpserver.HTTPServer(self.application, ssl_options=
+                    {
+                        "certfile": ssl_crt_path,
+                        "keyfile": ssl_key_path,
+                    })
 
         self.print_printers_resume()
         myIP = socket.gethostbyname(socket.gethostname())
