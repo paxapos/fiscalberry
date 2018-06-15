@@ -1,7 +1,8 @@
 [SERVIDOR]
 puerto = 12000
 discover_url = 
-
+ssl_crt_path = 
+ssl_key_path =
 
 [IMPRESORA_FISCAL]
 marca = Hasar

@@ -141,6 +141,7 @@ class FiscalberryApp:
     def start(self):
         logger.info("Iniciando Fiscalberry Server")
         self.application = tornado.web.Application([
+            (r'/wss', WSHandler),
             (r'/ws', WSHandler),
             (r'/', PageHandler),
             (r"/(.*)", web.StaticFileHandler, dict(path=root + "/js_browser_client")),
@@ -166,10 +167,10 @@ class FiscalberryApp:
         if (hasCrt and hasKey):
             ssl_crt_path = self.configberry.config.get('SERVIDOR', "ssl_crt_path")
             ssl_key_path = self.configberry.config.get('SERVIDOR', "ssl_key_path")
-            context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-            context.load_cert_chain(certfile=ssl_crt_path, keyfile=ssl_key_path)
-
-            self.https_server = tornado.httpserver.HTTPServer(self.application, ssl_options=context)
+            if ( ssl_crt_path and ssl_key_path ):
+                context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+                context.load_cert_chain(certfile=ssl_crt_path, keyfile=ssl_key_path)
+                self.https_server = tornado.httpserver.HTTPServer(self.application, ssl_options=context)
 
         self.print_printers_resume()
         myIP = socket.gethostbyname(socket.gethostname())
