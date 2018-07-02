@@ -36,6 +36,7 @@ class HasarComandos(ComandoFiscalInterface):
     CMD_CLOSE_CREDIT_NOTE = 0x81
 
     CMD_CREDIT_NOTE_REFERENCE = 0x93
+    CMD_PERCEPTIONS = 0x60
 
     CMD_SET_CUSTOMER_DATA = 0x62
     CMD_LAST_ITEM_DISCOUNT = 0x55
@@ -357,6 +358,18 @@ class HasarComandos(ComandoFiscalInterface):
     def addPayment(self, description, payment):
         paymentStr = ("%.2f" % round(payment, 2)).replace(",", ".")
         self._savedPayments.append((description, paymentStr))
+
+    def addPerception(self, description, price, iva='21.0', porcPerc=0):
+        priceUnit = price
+        priceUnitStr = str(priceUnit).replace(",", ".")
+
+        if isinstance(iva, basestring):
+            ivaStr = iva.replace(",", ".")
+        else:
+            ivaStr = str(float(iva)).replace(",", ".")
+
+        reply = self._sendCommand(self.CMD_PERCEPTIONS, [ivaStr, self._formatText(description, 'perception'), priceUnitStr])
+        return reply
 
     def addAdditional(self, description, amount, iva, negative=False):
         """Agrega un adicional a la FC.
