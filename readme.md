@@ -50,19 +50,13 @@ probado bajo python 2.7.6 en Linux, Raspian, Ubuntu, Open Suse y Windows
 
 Se necesitan varias dependencias:
 ```sh
-sudo apt-get install python-pip libjpeg-dev
-sudo pip install pyserial requests
-sudo apt-get install build-essential python-dev
-sudo pip install tornado
-sudo apt-get install nmap
-sudo pip install python-nmap
-sudo apt-get install python-imaging python-dev python-setuptools
-sudo pip install python-escpos
+sudo pip install -r requirements.txt
+
 ```
 
 Si te encontras con el error "socket.gaierror:  Name or service not known"
 
-A veces, en Linux, ser necesario poner el nombre del equipo (hostname) en el archivo /etc/hosts, si es que aún no lo tenías.
+A veces, en Linux (Open Suse), ser necesario poner el nombre del equipo (hostname) en el archivo /etc/hosts, si es que aún no lo tenías.
 Generalmente el archivo hosts viene solo con la dirección "127.0.0.1 localhost", 
 
 para solucionarlo debés ejecutar el comando 
@@ -79,7 +73,7 @@ y ver cuál es el nombre de la máquina para agregarlo al archivo /etc/hosts
 ```sh
 sudo python server.py
 
-# o iniciar como demonio
+# o iniciar como demonio linux
 sudo python rundaemon.py
 ```
 
