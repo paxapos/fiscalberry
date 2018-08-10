@@ -57,6 +57,7 @@ class EscPComandos(ComandoInterface):
         items = kwargs.get("items", [])
         addAdditional = kwargs.get("addAdditional", None)
         setTrailer = kwargs.get("setTrailer", None)
+        
 
         printer.start()
         
@@ -126,12 +127,17 @@ class EscPComandos(ComandoInterface):
         if barcode:            
             printer.barcode(str(barcode).rjust(8, "0"), 'EAN13')
 
+        qrcode = kwargs.get("qr", None)
+        if qrcode:
+            printer.qr(content, center=True)
+
         printer.set("CENTER", "A", "B", 2, 2)
         if self.__preFillTrailer:
             self._setTrailer(self.__preFillTrailer)
 
         if setTrailer:
             self._setTrailer(setTrailer)   
+
 
         printer.cut("PART")
 
