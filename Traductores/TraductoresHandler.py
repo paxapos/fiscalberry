@@ -43,59 +43,73 @@ class TraductoresHandler:
         self.webSocket = webSocket
 
     def json_to_comando(self, jsonTicket):
-        """ leer y procesar una factura en formato JSON
-        """
-        logging.info("Iniciando procesamiento de json...")
+        try:
+            """ leer y procesar una factura en formato JSON
+            """
+            logging.info("Iniciando procesamiento de json...")
 
-        print jsonTicket
+            print jsonTicket
 
-        traductor = None
+            traductor = None
 
-        rta = {"rta": ""}
-        # seleccionar impresora
-        # esto se debe ejecutar antes que cualquier otro comando
-        if 'printerName' in jsonTicket:
-            printerName = jsonTicket.pop('printerName')
+            rta = {"rta": ""}
+            # seleccionar impresora
+            # esto se debe ejecutar antes que cualquier otro comando
+            if 'printerName' in jsonTicket:
+                printerName = jsonTicket.pop('printerName')
 
-            traductor = self.__init_printer_traductor(printerName)
+                traductor = self.__init_printer_traductor(printerName)
 
-            if traductor:
-                if traductor.comando.conector is not None:
-                    rta["rta"] = traductor.run(jsonTicket)
+                if traductor:
+                    if traductor.comando.conector is not None:
+                        rta["rta"] = traductor.run(jsonTicket)
+                    else:
+                        raise TraductorException("el Driver no esta inicializado para la impresora %s" % printerName)
                 else:
-                    raise TraductorException("el Driver no esta inicializado para la impresora %s" % printerName)
+                    raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'" % printerName)
+
+            # aciones de comando genericos de Ststus y control
+            elif 'getStatus' in jsonTicket:
+                rta["rta"] = self._getStatus()
+
+            elif 'restart' in jsonTicket:
+                rta["rta"] = self._restartFiscalberry()
+
+            elif 'getPrinterInfo' in jsonTicket:
+                rta["rta"] =  self._getPrinterInfo(jsonTicket["getPrinterInfo"])
+
+            elif 'findAvaliablePrinters' in jsonTicket:
+                self._findAvaliablePrinters()
+                rta["rta"] = self._getAvaliablePrinters()
+
+            elif 'getAvaliablePrinters' in jsonTicket:
+                rta["rta"] = self._getAvaliablePrinters()
+
+            elif 'getActualConfig' in jsonTicket:
+                rta["rta"] = self._getActualConfig()
+
+            elif 'configure' in jsonTicket:
+                rta["rta"] = self._configure(**jsonTicket["configure"])
+
+            elif 'removerImpresora' in jsonTicket:
+                rta["rta"] =  self._removerImpresora(jsonTicket["removerImpresora"])
+
             else:
-                raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'" % printerName)
+                logging.error("No se pasó un comando válido")
+                raise TraductorException("No se pasó un comando válido")
 
-        # aciones de comando genericos de Ststus y control
-        elif 'getStatus' in jsonTicket:
-            rta["rta"] = self._getStatus()
+            # cerrar el driver
+            if traductor and traductor.comando:
+                traductor.comando.close()
 
-        elif 'restart' in jsonTicket:
-            rta["rta"] = self._restartFiscalberry()
+            return rta
 
-        elif 'getPrinterInfo' in jsonTicket:
-            rta["rta"] =  self._getPrinterInfo(jsonTicket["getPrinterInfo"])
+        except Exception, e:
+            # cerrar el driver
+            if traductor and traductor.comando:
+                traductor.comando.close()
 
-        elif 'findAvaliablePrinters' in jsonTicket:
-            self._findAvaliablePrinters()
-            rta["rta"] = self._getAvaliablePrinters()
-
-        elif 'getAvaliablePrinters' in jsonTicket:
-            rta["rta"] = self._getAvaliablePrinters()
-
-        elif 'configure' in jsonTicket:
-            rta["rta"] = self._configure(**jsonTicket["configure"])
-
-        else:
-            logging.error("No se pasó un comando válido")
-            raise TraductorException("No se pasó un comando válido")
-
-        # cerrar el driver
-        if traductor and traductor.comando:
-            traductor.comando.close()
-
-        return rta
+            raise
 
     def getWarnings(self):
         """ Recolecta los warning que puedan ir arrojando las impresoraas
@@ -114,6 +128,7 @@ class TraductoresHandler:
         device_list = [
             '00:0E:C3',  # Logic Controls BEMATECH
             '00:07:25',  # Bematech
+            'D8:D8:D8',  # Hasar 2Gen
         ]
 
         avaliablePrinters = []  # lo retornado
@@ -169,14 +184,18 @@ class TraductoresHandler:
 
     def __init_printer_traductor(self, printerName):
 
-        dictSectionConf = self.config.get_config_for_printer(printerName)
+        try:
+            dictSectionConf = self.config.get_config_for_printer(printerName)
+        except KeyError as e:
+            raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'" % printerName)
+
         marca = dictSectionConf.get("marca")
         del dictSectionConf['marca']
         # instanciar los comandos dinamicamente
         libraryName = "Comandos." + marca + "Comandos"
         comandoModule = importlib.import_module(libraryName)
         comandoClass = getattr(comandoModule, marca + "Comandos")
-
+        
         comando = comandoClass(**dictSectionConf)
         return comando.traductor
 
@@ -196,20 +215,36 @@ class TraductoresHandler:
 
         resdict = {
             "action": "restartFIscalberry",
-            "rta": call(["service", "fiscalberry-server-rc", "restart"])
+            "rta": call(["systemctl", "restart", "fiscalberry.service"])
         }
 
         return resdict
 
-    def _configure(self, printerName, **kwargs):
+    def _configure(self, **kwargs):
         "Configura generando o modificando el archivo configure.ini"
-
-        self.config.writeSectionWithKwargs(printerName, kwargs)
+        printerName = kwargs["printerName"]
+        propiedadesImpresora = kwargs
+        if "nombre_anterior" in kwargs:
+            self._removerImpresora(kwargs["nombre_anterior"])
+            del propiedadesImpresora["nombre_anterior"]
+        del propiedadesImpresora["printerName"]
+        self.config.writeSectionWithKwargs(printerName, propiedadesImpresora)
 
         return {
             "action": "configure",
-            "rta": "ok"
+            "rta": "La seccion "+printerName+" ha sido guardada" 
         }
+
+    def _removerImpresora(self, printerName):
+        "elimina la sección del config.ini"
+
+        self.config.delete_printer_from_config(printerName)
+
+        return {
+            "action": "removerImpresora",
+            "rta": "La impresora "+printerName+" fue removida con exito"
+        }
+
 
     def _findAvaliablePrinters(self):
         # Esta función llama a otra que busca impresoras. Luego se encarga de escribir el config.ini con las impresoras encontradas.
@@ -250,3 +285,11 @@ class TraductoresHandler:
         except Exception:
             # ok, no quiere conectar, continuar sin hacer nada
             print("No hay caso, probe de reconectar pero no se pudo")
+
+    def _getActualConfig(self):
+        rta = {
+            "action": "getActualConfig",
+            "rta": self.config.get_actual_config()
+        }
+
+        return rta

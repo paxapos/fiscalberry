@@ -8,7 +8,6 @@ class TraductorInterface:
     def run(self, jsonTicket):
         actions = jsonTicket.keys()
         rta = []
-
         for action in actions:
             fnAction = getattr(self, action)
 

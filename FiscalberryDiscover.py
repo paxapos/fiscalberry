@@ -3,11 +3,12 @@
 import requests
 import uuid
 import json
+import logging
+
 
 
 def send(configberry):
     if not configberry.config.has_option('SERVIDOR', "uuid"):
-        print uuid.getnode()
         uuidvalue = str(uuid.uuid1(uuid.getnode(), 0))[24:]
         configberry.writeSectionWithKwargs('SERVIDOR', {'uuid': uuidvalue})
 
@@ -17,13 +18,16 @@ def send(configberry):
         "raw_data": json.dumps(configberry.getJSON())
     }
 
-    print senddata
 
     discoverUrl = configberry.config.get('SERVIDOR', "discover_url")
 
-    resp = requests.post(discoverUrl, data=senddata)
+    ret = None
+    if discoverUrl:
+        try:
+            ret = requests.post(discoverUrl, data=senddata)
+        except Exception, e:
+            logging.getLogger().info("Mensaje de exception del discover: %s", e)
 
-    print resp
+    return ret
     # resp.raise_for_status()
 
-    return resp

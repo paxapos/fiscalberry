@@ -12,6 +12,11 @@ class TraductorFiscal(TraductorInterface):
         ret = self.comando.dailyClose(type)
         return ret
 
+    def getStatus(self, *args):
+        "getStatus"
+        ret = self.comando.getStatus(list(args))
+        return ret
+
     def setHeader(self, *args):
         "SetHeader"
         ret = self.comando.setHeader(list(args))
@@ -32,34 +37,38 @@ class TraductorFiscal(TraductorInterface):
         letra_cbte = tipo_cbte[-1] if len(tipo_cbte) > 1 else None
         return self.comando.getLastNumber(letra_cbte)
 
-    def cancelDocument(self):
+    def cancelDocument(self, *args):
         "Cancelar comprobante en curso"
         return self.comando.cancelDocument()
 
     def printTicket(self, encabezado=None, items=[], pagos=[], addAdditional=None, setHeader=None, setTrailer=None):
-        if setHeader:
-            self.setHeader(*setHeader)
+        try:
+          if setHeader:
+              self.setHeader(*setHeader)
 
-        if setTrailer:
-            self.setTrailer(*setTrailer)
+          if setTrailer:
+              self.setTrailer(*setTrailer)
 
-        if encabezado:
-            self._abrirComprobante(**encabezado)
-        else:
-            self._abrirComprobante()
+          if encabezado:
+              self._abrirComprobante(**encabezado)
+          else:
+              self._abrirComprobante()
 
-        for item in items:
-            self._imprimirItem(**item)
+          for item in items:
+              self._imprimirItem(**item)
 
-        if pagos:
-            for pago in pagos:
-                self._imprimirPago(**pago)
+          if pagos:
+              for pago in pagos:
+                  self._imprimirPago(**pago)
 
-        if addAdditional:
-            self.comando.addAdditional(**addAdditional)
+          if addAdditional:
+              self.comando.addAdditional(**addAdditional)
 
-        rta = self._cerrarComprobante()
-        return rta
+          rta = self._cerrarComprobante()
+          return rta
+        except Exception, e:
+          self.cancelDocument()
+          raise
 
     def _abrirComprobante(self,
                           tipo_cbte="T",  # tique
@@ -136,6 +145,6 @@ class TraductorFiscal(TraductorInterface):
         self.factura["pagos"].append(dict(ds=ds, importe=importe))
         return self.comando.addPayment(ds, float(importe))
 
-    def _cerrarComprobante(self):
+    def _cerrarComprobante(self, *args):
         "Envia el comando para cerrar un comprobante Fiscal"
         return self.comando.closeDocument()

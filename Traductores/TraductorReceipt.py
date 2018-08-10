@@ -6,6 +6,10 @@ class TraductorReceipt(TraductorInterface):
         "Imprime un Remito, comando de accion valido solo para Comandos de Receipt"
         return self.comando.printRemito(**kwargs)
 
+    def printPedido(self, **kwargs):
+        "Imprime un Pedido de compras, comando de accion valido solo para Comandos de Receipt"
+        return self.comando.printPedido(**kwargs)
+
     def printComanda(self, comanda, setHeader=None, setTrailer=None):
         "Imprime una Comanda, comando de accion valido solo para Comandos de Receipt"
         return self.comando.printComanda(comanda, setHeader, setTrailer)

@@ -5,7 +5,7 @@ import logging
 import unicodedata
 from Comandos.ComandoFiscalInterface import ComandoFiscalInterface
 from Drivers.FiscalPrinterDriver import PrinterException
-from ComandoInterface import formatText
+from ComandoInterface import formatText, ComandoException
 
 NUMBER = 999990
 
@@ -141,7 +141,7 @@ class HasarComandos(ComandoFiscalInterface):
             return ret
         except PrinterException, e:
             logging.getLogger().error("PrinterException: %s" % str(e))
-            raise ComandoException("Error de la impresora fiscal: %s.\nComando enviado: %s" % \
+            raise Exception("Error de la impresora fiscal: %s.\nComando enviado: %s" % \
                                    (str(e), commandString))
 
     def openNonFiscalReceipt(self):
@@ -307,8 +307,9 @@ class HasarComandos(ComandoFiscalInterface):
         raise NotImplementedError
 
     def cancelDocument(self):
-        if not hasattr(self, "_currentDocument"):
-            return
+        #if not hasattr(self, "_currentDocument"):
+        #    self.cancelAnyDocument()
+        #    return []
         if self._currentDocument in (self.CURRENT_DOC_TICKET, self.CURRENT_DOC_BILL_TICKET,
                                      self.CURRENT_DOC_CREDIT_BILL_TICKET, self.CURRENT_DOC_CREDIT_TICKET):
             try:
@@ -324,7 +325,10 @@ class HasarComandos(ComandoFiscalInterface):
             self.cancelAnyDocument()
             status = []
             return status
-        raise NotImplementedError
+        #Esto es por si alguna razon un printTicket quedo sin completarse. Ya que si no, no hay manera de cancelar el documento abierto
+        self.cancelAnyDocument()
+        return []
+        #raise NotImplementedError
 
     def addItem(self, description, quantity, price, iva, itemNegative=False, discount=0, discountDescription='',
                 discountNegative=True):
@@ -478,7 +482,7 @@ class HasarComandos(ComandoFiscalInterface):
     def cancelAnyDocument(self):
         try:
             self._sendCommand(self.CMD_CANCEL_ANY_DOCUMENT)
-        #            return True
+            return True
         except:
             pass
         try:

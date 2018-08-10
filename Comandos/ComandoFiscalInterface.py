@@ -6,6 +6,33 @@ import logging
 class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
     """Interfaz que deben cumplir las impresoras fiscales."""
 
+
+    
+    docTypes = {
+        "CUIT": 'C',
+        "LIBRETA_ENROLAMIENTO": '0',
+        "LIBRETA_CIVICA": '1',
+        "DNI": '2',
+        "PASAPORTE": '3',
+        "CEDULA": '4',
+        "SIN_CALIFICADOR": ' ',
+    }
+
+    ivaTypes = {
+        "RESPONSABLE_INSCRIPTO": 'I',
+        "RESPONSABLE_NO_INSCRIPTO": 'N',
+        "EXENTO": 'E',
+        "NO_RESPONSABLE": 'A',
+        "CONSUMIDOR_FINAL": 'C',
+        "RESPONSABLE_NO_INSCRIPTO_BIENES_DE_USO": 'B',
+        "RESPONSABLE_MONOTRIBUTO": 'M',
+        "MONOTRIBUTISTA_SOCIAL": 'S',
+        "PEQUENIO_CONTRIBUYENTE_EVENTUAL": 'V',
+        "PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL": 'W',
+        "NO_CATEGORIZADO": 'T',
+    }
+
+
     def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
         print "_sendCommand", commandNumber, parameters
         try:
@@ -31,6 +58,11 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
 
     def closeDocument(self):
         """Cierra el documento que esté abierto"""
+        raise NotImplementedError
+
+
+    def setTrailer(self, trailer=None):
+        """Establecer pie"""
         raise NotImplementedError
 
     def cancelDocument(self):
@@ -65,30 +97,6 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
         "DOC_TYPE_PASAPORTE": 'PASAP',
         "DOC_TYPE_CEDULA": 'CED',
         "DOC_TYPE_SIN_CALIFICADOR": 'S/C'
-    }
-
-    docTypes = {
-        "CUIT": 'C',
-        "LIBRETA_ENROLAMIENTO": '0',
-        "LIBRETA_CIVICA": '1',
-        "DNI": '2',
-        "PASAPORTE": '3',
-        "CEDULA": '4',
-        "SIN_CALIFICADOR": ' ',
-    }
-
-    ivaTypes = {
-        "RESPONSABLE_INSCRIPTO": 'I',
-        "RESPONSABLE_NO_INSCRIPTO": 'N',
-        "EXENTO": 'E',
-        "NO_RESPONSABLE": 'A',
-        "CONSUMIDOR_FINAL": 'C',
-        "RESPONSABLE_NO_INSCRIPTO_BIENES_DE_USO": 'B',
-        "RESPONSABLE_MONOTRIBUTO": 'M',
-        "MONOTRIBUTISTA_SOCIAL": 'S',
-        "PEQUENIO_CONTRIBUYENTE_EVENTUAL": 'V',
-        "PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL": 'W',
-        "NO_CATEGORIZADO": 'T',
     }
 
     # Ticket fiscal (siempre es a consumidor final, no permite datos del cliente)

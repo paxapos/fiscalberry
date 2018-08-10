@@ -42,12 +42,85 @@ class EscPComandos(ComandoInterface):
        printer.cut("PART")
  
        printer.end()
-       
- 
 
-    def print_mesa_mozo(self, mesa, mozo):
-        self.doble_alto_x_linea("Mesa: %s" % mesa);
-        self.doble_alto_x_linea("Mozo: %s" % mozo);
+    def print_mesa_mozo(self, setTrailer):
+    	for key in setTrailer:
+    		self.doble_alto_x_linea(key)
+
+    def printPedido(self, **kwargs):
+        "imprimir pedido de compras"
+        printer = self.conector.driver
+
+        encabezado = kwargs.get("encabezado", None)
+        items = kwargs.get("items", [])
+
+        printer.start()
+        
+        printer.set("CENTER", "A", "A", 1, 1)
+        
+        # colocar en modo ESC P
+        printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "1")
+
+        if encabezado.has_key("es_pedido"):
+            printer.text("Nuevo Pedido \n")
+        else:
+            printer.text("Nueva OC \n")
+        printer.set("LEFT", "A", "A", 1, 1)
+        fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M %x')
+        if encabezado:
+            if encabezado.has_key("nombre_proveedor"):
+                printer.text("Proveedor: "+encabezado.get("nombre_proveedor") )
+                printer.text("\n")
+            if encabezado.has_key("cuit") and len(encabezado.get("cuit")) > 1: 
+                printer.text("CUIT: "+encabezado.get("cuit") )
+                printer.text("\n")
+            if encabezado.has_key("telefono") and len(encabezado.get("telefono")) > 1:
+                printer.text("Telefono: "+encabezado.get("telefono") )
+                printer.text("\n")
+            if encabezado.has_key("email") and len(encabezado.get("email")) > 1:
+                printer.text("E-mail: "+encabezado.get("email") )
+            printer.text("\n")
+            if encabezado.has_key("pedido_recepcionado"):
+                if encabezado.get("pedido_recepcionado") == 1:
+                    printer.text("Esta orden de compra ya ha sido recepcionada\n")
+        printer.text("Fecha: %s \n\n\n" % fecha)
+
+        printer.text("CANT\tDESCRIPCION\n")
+        printer.text("\n")
+        tot_chars = 40
+        for item in items:
+            printer.set("LEFT", "A", "A", 1, 1)
+            desc = item.get('ds')[0:24]
+            cant = float(item.get('qty'))
+            unidad_de_medida = item.get('unidad_de_medida')
+            observacion = item.get('observacion')
+            cant_tabs = 3
+            can_tabs_final = cant_tabs - ceil(len(desc) / 8)
+            strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
+
+            printer.text("%g%s%s\t%s\n" % (cant," ",unidad_de_medida, strTabs))
+
+            if observacion:
+                printer.set("LEFT", "B", "B", 1, 1)
+                printer.text("OBS: %s\n" % observacion)
+
+        printer.text("\n")
+
+        barcode = kwargs.get("barcode", None)
+        if barcode:            
+            printer.barcode(str(barcode).rjust(8, "0"), 'EAN13')
+
+        printer.set("CENTER", "A", "B", 2, 2)  
+
+        printer.cut("PART")
+
+        # volver a poner en modo ESC Bematech, temporal para testing
+        # printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "0")
+
+        # dejar letra chica alineada izquierda
+        printer.set("LEFT", "A", "B", 1, 2)
+        printer.end()
+
 
     def printRemito(self, **kwargs):
         "imprimir remito"
@@ -210,7 +283,7 @@ class EscPComandos(ComandoInterface):
             printer.text("\n")
 
             if 'observacion' in plato:
-                printer.set("LEFT", "B", "B", 1, 1)
+                printer.set("LEFT", "A", "B", 1, 2)
                 printer.text("   OBS: %s\n" % plato['observacion'])
 
         printer.text("\n")

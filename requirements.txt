@@ -1,16 +1,4 @@
-appdirs==1.4.3
-argcomplete==1.9.2
-backports-abc==0.5
-certifi==2017.7.27.1
-chardet==3.0.4
 future==0.16.0
-get==0.0.0
-idna==2.6
-jsonpointer==1.12
-olefile==0.44
-Pillow==4.3.0
-post==0.0.0
-public==0.0.0
 pyserial==3.4
 python-escpos==2.2.0
 python-nmap==0.6.1
@@ -18,7 +6,6 @@ pyusb==1.0.2
 pyutf8==0.1.1
 PyYAML==3.12
 qrcode==5.3
-query-string==0.0.0
 requests==2.18.4
 setupfiles==0.0.50
 singledispatch==3.4.0.3
@@ -27,3 +14,4 @@ tornado==4.5.2
 typing==3.6.2
 urllib3==1.22
 python-daemon==2.1.2
+PyJWT==1.5.3

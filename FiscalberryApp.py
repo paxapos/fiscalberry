@@ -5,6 +5,7 @@ import tornado.ioloop
 import tornado.web
 from threading import Timer
 from Traductores.TraductoresHandler import TraductoresHandler, TraductorException
+import sys
 import socket
 import os
 import json
@@ -15,16 +16,20 @@ import ssl
 import Configberry
 import FiscalberryDiscover
 from  tornado import web
-from signal import signal, SIGPIPE, SIG_DFL, SIGTERM, SIGINT
-signal(SIGPIPE,SIG_DFL) 
-
+if sys.platform == 'win32':
+    from signal import signal, SIG_DFL, SIGTERM, SIGINT
+else:
+    from signal import signal, SIGPIPE, SIG_DFL, SIGTERM, SIGINT
+    signal(SIGPIPE,SIG_DFL)
+#API
+from ApiRest.ApiRestHandler import ApiRestHandler, AuthHandler
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 
 # leer los parametros de configuracion de la impresora fiscal
-# en config.ini 
+# en config.ini
 
-root = os.path.dirname(__file__)
+root = os.path.dirname(os.path.abspath(__file__))
 
 
 logging.config.fileConfig(root+'/logging.ini')
@@ -41,7 +46,6 @@ class PageHandler(tornado.web.RequestHandler):
                 self.write(f.read())
         except IOError as e:
             self.write("404: Not Found")
-
 
 # inicializar intervalo para verificar que la impresora tenga papel
 #		
@@ -82,6 +86,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
             import sys, traceback
             traceback.print_exc(file=sys.stdout)
         except socket.error as err:
+            import errno
             errtxt = "Socket error: %s" % err
             logger.error(errtxt)
             response["err"] = errtxt
@@ -139,11 +144,17 @@ class FiscalberryApp:
 
     def start(self):
         logger.info("Iniciando Fiscalberry Server")
+        settings = {            
+        }
+
         self.application = tornado.web.Application([
+            (r'/wss', WSHandler),
             (r'/ws', WSHandler),
+            (r'/api', ApiRestHandler),
+            (r'/api/auth', AuthHandler),
             (r'/', PageHandler),
             (r"/(.*)", web.StaticFileHandler, dict(path=root + "/js_browser_client")),
-        ])
+        ], **settings)
 
         self.configberry = Configberry.Configberry()
 
@@ -165,10 +176,12 @@ class FiscalberryApp:
         if (hasCrt and hasKey):
             ssl_crt_path = self.configberry.config.get('SERVIDOR', "ssl_crt_path")
             ssl_key_path = self.configberry.config.get('SERVIDOR', "ssl_key_path")
-            context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-            context.load_cert_chain(certfile=ssl_crt_path, keyfile=ssl_key_path)
-
-            self.https_server = tornado.httpserver.HTTPServer(self.application, ssl_options=context)
+            if ( ssl_crt_path and ssl_key_path ):
+                self.https_server = tornado.httpserver.HTTPServer(self.application, ssl_options=
+                    {
+                        "certfile": ssl_crt_path,
+                        "keyfile": ssl_key_path,
+                    })
 
         self.print_printers_resume()
         myIP = socket.gethostbyname(socket.gethostname())
@@ -212,7 +225,9 @@ class FiscalberryApp:
             logger.info("  - %s" % printer)
             modelo = None
             marca = self.configberry.config.get(printer, "marca")
-            driver = self.configberry.config.get(printer, "driver")
+            driver = "default"
+            if self.configberry.config.has_option(printer, "driver"):
+                driver = self.configberry.config.get(printer, "driver")
             if self.configberry.config.has_option(printer, "modelo"):
                 modelo = self.configberry.config.get(printer, "modelo")
             logger.info("      marca: %s, driver: %s" % (marca, driver))
