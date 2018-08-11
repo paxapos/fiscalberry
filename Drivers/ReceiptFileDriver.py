@@ -4,13 +4,15 @@
 
 import socket
 from escpos import printer
+from DriverInterface import DriverInterface
+
 
 TCP_PORT = 9100
 
 from DriverInterface import DriverInterface
 
 
-class ReceiptFileDriver(printer.File):
+class ReceiptFileDriver(printer.File, DriverInterface):
     """ Generic file printer
     This class is used for parallel port printer or other printers that are directly attached to the filesystem.
     Note that you should stay away from using USB-to-Parallel-Adapter since they are unreliable

@@ -13,3 +13,10 @@ class DriverInterface:
     def sendCommand(self, commandNumber, parameters, skipStatusErrors):
         """Envia comando a impresora"""
         raise NotImplementedError
+
+    def start(self):
+        """ iniciar """
+        pass
+
+    def end(self):
+        pass
