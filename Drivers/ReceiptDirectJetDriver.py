@@ -23,7 +23,7 @@ class ReceiptDirectJetDriver(printer.Network, DriverInterface):
         """
         escpos.Escpos.__init__(self, *args, **kwargs)
         self.host = host
-        self.port = port
+        self.port = int(port)
         self.timeout = timeout
         self.codepage = codepage
 
