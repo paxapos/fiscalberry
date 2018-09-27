@@ -1,12 +1,13 @@
 # -*- coding: iso-8859-1 -*-
 import string
 import types
-import logging
 import json
 from Comandos.ComandoFiscalInterface import ComandoFiscalInterface
 from ComandoInterface import formatText, ComandoException
-
 from Drivers.FiscalPrinterDriver import PrinterException
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class FiscalPrinterError(Exception):
@@ -69,12 +70,12 @@ class EpsonComandos(ComandoFiscalInterface):
     def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
         print "_sendCommand", commandNumber, parameters
         try:
-            logging.getLogger().info("sendCommand: SEND|0x%x|%s|%s" % (commandNumber,
+            logger.debug("sendCommand: SEND|0x%x|%s|%s" % (commandNumber,
                                                                        skipStatusErrors and "T" or "F",
                                                                        str(parameters)))
             return self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
         except PrinterException, e:
-            logging.getLogger().error("PrinterException: %s" % str(e))
+            logger.exception("PrinterException: %s" % str(e))
             raise ComandoException("Error de la impresora fiscal: " + str(e))
 
     def openNonFiscalReceipt(self):

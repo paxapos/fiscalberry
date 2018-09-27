@@ -1,13 +1,14 @@
 # -*- coding: iso-8859-1 -*-
 import string
 import types
-import logging
-import unicodedata
 from Comandos.ComandoFiscalInterface import ComandoFiscalInterface
 from Drivers.FiscalPrinterDriver import PrinterException
-from ComandoInterface import formatText
+from ComandoInterface import formatText, ComandoException
 
 NUMBER = 999990
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class HasarComandos(ComandoFiscalInterface):
@@ -135,14 +136,14 @@ class HasarComandos(ComandoFiscalInterface):
         try:
             commandString = "SEND|0x%x|%s|%s" % (commandNumber, skipStatusErrors and "T" or "F",
                                                  str(parameters))
-            logging.getLogger().info("sendCommand: %s" % commandString)
+            logger.debug("-> sendCommand: %s" % commandString)
 
             ret = self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
-            logging.getLogger().info("reply: %s" % ret)
+            logger.debug("<- sendCommand reply: %s" % ret)
             return ret
         except PrinterException, e:
-            logging.getLogger().error("PrinterException: %s" % str(e))
-            raise ComandoException("Error de la impresora fiscal: %s.\nComando enviado: %s" % \
+            logger.exception("PrinterException: %s" % str(e))
+            raise ComandoException("Error de la impresora fiscal: %s.\nComando enviado: %s" %
                                    (str(e), commandString))
 
     def openNonFiscalReceipt(self):

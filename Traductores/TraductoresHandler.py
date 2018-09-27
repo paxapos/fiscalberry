@@ -2,7 +2,6 @@
 
 import json
 import Configberry
-import logging
 import importlib
 import socket
 import threading
@@ -11,6 +10,9 @@ import nmap
 import os
 
 INTERVALO_IMPRESORA_WARNING = 30.0
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def set_interval(func, sec):
@@ -46,10 +48,6 @@ class TraductoresHandler:
         try:
             """ leer y procesar una factura en formato JSON
             """
-            logging.info("Iniciando procesamiento de json...")
-
-            print jsonTicket
-
             traductor = None
 
             rta = {"rta": ""}
@@ -95,7 +93,7 @@ class TraductoresHandler:
                 rta["rta"] =  self._removerImpresora(jsonTicket["removerImpresora"])
 
             else:
-                logging.error("No se pasó un comando válido")
+                logger.error("No se pasó un comando válido")
                 raise TraductorException("No se pasó un comando válido")
 
             # cerrar el driver
@@ -195,7 +193,7 @@ class TraductoresHandler:
         libraryName = "Comandos." + marca + "Comandos"
         comandoModule = importlib.import_module(libraryName)
         comandoClass = getattr(comandoModule, marca + "Comandos")
-        
+
         comando = comandoClass(**dictSectionConf)
         return comando.traductor
 
@@ -232,7 +230,7 @@ class TraductoresHandler:
 
         return {
             "action": "configure",
-            "rta": "La seccion "+printerName+" ha sido guardada" 
+            "rta": "La seccion "+printerName+" ha sido guardada"
         }
 
     def _removerImpresora(self, printerName):

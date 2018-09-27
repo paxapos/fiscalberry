@@ -20,13 +20,13 @@ if sys.platform == 'win32':
     from signal import signal, SIG_DFL, SIGTERM, SIGINT
 else:
     from signal import signal, SIGPIPE, SIG_DFL, SIGTERM, SIGINT
-    signal(SIGPIPE,SIG_DFL) 
+    signal(SIGPIPE,SIG_DFL)
 
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 
 # leer los parametros de configuracion de la impresora fiscal
-# en config.ini 
+# en config.ini
 
 root = os.path.dirname(os.path.abspath(__file__))
 
@@ -48,7 +48,7 @@ class PageHandler(tornado.web.RequestHandler):
 
 
 # inicializar intervalo para verificar que la impresora tenga papel
-#		
+#
 
 class WSHandler(tornado.websocket.WebSocketHandler):
     def initialize(self):
@@ -57,48 +57,37 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 
     def open(self):
         self.clients.append(self)
-        logger.info( 'new connection' )
+        logger.info('Connection Established')
 
     def on_message(self, message):
         traductor = self.traductor
         response = {}
-        logger.info("----- - -- - - - ---")
-        logger.info(message)
+        logger.info("Request \n -> %s" % message)
         try:
             jsonMes = json.loads(message, strict=False)
             response = traductor.json_to_comando(jsonMes)
         except TypeError, e:
             errtxt = "Error parseando el JSON %s" % e
-            logger.error(errtxt)
+            logger.exception(errtxt)
             response["err"] = errtxt
-            import sys, traceback
-            traceback.print_exc(file=sys.stdout)
         except TraductorException, e:
             errtxt = "Traductor Comandos: %s" % str(e)
-            logger.error(errtxt)
+            logger.exception(errtxt)
             response["err"] = errtxt
-            import sys, traceback
-            traceback.print_exc(file=sys.stdout)
         except KeyError as e:
             errtxt = "El comando no es valido para ese tipo de impresora: %s" % e
-            logger.error(errtxt)
+            logger.exception(errtxt)
             response["err"] = errtxt
-            import sys, traceback
-            traceback.print_exc(file=sys.stdout)
         except socket.error as err:
-            import errno
             errtxt = "Socket error: %s" % err
-            logger.error(errtxt)
+            logger.exception(errtxt)
             response["err"] = errtxt
-            import sys, traceback
-            traceback.print_exc(file=sys.stdout)
         except Exception, e:
             errtxt = repr(e) + "- " + str(e)
-            logger.error(errtxt)
+            logger.exception(errtxt)
             response["err"] = errtxt
-            import sys, traceback
-            traceback.print_exc(file=sys.stdout)
 
+        logger.info("Response \n <- %s" % response)
         self.write_message(response)
 
     def on_close(self):
