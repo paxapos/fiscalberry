@@ -27,3 +27,7 @@ class TraductorReceipt(TraductorInterface):
         "SetTrailer"
         ret = self.comando.setTrailer(list(args))
         return ret
+
+    def printFacturaElectronica(self, **kwargs):
+        "Factura Electronica"
+        return self.comando.printFacturaElectronica(**kwargs)

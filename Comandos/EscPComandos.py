@@ -139,8 +139,84 @@ class EscPComandos(ComandoInterface):
             printer.text(u'Pagá rápido con Mercado Pago\n')
             printer.text(u"1- Escaneá el código QR\n2- Ingresá el monto\n3- Seleccioná tipo de pago\n4- Listo!, ni hace falta que nos avises.\n")
             printer.qr(qrcodeml)
-            
+    
+    def printFacturaElectronica(self, **kwargs):
+        "imprimir Factura Electronica"
+        printer = self.conector.driver
+        printer.start()
+        encabezado = kwargs.get("encabezado", None)
+        items = kwargs.get("items", [])
+        addAdditional = kwargs.get("addAdditional", None)
+        setTrailer = kwargs.get("setTrailer", None)
+        printer.set("CENTER", "A", "A", 1, 1)
+        printer.text(encabezado.get("nombre_comercio")+"\n")
+        printer.set("LEFT", "A", "B", 1, 2)
+        printer.text(encabezado.get("razon_social")+"\n")
+        printer.text(encabezado.get("cuit_empresa")+"\n")
+        printer.text(encabezado.get("domicilio_comercial")+"\n")
+        printer.text(encabezado.get("tipo_responsable")+"\n")
+        if encabezado.has_key("nombre_cliente"):
+            nombre_cliente = encabezado.get("nombre_cliente")+" "+encabezado.get("tipo_responsable_cliente")
+        else:
+            nombre_cliente = "CONSUMIDOR FINAL"
+        printer.set("CENTER", "A", "B", 1, 2)
+        printer.text(nombre_cliente+"\n")
+        printer.text("Ticket "+encabezado.get("numero_comprobante")+"\n")
+        printer.text(encabezado.get("fecha_comprobante")+"\n")
+        printer.set("LEFT", "A", "A", 1, 1)
+        printer.text(u"CANT\tITEM\tUNITARIO\tPRECIO\n")
+        printer.text("\n")
+        tot_importe = 0.0
+        for item in items:
+            desc = item.get('ds')[0:24]
+            cant = float(item.get('qty'))
+            precio_unitario = float(item.get('importe')) 
+            precio_total = cant * float(item.get('importe'))
+            tot_importe += precio_total
+            cant_tabs = 2
+            can_tabs_final = cant_tabs - ceil(len(desc) / 8)
+            strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
+            printer.text("%g\t%s\t$%g\t$%g\n" % (cant, strTabs, precio_unitario, precio_total))
+
+        printer.text("\n")
+
+        if addAdditional:
+            # imprimir subtotal
+            printer.set("RIGHT", "A", "A", 1, 1)
+            printer.text("Total Neto: $%g\n" % tot_importe)
+
+            # imprimir descuento
+            sAmount = float(addAdditional.get('amount', 0))
+            tot_importe = tot_importe - sAmount
+            printer.set("RIGHT", "A", "A", 1, 1)
+            printer.text("%s $%g\n" % (addAdditional.get('description'), sAmount))
+
+        # imprimir total
+        printer.set("RIGHT", "A", "A", 2, 2)
+        printer.text(u"TOTAL: $%g\n" % tot_importe)
+        printer.text("\n\n\n")
+
+        printer.set("CENTER", "A", "B", 2, 2)
+        
+        if self.__preFillTrailer:
+            self._setTrailer(self.__preFillTrailer)
+
+        if setTrailer:
+            self._setTrailer(setTrailer)   
+
+        printer.set("CENTER", "A", "A", 1, 1)
+        printer.text("Comprobante Autorizado \n")
+        printer.image('afip.bmp');
+
+        printer.cut("PART")
+
+        # volver a poner en modo ESC Bematech, temporal para testing
+        # printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "0")
+
+        # dejar letra chica alineada izquierda
+        printer.set("LEFT", "A", "B", 1, 2)
+        printer.end()
 
     def printRemito(self, **kwargs):
         "imprimir remito"
