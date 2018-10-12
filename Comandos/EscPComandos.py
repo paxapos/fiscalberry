@@ -5,6 +5,7 @@ import types
 import requests
 import logging
 import unicodedata
+import escpos
 from ComandoInterface import ComandoInterface, ComandoException, ValidationError, FiscalPrinterError, formatText
 import time
 import datetime
@@ -149,23 +150,41 @@ class EscPComandos(ComandoInterface):
         items = kwargs.get("items", [])
         addAdditional = kwargs.get("addAdditional", None)
         setTrailer = kwargs.get("setTrailer", None)
-        printer.set("CENTER", "A", "A", 1, 1)
+        printer.set("CENTER", "A", "B", 2, 1)
         printer.text(encabezado.get("nombre_comercio")+"\n")
-        printer.set("LEFT", "A", "B", 1, 2)
+        printer.set("LEFT", "A", "A", 1, 1)
         printer.text(encabezado.get("razon_social")+"\n")
-        printer.text(encabezado.get("cuit_empresa")+"\n")
+        printer.text("CUIT: "+encabezado.get("cuit_empresa")+"\n")
+        printer.text("Ingresos Brutos: "+encabezado.get("ingresos_brutos")+"\n")
         printer.text(encabezado.get("domicilio_comercial")+"\n")
+        printer.text("Inicio de actividades: "+encabezado.get("inicio_actividades")+"\n")
         printer.text(encabezado.get("tipo_responsable")+"\n")
         if encabezado.has_key("nombre_cliente"):
-            nombre_cliente = encabezado.get("nombre_cliente")+" "+encabezado.get("tipo_responsable_cliente")
+            nombre_cliente = "A "+encabezado.get("nombre_cliente")
+            tipo_responsable_cliente = encabezado.get("tipo_responsable_cliente")
+            documento_cliente = encabezado.get("nombre_tipo_documento")+": "+encabezado.get("documento_cliente")
+            domicilio_cliente = encabezado.get("domicilio_cliente")
+            printer.set("CENTER", "A", "A", 1, 1)
+            printer.text(nombre_cliente+"\n")
+            printer.set("LEFT", "A", "A", 1, 1)
+            if documento_cliente != "":
+                printer.text(documento_cliente+"\n")
+            if tipo_responsable_cliente != "":
+                printer.text(tipo_responsable_cliente+"\n")
+            if domicilio_cliente != "":
+                printer.text(domicilio_cliente+"\n")
         else:
-            nombre_cliente = "CONSUMIDOR FINAL"
-        printer.set("CENTER", "A", "B", 1, 2)
-        printer.text(nombre_cliente+"\n")
-        printer.text("Ticket "+encabezado.get("numero_comprobante")+"\n")
-        printer.text(encabezado.get("fecha_comprobante")+"\n")
+            printer.set("CENTER", "A", "A", 1, 1)
+            printer.text("A Consumidor Final \n")
+        printer.text("\n")
+        printer.set("CENTER", "A", "A", 1, 1)
+        printer.text("TICKET FACTURA "+encabezado.get("tipo_comprobante")+"\n")
         printer.set("LEFT", "A", "A", 1, 1)
-        printer.text(u"CANT\tITEM\tUNITARIO\tPRECIO\n")
+        printer.text("Numero: "+encabezado.get("numero_comprobante")+"\n")
+        printer.text("Fecha "+encabezado.get("fecha_comprobante")+"\n")
+        printer.text("\n")
+        printer.set("LEFT", "A", "A", 1, 1)
+        printer.text(u"CANT\tDESCRIPCIÓN\t\tPRECIO\n")
         printer.text("\n")
         tot_importe = 0.0
         for item in items:
@@ -174,11 +193,11 @@ class EscPComandos(ComandoInterface):
             precio_unitario = float(item.get('importe')) 
             precio_total = cant * float(item.get('importe'))
             tot_importe += precio_total
-            cant_tabs = 2
+            cant_tabs = 3
             can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            printer.text("%g\t%s\t$%g\t$%g\n" % (cant, strTabs, precio_unitario, precio_total))
+            printer.text("%g\t%s$%g\n" % (cant, strTabs, precio_total))
 
         printer.text("\n")
 
@@ -210,12 +229,15 @@ class EscPComandos(ComandoInterface):
         printer.text("Comprobante Autorizado \n")
         printer.image('afip.bmp');
 
+        printer.set("LEFT", "A", "A", 1, 1)
         #imagen BARCODE bajada de la URL
-        printer.image( requests.get(encabezado.get("barcode_url"), stream=True).raw );
 
-        printer.text(encabezado.get("cae"))
-        printer.text("CAE VTO: " + encabezado.get("cae_vto"))
 
+        printer.image( requests.get(encabezado.get("barcode_url"), stream=True).raw )
+
+        printer.text("CAE: "+encabezado.get("cae")+"\n")
+        printer.text("CAE VTO: " + encabezado.get("cae_vto")+"\n\n")
+        printer.text("Comprobante impreso por www.paxapos.com")
 
         printer.cut("PART")
 
