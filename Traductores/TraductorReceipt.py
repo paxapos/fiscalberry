@@ -2,6 +2,11 @@ from Traductores.TraductorInterface import TraductorInterface
 
 
 class TraductorReceipt(TraductorInterface):
+
+    def printTicket(self, **kwargs):
+        "Imprime un Ticket fiscal, realizado mediante facturacion electronica"
+        return self.comando.printTicket(**kwargs)
+
     def printRemito(self, **kwargs):
         "Imprime un Remito, comando de accion valido solo para Comandos de Receipt"
         return self.comando.printRemito(**kwargs)
