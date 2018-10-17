@@ -151,23 +151,29 @@ class EscPComandos(ComandoInterface):
         imgCodigoBarras = requests.get(encabezado.get("barcode_url"), stream=True).raw
         printer = self.conector.driver
         printer.start()
-        printer.set("CENTER", "A", "B", 2, 1)
+        printer.set("LEFT", "A", "B", 2, 1)
         printer.text(encabezado.get("nombre_comercio")+"\n")
         printer.set("LEFT", "A", "A", 1, 1)
         printer.text(encabezado.get("razon_social")+"\n")
         printer.text("CUIT: "+encabezado.get("cuit_empresa")+"\n")
         printer.text("Ingresos Brutos: "+encabezado.get("ingresos_brutos")+"\n")
-        printer.text(encabezado.get("domicilio_comercial")+"\n")
         printer.text("Inicio de actividades: "+encabezado.get("inicio_actividades")+"\n")
+        printer.text(encabezado.get("domicilio_comercial")+"\n")
         printer.text(encabezado.get("tipo_responsable")+"\n")
+        printer.set("CENTER", "A", "A", 1, 1)
+        printer.text("----------------------------------------\n") #40 guíones
+        printer.set("RIGHT", "A", "B", 1, 1)
+        printer.text("FACTURA "+encabezado.get("tipo_comprobante")+"\t\t"+"Nro. "+encabezado.get("numero_comprobante")+"\n")
+        printer.text("Fecha "+encabezado.get("fecha_comprobante")+"\n")
+        printer.set("CENTER", "A", "A", 1, 1)
+        printer.text("----------------------------------------\n") #40 guíones
+        printer.set("LEFT", "A", "A", 1, 1)
         if encabezado.has_key("nombre_cliente"):
             nombre_cliente = "A "+encabezado.get("nombre_cliente")
             tipo_responsable_cliente = encabezado.get("tipo_responsable_cliente")
             documento_cliente = encabezado.get("nombre_tipo_documento")+": "+encabezado.get("documento_cliente")
             domicilio_cliente = encabezado.get("domicilio_cliente")
-            printer.set("CENTER", "A", "A", 1, 1)
             printer.text(nombre_cliente+"\n")
-            printer.set("LEFT", "A", "A", 1, 1)
             if documento_cliente != "":
                 printer.text(documento_cliente+"\n")
             if tipo_responsable_cliente != "":
@@ -175,18 +181,10 @@ class EscPComandos(ComandoInterface):
             if domicilio_cliente != "":
                 printer.text(domicilio_cliente+"\n")
         else:
-            printer.set("CENTER", "A", "A", 1, 1)
             printer.text("A Consumidor Final \n")
-        printer.text("\n")
         printer.set("CENTER", "A", "A", 1, 1)
-        printer.text("TICKET FACTURA "+encabezado.get("tipo_comprobante")+"\n")
+        printer.text("----------------------------------------\n\n") #40 guíones
         printer.set("LEFT", "A", "A", 1, 1)
-        printer.text("Numero: "+encabezado.get("numero_comprobante")+"\n")
-        printer.text("Fecha "+encabezado.get("fecha_comprobante")+"\n")
-        printer.text("\n")
-        printer.set("LEFT", "A", "A", 1, 1)
-        printer.text(u"CANT\tDESCRIPCIÓN\t\tPRECIO\n")
-        printer.text("\n")
         tot_importe = 0.0
         for item in items:
             desc = item.get('ds')[0:24]
@@ -194,18 +192,22 @@ class EscPComandos(ComandoInterface):
             precio_unitario = float(item.get('importe')) 
             precio_total = cant * float(item.get('importe'))
             tot_importe += precio_total
-            cant_tabs = 3
+            cant_tabs = 4
             can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            printer.text("%g\t%s$%g\n" % (cant, strTabs, precio_total))
+            if cant > 1:
+                printer.text("\t %g x $%g\n" % (cant, precio_unitario))
+                printer.text(strTabs+"$%g\n" % (precio_total))
+            else:
+                printer.text(strTabs+"$%g\n" % (precio_total))
 
         printer.text("\n")
 
         if addAdditional:
             # imprimir subtotal
             printer.set("RIGHT", "A", "A", 1, 1)
-            printer.text("Total Neto: $%g\n" % tot_importe)
+            printer.text("Subtotal: $%g\n" % tot_importe)
 
             # imprimir descuento
             sAmount = float(addAdditional.get('amount', 0))
@@ -216,7 +218,7 @@ class EscPComandos(ComandoInterface):
         # imprimir total
         printer.set("RIGHT", "A", "A", 2, 2)
         printer.text(u"TOTAL: $%g\n" % tot_importe)
-        printer.text("\n\n\n")
+        printer.text("\n")
 
         printer.set("CENTER", "A", "B", 2, 2)
         
@@ -226,20 +228,20 @@ class EscPComandos(ComandoInterface):
         if setTrailer:
             self._setTrailer(setTrailer)   
 
-        printer.set("CENTER", "A", "A", 1, 1)
-        printer.text("Comprobante Autorizado \n")
-        printer.image('afip.bmp');
 
         printer.set("LEFT", "A", "A", 1, 1)
         #imagen BARCODE bajada de la URL
 
 
         printer.image( imgCodigoBarras )
+        printer.text(u"CAE: "+encabezado.get("cae")+"    CAE VTO: " + encabezado.get("cae_vto")+"\n\n")
 
-        printer.text("CAE: "+encabezado.get("cae")+"\n")
-        printer.text("CAE VTO: " + encabezado.get("cae_vto")+"\n\n")
+        printer.image('afip.bmp');
+        printer.text("Comprobante Autorizado \n\n")
+
+        printer.set("LEFT", "A", "B", 1, 1)
         printer.text("Comprobante impreso por www.paxapos.com")
-
+        
         printer.cut("PART")
 
         # volver a poner en modo ESC Bematech, temporal para testing
