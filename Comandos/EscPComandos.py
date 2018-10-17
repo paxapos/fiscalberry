@@ -144,12 +144,13 @@ class EscPComandos(ComandoInterface):
     
     def printFacturaElectronica(self, **kwargs):
         "imprimir Factura Electronica"
-        printer = self.conector.driver
-        printer.start()
         encabezado = kwargs.get("encabezado", None)
         items = kwargs.get("items", [])
         addAdditional = kwargs.get("addAdditional", None)
         setTrailer = kwargs.get("setTrailer", None)
+        imgCodigoBarras = requests.get(encabezado.get("barcode_url"), stream=True).raw
+        printer = self.conector.driver
+        printer.start()
         printer.set("CENTER", "A", "B", 2, 1)
         printer.text(encabezado.get("nombre_comercio")+"\n")
         printer.set("LEFT", "A", "A", 1, 1)
@@ -233,7 +234,7 @@ class EscPComandos(ComandoInterface):
         #imagen BARCODE bajada de la URL
 
 
-        printer.image( requests.get(encabezado.get("barcode_url"), stream=True).raw )
+        printer.image( imgCodigoBarras )
 
         printer.text("CAE: "+encabezado.get("cae")+"\n")
         printer.text("CAE VTO: " + encabezado.get("cae_vto")+"\n\n")
