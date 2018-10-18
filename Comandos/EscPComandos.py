@@ -239,8 +239,8 @@ class EscPComandos(ComandoInterface):
         printer.image('afip.bmp');
         printer.text("Comprobante Autorizado \n\n")
 
-        printer.set("LEFT", "A", "B", 1, 1)
-        printer.text("Comprobante impreso por www.paxapos.com")
+        printer.set("CENTER", "B", "B", 1, 1)
+        printer.text(u"Comprobante electrónico impreso por www.paxapos.com")
         
         printer.cut("PART")
 
