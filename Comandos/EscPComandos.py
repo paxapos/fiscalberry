@@ -220,13 +220,6 @@ class EscPComandos(ComandoInterface):
         printer.text(u"TOTAL: $%g\n" % tot_importe)
         printer.text("\n")
 
-        printer.set("CENTER", "A", "B", 2, 2)
-        
-        if self.__preFillTrailer:
-            self._setTrailer(self.__preFillTrailer)
-
-        if setTrailer:
-            self._setTrailer(setTrailer)   
 
 
         printer.set("LEFT", "A", "A", 1, 1)
@@ -237,7 +230,15 @@ class EscPComandos(ComandoInterface):
         printer.text(u"CAE: "+encabezado.get("cae")+"    CAE VTO: " + encabezado.get("cae_vto")+"\n\n")
 
         printer.image('afip.bmp');
-        printer.text("Comprobante Autorizado \n\n")
+        printer.text("Comprobante Autorizado \n")
+
+        printer.set("LEFT", "B", "A", 1, 1)
+        
+        if self.__preFillTrailer:
+            self._setTrailer(self.__preFillTrailer)
+
+        if setTrailer:
+            self._setTrailer(setTrailer)   
 
         printer.set("CENTER", "B", "B", 1, 1)
         printer.text(u"Comprobante electrónico impreso por www.paxapos.com")
