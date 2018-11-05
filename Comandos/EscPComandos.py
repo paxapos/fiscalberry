@@ -270,9 +270,9 @@ class EscPComandos(ComandoInterface):
         printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "1")
 
         printer.set("CENTER", "A", "A", 1, 1)
-        printer.text("\n")
-        fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M %x')
-        printer.text(u"Fecha: %s \n\n\n" % fecha)
+        if encabezado.has_key("imprimir_fecha_remito"):
+            fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M %x')
+            printer.text(u"Fecha: %s \n\n\n" % fecha)
         printer.text(u"Verifique su cuenta por favor\n")
         printer.text(u"NO VALIDO COMO FACTURA\n\n")
 
@@ -284,12 +284,6 @@ class EscPComandos(ComandoInterface):
                 printer.text(u'\n%s\n' % encabezado.get("telefono"))
             if encabezado.has_key("domicilio_cliente"):
                 printer.text(u'\n%s\n' % encabezado.get("domicilio_cliente"))
-
-            if "fecha" in encabezado:
-                printer.set("LEFT", "A", "A", 1, 1)
-                fff_aux = time.strptime(encabezado['fecha'], "%Y-%m-%d %H:%M:%S")
-                fecha = time.strftime('%H:%M %x', fff_aux)
-                printer.text(fecha + "\n")
 
         printer.set("LEFT", "A", "A", 1, 1)
 
