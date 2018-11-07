@@ -153,24 +153,26 @@ if (!Array.isArray) {
             var url = "ws://" + host + ":" + port + uri;
 
             ws = new WebSocket(url);
-            ws.onopen = function (e) {
+            ws.addEventListener('open', function (e) {
                 __def.resolve(ws);
                 $fb.trigger('open');
                 __conected = true;
-            };
-            ws.onerror = function (e) {
+            });
+            
+            ws.addEventListener('error', function (e) {
                 __def.reject(e);
                 $fb.trigger('error');
                 __conected = false;
-            };
-            ws.onclose = function () {
+            });
+
+            ws.addEventListener('close', function () {
                 $fb.trigger('close');
                 __conected = false;
-            };
+            });
 
             // solo responde si me vino un JSON válido, caso contrario lo omite
-            ws.onmessage = function (ev) {
-                var response = jQuery.parseJSON(ev.data);
+            ws.addEventListener('message', function (ev) {
+                var response = JSON.parse(ev.data);
 
                 if (typeof response == 'object') {
 
@@ -181,7 +183,7 @@ if (!Array.isArray) {
 
                 }
 
-            };
+            });
 
 
             return ws;

@@ -144,11 +144,17 @@ class EscPComandos(ComandoInterface):
     
     def printFacturaElectronica(self, **kwargs):
         "imprimir Factura Electronica"
+        printer = self.conector.driver
+
         encabezado = kwargs.get("encabezado", None)
+
+        # antes de comenzar descargo la imagen del barcode
+        barcodeImage = requests.get(encabezado.get("barcode_url"), stream=True).raw
+
+        printer.start()
         items = kwargs.get("items", [])
         addAdditional = kwargs.get("addAdditional", None)
         setTrailer = kwargs.get("setTrailer", None)
-        imgCodigoBarras = requests.get(encabezado.get("barcode_url"), stream=True).raw
         printer = self.conector.driver
         printer.start()
         printer.set("LEFT", "A", "B", 2, 1)
@@ -174,11 +180,11 @@ class EscPComandos(ComandoInterface):
             documento_cliente = encabezado.get("nombre_tipo_documento")+": "+encabezado.get("documento_cliente")
             domicilio_cliente = encabezado.get("domicilio_cliente")
             printer.text(nombre_cliente+"\n")
-            if documento_cliente != "":
+            if documento_cliente:
                 printer.text(documento_cliente+"\n")
-            if tipo_responsable_cliente != "":
+            if tipo_responsable_cliente:
                 printer.text(tipo_responsable_cliente+"\n")
-            if domicilio_cliente != "":
+            if domicilio_cliente:
                 printer.text(domicilio_cliente+"\n")
         else:
             printer.text("A Consumidor Final \n")
@@ -226,8 +232,10 @@ class EscPComandos(ComandoInterface):
         #imagen BARCODE bajada de la URL
 
 
-        printer.image( imgCodigoBarras )
-        printer.text(u"CAE: "+encabezado.get("cae")+"    CAE VTO: " + encabezado.get("cae_vto")+"\n\n")
+        printer.image( barcodeImage )
+        cae = encabezado.get("cae")
+        caeVto = encabezado.get("cae_vto")
+        printer.text(u"CAE: " + cae + "    CAE VTO: " + caeVto +"\n\n")
 
         printer.image('afip.bmp');
         printer.text("Comprobante Autorizado \n")
@@ -239,7 +247,6 @@ class EscPComandos(ComandoInterface):
 
         if setTrailer:
             self._setTrailer(setTrailer)   
-
         printer.set("CENTER", "B", "B", 1, 1)
         printer.text(u"Comprobante electrónico impreso por www.paxapos.com")
         
