@@ -162,8 +162,8 @@ class EscPComandos(ComandoInterface):
         printer.text(encabezado.get("tipo_responsable")+"\n")
         printer.set("CENTER", "A", "A", 1, 1)
         printer.text("----------------------------------------\n") #40 guíones
-        printer.set("RIGHT", "A", "B", 1, 1)
-        printer.text("FACTURA "+encabezado.get("tipo_comprobante")+"\t\t"+"Nro. "+encabezado.get("numero_comprobante")+"\n")
+        printer.set("LEFT", "A", "B", 1, 1)
+        printer.text(encabezado.get("tipo_comprobante")+" Nro. "+encabezado.get("numero_comprobante")+"\n")
         printer.text("Fecha "+encabezado.get("fecha_comprobante")+"\n")
         printer.set("CENTER", "A", "A", 1, 1)
         printer.text("----------------------------------------\n") #40 guíones
