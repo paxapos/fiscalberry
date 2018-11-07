@@ -5,9 +5,10 @@ import logging
 
 
 class FileDriver(DriverInterface):
-    def __init__(self, path):
+    def __init__(self, path, codepage="utf8"):
         bufsize = 1  # line buffer
         self.file = open(path, "a", bufsize)
+        self.codepage = codepage
 
     def sendCommand(self, command=0, parameters=None, skipStatusErrors=False):
         import random
@@ -49,9 +50,14 @@ class FileDriver(DriverInterface):
         pass
 
     def text(self, *kwargs):
+        print kwargs
         for texto in kwargs:
+            texto = texto.encode(self.codepage)
             self.file.write(texto)
         pass
 
     def cut(self, *kwargs):
+        pass
+
+    def image(self, *kwargs):
         pass
