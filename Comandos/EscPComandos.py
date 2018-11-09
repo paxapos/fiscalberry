@@ -271,6 +271,87 @@ class EscPComandos(ComandoInterface):
 
         printer.start()
         
+        # colocar en modo ESC P
+        printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "1")
+
+        printer.set("CENTER", "A", "A", 1, 1)
+        if encabezado.has_key("imprimir_fecha_remito"):
+            fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M %x')
+            printer.text(u"Fecha: %s" % fecha)
+        printer.text(u"NO VALIDO COMO FACTURA\n")
+
+        if encabezado:
+            printer.set("LEFT", "A", "A", 1, 1)
+            if encabezado.has_key("nombre_cliente"):
+                printer.text(u'\nNombre Cliente: %s' % encabezado.get("nombre_cliente"))
+                if encabezado.has_key("telefono"):
+                    printer.text(u'\nTelefono: %s' % encabezado.get("telefono"))
+                if encabezado.has_key("domicilio_cliente"):
+                    printer.text(u'\nDomicilio: %s\n' % encabezado.get("domicilio_cliente"))
+
+        printer.set("LEFT", "A", "A", 1, 1)
+        
+        if self.__preFillTrailer:
+            self._setTrailer(self.__preFillTrailer)
+
+        if setTrailer:
+            self._setTrailer(setTrailer)   
+
+
+        tot_importe = 0.0
+        for item in items:
+            desc = item.get('ds')[0:24]
+            cant = float(item.get('qty'))
+            precio = cant * float(item.get('importe'))
+            tot_importe += precio
+            cant_tabs = 3
+            can_tabs_final = cant_tabs - ceil(len(desc) / 8)
+            strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
+
+            printer.text("%g\t%s$%g\n" % (cant, strTabs, precio))
+
+        printer.text("\n")
+
+        if addAdditional:
+            # imprimir subtotal
+            printer.set("RIGHT", "A", "A", 1, 1)
+            printer.text("SUBTOTAL: $%g\n" % tot_importe)
+
+            # imprimir descuento
+            sAmount = float(addAdditional.get('amount', 0))
+            tot_importe = tot_importe - sAmount
+            printer.set("RIGHT", "A", "A", 1, 1)
+            printer.text("%s $%g\n" % (addAdditional.get('description'), sAmount))
+
+        # imprimir total
+        printer.set("RIGHT", "A", "A", 2, 2)
+        printer.text(u"TOTAL: $%g\n" % tot_importe)
+
+        self.__printExtras(kwargs)
+
+
+
+        printer.cut("PART")
+
+        # volver a poner en modo ESC Bematech, temporal para testing
+        # printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "0")
+
+        # dejar letra chica alineada izquierda
+        printer.set("LEFT", "A", "B", 1, 2)
+        printer.end()
+
+    def printRemitoLargo(self, **kwargs):
+        "imprimir remito"
+        printer = self.conector.driver
+
+        encabezado = kwargs.get("encabezado", None)
+        items = kwargs.get("items", [])
+        addAdditional = kwargs.get("addAdditional", None)
+        setTrailer = kwargs.get("setTrailer", None)
+        
+
+        printer.start()
+        
         printer.set("CENTER", "A", "A", 1, 1)
         
         # colocar en modo ESC P
@@ -296,7 +377,6 @@ class EscPComandos(ComandoInterface):
 
         printer.text(u"CANT\tDESCRIPCIÓN\t\tPRECIO\n")
         printer.text("\n")
-        tot_chars = 40
         tot_importe = 0.0
         for item in items:
             desc = item.get('ds')[0:24]
