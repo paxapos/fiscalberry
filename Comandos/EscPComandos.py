@@ -191,39 +191,59 @@ class EscPComandos(ComandoInterface):
         printer.set("CENTER", "A", "A", 1, 1)
         printer.text("----------------------------------------\n\n") #40 guíones
         printer.set("LEFT", "A", "A", 1, 1)
-        tot_importe = 0.0
+        tot_neto = 0.0
+        tot_iva = 0.0
+        total = 0.0
+        printer.text(u"DESCRIPCIÓN\t\t(% IVA)  PRECIO NETO\n")
+        printer.text("\n")
         for item in items:
             desc = item.get('ds')[0:24]
             cant = float(item.get('qty'))
-            precio_unitario = float(item.get('importe')) 
-            precio_total = cant * float(item.get('importe'))
-            tot_importe += precio_total
-            cant_tabs = 4
+            precio_unitario = float(item.get('importe'))
+            precio_total = cant * precio_unitario 
+            if item.get('alic_iva'):
+                porcentaje_iva = float(item.get('alic_iva'))
+            else:
+                porcentaje_iva = 21.00
+            precio_unitario_iva = precio_unitario * porcentaje_iva / 100
+            precio_unitario_neto = precio_unitario - precio_unitario_iva
+            precio_total_neto = cant * precio_unitario_neto
+            precio_total_iva = cant * precio_unitario_iva
+            tot_neto += precio_total_neto
+            tot_iva += precio_total_iva
+            total += precio_total
+
+            cant_tabs = 3
             can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
             if cant > 1:
-                printer.text("\t %g x $%g\n" % (cant, precio_unitario))
-                printer.text(strTabs+"$%g\n" % (precio_total))
+                printer.text("\t %g x $%g\n" % (cant, precio_unitario_neto))
+                printer.text(strTabs+"%g   $%g\n" % (round(porcentaje_iva, 2), round(precio_total_neto, 2)))
             else:
-                printer.text(strTabs+"$%g\n" % (precio_total))
+                printer.text(strTabs+"%g   $%g\n" % (round(porcentaje_iva, 2), round(precio_total_neto, 2)))
+
+        printer.set("RIGHT", "A", "A", 1, 1)
+        printer.text("\n")
+
+        printer.text("Subtotal Neto: %g\n" % (round(tot_neto, 2)))
+        printer.text("Subtotal IVA: %g\n" % (round(tot_iva, 2)))
 
         printer.text("\n")
 
         if addAdditional:
             # imprimir subtotal
-            printer.set("RIGHT", "A", "A", 1, 1)
-            printer.text("Subtotal: $%g\n" % tot_importe)
+            printer.text("Subtotal: $%g\n" % round(total, 2))
 
             # imprimir descuento
             sAmount = float(addAdditional.get('amount', 0))
-            tot_importe = tot_importe - sAmount
+            total = total - sAmount
             printer.set("RIGHT", "A", "A", 1, 1)
-            printer.text("%s $%g\n" % (addAdditional.get('description'), sAmount))
+            printer.text("%s $%g\n" % (addAdditional.get('description'), round(sAmount, 2)))
 
         # imprimir total
         printer.set("RIGHT", "A", "A", 2, 2)
-        printer.text(u"TOTAL: $%g\n" % tot_importe)
+        printer.text(u"TOTAL: $%g\n" % round(total, 2))
         printer.text("\n")
 
 
