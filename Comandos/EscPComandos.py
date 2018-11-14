@@ -194,8 +194,9 @@ class EscPComandos(ComandoInterface):
         tot_neto = 0.0
         tot_iva = 0.0
         total = 0.0
-        printer.text(u"DESCRIPCIÓN\t\t(IVA) PRECIO NETO\n")
-        printer.text("\n")
+        if encabezado.get("tipo_comprobante") != "Factura B":
+            printer.text(u"DESCRIPCIÓN\t\t(IVA) PRECIO NETO\n")
+            printer.text("\n")
         for item in items:
             desc = item.get('ds')[0:24]
             cant = float(item.get('qty'))
@@ -205,12 +206,18 @@ class EscPComandos(ComandoInterface):
                 porcentaje_iva = float(item.get('alic_iva'))
             else:
                 porcentaje_iva = 21.00
-            precio_unitario_iva = precio_unitario * porcentaje_iva / 100
-            precio_unitario_neto = precio_unitario - precio_unitario_iva
-            precio_total_neto = cant * round(precio_unitario_neto, 2)
-            precio_total_iva = cant * round(precio_unitario_iva, 2)
-            tot_neto += precio_total_neto
-            tot_iva += precio_total_iva
+            if encabezado.get("tipo_comprobante") != "Factura B" and encabezado.get("tipo_comprobante") != "NOTAS DE CREDITO B":
+                precio_unitario_iva = precio_unitario * porcentaje_iva / 100
+                precio_unitario_neto = precio_unitario - precio_unitario_iva
+                precio_total_neto = cant * round(precio_unitario_neto, 2)
+                precio_total_iva = cant * round(precio_unitario_iva, 2)
+                tot_neto += precio_total_neto
+                tot_iva += precio_total_iva
+            else:
+                #Usamos estas variables para no tener que agregar ifs abajo
+                precio_unitario_neto = precio_unitario
+                precio_total_neto = precio_total
+
             total += precio_total
 
             cant_tabs = 4
@@ -222,7 +229,7 @@ class EscPComandos(ComandoInterface):
             can_tabs_final = cant_tabs - ceil(len(desc) / 6)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            if cant > 1:
+            if encabezado.get("tipo_comprobante") != "Factura B":
                 printer.text("  %g x $%g\n" % (cant, precio_unitario_neto))
                 printer.text(strTabs+"(%g)\t$%g\n" % (round(porcentaje_iva, 2), round(precio_total_neto, 2)))
             else:
@@ -230,11 +237,10 @@ class EscPComandos(ComandoInterface):
 
         printer.set("RIGHT", "A", "A", 1, 1)
         printer.text("\n")
-
-        printer.text("Subtotal Neto: $%g\n" % (round(tot_neto, 2)))
-        printer.text("Subtotal IVA: $%g\n" % (round(tot_iva, 2)))
-
-        printer.text("\n")
+        if encabezado.get("tipo_comprobante") != "Factura B" and encabezado.get("tipo_comprobante") != "NOTAS DE CREDITO B":
+            printer.text("Subtotal Neto: $%g\n" % (round(tot_neto, 2)))
+            printer.text("Subtotal IVA: $%g\n" % (round(tot_iva, 2)))
+            printer.text("\n")
 
         if addAdditional:
             # imprimir subtotal
@@ -251,7 +257,13 @@ class EscPComandos(ComandoInterface):
         printer.text(u"TOTAL: $%g\n" % round(total, 2))
         printer.text("\n")
 
+        printer.set("LEFT", "B", "A", 1, 1)
+        
+        if self.__preFillTrailer:
+            self._setTrailer(self.__preFillTrailer)
 
+        if setTrailer:
+            self._setTrailer(setTrailer)  
 
         printer.set("LEFT", "A", "A", 1, 1)
         #imagen BARCODE bajada de la URL
@@ -264,14 +276,7 @@ class EscPComandos(ComandoInterface):
 
         printer.image('afip.bmp');
         printer.text("Comprobante Autorizado \n")
-
-        printer.set("LEFT", "B", "A", 1, 1)
-        
-        if self.__preFillTrailer:
-            self._setTrailer(self.__preFillTrailer)
-
-        if setTrailer:
-            self._setTrailer(setTrailer)   
+ 
         printer.set("CENTER", "B", "B", 1, 1)
         printer.text(u"Comprobante electrónico impreso por www.paxapos.com")
         
