@@ -308,7 +308,7 @@ class EscPComandos(ComandoInterface):
         if encabezado.has_key("imprimir_fecha_remito"):
             fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M %x')
             printer.text(u"Fecha: %s" % fecha)
-        printer.text(u"NO VALIDO COMO FACTURA\n")
+        printer.text(u"\nNO VALIDO COMO FACTURA\n")
 
         if encabezado:
             printer.set("LEFT", "A", "A", 1, 1)
