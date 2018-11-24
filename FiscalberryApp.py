@@ -122,13 +122,21 @@ class FiscalberryApp:
         newpath = os.path.dirname(os.path.realpath(__file__))
         os.chdir(newpath)
 
+        self.configberry = Configberry.Configberry()
+
+        # actualizar ip privada por si cambio
+        ip = self.get_ip()
+        self.configberry.writeSectionWithKwargs('SERVIDOR', {'ip_privada': ip})
+        logger.info("La IP privada es %s" % ip)
+
+
         # evento para terminar ejecucion mediante CTRL+C
         def sig_handler(sig, frame):
             logger.info('Caught signal: %s', sig)
             tornado.ioloop.IOLoop.instance().add_callback(self.shutdown)
 
         signal(SIGTERM, sig_handler)
-        signal(SIGINT, sig_handler)
+        signal(SIGINT, sig_handler)        
 
 
     def shutdown(self):
@@ -141,6 +149,11 @@ class FiscalberryApp:
 
         io_loop.stop()
         logger.info('Shutdown')
+
+    def discover(self):
+        # send discover data to your server if the is no URL configured, so nothing will be sent
+        if self.configberry.config.has_option('SERVIDOR', "discover_url"):
+            fbdiscover = FiscalberryDiscover.send(self.configberry);
 
     def start(self):
         logger.info("Iniciando Fiscalberry Server")
@@ -155,17 +168,6 @@ class FiscalberryApp:
             (r'/', PageHandler),
             (r"/(.*)", web.StaticFileHandler, dict(path=root + "/js_browser_client")),
         ], **settings)
-
-        self.configberry = Configberry.Configberry()
-
-        # actualizar ip privada por si cambio
-        ip = self.get_ip()
-        logger.info("La IP es %s" % ip)
-        self.configberry.writeSectionWithKwargs('SERVIDOR', {'ip_privada': ip})
-
-        # send discover data to your server if the is no URL configured, so nothing will be sent
-        if self.configberry.config.has_option('SERVIDOR', "discover_url"):
-            fbdiscover = FiscalberryDiscover.send(self.configberry);
 
         hasCrt = self.configberry.config.has_option('SERVIDOR', "ssl_crt_path")
         hasKey = self.configberry.config.has_option('SERVIDOR', "ssl_key_path")

@@ -8,9 +8,8 @@ import logging
 
 
 def send(configberry):
-    if not configberry.config.has_option('SERVIDOR', "uuid"):
-        uuidvalue = str(uuid.uuid1(uuid.getnode(), 0))[24:]
-        configberry.writeSectionWithKwargs('SERVIDOR', {'uuid': uuidvalue})
+    uuidvalue = str(uuid.uuid1(uuid.getnode(), 0))[24:]
+    configberry.writeSectionWithKwargs('SERVIDOR', {'uuid': uuidvalue})
 
     senddata = {
         "uuid": configberry.config.get('SERVIDOR', 'uuid'),
@@ -24,7 +23,17 @@ def send(configberry):
     ret = None
     if discoverUrl:
         try:
-            ret = requests.post(discoverUrl, data=senddata)
+            headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
+            ret = requests.post(discoverUrl, headers=headers, data=json.dumps(senddata))
+
+            if ret.status_code == requests.codes.ok:
+
+                json_data = json.loads(ret.text)
+                paxaprinter = json_data.get("ok").get("Paxaprinter")
+            else:
+                raise Exception("Error de conexion con "+discoverUrl)
+            # antes de comenzar descargo la imagen del barcode
+            # barcodeImage = requests.get( , stream=True).raw
         except Exception, e:
             logging.getLogger().info("Mensaje de exception del discover: %s", e)
 
