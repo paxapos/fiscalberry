@@ -191,42 +191,79 @@ class EscPComandos(ComandoInterface):
         printer.set("CENTER", "A", "A", 1, 1)
         printer.text("----------------------------------------\n\n") #40 guíones
         printer.set("LEFT", "A", "A", 1, 1)
-        tot_importe = 0.0
+        tot_neto = 0.0
+        tot_iva = 0.0
+        total = 0.0
+        if encabezado.get("tipo_comprobante") != "Factura B":
+            printer.text(u"DESCRIPCIÓN\t\t(IVA) PRECIO NETO\n")
+            printer.text("\n")
         for item in items:
             desc = item.get('ds')[0:24]
             cant = float(item.get('qty'))
-            precio_unitario = float(item.get('importe')) 
-            precio_total = cant * float(item.get('importe'))
-            tot_importe += precio_total
+            precio_unitario = float(item.get('importe'))
+            precio_total = cant * precio_unitario 
+            if item.get('alic_iva'):
+                porcentaje_iva = float(item.get('alic_iva'))
+            else:
+                porcentaje_iva = 21.00
+            if encabezado.get("tipo_comprobante") != "Factura B" and encabezado.get("tipo_comprobante") != "NOTAS DE CREDITO B":
+                precio_unitario_iva = precio_unitario * porcentaje_iva / 100
+                precio_unitario_neto = precio_unitario - precio_unitario_iva
+                precio_total_neto = cant * round(precio_unitario_neto, 2)
+                precio_total_iva = cant * round(precio_unitario_iva, 2)
+                tot_neto += precio_total_neto
+                tot_iva += precio_total_iva
+            else:
+                #Usamos estas variables para no tener que agregar ifs abajo
+                precio_unitario_neto = precio_unitario
+                precio_total_neto = precio_total
+
+            total += precio_total
+
             cant_tabs = 4
-            can_tabs_final = cant_tabs - ceil(len(desc) / 8)
+            len_desc = len(desc)
+            if len_desc > 19:
+                desc = desc[:len_desc - (len_desc - 19)]
+            if len_desc < 19:
+                desc = desc.ljust(19 - len_desc)
+            can_tabs_final = cant_tabs - ceil(len(desc) / 6)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            if cant > 1:
-                printer.text("\t %g x $%g\n" % (cant, precio_unitario))
-                printer.text(strTabs+"$%g\n" % (precio_total))
+            if encabezado.get("tipo_comprobante") != "Factura B":
+                printer.text("  %g x $%g\n" % (cant, precio_unitario_neto))
+                printer.text(strTabs+"(%g)\t$%g\n" % (round(porcentaje_iva, 2), round(precio_total_neto, 2)))
             else:
-                printer.text(strTabs+"$%g\n" % (precio_total))
+                printer.text(strTabs+"(%g)\t$%g\n" % (round(porcentaje_iva, 2), round(precio_total_neto, 2)))
 
+        printer.set("RIGHT", "A", "A", 1, 1)
         printer.text("\n")
+        if encabezado.get("tipo_comprobante") != "Factura B" and encabezado.get("tipo_comprobante") != "NOTAS DE CREDITO B":
+            printer.text("Subtotal Neto: $%g\n" % (round(tot_neto, 2)))
+            printer.text("Subtotal IVA: $%g\n" % (round(tot_iva, 2)))
+            printer.text("\n")
 
         if addAdditional:
             # imprimir subtotal
-            printer.set("RIGHT", "A", "A", 1, 1)
-            printer.text("Subtotal: $%g\n" % tot_importe)
+            printer.text("Subtotal: $%g\n" % round(total, 2))
 
             # imprimir descuento
             sAmount = float(addAdditional.get('amount', 0))
-            tot_importe = tot_importe - sAmount
+            total = total - sAmount
             printer.set("RIGHT", "A", "A", 1, 1)
-            printer.text("%s $%g\n" % (addAdditional.get('description'), sAmount))
+            printer.text("%s $%g\n" % (addAdditional.get('description'), round(sAmount, 2)))
 
         # imprimir total
         printer.set("RIGHT", "A", "A", 2, 2)
-        printer.text(u"TOTAL: $%g\n" % tot_importe)
+        printer.text(u"TOTAL: $%g\n" % round(total, 2))
         printer.text("\n")
 
+        printer.set("LEFT", "B", "A", 1, 1)
+        
+        if self.__preFillTrailer:
+            self._setTrailer(self.__preFillTrailer)
 
+        if setTrailer:
+            self._setTrailer(setTrailer)  
 
         printer.set("LEFT", "A", "A", 1, 1)
         #imagen BARCODE bajada de la URL
@@ -239,14 +276,7 @@ class EscPComandos(ComandoInterface):
 
         printer.image('afip.bmp');
         printer.text("Comprobante Autorizado \n")
-
-        printer.set("LEFT", "B", "A", 1, 1)
-        
-        if self.__preFillTrailer:
-            self._setTrailer(self.__preFillTrailer)
-
-        if setTrailer:
-            self._setTrailer(setTrailer)   
+ 
         printer.set("CENTER", "B", "B", 1, 1)
         printer.text(u"Comprobante electrónico impreso por www.paxapos.com")
         
@@ -260,6 +290,87 @@ class EscPComandos(ComandoInterface):
         printer.end()
 
     def printRemito(self, **kwargs):
+        "imprimir remito"
+        printer = self.conector.driver
+
+        encabezado = kwargs.get("encabezado", None)
+        items = kwargs.get("items", [])
+        addAdditional = kwargs.get("addAdditional", None)
+        setTrailer = kwargs.get("setTrailer", None)
+        
+
+        printer.start()
+        
+        # colocar en modo ESC P
+        printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "1")
+
+        printer.set("CENTER", "A", "A", 1, 1)
+        if encabezado.has_key("imprimir_fecha_remito"):
+            fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M %x')
+            printer.text(u"Fecha: %s" % fecha)
+        printer.text(u"\nNO VALIDO COMO FACTURA\n")
+
+        if encabezado:
+            printer.set("LEFT", "A", "A", 1, 1)
+            if encabezado.has_key("nombre_cliente"):
+                printer.text(u'\nNombre Cliente: %s' % encabezado.get("nombre_cliente"))
+                if encabezado.has_key("telefono"):
+                    printer.text(u'\nTelefono: %s' % encabezado.get("telefono"))
+                if encabezado.has_key("domicilio_cliente"):
+                    printer.text(u'\nDomicilio: %s\n' % encabezado.get("domicilio_cliente"))
+
+        printer.set("LEFT", "A", "A", 1, 1)
+        
+        if self.__preFillTrailer:
+            self._setTrailer(self.__preFillTrailer)
+
+        if setTrailer:
+            self._setTrailer(setTrailer)   
+
+
+        tot_importe = 0.0
+        for item in items:
+            desc = item.get('ds')[0:24]
+            cant = float(item.get('qty'))
+            precio = cant * float(item.get('importe'))
+            tot_importe += precio
+            cant_tabs = 3
+            can_tabs_final = cant_tabs - ceil(len(desc) / 8)
+            strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
+
+            printer.text("%g\t%s$%g\n" % (cant, strTabs, precio))
+
+        printer.text("\n")
+
+        if addAdditional:
+            # imprimir subtotal
+            printer.set("RIGHT", "A", "A", 1, 1)
+            printer.text("SUBTOTAL: $%g\n" % tot_importe)
+
+            # imprimir descuento
+            sAmount = float(addAdditional.get('amount', 0))
+            tot_importe = tot_importe - sAmount
+            printer.set("RIGHT", "A", "A", 1, 1)
+            printer.text("%s $%g\n" % (addAdditional.get('description'), sAmount))
+
+        # imprimir total
+        printer.set("RIGHT", "A", "A", 2, 2)
+        printer.text(u"TOTAL: $%g\n" % tot_importe)
+
+        self.__printExtras(kwargs)
+
+
+
+        printer.cut("PART")
+
+        # volver a poner en modo ESC Bematech, temporal para testing
+        # printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "0")
+
+        # dejar letra chica alineada izquierda
+        printer.set("LEFT", "A", "B", 1, 2)
+        printer.end()
+
+    def printRemitoLargo(self, **kwargs):
         "imprimir remito"
         printer = self.conector.driver
 
@@ -296,7 +407,6 @@ class EscPComandos(ComandoInterface):
 
         printer.text(u"CANT\tDESCRIPCIÓN\t\tPRECIO\n")
         printer.text("\n")
-        tot_chars = 40
         tot_importe = 0.0
         for item in items:
             desc = item.get('ds')[0:24]
