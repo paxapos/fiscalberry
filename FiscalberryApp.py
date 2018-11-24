@@ -14,6 +14,8 @@ import logging.config
 import time
 import ssl
 import Configberry
+import git
+
 import FiscalberryDiscover
 from  tornado import web
 if sys.platform == 'win32':
@@ -51,9 +53,10 @@ class PageHandler(tornado.web.RequestHandler):
 #		
 
 class WSHandler(tornado.websocket.WebSocketHandler):
-    def initialize(self):
+    def initialize(self, ref_object):
+        self.fbApp = ref_object
         self.clients = []
-        self.traductor = TraductoresHandler(self)
+        self.traductor = TraductoresHandler(self, self.fbApp)
 
     def open(self):
         self.clients.append(self)
@@ -112,6 +115,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 class FiscalberryApp:
     application = None
     http_server = None
+    https_server = None
 
     # thread timer para hacer broadcast cuando hay mensaje de la impresora
     timerPrinterWarnings = None
@@ -136,19 +140,30 @@ class FiscalberryApp:
             tornado.ioloop.IOLoop.instance().add_callback(self.shutdown)
 
         signal(SIGTERM, sig_handler)
-        signal(SIGINT, sig_handler)        
+        signal(SIGINT, sig_handler)       
 
+    def restart_service(self):
+        self.shutdown()
+        # self.upgradeGitPull()
+        self.discover()
+        self.start()
 
     def shutdown(self):
         logger.info('Stopping http server')
 
-        logger.info('Will shutdown in %s seconds ...', MAX_WAIT_SECONDS_BEFORE_SHUTDOWN)
+        #logger.info('Will shutdown in %s seconds ...', MAX_WAIT_SECONDS_BEFORE_SHUTDOWN)
         io_loop = tornado.ioloop.IOLoop.current()
 
-        deadline = time.time() + MAX_WAIT_SECONDS_BEFORE_SHUTDOWN
+        #deadline = time.time() + MAX_WAIT_SECONDS_BEFORE_SHUTDOWN
 
         io_loop.stop()
         logger.info('Shutdown')
+
+    def upgradeGitPull(self):
+        path = os.path.realpath(__file__)
+        g = git.cmd.Git( os.path.dirname( path ) )
+        
+        return g.pull()
 
     def discover(self):
         # send discover data to your server if the is no URL configured, so nothing will be sent
@@ -157,24 +172,33 @@ class FiscalberryApp:
 
     def start(self):
         logger.info("Iniciando Fiscalberry Server")
-        settings = {            
+        settings = {  
+            "autoreload": True          
         }
 
         self.application = tornado.web.Application([
-            (r'/wss', WSHandler),
-            (r'/ws', WSHandler),
+            (r'/wss', WSHandler, {"ref_object" : self}),
+            (r'/ws', WSHandler, {"ref_object" : self}),
             (r'/api', ApiRestHandler),
             (r'/api/auth', AuthHandler),
             (r'/', PageHandler),
             (r"/(.*)", web.StaticFileHandler, dict(path=root + "/js_browser_client")),
         ], **settings)
 
+        # cuando cambia el config.ini levanta devuelta el servidor tronado
+        tornado.autoreload.watch("config.ini")
+
+        myIP = socket.gethostbyname(socket.gethostname())
+
+        self.http_server = tornado.httpserver.HTTPServer(self.application)
+        puerto = self.configberry.config.get('SERVIDOR', "puerto")
+        self.http_server.listen(puerto)
+        logger.info('*** Websocket Server Started as HTTP at %s port %s***' % (myIP, puerto))
+
+
         hasCrt = self.configberry.config.has_option('SERVIDOR', "ssl_crt_path")
         hasKey = self.configberry.config.has_option('SERVIDOR', "ssl_key_path")
 
-        self.http_server = tornado.httpserver.HTTPServer(self.application)
-
-        self.https_server = None
         if (hasCrt and hasKey):
             ssl_crt_path = self.configberry.config.get('SERVIDOR', "ssl_crt_path")
             ssl_key_path = self.configberry.config.get('SERVIDOR', "ssl_key_path")
@@ -184,22 +208,15 @@ class FiscalberryApp:
                         "certfile": ssl_crt_path,
                         "keyfile": ssl_key_path,
                     })
+                puerto = int(puerto) + 1
+                self.https_server.listen(puerto)
+                logger.info('*** Websocket Server Started as HTTPS at %s port %s***' % (myIP, puerto))
 
         self.print_printers_resume()
-        myIP = socket.gethostbyname(socket.gethostname())
-
-        puerto = self.configberry.config.get('SERVIDOR', "puerto")
-        self.http_server.bind(puerto)
-        self.http_server.start()
-        logger.info('*** Websocket Server Started as HTTP at %s port %s***' % (myIP, puerto))
-
-        if self.https_server:
-            puerto = int(puerto) + 1
-            self.https_server.bind(puerto)
-            self.https_server.start()
-            logger.info('*** Websocket Server Started as HTTPS at %s port %s***' % (myIP, puerto))
+       
 
         tornado.ioloop.IOLoop.current().start()
+        tornado.ioloop.IOLoop.current().close()
 
         logger.info("Bye!")
 

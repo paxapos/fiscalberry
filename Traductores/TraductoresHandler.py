@@ -9,6 +9,7 @@ import threading
 import tornado.ioloop
 import nmap
 import os
+import git
 
 INTERVALO_IMPRESORA_WARNING = 30.0
 
@@ -35,12 +36,14 @@ class TraductoresHandler:
     """Convierte un JSON a Comando Fiscal Para Cualquier tipo de Impresora fiscal"""
 
     traductores = {}
+    fbApp = None
 
     config = Configberry.Configberry()
     webSocket = None
 
-    def __init__(self, webSocket):
+    def __init__(self, webSocket, fbApp):
         self.webSocket = webSocket
+        self.fbApp = fbApp
 
     def json_to_comando(self, jsonTicket):
         try:
@@ -72,8 +75,15 @@ class TraductoresHandler:
             elif 'getStatus' in jsonTicket:
                 rta["rta"] = self._getStatus()
 
+            # reinicia
+            elif 'reboot' in jsonTicket:
+                rta["rta"] = self._reboot()
+
             elif 'restart' in jsonTicket:
-                rta["rta"] = self._restartFiscalberry()
+                rta["rta"] = self._restartService()
+
+            elif 'upgrade' in jsonTicket:
+                rta["rta"] = self._upgrade()
 
             elif 'getPrinterInfo' in jsonTicket:
                 rta["rta"] =  self._getPrinterInfo(jsonTicket["getPrinterInfo"])
@@ -199,6 +209,14 @@ class TraductoresHandler:
         comando = comandoClass(**dictSectionConf)
         return comando.traductor
 
+    def _upgrade(self):
+        ret = self.fbApp.upgradeGitPull()
+        print(ret)
+        rta = {
+            "rta": ret
+        }
+        self.fbApp.restart_service()
+        return rta
 
     def _getPrinterInfo(self, printerName):
         rta = {
@@ -209,13 +227,21 @@ class TraductoresHandler:
         print(rta)
         return rta
 
-    def _restartFiscalberry(self):
+    def _restartService(self):
+        """ Reinicializa el WS server tornado y levanta la configuracion nuevamente """
+        self.fbApp.restart_service()
+        resdict = {
+            "action": "restartService",
+            "rta": "servidor reiniciado"
+        }
+
+    def _rebootFiscalberry(self):
         "reinicia el servicio fiscalberry"
         from subprocess import call
 
         resdict = {
-            "action": "restartFIscalberry",
-            "rta": call(["shutdown", "-f", "-r", "-t", "60"])
+            "action": "rebootFiscalberry",
+            "rta": call(["reboot"])
         }
 
         return resdict
