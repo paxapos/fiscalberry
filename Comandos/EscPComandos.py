@@ -220,13 +220,13 @@ class EscPComandos(ComandoInterface):
 
             total += precio_total
 
-            cant_tabs = 4
+            cant_tabs = 3
             len_desc = len(desc)
             if len_desc > 19:
                 desc = desc[:len_desc - (len_desc - 19)]
             if len_desc < 19:
                 desc = desc.ljust(19 - len_desc)
-            can_tabs_final = cant_tabs - ceil(len(desc) / 6)
+            can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
             if encabezado.get("tipo_comprobante") != "Factura B":
