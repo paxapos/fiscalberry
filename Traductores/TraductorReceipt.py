@@ -23,6 +23,9 @@ class TraductorReceipt(TraductorInterface):
        "Imprime texto libre"
        return self.comando.printTexto(texto)
 
+    def openDrawer(self, *args):
+        return self.comando.openDrawer()
+
     def setHeader(self, *args):
         "SetHeader"
         ret = self.comando.setHeader(list(args))

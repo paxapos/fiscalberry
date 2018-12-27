@@ -49,6 +49,12 @@ class EscPComandos(ComandoInterface):
         for key in setTrailer:
             self.doble_alto_x_linea(key)
 
+    def openDrawer(self):
+        printer = self.conector.driver
+        printer.start()
+        printer.cashdraw(2)
+        printer.end()
+
     def printPedido(self, **kwargs):
         "imprimir pedido de compras"
         printer = self.conector.driver
