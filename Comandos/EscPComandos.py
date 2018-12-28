@@ -150,14 +150,12 @@ class EscPComandos(ComandoInterface):
     
     def printFacturaElectronica(self, **kwargs):
         "imprimir Factura Electronica"
-        printer = self.conector.driver
 
         encabezado = kwargs.get("encabezado", None)
 
         # antes de comenzar descargo la imagen del barcode
         barcodeImage = requests.get(encabezado.get("barcode_url"), stream=True).raw
 
-        printer.start()
         items = kwargs.get("items", [])
         addAdditional = kwargs.get("addAdditional", None)
         setTrailer = kwargs.get("setTrailer", None)
@@ -474,12 +472,6 @@ class EscPComandos(ComandoInterface):
         "observacion, entradas{observacion, cant, nombre, sabores}, platos{observacion, cant, nombre, sabores}"
         printer = self.conector.driver
         printer.start()
-
-        printer.set("CENTER", "A", "A", 1, 1)
-        
-        # 0x1D 0xF9 0x35 1
-        # colocar en modo ESC P
-        printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "1")
         
         printer.set("CENTER", "A", "A", 1, 1)
 
