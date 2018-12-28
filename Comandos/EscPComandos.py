@@ -306,9 +306,6 @@ class EscPComandos(ComandoInterface):
         
 
         printer.start()
-        
-        # colocar en modo ESC P
-        printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "1")
 
         printer.set("CENTER", "A", "A", 1, 1)
         if encabezado.has_key("imprimir_fecha_remito"):
@@ -389,9 +386,6 @@ class EscPComandos(ComandoInterface):
         printer.start()
         
         printer.set("CENTER", "A", "A", 1, 1)
-        
-        # colocar en modo ESC P
-        printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "1")
 
         printer.set("CENTER", "A", "A", 1, 1)
         if encabezado.has_key("imprimir_fecha_remito"):
@@ -496,9 +490,9 @@ class EscPComandos(ComandoInterface):
 
         if "id" in comanda:
             if "nuevaComanda" in comanda:
-                printer.text("Nueva Comanda\n")
+                printer.text(u"Nueva Comanda\n")
             else:
-                printer.text("- REIMPRESION -\n")
+                printer.text(u"- REIMPRESION -\n")
             printer.text(u"Comanda #%s\n" % comanda['id'])
         else:
             printer.text(u"Nueva Comanda\n")
