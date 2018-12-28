@@ -496,9 +496,9 @@ class EscPComandos(ComandoInterface):
 
         if "id" in comanda:
             if "nuevaComanda" in comanda:
-                printer.text(u"Nueva Comanda\n")
+                printer.text("Nueva Comanda\n")
             else:
-                printer.text(u"- REIMPRESION -\n")
+                printer.text("- REIMPRESION -\n")
             printer.text(u"Comanda #%s\n" % comanda['id'])
         else:
             printer.text(u"Nueva Comanda\n")
