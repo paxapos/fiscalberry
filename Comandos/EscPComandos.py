@@ -331,7 +331,7 @@ class EscPComandos(ComandoInterface):
 
         tot_importe = 0.0
         for item in items:
-            desc = item.get('ds')[0:24]
+            desc = item.get('ds')[0:20]
             cant = float(item.get('qty'))
             precio = cant * float(item.get('importe'))
             tot_importe += precio
@@ -407,7 +407,7 @@ class EscPComandos(ComandoInterface):
         printer.text("\n")
         tot_importe = 0.0
         for item in items:
-            desc = item.get('ds')[0:24]
+            desc = item.get('ds')[0:20]
             cant = float(item.get('qty'))
             precio = cant * float(item.get('importe'))
             tot_importe += precio
