@@ -490,8 +490,7 @@ class EscPComandos(ComandoInterface):
             printer.text(u"Nueva Comanda\n")
 
         if "created" in comanda:
-            fff_aux = time.strptime(comanda['created'], "%H:%M")
-            fecha = time.strftime('%H:%M', fff_aux)
+            fecha = datetime.datetime.strptime(comanda['created'], '%Y-%m-%d %H:%M:%S').strftime('%H:%M',)
         else:
             fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M')
             
