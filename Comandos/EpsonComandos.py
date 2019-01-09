@@ -48,7 +48,7 @@ class EpsonComandos(ComandoFiscalInterface):
     CURRENT_DOC_CREDIT_TICKET = 4
     CURRENT_DOC_NON_FISCAL = 3
 
-    models = ["tickeadoras", "epsonlx300+", "tm-220-af", "tm-t900fa"]
+    models = ["tickeadoras", "epsonlx300+", "tm-220-af", "tm-t900fa", "sm-srp-270"]
 
     ivaTypes = {
         "RESPONSABLE_INSCRIPTO": 'I',
@@ -224,7 +224,10 @@ class EpsonComandos(ComandoFiscalInterface):
     def cancelDocument(self):
         if self._currentDocument in (self.CURRENT_DOC_TICKET, self.CURRENT_DOC_BILL_TICKET,
                                      self.CURRENT_DOC_CREDIT_TICKET):
-            status = self._sendCommand(self.CMD_ADD_PAYMENT[self._getCommandIndex()], ["Cancelar", "0", 'C'])
+            cancel_number = "0"
+            if self.model == "sm-srp-270":
+                cancel_number = "7.00" #número para cancelar comando en la impresora Samsung SRP-270
+            status = self._sendCommand(self.CMD_ADD_PAYMENT[self._getCommandIndex()], ["Cancelar", cancel_number, 'C'])
             return status
         if self._currentDocument in (self.CURRENT_DOC_NON_FISCAL,):
             self.printNonFiscalText("CANCELADO")
@@ -337,13 +340,16 @@ class EpsonComandos(ComandoFiscalInterface):
             return int(reply[11])
 
     def cancelAnyDocument(self):
+        cancel_number = "0"
+        if self.model == "sm-srp-270":
+            cancel_number = "7.00"
         try:
-            self._sendCommand(self.CMD_ADD_PAYMENT[0], ["Cancelar", "0", 'C'])
+            self._sendCommand(self.CMD_ADD_PAYMENT[0], ["Cancelar", cancel_number, 'C'])
             return True
         except:
             pass
         try:
-            self._sendCommand(self.CMD_ADD_PAYMENT[1], ["Cancelar", "0", 'C'])
+            self._sendCommand(self.CMD_ADD_PAYMENT[1], ["Cancelar", cancel_number, 'C'])
             return True
         except:
             pass
