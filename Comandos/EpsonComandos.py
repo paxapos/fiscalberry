@@ -70,7 +70,9 @@ class EpsonComandos(ComandoFiscalInterface):
             logging.getLogger().info("sendCommand: SEND|0x%x|%s|%s" % (commandNumber,
                                                                        skipStatusErrors and "T" or "F",
                                                                        str(parameters)))
-            return self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
+            return_value = self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
+            print return_value
+            return return_value
         except PrinterException, e:
             logging.getLogger().error("PrinterException: %s" % str(e))
             raise ComandoException("Error de la impresora fiscal: " + str(e))
@@ -116,6 +118,8 @@ class EpsonComandos(ComandoFiscalInterface):
 
     def _openBillCreditTicket(self, type, name, address, doc, docType, ivaType, isCreditNote,
             reference=None):
+        print "El doc llega asi: ", doc
+        print "El tipoDoc llega asi: ",docType
         if not docType:
             docType, doc = '-', '-'
         if doc and not isinstance(doc, basestring):
@@ -152,6 +156,9 @@ class EpsonComandos(ComandoFiscalInterface):
                 "C", # No somos una farmacia
                 ]
         else:
+            print "en el ELSE EL DOC ES: ", doc
+            print "en el ELSE EL tipoDOC ES: ", docType
+            print "el resultado de doc or (isCreditNote and - or ) es: ", doc or (isCreditNote and "-" or "") 
             parameters = [isCreditNote and "M" or "T", # Ticket NC o Factura
                 "C",  # Tipo de Salida - Ignorado
                 type, # Tipo de FC (A/B/C)
@@ -169,9 +176,9 @@ class EpsonComandos(ComandoFiscalInterface):
                 formatText(address[:self.ADDRESS_SIZE] or "-"), # Domicilio
                 formatText(address[self.ADDRESS_SIZE:self.ADDRESS_SIZE * 2]), # Domicilio 2da linea
                 formatText(address[self.ADDRESS_SIZE * 2:self.ADDRESS_SIZE * 3]), # Domicilio 3ra linea
-                "C", # No somos una farmacia
                 reference, # Remito primera linea
-                "G", # Remito segunda linea
+                "", # Remito segunda linea
+                "C", # No somos una farmacia
                 ]
         if isCreditNote:
             self._currentDocument = self.CURRENT_DOC_CREDIT_TICKET
