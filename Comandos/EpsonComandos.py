@@ -50,6 +50,12 @@ class EpsonComandos(ComandoFiscalInterface):
 
     models = ["tickeadoras", "epsonlx300+", "tm-220-af", "tm-t900fa", "sm-srp-270"]
 
+    docTypes = {
+        "DNI": 'DNI',
+        "CUIL": 'CUIL',
+        "CUIT": 'CUIT',
+    }
+
     ivaTypes = {
         "RESPONSABLE_INSCRIPTO": 'I',
         "RESPONSABLE_NO_INSCRIPTO": 'R',
@@ -137,7 +143,7 @@ class EpsonComandos(ComandoFiscalInterface):
                 "P",   # "P" la impresora imprime la lineas(hoja en blanco) o "F" preimpreso
                 "17",   # Tamaño Carac - Ignorado
                 "I",   # Responsabilidad en el modo entrenamiento - Ignorado
-                self.ivaTypes.get(ivaType, "F"),   # Iva Comprador
+                ivaType or "F",   # Iva Comprador - El char del tipo de Iva ya fue obtenido en el TraductorFiscal
                 formatText(name[:40]), # Nombre
                 formatText(name[40:80]), # Segunda parte del nombre - Ignorado
                 docType or (isCreditNote and "-" or ""),
@@ -159,7 +165,7 @@ class EpsonComandos(ComandoFiscalInterface):
                 "P",   # Tipo de Hoja - Ignorado
                 "17",   # Tamaño Carac - Ignorado
                 "E",   # Responsabilidad en el modo entrenamiento - Ignorado
-                self.ivaTypes.get(ivaType, "F"),   # Iva Comprador
+                ivaType or "F",   # Iva Comprador - El char del tipo de Iva ya fue obtenido en el TraductorFiscal
                 formatText(name[:40]), # Nombre
                 formatText(name[40:80]), # Segunda parte del nombre - Ignorado
                 docType or (isCreditNote and "-" or ""),
@@ -169,9 +175,9 @@ class EpsonComandos(ComandoFiscalInterface):
                 formatText(address[:self.ADDRESS_SIZE] or "-"), # Domicilio
                 formatText(address[self.ADDRESS_SIZE:self.ADDRESS_SIZE * 2]), # Domicilio 2da linea
                 formatText(address[self.ADDRESS_SIZE * 2:self.ADDRESS_SIZE * 3]), # Domicilio 3ra linea
-                "C", # No somos una farmacia
                 reference, # Remito primera linea
-                "G", # Remito segunda linea
+                "", # Remito segunda linea
+                "C", # No somos una farmacia
                 ]
         if isCreditNote:
             self._currentDocument = self.CURRENT_DOC_CREDIT_TICKET
