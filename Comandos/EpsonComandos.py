@@ -76,7 +76,7 @@ class EpsonComandos(ComandoFiscalInterface):
             logging.getLogger().info("sendCommand: SEND|0x%x|%s|%s" % (commandNumber,
                                                                        skipStatusErrors and "T" or "F",
                                                                        str(parameters)))
-            return = self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
+            return self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
         except PrinterException, e:
             logging.getLogger().error("PrinterException: %s" % str(e))
             raise ComandoException("Error de la impresora fiscal: " + str(e))
