@@ -76,9 +76,7 @@ class EpsonComandos(ComandoFiscalInterface):
             logging.getLogger().info("sendCommand: SEND|0x%x|%s|%s" % (commandNumber,
                                                                        skipStatusErrors and "T" or "F",
                                                                        str(parameters)))
-            return_value = self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
-            print return_value
-            return return_value
+            return = self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
         except PrinterException, e:
             logging.getLogger().error("PrinterException: %s" % str(e))
             raise ComandoException("Error de la impresora fiscal: " + str(e))
@@ -124,8 +122,6 @@ class EpsonComandos(ComandoFiscalInterface):
 
     def _openBillCreditTicket(self, type, name, address, doc, docType, ivaType, isCreditNote,
             reference=None):
-        print "El doc llega asi: ", doc
-        print "El tipoDoc llega asi: ",docType
         if not docType:
             docType, doc = '-', '-'
         if doc and not isinstance(doc, basestring):
@@ -147,7 +143,7 @@ class EpsonComandos(ComandoFiscalInterface):
                 "P",   # "P" la impresora imprime la lineas(hoja en blanco) o "F" preimpreso
                 "17",   # Tamaño Carac - Ignorado
                 "I",   # Responsabilidad en el modo entrenamiento - Ignorado
-                self.ivaTypes.get(ivaType, "F"),   # Iva Comprador
+                ivaType or "F",   # Iva Comprador - El char del tipo de Iva ya fue obtenido en el TraductorFiscal
                 formatText(name[:40]), # Nombre
                 formatText(name[40:80]), # Segunda parte del nombre - Ignorado
                 docType or (isCreditNote and "-" or ""),
@@ -162,9 +158,6 @@ class EpsonComandos(ComandoFiscalInterface):
                 "C", # No somos una farmacia
                 ]
         else:
-            print "en el ELSE EL DOC ES: ", doc
-            print "en el ELSE EL tipoDOC ES: ", docType
-            print "el resultado de doc or (isCreditNote and - or ) es: ", doc or (isCreditNote and "-" or "") 
             parameters = [isCreditNote and "M" or "T", # Ticket NC o Factura
                 "C",  # Tipo de Salida - Ignorado
                 type, # Tipo de FC (A/B/C)
@@ -172,7 +165,7 @@ class EpsonComandos(ComandoFiscalInterface):
                 "P",   # Tipo de Hoja - Ignorado
                 "17",   # Tamaño Carac - Ignorado
                 "E",   # Responsabilidad en el modo entrenamiento - Ignorado
-                self.ivaTypes.get(ivaType),   # Iva Comprador
+                ivaType or "F",   # Iva Comprador - El char del tipo de Iva ya fue obtenido en el TraductorFiscal
                 formatText(name[:40]), # Nombre
                 formatText(name[40:80]), # Segunda parte del nombre - Ignorado
                 docType or (isCreditNote and "-" or ""),
