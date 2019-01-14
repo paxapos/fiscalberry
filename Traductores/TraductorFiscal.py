@@ -41,34 +41,38 @@ class TraductorFiscal(TraductorInterface):
         "Cancelar comprobante en curso"
         return self.comando.cancelDocument()
 
-    def printTicket(self, encabezado=None, items=[], pagos=[], addAdditional=None, setHeader=None, setTrailer=None):
-        try:
-          if setHeader:
-              self.setHeader(*setHeader)
+    def printTicket(self, encabezado=None, items=[], pagos=[], percepciones=[], addAdditional=None, setHeader=None, setTrailer=None):
+        if setHeader:
+            self.setHeader(*setHeader)
 
-          if setTrailer:
+            if setTrailer:
               self.setTrailer(*setTrailer)
 
-          if encabezado:
+            if encabezado:
               self._abrirComprobante(**encabezado)
-          else:
+            else:
               self._abrirComprobante()
 
-          for item in items:
+            for item in items:
               self._imprimirItem(**item)
 
-          if pagos:
+            if pagos:
               for pago in pagos:
                   self._imprimirPago(**pago)
 
-          if addAdditional:
-              self.comando.addAdditional(**addAdditional)
+        if percepciones:
+            for percepcion in percepciones:
+              self._imprimirPercepcion(**percepcion)
 
-          rta = self._cerrarComprobante()
-          return rta
-        except Exception, e:
-          self.cancelDocument()
-          raise
+            if pagos:
+              for pago in pagos:
+                  self._imprimirPago(**pago)
+
+            if addAdditional:
+                self.comando.addAdditional(**addAdditional)
+
+        rta = self._cerrarComprobante()
+        return rta
 
     def _abrirComprobante(self,
                           tipo_cbte="T",  # tique
@@ -87,8 +91,7 @@ class TraductorFiscal(TraductorInterface):
                                            tipo_doc=tipo_doc, nro_doc=nro_doc,
                                            nombre_cliente=nombre_cliente,
                                            domicilio_cliente=domicilio_cliente,
-                                           referencia=referencia),
-                        "items": [], "pagos": []}
+                                           referencia=referencia)}
         printer = self.comando
 
         letra_cbte = tipo_cbte[-1] if len(tipo_cbte) > 1 else None
@@ -144,6 +147,11 @@ class TraductorFiscal(TraductorInterface):
         "Imprime una linea con la forma de pago y monto"
         self.factura["pagos"].append(dict(ds=ds, importe=importe))
         return self.comando.addPayment(ds, float(importe))
+
+    def _imprimirPercepcion(self, ds, importe):
+        "Imprime una linea con nombre de percepcion y monto"
+        self.factura["percepciones"].append(dict(ds=ds, importe=importe))
+        return self.comando.addPerception(ds, float(importe))
 
     def _cerrarComprobante(self, *args):
         "Envia el comando para cerrar un comprobante Fiscal"

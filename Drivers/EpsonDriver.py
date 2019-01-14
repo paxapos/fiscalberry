@@ -3,7 +3,6 @@
 from Drivers.FiscalPrinterDriver import FiscalPrinterDriver, ComunicationError
 import random
 import time
-import serial
 
 
 class EpsonDriver(FiscalPrinterDriver):
