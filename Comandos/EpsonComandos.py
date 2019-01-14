@@ -52,6 +52,12 @@ class EpsonComandos(ComandoFiscalInterface):
 
     models = ["tickeadoras", "epsonlx300+", "tm-220-af", "tm-t900fa", "sm-srp-270"]
 
+    docTypes = {
+        "DNI": 'DNI',
+        "CUIL": 'CUIL',
+        "CUIT": 'CUIT',
+    }
+
     ivaTypes = {
         "RESPONSABLE_INSCRIPTO": 'I',
         "RESPONSABLE_NO_INSCRIPTO": 'R',
@@ -143,7 +149,7 @@ class EpsonComandos(ComandoFiscalInterface):
                 "P",   # "P" la impresora imprime la lineas(hoja en blanco) o "F" preimpreso
                 "17",   # Tamaño Carac - Ignorado
                 "I",   # Responsabilidad en el modo entrenamiento - Ignorado
-                ivaType or "F",   # Iva Comprador
+                ivaType or "F",   # Iva Comprador - El char del tipo de Iva ya fue obtenido en el TraductorFiscal
                 formatText(name[:40]), # Nombre
                 formatText(name[40:80]), # Segunda parte del nombre - Ignorado
                 docType or (isCreditNote and "-" or ""),
@@ -165,7 +171,7 @@ class EpsonComandos(ComandoFiscalInterface):
                 "P",   # Tipo de Hoja - Ignorado
                 "17",   # Tamaño Carac - Ignorado
                 "E",   # Responsabilidad en el modo entrenamiento - Ignorado
-                ivaType or "F",   # Iva Comprador
+                ivaType or "F",   # Iva Comprador - El char del tipo de Iva ya fue obtenido en el TraductorFiscal
                 formatText(name[:40]), # Nombre
                 formatText(name[40:80]), # Segunda parte del nombre - Ignorado
                 docType or (isCreditNote and "-" or ""),
