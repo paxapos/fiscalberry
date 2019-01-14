@@ -42,37 +42,41 @@ class TraductorFiscal(TraductorInterface):
         return self.comando.cancelDocument()
 
     def printTicket(self, encabezado=None, items=[], pagos=[], percepciones=[], addAdditional=None, setHeader=None, setTrailer=None):
-        if setHeader:
-            self.setHeader(*setHeader)
+      try:
+          if setHeader:
+              self.setHeader(*setHeader)
 
-            if setTrailer:
-              self.setTrailer(*setTrailer)
+              if setTrailer:
+                self.setTrailer(*setTrailer)
 
-            if encabezado:
-              self._abrirComprobante(**encabezado)
-            else:
-              self._abrirComprobante()
+              if encabezado:
+                self._abrirComprobante(**encabezado)
+              else:
+                self._abrirComprobante()
 
-            for item in items:
-              self._imprimirItem(**item)
+              for item in items:
+                self._imprimirItem(**item)
 
-            if pagos:
-              for pago in pagos:
-                  self._imprimirPago(**pago)
+              if pagos:
+                for pago in pagos:
+                    self._imprimirPago(**pago)
 
-        if percepciones:
-            for percepcion in percepciones:
-              self._imprimirPercepcion(**percepcion)
+          if percepciones:
+              for percepcion in percepciones:
+                self._imprimirPercepcion(**percepcion)
 
-            if pagos:
-              for pago in pagos:
-                  self._imprimirPago(**pago)
+              if pagos:
+                for pago in pagos:
+                    self._imprimirPago(**pago)
 
-            if addAdditional:
-                self.comando.addAdditional(**addAdditional)
+              if addAdditional:
+                  self.comando.addAdditional(**addAdditional)
 
-        rta = self._cerrarComprobante()
-        return rta
+          rta = self._cerrarComprobante()
+          return rta
+      except Exception, e:
+        self.cancelDocument()
+        raise
 
     def _abrirComprobante(self,
                           tipo_cbte="T",  # tique
