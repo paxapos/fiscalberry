@@ -127,16 +127,12 @@ class EpsonComandos(ComandoFiscalInterface):
             docType, doc = '-', '-'
         if doc and not isinstance(doc, basestring):
             doc = str(doc)
-        if not doc or not docType in self.docTypeNames:
-            doc, docType = "", ""
-        else:
-            doc = doc.replace("-", "").replace(".", "")
         if not ivaType:
             ivaType = 'F'  # Default is Consumidor Final
         self._type = type
         # Remito primera linea - Es obligatorio si el cliente no es consumidor final
         if not reference:
-            if (isCreditNote or self.ivaTypes.get(ivaType, "F") != "F"):
+            if (isCreditNote or ivaType != "F"):
                 reference = "-"
             else:
                 reference = ""

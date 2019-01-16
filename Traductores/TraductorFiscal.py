@@ -48,15 +48,14 @@ class TraductorFiscal(TraductorInterface):
 
           if setTrailer:
             self.setTrailer(*setTrailer)
-
           if encabezado:
+            print "ENCABEZADO ESSS: ", encabezado
             self._abrirComprobante(**encabezado)
           else:
             self._abrirComprobante()
 
           if items:
             for item in items:
-              print item
               self._imprimirItem(**item)
 
             if pagos:
@@ -100,7 +99,7 @@ class TraductorFiscal(TraductorInterface):
                                            referencia=referencia),
                                            "items": [], "pagos": [], "percepciones": []
                         }
-                        
+
         printer = self.comando
 
         letra_cbte = tipo_cbte[-1] if len(tipo_cbte) > 1 else None
