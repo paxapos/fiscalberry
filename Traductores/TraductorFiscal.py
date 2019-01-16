@@ -44,22 +44,24 @@ class TraductorFiscal(TraductorInterface):
     def printTicket(self, encabezado=None, items=[], pagos=[], percepciones=[], addAdditional=None, setHeader=None, setTrailer=None):
       try:
           if setHeader:
-              self.setHeader(*setHeader)
+            self.setHeader(*setHeader)
 
-              if setTrailer:
-                self.setTrailer(*setTrailer)
+          if setTrailer:
+            self.setTrailer(*setTrailer)
 
-              if encabezado:
-                self._abrirComprobante(**encabezado)
-              else:
-                self._abrirComprobante()
+          if encabezado:
+            self._abrirComprobante(**encabezado)
+          else:
+            self._abrirComprobante()
 
-              for item in items:
-                self._imprimirItem(**item)
+          if items:
+            for item in items:
+              print item
+              self._imprimirItem(**item)
 
-              if pagos:
-                for pago in pagos:
-                    self._imprimirPago(**pago)
+            if pagos:
+              for pago in pagos:
+                self._imprimirPago(**pago)
 
           if percepciones:
               for percepcion in percepciones:
@@ -69,8 +71,8 @@ class TraductorFiscal(TraductorInterface):
                 for pago in pagos:
                     self._imprimirPago(**pago)
 
-              if addAdditional:
-                  self.comando.addAdditional(**addAdditional)
+          if addAdditional:
+              self.comando.addAdditional(**addAdditional)
 
           rta = self._cerrarComprobante()
           return rta
@@ -95,7 +97,10 @@ class TraductorFiscal(TraductorInterface):
                                            tipo_doc=tipo_doc, nro_doc=nro_doc,
                                            nombre_cliente=nombre_cliente,
                                            domicilio_cliente=domicilio_cliente,
-                                           referencia=referencia)}
+                                           referencia=referencia),
+                                           "items": [], "pagos": [], "percepciones": []
+                        }
+                        
         printer = self.comando
 
         letra_cbte = tipo_cbte[-1] if len(tipo_cbte) > 1 else None
