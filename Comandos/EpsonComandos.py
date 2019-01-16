@@ -50,7 +50,7 @@ class EpsonComandos(ComandoFiscalInterface):
     CURRENT_DOC_CREDIT_TICKET = 4
     CURRENT_DOC_NON_FISCAL = 3
 
-    models = ["tickeadoras", "epsonlx300+", "tm-220-af", "tm-t900fa", "sm-srp-270"]
+    models = ["tickeadoras", "epsonlx300+", "tm-2000-af", "tm-220-af", "tm-t900fa", "sm-srp-270"]
 
     docTypes = {
         "DNI": 'DNI',
@@ -246,11 +246,10 @@ class EpsonComandos(ComandoFiscalInterface):
         if self.model == "epsonlx300+":
             bultosStr = str(int(quantity))
         else:
-            bultosStr = "0" * 5  # No se usa en TM220AF ni TM300AF ni TMU220AF
+            bultosStr = "00001" # No se usa en TM220AF ni TM300AF ni TMU220AF
         if self._currentDocumentType != 'A':
-            # enviar con el iva incluido
-            # priceUnitStr = str(int(round(price * 100, 0)))
-            priceUnitStr = "%0.4f" % price
+            # enviar con el iva incluido 
+            priceUnitStr = str(int(round(price * 100, 0)))
         else:
             if self.model == "tm-220-af" or self.model == "tm-t900fa":
                 # enviar sin el iva (factura A)
@@ -258,6 +257,10 @@ class EpsonComandos(ComandoFiscalInterface):
             else:
                 # enviar sin el iva (factura A)
                 priceUnitStr = str(int(round((price / ((100 + iva) / 100)) * 100, 0)))
+
+        if self.model == 'tm-2000-af':
+            #le restamos dos ceros, ya que esta fiscal usa el comando @TIQUEITEM en lugar de @TIQUEITEM2 y dicho comando acepta 2 decimales en lugar de 4.
+            priceUnitStr[:-2]
         ivaStr = str(int(iva * 100))
         extraparams = self._currentDocument in (self.CURRENT_DOC_BILL_TICKET,
                                                 self.CURRENT_DOC_CREDIT_TICKET) and ["", "", ""] or []
@@ -467,6 +470,8 @@ class EpsonComandos(ComandoFiscalInterface):
         cancel_number = "0"
         if self.model == "sm-srp-270":
             cancel_number = "7.00"
+        if self.model == "tm-2000-af":
+            cancel_number = "1111"
         try:
             self._sendCommand(self.CMD_ADD_PAYMENT[0], ["Cancelar", cancel_number, 'C'])
             return True
