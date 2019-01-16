@@ -248,22 +248,22 @@ class EpsonComandos(ComandoFiscalInterface):
         else:
             bultosStr = "00001" # No se usa en TM220AF ni TM300AF ni TMU220AF
         if self._currentDocumentType != 'A':
-            # enviar con el iva incluido
-            # priceUnitStr = str(int(round(price * 100, 0)))
-            priceUnitStr = "%0.4f" % price
+            # enviar con el iva incluido 
+            priceUnitStr = str(int(round(price * 100, 0)))
         else:
-            if self.model == "tm-220-af" or self.model == "tm-t900fa" or self.model == "tm-2000-af":
+            if self.model == "tm-220-af" or self.model == "tm-t900fa":
                 # enviar sin el iva (factura A)
                 priceUnitStr = "%0.4f" % (price / ((100.0 + iva) / 100.0))
             else:
                 # enviar sin el iva (factura A)
                 priceUnitStr = str(int(round((price / ((100 + iva) / 100)) * 100, 0)))
 
-
+        if self.model == 'tm-2000-af':
+            #le restamos dos ceros, ya que esta fiscal usa el comando @TIQUEITEM en lugar de @TIQUEITEM2 y dicho comando acepta 2 decimales en lugar de 4.
+            priceUnitStr[:-2]
         ivaStr = str(int(iva * 100))
         extraparams = self._currentDocument in (self.CURRENT_DOC_BILL_TICKET,
                                                 self.CURRENT_DOC_CREDIT_TICKET) and ["", "", ""] or []
-        print "el str del precio es: ", priceUnitStr
         if self._getCommandIndex() == 0:
             for d in description[:-1]:
                 self._sendCommand(self.CMD_PRINT_TEXT_IN_FISCAL,
