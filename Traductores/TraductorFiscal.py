@@ -48,8 +48,8 @@ class TraductorFiscal(TraductorInterface):
 
           if setTrailer:
             self.setTrailer(*setTrailer)
+
           if encabezado:
-            print "ENCABEZADO ESSS: ", encabezado
             self._abrirComprobante(**encabezado)
           else:
             self._abrirComprobante()
