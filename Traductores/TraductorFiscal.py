@@ -76,6 +76,7 @@ class TraductorFiscal(TraductorInterface):
           rta = self._cerrarComprobante()
           return rta
       except Exception, e:
+        self.comando.cancelDocument()
         raise
 
     def _abrirComprobante(self,
