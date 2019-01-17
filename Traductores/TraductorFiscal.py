@@ -39,7 +39,7 @@ class TraductorFiscal(TraductorInterface):
 
     def cancelDocument(self, *args):
         "Cancelar comprobante en curso"
-        return self.comando.cancelDocument()
+        return self.comando.cancelAnyDocument()
 
     def printTicket(self, encabezado=None, items=[], pagos=[], percepciones=[], addAdditional=None, setHeader=None, setTrailer=None):
       try:
@@ -76,7 +76,7 @@ class TraductorFiscal(TraductorInterface):
           rta = self._cerrarComprobante()
           return rta
       except Exception, e:
-        self.comando.cancelDocument()
+        self.comando.cancelAnyDocument()
         raise
 
     def _abrirComprobante(self,
