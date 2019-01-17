@@ -230,7 +230,7 @@ class EpsonComandos(ComandoFiscalInterface):
         if self._currentDocument in (self.CURRENT_DOC_NON_FISCAL,):
             return self._sendCommand(self.CMD_CLOSE_NON_FISCAL_RECEIPT, ["T"], True)
         #Esto es por si alguna razon un printTicket quedo sin completarse. Ya que si no, no hay manera de cancelar el documento abierto
-        self.cancelDocument()
+        self.cancelAnyDocument()
         return []
         #raise NotImplementedError
 
@@ -466,7 +466,7 @@ class EpsonComandos(ComandoFiscalInterface):
         else:
             return int(reply[11])
 
-    def cancelDocument(self):
+    def cancelAnyDocument(self):
         cancel_number = "0"
         if self.model == "sm-srp-270":
             cancel_number = "7.00"
