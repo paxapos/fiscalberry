@@ -275,10 +275,10 @@ class EpsonComandos(ComandoFiscalInterface):
             discountStr = str(int(discount * 100))
             self._sendCommand(self.CMD_PRINT_LINE_ITEM[self._getCommandIndex()],
                               [formatText(discountDescription[:20]), "1000",
-                               discountStr, ivaStr, 'R', "0", "0"] + extraparams)
+                               discountStr, ivaStr, 'R', "0", "0" * 8] + extraparams)
         return reply
 
-    def addPayment(self, description, payment):
+    def addPayment(self, description, payment, type = "T"):
         paymentStr = str(int(payment * 100))
         status = self._sendCommand(self.CMD_ADD_PAYMENT[self._getCommandIndex()],
                                    [formatText(description)[:20], paymentStr, 'T'])
@@ -296,7 +296,9 @@ class EpsonComandos(ComandoFiscalInterface):
 
 
     def addAdditional(self, description, amount, iva, negative=False):
-        """Agrega un adicional a la FC.
+        """Agrega un descuento o recargo global. 
+        Antes se enviaba un adicional que podía ser un descuento o recargo sobre un item existente en la factura.
+        Lo cual es redundante, ya que eso se hace con el mismo metodo addItem.
             @param description  Descripción
             @param amount       Importe (sin iva en FC A, sino con IVA)
             @param iva          Porcentaje de Iva
@@ -304,27 +306,12 @@ class EpsonComandos(ComandoFiscalInterface):
         if negative:
             if not description:
                 description = "Descuento"
-            sign = 'R'
+            reply = self.addPayment(description, amount, "D")
         else:
             if not description:
                 description = "Recargo"
-            sign = 'M'
+            reply = self.addPayment(description, amount, "R")
 
-        quantityStr = "1000"
-        bultosStr = "0"
-        priceUnit = amount
-        if self._currentDocumentType != 'A':
-            # enviar con el iva incluido
-            priceUnitStr = str(int(round(priceUnit * 100, 0)))
-        else:
-            # enviar sin el iva (factura A)
-            priceUnitStr = str(int(round((priceUnit / ((100 + iva) / 100)) * 100, 0)))
-        ivaStr = str(int(iva * 100))
-        extraparams = self._currentDocument in (self.CURRENT_DOC_BILL_TICKET,
-                                                self.CURRENT_DOC_CREDIT_TICKET) and ["", "", ""] or []
-        reply = self._sendCommand(self.CMD_PRINT_LINE_ITEM[self._getCommandIndex()],
-                                  [formatText(description[:20]),
-                                   quantityStr, priceUnitStr, ivaStr, sign, bultosStr, "0"] + extraparams)
         return reply
 
     def dailyClose(self, type):
