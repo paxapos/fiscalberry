@@ -251,7 +251,7 @@ class EpsonComandos(ComandoFiscalInterface):
             # enviar con el iva incluido 
             priceUnitStr = str(int(round(price * 100, 0)))
         else:
-            if self.model == "tm-220-af" or self.model == "tm-t900fa":
+            if self.model == "tm-220-af" or self.model == "tm-t900fa" or self.model == 'sm-srp-270':
                 # enviar sin el iva (factura A)
                 priceUnitStr = "%0.4f" % (price / ((100.0 + iva) / 100.0))
             else:
