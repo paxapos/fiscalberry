@@ -278,10 +278,10 @@ class EpsonComandos(ComandoFiscalInterface):
                                discountStr, ivaStr, 'R', "0", "0" * 8] + extraparams)
         return reply
 
-    def addPayment(self, description, payment, type = "T"):
+    def addPayment(self, description, payment, type_payment = "T"):
         paymentStr = str(int(payment * 100))
         status = self._sendCommand(self.CMD_ADD_PAYMENT[self._getCommandIndex()],
-                                   [formatText(description)[:20], paymentStr, 'T'])
+                                   [formatText(description)[:20], paymentStr, type_payment])
         return status
 
     def addPerception(self, description, amount):
