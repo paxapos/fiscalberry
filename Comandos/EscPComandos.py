@@ -252,7 +252,7 @@ class EscPComandos(ComandoInterface):
             sAmount = float(addAdditional.get('amount', 0))
             total = total - sAmount
             printer.set("RIGHT", "A", "A", 1, 1)
-            printer.text("%s $%g\n" % (addAdditional.get('description'), round(sAmount, 2)))
+            printer.text("%s $%g\n" % (addAdditional.get('description')[0:20], round(sAmount, 2)))
             if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A":
                 #recalculamos el neto e iva
                 tot_neto = total / ((porcentaje_iva + 100.0) / 100)
@@ -328,15 +328,6 @@ class EscPComandos(ComandoInterface):
                 if encabezado.has_key("domicilio_cliente"):
                     printer.text(u'\nDomicilio: %s\n' % encabezado.get("domicilio_cliente"))
 
-        printer.set("LEFT", "A", "A", 1, 1)
-        
-        if self.__preFillTrailer:
-            self._setTrailer(self.__preFillTrailer)
-
-        if setTrailer:
-            self._setTrailer(setTrailer)   
-
-
         tot_importe = 0.0
         for item in items:
             desc = item.get('ds')[0:20]
@@ -365,6 +356,14 @@ class EscPComandos(ComandoInterface):
         # imprimir total
         printer.set("RIGHT", "A", "A", 2, 2)
         printer.text(u"TOTAL: $%g\n" % tot_importe)
+
+        printer.set("LEFT", "A", "A", 1, 1)
+        
+        if self.__preFillTrailer:
+            self._setTrailer(self.__preFillTrailer)
+
+        if setTrailer:
+            self._setTrailer(setTrailer)   
 
         self.__printExtras(kwargs)
 
