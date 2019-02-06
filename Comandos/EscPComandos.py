@@ -301,7 +301,7 @@ class EscPComandos(ComandoInterface):
         printer.set("LEFT", "A", "B", 1, 2)
         printer.end()
 
-    def printRemito(self, **kwargs):
+    def printRemitoCorto(self, **kwargs):
         "imprimir remito"
         printer = self.conector.driver
 
@@ -322,11 +322,12 @@ class EscPComandos(ComandoInterface):
         if encabezado:
             printer.set("LEFT", "A", "A", 1, 1)
             if encabezado.has_key("nombre_cliente"):
-                printer.text(u'\nNombre Cliente: %s' % encabezado.get("nombre_cliente"))
+                printer.text(u'\nNombre Cliente: %s\n' % encabezado.get("nombre_cliente"))
                 if encabezado.has_key("telefono"):
-                    printer.text(u'\nTelefono: %s' % encabezado.get("telefono"))
+                    printer.text(u'\nTelefono: %s\n' % encabezado.get("telefono"))
                 if encabezado.has_key("domicilio_cliente"):
                     printer.text(u'\nDomicilio: %s\n' % encabezado.get("domicilio_cliente"))
+                printer.text(u"\n")
 
         tot_importe = 0.0
         for item in items:
@@ -378,7 +379,7 @@ class EscPComandos(ComandoInterface):
         printer.set("LEFT", "A", "B", 1, 2)
         printer.end()
 
-    def printRemitoLargo(self, **kwargs):
+    def printRemito(self, **kwargs):
         "imprimir remito"
         printer = self.conector.driver
 
@@ -403,13 +404,13 @@ class EscPComandos(ComandoInterface):
             printer.set("CENTER", "A", "A", 1, 2)
             if encabezado.has_key("nombre_cliente"):
                 printer.text(u'\n%s\n' % encabezado.get("nombre_cliente"))
-            if encabezado.has_key("telefono"):
-                printer.text(u'\n%s\n' % encabezado.get("telefono"))
-            if encabezado.has_key("domicilio_cliente"):
-                printer.text(u'\n%s\n' % encabezado.get("domicilio_cliente"))
+                if encabezado.has_key("telefono"):
+                    printer.text(u'\n%s\n' % encabezado.get("telefono"))
+                if encabezado.has_key("domicilio_cliente"):
+                    printer.text(u'\n%s\n' % encabezado.get("domicilio_cliente"))
+                printer.text(u"\n")
 
         printer.set("LEFT", "A", "A", 1, 1)
-
         printer.text(u"CANT\tDESCRIPCIÓN\t\tPRECIO\n")
         printer.text("\n")
         tot_importe = 0.0
