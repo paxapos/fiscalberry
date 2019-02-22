@@ -84,6 +84,8 @@ class Sam4s2GenComandos(ComandoFiscalInterface):
         "PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL": 'V',
     }
 
+	esFacturaA = False
+
 	def getStatus(self, *args):
 		jdata = OrderedDict()
 		jdata['cmd'] = self.CMD_STATUS_REQUEST
@@ -167,7 +169,7 @@ class Sam4s2GenComandos(ComandoFiscalInterface):
 							0,
 							0, #Unidad de Medida, 0 = SIN DESCRIPCIÓN
 							1, #cantidad de unidades que contiene el producto
-							'D', #Los montos enviados son los que deben imprimirse
+							'T', #Los montos enviados son los que deben imprimirse
 						]
 
 		return self._sendCommand(jdata)
@@ -211,6 +213,9 @@ class Sam4s2GenComandos(ComandoFiscalInterface):
 		if tipo_comprobante != "N":
 			#si no es nota de crédito, el tipo es T, la letra del tipo factura se determina automaticamente
 			tipo_comprobante = 'T'
+
+		if ivaType == 'I':
+			self.esFacturaA = True
 		jdata = OrderedDict()
 		jdata['cmd'] = self.CMD_OPEN_BILL_TICKET
 		jdata['field'] = [
@@ -243,28 +248,28 @@ class Sam4s2GenComandos(ComandoFiscalInterface):
 		return self.openBillTicket( "N", name, address, doc, docType, ivaType )
 
 	def addAdditional(self, description, amount, iva, negative=False):
-		"""Agrega un descuento general a la Factura o Ticket.
+		"""Agrega un descuento o recargo general a la Factura o Ticket.
 			@param description  Descripción
 			@param amount       Importe (sin iva en FC A, sino con IVA)
 			@param iva          Porcentaje de Iva
 			@param negative     Si negative = True, se añadira el monto como descuento, sino, sera un recargo
 		"""
-		tipo_operacion = "AjustePos"
 
-		if negative:
-			tipo_operacion = "AjusteNeg"
-		
-		jdata = {
-					"ImprimirAjuste":
-						{
-							"Descripcion" : description,
-							"Monto" : amount,
-							"ModoDisplay" : "DisplayNo",
-							"ModoBaseTotal" : "ModoPrecioTotal",
-							"CodigoProducto" : "",
-							"Operacion" : tipo_operacion
-						}
-			}
+		jdata = OrderedDict()
+		jdata['cmd'] = self.CMD_ADD_PAYMENT
+
+		if self.esFacturaA == True:
+			#descontamos el IVA al descuento / recargo
+			amount = round((amount / ((100 + float(iva)) / 100)), 2)
+
+		tipo_op = 'D'
+		desc_default = 'Descuento'
+		if negative == False:
+			tipo_op = 'R'
+			desc_default = 'Recargo'
+
+		jdata['field'] = [description or desc_default, amount, tipo_op, ""] #el ultimo campo es codigo matrix, lo enviamos vacio
+
 
 		return self._sendCommand(jdata)
 		
