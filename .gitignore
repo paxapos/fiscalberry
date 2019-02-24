@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.pyc 
 .pyc
+*.log
 
 #configuration file for fiscalberry
 config.ini

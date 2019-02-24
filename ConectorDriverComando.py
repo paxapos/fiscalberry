@@ -2,6 +2,7 @@
 from serial import SerialException
 import importlib
 import threading
+import logging
 
 
 class ConectorError(Exception):
@@ -14,6 +15,8 @@ class ConectorDriverComando:
     def __init__(self, comando, driver, *args, **kwargs):
         print("inicializando ConectorDriverComando driver de %s" % driver)
 
+        logging.getLogger().info("inicializando ConectorDriverComando driver de %s" % driver)
+
         self._comando = comando
         self.driver_name = driver
 
@@ -21,9 +24,8 @@ class ConectorDriverComando:
         libraryName = "Drivers." + driver + "Driver"
         driverModule = importlib.import_module(libraryName)
         driverClass = getattr(driverModule, driver + "Driver")
-        print(driverClass)
-        print(args)
-        print(kwargs)
+        logging.getLogger().info("  - Driver: %s" % driverClass)
+
         self.driver = driverClass(**kwargs)
 
     def sendCommand(self, *args):

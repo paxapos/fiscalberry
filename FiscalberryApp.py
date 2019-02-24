@@ -3,7 +3,6 @@ import tornado.httpserver
 import tornado.websocket
 import tornado.ioloop
 import tornado.web
-from threading import Timer
 from Traductores.TraductoresHandler import TraductoresHandler, TraductorException
 import sys
 import socket
@@ -15,6 +14,8 @@ import time
 import ssl
 import Configberry
 import git
+import threading 
+
 
 import FiscalberryDiscover
 from  tornado import web
@@ -62,6 +63,8 @@ class WSHandler(tornado.websocket.WebSocketHandler):
         self.clients.append(self)
         logger.info( 'new connection' )
 
+
+
     def on_message(self, message):
         traductor = self.traductor
         response = {}
@@ -69,7 +72,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
         logger.info(message)
         try:
             jsonMes = json.loads(message, strict=False)
-            response = traductor.json_to_comando(jsonMes)
+            response = self.traductor.json_to_comando(jsonMes)
         except TypeError, e:
             errtxt = "Error parseando el JSON %s" % e
             logger.error(errtxt)
