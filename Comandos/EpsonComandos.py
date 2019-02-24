@@ -251,7 +251,7 @@ class EpsonComandos(ComandoFiscalInterface):
             # enviar con el iva incluido 
             priceUnitStr = str(int(round(price * 100, 0)))
         else:
-            if self.model == "tm-220-af" or self.model == "tm-t900fa":
+            if self.model == "tm-220-af" or self.model == "tm-t900fa" or self.model == 'sm-srp-270':
                 # enviar sin el iva (factura A)
                 priceUnitStr = "%0.4f" % (price / ((100.0 + iva) / 100.0))
             else:
@@ -278,10 +278,10 @@ class EpsonComandos(ComandoFiscalInterface):
                                discountStr, ivaStr, 'R', "0", "0" * 8] + extraparams)
         return reply
 
-    def addPayment(self, description, payment, type = "T"):
+    def addPayment(self, description, payment, type_payment = "T"):
         paymentStr = str(int(payment * 100))
         status = self._sendCommand(self.CMD_ADD_PAYMENT[self._getCommandIndex()],
-                                   [formatText(description)[:20], paymentStr, 'T'])
+                                   [formatText(description)[:20], paymentStr, type_payment])
         return status
 
     def addPerception(self, description, amount):

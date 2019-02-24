@@ -20,12 +20,13 @@ class JsonDriver(DriverInterface):
 	printerStatusErrors = []
 
 
-	def __init__(self, host, user = None, password = None, port=80):
+	def __init__(self, host, user = None, password = None, port=80, after_port = ""):
 		logging.getLogger().info("conexion con JSON Driver en host: %s puerto: %s" % (host, port))
 		self.host = host
 		self.user = user
 		self.password = password
 		self.port = port
+		self.after_port = after_port
 
 	def start(self):
 		"""Inicia recurso de conexion con impresora"""
@@ -37,10 +38,10 @@ class JsonDriver(DriverInterface):
 
 	def sendCommand(self, jsonData, parameters = None, skipStatusErrors = None):
 		"""Envia comando a impresora"""
-		url = "http://%s:%s/fiscal.json" % (self.host, self.port)
+		url = "http://%s:%s/%s" % (self.host, self.port, self.after_port)
 
 		logging.getLogger().info("conectando a la URL %s"%url)
-		print(jsonData)
+		print jsonData
 		headers = {'Content-type': 'application/json'}
 
 
@@ -50,9 +51,8 @@ class JsonDriver(DriverInterface):
 			else:
 				reply = requests.post(url, data=json.dumps(jsonData), headers=headers)
 			print("INICIANDO::::")
-			print(reply)
-			print(reply.json())
-			print(reply.content)
+			print reply
+			print reply.content
 			print("salio la respuesta")
 			
 			return reply.content
