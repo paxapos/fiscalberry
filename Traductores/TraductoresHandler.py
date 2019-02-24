@@ -52,7 +52,7 @@ class MultiprocesingTraductor(Process):
 
         if traductor:
             if traductor.comando.conector is not None:
-                rta["rta"] = traductor.run(self.jsonTicket)
+                return traductor.run(self.jsonTicket)
             else:
                 raise TraductorException("el Driver no esta inicializado para la impresora %s" % printerName)
         else:
@@ -90,15 +90,10 @@ class TraductoresHandler:
             # seleccionar impresora
             # esto se debe ejecutar antes que cualquier otro comando
             if 'printerName' in jsonTicket:
-                
-
-                print("--------------------------")
-                print(jsonTicket)
                 # run multiprocessing
                 p = MultiprocesingTraductor(traductorhandler=self, jsonTicket=jsonTicket)
                 p.start()
                 p.join()
-
 
             # aciones de comando genericos de Ststus y control
             elif 'getStatus' in jsonTicket:
