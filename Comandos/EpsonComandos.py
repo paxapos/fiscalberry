@@ -469,11 +469,12 @@ class EpsonComandos(ComandoFiscalInterface):
             return True
         except:
             pass
-        try:
-            self._sendCommand(self.CMD_CLOSE_NON_FISCAL_RECEIPT, ["T"])
-            return True
-        except:
-            pass
+        if self._currentDocument == self.CURRENT_DOC_NON_FISCAL:
+            try:
+                self._sendCommand(self.CMD_CLOSE_NON_FISCAL_RECEIPT, ["T"])
+                return True
+            except:
+                pass
         return False
 
     def getWarnings(self):
