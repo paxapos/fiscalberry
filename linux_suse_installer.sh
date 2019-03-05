@@ -1,15 +1,11 @@
 #!/bin/bash
 
-zypper install python-pip build-essential python-dev python-imaging 
-python-setuptools libjpeg-dev nmap
-pip install pyserial
-pip install python-nmap
-pip install requests
-pip install tornado
-pip install python-escpos
-pip install pyutf8
-pip install python-daemon
-pip install PyJWT
+echo "para instalar es necesario ser superusuario "
+sudo su 
+
+zypper install python-pip build-essential python-dev python-imaging python-setuptools libjpeg-dev nmap
+pip install --upgrade pip
+pip install -r requirements.txt
 
 echo -n "Instalar el servicio fiscalberry.service (y/n)? "
 read answer

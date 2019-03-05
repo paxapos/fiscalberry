@@ -1,25 +1,13 @@
 #!/bin/bash
+echo "para instalar es necesario ser superusuario "
+sudo su 
 
-if (($EUID != 0)); then
-  if [[ -t 1 ]]; then
-    sudo "$0" "$@"
-  else
-    exec 1>output_file
-    gksu "$0 $@"
-  fi
-  exit
-fi
 
 apt-get install python-pip build-essential python-dev python-imaging python-setuptools libjpeg-dev nmap
-pip install pyserial
-pip install python-nmap
-pip install requests
-pip install tornado
-pip install python-escpos
-pip install pyutf8
-pip install PyJWT
+pip install --upgrade pip
+pip install -r requirements.txt
 
-echo -n "Crear daemond fiscalberry-server-rc (y/n)? "
+echo -n "Crear daemond fiscalberry-server-rc (y/n)? (default no)"
 read answer
 if echo "$answer" | grep -iq "^y" ;then
 	cp fiscalberry-server-rc /etc/init.d/
@@ -32,6 +20,7 @@ else
   if echo "$answer" | grep -iq "^y" ;then
     sudo cp fiscalberry.service /etc/systemd/system/
     cd /etc/systemd/system/
+    sudo systemctl enable fiscalberry.service
     sudo systemctl start fiscalberry.service
     echo "Se inicializo el servicio "
   else

@@ -10,6 +10,7 @@ import tornado.ioloop
 import nmap
 import os
 import git
+from multiprocessing import Process, Queue, Pool
 
 INTERVALO_IMPRESORA_WARNING = 30.0
 
@@ -32,6 +33,34 @@ class TraductorException(Exception):
     pass
 
 
+
+class MultiprocesingTraductor(Process):
+
+    traductorHandler = None
+
+    def __init__(self, *args, **kargs):
+        self.traductorhandler = kargs.get("traductorhandler")
+        self.jsonTicket = kargs.get("jsonTicket")
+        super(MultiprocesingTraductor, self).__init__()
+
+
+    def run(self, *args, **kargs):
+        logging.info("mandando comando de impresora")
+        printerName = self.jsonTicket.pop('printerName')
+
+        traductor = self.traductorhandler.init_printer_traductor(printerName)
+
+        if traductor:
+            if traductor.comando.conector is not None:
+                return traductor.run(self.jsonTicket)
+            else:
+                raise TraductorException("el Driver no esta inicializado para la impresora %s" % printerName)
+        else:
+            raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'" % printerName)
+
+
+
+
 class TraductoresHandler:
     """Convierte un JSON a Comando Fiscal Para Cualquier tipo de Impresora fiscal"""
 
@@ -45,31 +74,26 @@ class TraductoresHandler:
         self.webSocket = webSocket
         self.fbApp = fbApp
 
+
+
+
     def json_to_comando(self, jsonTicket):
+        import time        
+        traductor = None
+        
         try:
             """ leer y procesar una factura en formato JSON
             """
-            logging.info("Iniciando procesamiento de json...")
-
-            print jsonTicket
-
-            traductor = None
+            logging.info("Iniciando procesamiento de json:::: "+json.dumps(jsonTicket))
 
             rta = {"rta": ""}
             # seleccionar impresora
             # esto se debe ejecutar antes que cualquier otro comando
             if 'printerName' in jsonTicket:
-                printerName = jsonTicket.pop('printerName')
-
-                traductor = self.__init_printer_traductor(printerName)
-
-                if traductor:
-                    if traductor.comando.conector is not None:
-                        rta["rta"] = traductor.run(jsonTicket)
-                    else:
-                        raise TraductorException("el Driver no esta inicializado para la impresora %s" % printerName)
-                else:
-                    raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'" % printerName)
+                # run multiprocessing
+                p = MultiprocesingTraductor(traductorhandler=self, jsonTicket=jsonTicket)
+                p.start()
+                p.join()
 
             # aciones de comando genericos de Ststus y control
             elif 'getStatus' in jsonTicket:
@@ -192,7 +216,7 @@ class TraductoresHandler:
             print("la data es %s" % data)
             self.config.writeSectionWithKwargs(printerName, data)
 
-    def __init_printer_traductor(self, printerName):
+    def init_printer_traductor(self, printerName):
 
         try:
             dictSectionConf = self.config.get_config_for_printer(printerName)
@@ -275,7 +299,6 @@ class TraductoresHandler:
     def _findAvaliablePrinters(self):
         # Esta función llama a otra que busca impresoras. Luego se encarga de escribir el config.ini con las impresoras encontradas.
         if os.geteuid() != 0:
-            print os.geteuid()
             return {"action": "findAvaliablePrinters",
                     "rta": "Error, no es superusuario (%s)" % os.geteuid()
                     }
