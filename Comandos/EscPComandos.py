@@ -166,7 +166,8 @@ class EscPComandos(ComandoInterface):
         printer.set("LEFT", "A", "A", 1, 1)
         printer.text(encabezado.get("razon_social")+"\n")
         printer.text("CUIT: "+encabezado.get("cuit_empresa")+"\n")
-        printer.text("Ingresos Brutos: "+encabezado.get("ingresos_brutos")+"\n")
+        if encabezado.get('ingresos_brutos'):
+            printer.text("Ingresos Brutos: "+encabezado.get("ingresos_brutos")+"\n")
         printer.text("Inicio de actividades: "+encabezado.get("inicio_actividades")+"\n")
         printer.text(encabezado.get("domicilio_comercial")+"\n")
         printer.text(encabezado.get("tipo_responsable")+"\n")
