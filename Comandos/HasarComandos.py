@@ -94,7 +94,13 @@ class HasarComandos(ComandoFiscalInterface):
                 'generalDiscount': 50,
                 'embarkItem': 108,
                 'receiptText': 106,
-                }
+                },
+        "715v1": {
+            'custAddressSize': 50,
+        },
+        "715v2": {
+            'custAddressSize': 50,
+        }
     }
 
     docTypeNames = {
@@ -219,10 +225,9 @@ class HasarComandos(ComandoFiscalInterface):
                       ivaType,  # Iva Comprador
                       docType or " ",  # Tipo de Doc.
                       ]
-        if self.model in ["715v1", "715v2", "320"]:
+        if not self.model in ["615"]:
+            #la 615 no requiere domicilio del cliente.
             parameters.append(self._formatText(address, 'custAddressSize') or " ")  # Domicilio
-        else:
-            parameters.append(formatText(address) or " ")
         return self._sendCommand(self.CMD_SET_CUSTOMER_DATA, parameters)
 
     def openBillTicket(self, type, name, address, doc, docType, ivaType):
