@@ -11,6 +11,7 @@ from FiscalberryApp import FiscalberryApp
 def do_something():
     ### This does the "work" of the daemon
     fbserver = FiscalberryApp()
+    fbserver.discover()
     fbserver.start()
 
 
