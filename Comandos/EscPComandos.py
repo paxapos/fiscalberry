@@ -271,6 +271,10 @@ class EscPComandos(ComandoInterface):
         printer.text("\n")
 
         printer.set("LEFT", "B", "A", 1, 1)
+
+        if encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO B":
+            printer.text(u"Firma...................................................\n\n")
+            printer.text(u"Aclaración..............................................\n")
         
         if self.__preFillTrailer:
             self._setTrailer(self.__preFillTrailer)
