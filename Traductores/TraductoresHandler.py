@@ -41,6 +41,7 @@ class MultiprocesingTraductor(Process):
     def __init__(self, *args, **kargs):
         self.traductorhandler = kargs.get("traductorhandler")
         self.jsonTicket = kargs.get("jsonTicket")
+        self.queue = kargs.get("q")
         super(MultiprocesingTraductor, self).__init__()
 
 
@@ -52,7 +53,8 @@ class MultiprocesingTraductor(Process):
 
         if traductor:
             if traductor.comando.conector is not None:
-                return traductor.run(self.jsonTicket)
+                self.queue.put(traductor.run(self.jsonTicket))
+                traductor.comando.close()
             else:
                 raise TraductorException("el Driver no esta inicializado para la impresora %s" % printerName)
         else:
@@ -91,9 +93,13 @@ class TraductoresHandler:
             # esto se debe ejecutar antes que cualquier otro comando
             if 'printerName' in jsonTicket:
                 # run multiprocessing
-                p = MultiprocesingTraductor(traductorhandler=self, jsonTicket=jsonTicket)
+                q = Queue()
+                p = MultiprocesingTraductor(traductorhandler=self, jsonTicket=jsonTicket, q=q)
                 p.start()
+                rta["rta"] = q.get()
+                q.close()
                 p.join()
+                return rta
 
             # aciones de comando genericos de Ststus y control
             elif 'getStatus' in jsonTicket:
@@ -331,6 +337,7 @@ class TraductoresHandler:
         # volver a intententar el mismo comando
         try:
             rta["rta"] = traductor.run(jsonTicket)
+            return rta
         except Exception:
             # ok, no quiere conectar, continuar sin hacer nada
             print("No hay caso, probe de reconectar pero no se pudo")
