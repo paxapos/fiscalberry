@@ -96,10 +96,9 @@ class TraductoresHandler:
                 q = Queue()
                 p = MultiprocesingTraductor(traductorhandler=self, jsonTicket=jsonTicket, q=q)
                 p.start()
+                p.join()
                 rta["rta"] = q.get()
                 q.close()
-                p.join()
-                return rta
 
             # aciones de comando genericos de Ststus y control
             elif 'getStatus' in jsonTicket:

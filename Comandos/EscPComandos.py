@@ -55,6 +55,8 @@ class EscPComandos(ComandoInterface):
         printer.cashdraw(2)
         printer.end()
 
+        return True
+
     def printPedido(self, **kwargs):
         "imprimir pedido de compras"
         printer = self.conector.driver
@@ -128,6 +130,8 @@ class EscPComandos(ComandoInterface):
         # dejar letra chica alineada izquierda
         printer.set("LEFT", "A", "B", 1, 2)
         printer.end()
+
+        return True
 
     def __printExtras(self, kwargs):
         "imprimir qr y barcodes"
@@ -306,6 +310,8 @@ class EscPComandos(ComandoInterface):
         printer.set("LEFT", "A", "B", 1, 2)
         printer.end()
 
+        return True
+
     def printRemitoCorto(self, **kwargs):
         "imprimir remito"
         printer = self.conector.driver
@@ -383,6 +389,8 @@ class EscPComandos(ComandoInterface):
         # dejar letra chica alineada izquierda
         printer.set("LEFT", "A", "B", 1, 2)
         printer.end()
+
+        return True
 
     def printRemito(self, **kwargs):
         "imprimir remito"
@@ -467,6 +475,8 @@ class EscPComandos(ComandoInterface):
         # dejar letra chica alineada izquierda
         printer.set("LEFT", "A", "B", 1, 2)
         printer.end()
+
+        return True
 
     def setTrailer(self, setTrailer):
         self.__preFillTrailer = setTrailer
@@ -566,3 +576,5 @@ class EscPComandos(ComandoInterface):
         # dejar letra chica alineada izquierda
         printer.set("LEFT", "A", "B", 1, 2)
         printer.end()
+
+        return True
