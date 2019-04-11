@@ -48,7 +48,6 @@ class MultiprocesingTraductor(Process):
     def run(self, *args, **kargs):
         logging.info("mandando comando de impresora")
         printerName = self.jsonTicket.pop('printerName')
-
         traductor = self.traductorhandler.init_printer_traductor(printerName)
 
         if traductor:
@@ -56,9 +55,9 @@ class MultiprocesingTraductor(Process):
                 self.queue.put(traductor.run(self.jsonTicket))
                 traductor.comando.close()
             else:
-                raise TraductorException("el Driver no esta inicializado para la impresora %s" % printerName)
-        else:
-            raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'" % printerName)
+                strError = "el Driver no esta inicializado para la impresora %s" % printerName
+                self.queue.put(strError)
+                logging.error(strError)
 
 
 
@@ -97,7 +96,8 @@ class TraductoresHandler:
                 p = MultiprocesingTraductor(traductorhandler=self, jsonTicket=jsonTicket, q=q)
                 p.start()
                 p.join()
-                rta["rta"] = q.get()
+                if q.empty() == False:
+                    rta["rta"] = q.get(timeout=1)
                 q.close()
 
             # aciones de comando genericos de Ststus y control
