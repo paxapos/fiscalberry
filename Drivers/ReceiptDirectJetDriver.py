@@ -4,6 +4,7 @@ import socket
 from escpos import printer, escpos
 import threading
 import time
+import logging
 from DriverInterface import DriverInterface
 
 
@@ -29,12 +30,20 @@ class ReceiptDirectJetDriver(printer.Network, DriverInterface):
 
     def start(self):
         """ iniciar """
-        self.open()
-        self.connected = True
+        try:
+            self.open()
+            self.connected = True
+        except Exception as e:
+            logging.error("Error de la impresora: "+str(e))
+            return True
+
 
     def end(self):
-        self.close()
-        self.connected = False
+        try:
+            self.close()
+            self.connected = False
+        except Exception as e:
+            logging.error("Error de la impresora: "+str(e))
 
     def reconnect(self):
         try:

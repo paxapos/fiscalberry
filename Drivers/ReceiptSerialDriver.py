@@ -35,10 +35,16 @@ class ReceiptSerialDriver(printer.Serial, DriverInterface):
        
 
     def start(self):
-    	self.open()
+        try:
+            self.open()
+        except Exception as e:
+            logging.error("Error de la impresora: "+str(e))
 
     def end(self):
-    	self.close()
+        try:
+            self.close()
+        except Exception as e:
+            logging.error("Error de la impresora: "+str(e))
 
     def reconnect(self):
 		pass
