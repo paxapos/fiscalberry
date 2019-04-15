@@ -3,6 +3,7 @@
 from escpos import printer, escpos
 import threading
 import time
+import logging
 from DriverInterface import DriverInterface
 
 
