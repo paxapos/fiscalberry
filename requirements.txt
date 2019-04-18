@@ -12,7 +12,7 @@ singledispatch>=3.4.0.3
 six>=1.11.0
 tornado
 typing>=3.6.2
-urllib3>=1.22
+urllib3==1.22
 python-daemon
 PyJWT>=1.5.3
 GitPython
