@@ -89,7 +89,7 @@ class FiscalPrinterDriver(DriverInterface):
 
     def _read(self, count):
         ret = self._serialPort.read(count)
-        debug("_read", ", ".join(["%x" % ord(c) for c in ret]))
+        # debug("_read", ", ".join(["%x" % ord(c) for c in ret]))
         return ret
 
     def __del__(self):
@@ -104,6 +104,7 @@ class FiscalPrinterDriver(DriverInterface):
         fields = r.split(chr(28))
         printerStatus = fields[0]
         fiscalStatus = fields[1]
+        logger.info('Complete Reply info is below\n Reply: {reply} \n printerStatus {printerStatus} fiscalStatus {fiscalStatus}'.format(**locals()))
         if not skipStatusErrors:
             self._parsePrinterStatus(printerStatus)
             self._parseFiscalStatus(fiscalStatus)
