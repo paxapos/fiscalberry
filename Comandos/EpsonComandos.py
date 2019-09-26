@@ -114,11 +114,15 @@ class EpsonComandos(ComandoFiscalInterface):
     def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, reference="NC"):
         if docType == 'C':
             docType = 'DOC_TYPE_CUIT'
+        elif docType == '2':
+            docType = 'DOC_TYPE_DNI'
         return self._openBillCreditTicket(type, name, address, doc, docType, ivaType, isCreditNote=True)
 
     def openBillTicket(self, type, name, address, doc, docType, ivaType):
         if docType == 'C':
             docType = 'DOC_TYPE_CUIT'
+        elif docType == '2':
+            docType = 'DOC_TYPE_DNI'
         return self._openBillCreditTicket(type, name, address, doc, docType, ivaType, isCreditNote=False)
 
     def _openBillCreditTicket(self, type, name, address, doc, docType, ivaType, isCreditNote,
