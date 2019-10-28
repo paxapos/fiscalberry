@@ -12,6 +12,11 @@ import os
 import git
 from multiprocessing import Process, Queue, Pool
 
+import sys
+if sys.platform == 'win32':
+    import multiprocessing.reduction    # make sockets pickable/inheritable
+
+
 INTERVALO_IMPRESORA_WARNING = 30.0
 
 
@@ -34,30 +39,39 @@ class TraductorException(Exception):
 
 
 
-class MultiprocesingTraductor(Process):
+def init_printer_traductor(printerName):
+    config = Configberry.Configberry()
 
-    traductorHandler = None
+    try:
+        dictSectionConf = config.get_config_for_printer(printerName)
+    except KeyError as e:
+        raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'" % printerName)
 
-    def __init__(self, *args, **kargs):
-        self.traductorhandler = kargs.get("traductorhandler")
-        self.jsonTicket = kargs.get("jsonTicket")
-        self.queue = kargs.get("q")
-        super(MultiprocesingTraductor, self).__init__()
+    marca = dictSectionConf.get("marca")
+    del dictSectionConf['marca']
+    # instanciar los comandos dinamicamente
+    libraryName = "Comandos." + marca + "Comandos"
+    comandoModule = importlib.import_module(libraryName)
+    comandoClass = getattr(comandoModule, marca + "Comandos")
+    
+    comando = comandoClass(**dictSectionConf)
+    return comando.traductor
 
+def runTraductor(jsonTicket, queue):
+    logging.info("mandando comando de impresora")
+    
+    printerName = jsonTicket.pop('printerName')
 
-    def run(self, *args, **kargs):
-        logging.info("mandando comando de impresora")
-        printerName = self.jsonTicket.pop('printerName')
-        traductor = self.traductorhandler.init_printer_traductor(printerName)
+    traductor = init_printer_traductor(printerName)
 
-        if traductor:
-            if traductor.comando.conector is not None:
-                self.queue.put(traductor.run(self.jsonTicket))
-                traductor.comando.close()
-            else:
-                strError = "el Driver no esta inicializado para la impresora %s" % printerName
-                self.queue.put(strError)
-                logging.error(strError)
+    if traductor:
+        if traductor.comando.conector is not None:
+            queue.put(traductor.run(jsonTicket))
+            traductor.comando.close()
+        else:
+            strError = "el Driver no esta inicializado para la impresora %s" % printerName
+            queue.put(strError)
+            logging.error(strError)
 
 
 
@@ -93,9 +107,10 @@ class TraductoresHandler:
             if 'printerName' in jsonTicket:
                 # run multiprocessing
                 q = Queue()
-                p = MultiprocesingTraductor(traductorhandler=self, jsonTicket=jsonTicket, q=q)
+                p = Process(target=runTraductor, args=(jsonTicket,q))
+                #p = MultiprocesingTraductor(traductorhandler=self, jsonTicket=jsonTicket, q=q)
                 p.start()
-                p.join()
+                #p.join()
                 if q.empty() == False:
                     rta["rta"] = q.get(timeout=1)
                 q.close()
@@ -221,22 +236,7 @@ class TraductoresHandler:
             print("la data es %s" % data)
             self.config.writeSectionWithKwargs(printerName, data)
 
-    def init_printer_traductor(self, printerName):
-
-        try:
-            dictSectionConf = self.config.get_config_for_printer(printerName)
-        except KeyError as e:
-            raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'" % printerName)
-
-        marca = dictSectionConf.get("marca")
-        del dictSectionConf['marca']
-        # instanciar los comandos dinamicamente
-        libraryName = "Comandos." + marca + "Comandos"
-        comandoModule = importlib.import_module(libraryName)
-        comandoClass = getattr(comandoModule, marca + "Comandos")
-        
-        comando = comandoClass(**dictSectionConf)
-        return comando.traductor
+    
 
     def _upgrade(self):
         ret = self.fbApp.upgradeGitPull()
