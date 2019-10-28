@@ -2,10 +2,9 @@
 echo "para instalar es necesario ser superusuario "
 sudo su 
 
-
-apt-get install python-pip build-essential python-dev python-imaging python-setuptools libjpeg-dev nmap
-pip install --upgrade pip
-pip install -r requirements.txt
+apt-get install python2-pip build-essential python-dev python-imaging libjpeg-dev nmap
+pip2 install --upgrade pip
+pip2 install -r requirements.txt
 
 echo -n "Crear daemond fiscalberry-server-rc (y/n)? (default no)"
 read answer
