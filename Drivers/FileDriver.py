@@ -2,6 +2,8 @@
 
 from DriverInterface import DriverInterface
 import logging
+import time
+import random
 
 
 class FileDriver(DriverInterface):
@@ -11,7 +13,6 @@ class FileDriver(DriverInterface):
         self.codepage = codepage
 
     def sendCommand(self, command=0, parameters=None, skipStatusErrors=False):
-        import random
 
         if isinstance(command,dict):
             dt={'d': 2, 'f': 2, 'g': 2, 'q': 5, 'w': 3}
@@ -35,9 +36,15 @@ class FileDriver(DriverInterface):
 
     def start(self):
         """ iniciar """
+        print("iniciando")
+        time.sleep(10)
+        
         pass
 
     def end(self):
+        print("despues de sleep")
+        print("ENNNNNDDD")
+        print("-"*15)
         pass
 
     def reconnect(self):
@@ -60,4 +67,7 @@ class FileDriver(DriverInterface):
         pass
 
     def image(self, *kwargs):
+        pass
+
+    def cashdraw(self, *args):
         pass

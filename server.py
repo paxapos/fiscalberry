@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding=utf-8
 
+from multiprocessing import freeze_support
 import argparse
 
 from FiscalberryApp import FiscalberryApp
@@ -25,6 +26,8 @@ def send_discover():
 
 
 if __name__ == "__main__":
+	freeze_support()
+	
 	parser = argparse.ArgumentParser(description='servidor websockets para impresión fiscal y ESCP')
 	parser.add_argument('--discover', 
 							help='envia a la URL información de este servicio.', 
