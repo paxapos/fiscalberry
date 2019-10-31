@@ -108,6 +108,7 @@ class TraductoresHandler:
                 # run multiprocessing
                 q = Queue()
                 p = Process(target=runTraductor, args=(jsonTicket,q))
+                p.daemon = True
                 #p = MultiprocesingTraductor(traductorhandler=self, jsonTicket=jsonTicket, q=q)
                 p.start()
                 p.join()
