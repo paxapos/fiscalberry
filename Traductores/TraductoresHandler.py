@@ -110,7 +110,7 @@ class TraductoresHandler:
                 p = Process(target=runTraductor, args=(jsonTicket,q))
                 #p = MultiprocesingTraductor(traductorhandler=self, jsonTicket=jsonTicket, q=q)
                 p.start()
-                #p.join()
+                p.join()
                 if q.empty() == False:
                     rta["rta"] = q.get(timeout=1)
                 q.close()

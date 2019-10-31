@@ -36,8 +36,8 @@ class FileDriver(DriverInterface):
 
     def start(self):
         """ iniciar """
-        print("iniciando")
-        time.sleep(10)
+        print("imprimiendo.... 5 segundos")
+        time.sleep(5)
         
         pass
 
