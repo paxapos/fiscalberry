@@ -239,6 +239,7 @@ class EscPComandos(ComandoInterface):
                 printer.text("  %g x $%g\n" % (cant, round(precio_unitario_neto, 4)))
                 printer.text(strTabs+"(%g)\t$%g\n" % (round(porcentaje_iva, 2), round(precio_total_neto, 2)))
             else:
+                printer.text("%g " % (cant))
                 printer.text(strTabs+"(%g)\t$%g\n" % (round(porcentaje_iva, 2), round(precio_total_neto, 2)))
 
         printer.set("RIGHT", "A", "A", 1, 1)
