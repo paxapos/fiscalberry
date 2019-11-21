@@ -27,15 +27,18 @@ class Epson2GenDriver(DriverInterface):
 
 	def start(self):
 		"""Inicia recurso de conexion con impresora"""
-		print("viene VIENE viene VIENE al STARTTTT");
-		result = self.EpsonLibDriver.OpenPortByName("serial:/dev/ttyS48576348756387")
-		print("el result es: ", result)
+		if port == 'serial':
+			self.EpsonLibDriver.OpenPortByName('serial:'+device)
+		else if port == 'usb':
+			self.EpsonLibDriver.OpenPortByName('usb:usb')
+		else if port == 'lan':
+			self.EpsonLibDriver.OpenPortByName('lan:'+device)
 
 	def close(self):
 		"""Cierra recurso de conexion con impresora"""
 		self.EpsonLibDriver.ClosePort();
 
-	def sendCommand(self, jsonData, parameters = None, skipStatusErrors = None):
+	def sendCommand(self, parameters = None, skipStatusErrors = None):
 		"""Envia comando a impresora"""
-		pass
+		self.EpsonLibDriver.sendCommand()
 		

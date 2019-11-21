@@ -22,39 +22,25 @@ class Epson2GenComandos(ComandoFiscalInterface):
 	
 	AVAILABLE_MODELS = ["TM-T900"]
 
-
-	docTypeNames = {
-		"DOC_TYPE_CUIT": "CUIT",
-		"DOC_TYPE_LIBRETA_ENROLAMIENTO": 'L.E.',
-		"DOC_TYPE_LIBRETA_CIVICA": 'L.C.',
-		"DOC_TYPE_DNI": 'DNI',
-		"DOC_TYPE_PASAPORTE": 'PASAP',
-		"DOC_TYPE_CEDULA": 'CED',
-		"DOC_TYPE_SIN_CALIFICADOR": 'S/C'
-	}
-
 	docTypes = {
-		"CUIT": 'TipoCUIT',
-		"CUIL": 'TipoCUIL',
-		"LIBRETA_ENROLAMIENTO": 'TipoLE',
-		"LIBRETA_CIVICA": 'TipoLC',
-		"DNI": 'TipoDNI',
-		"PASAPORTE": 'TipoPasaporte',
-		"CEDULA": 'TipoCI',
-		"SIN_CALIFICADOR": ' ',
+		"CUIT": 3,
+		"CUIL": 2,
+		"LIBRETA_ENROLAMIENTO": 7,
+		"LIBRETA_CIVICA": 6,
+		"DNI": 1,
+		"PASAPORTE": 5,
+		"CEDULA": 4,
+		"SIN_CALIFICADOR": 0,
 	}
-
 
 	ivaTypes = {
-		"RESPONSABLE_INSCRIPTO": 'ResponsableInscripto',
-		"EXENTO": 'ResponsableExento',
-		"NO_RESPONSABLE": 'NoResponsable',
-		"CONSUMIDOR_FINAL": 'ConsumidorFinal',
-		"NO_CATEGORIZADO": 'NoCategorizado',
-		"RESPONSABLE_MONOTRIBUTO": 'Monotributo',
-		"MONOTRIBUTISTA_SOCIAL": 'MonotributoSocial',
-		"PEQUENIO_CONTRIBUYENTE_EVENTUAL": 'Eventual',
-		"PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL": 'EventualSocial',
+		"RESPONSABLE_INSCRIPTO": 1,
+		"EXENTO": 6,
+		"NO_RESPONSABLE": 3,
+		"CONSUMIDOR_FINAL": 5,
+		"NO_CATEGORIZADO": 7,
+		"RESPONSABLE_MONOTRIBUTO": 4,
+		"MONOTRIBUTISTA_SOCIAL": 8,
 	}
 
 	comprobanteTypes = {
@@ -74,22 +60,28 @@ class Epson2GenComandos(ComandoFiscalInterface):
 		"NDM": 4,
 	}
 
-	def getStatus(self, *args):
-		pass
+	ivaPercentageIds {
+		'0.00': 0,
+		'10.50': 4,
+		'21.00': 5,
+	}
 
-		#self.conector.sendCommand( jdata )
+	def getStatus(self, *args):
+		EpsonLibInterface.ObtenerEstadoFiscal()
+		self._sendCommand()
 
 	def setTrailer(self, trailer=None):
 		"""Establecer pie"""
 		pass
 
 	def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
-		pass
+		self.conector.sendCommand()
 
 
 	def _setCustomerData(self, name=" ", address=" ", doc=" ", docType=" ", ivaType="T"):
-		pass
-		#self.conector.sendCommand( jdata )
+		#nombre, segunda línea nombre, primer segunda y tercera línea dirección, tipo de documento, número de documento y tipo de responsabilidad ante el IVA
+		EpsonLibInterface.CargarDatosCliente(name, None, address, None, None, self.docTypes.get(docType), doc, self.ivaTypes.get(ivaTypes))
+		self._sendCommand()
 
 	# Documentos no fiscales
 
@@ -108,15 +100,14 @@ class Epson2GenComandos(ComandoFiscalInterface):
 
 	def closeDocument(self, copias = 0, email = None):
 		"""Cierra el documento que esté abierto"""
-		pass
-
-		#return self.conector.sendCommand( jdata )
+		EpsonLibInterface.CerrarComprobante()
+		self._sendCommand()
 
 
 	def cancelDocument(self):
 		"""Cancela el documento que esté abierto"""
-		pass
-		#return self.conector.sendCommand( jdata )
+		EpsonLibInterface.Cancelar()
+		self._sendCommand()
 
 	def addItem(self, description, quantity, price, iva, itemNegative = False, discount=0, discountDescription='', discountNegative=False):
 		"""Agrega un item a la FC.
@@ -125,13 +116,23 @@ class Epson2GenComandos(ComandoFiscalInterface):
 			@param quantity             Cantidad
 			@param price                Precio (incluye el iva si la FC es B o C, si es A no lo incluye)
 			@param iva                  Porcentaje de iva
-			@param itemNegative         Sin efecto en 2GEN, se agrega este parametro para respetar la interfaz del TraductorFiscal
+			@param itemNegative         Anulación del ítem.
 			@param discount             Importe de descuento
 			@param discountDescription  Descripción del descuento
 			@param discountNegative     True->Resta de la FC
 		"""
 
-		return True
+		id_item = 200 #Agregar como ítem de venta.
+		if itemNegative == True:
+			id_item = 201
+		else if discountNegative == True:
+			id_item = 206
+
+
+		#id tipo de item, descripción, cantidad, porcentaje de IVA, 
+		#identificador II impuestos internos (0 = Ninguno), valor II, id_codigo (1 = Interno), valor del codigo, codigo_unidad_matrix, unidad de medida Unidad (7) 
+		EpsonLibInterface.ImprimirItem(id_item, description, quantity, self.ivaPercentageIds.get(iva),  0, 0, 1, "1", "1", 7)
+		self._sendCommand()
 
 	def addPayment(self, description, payment):
 		"""Agrega un pago a la FC.
@@ -142,17 +143,13 @@ class Epson2GenComandos(ComandoFiscalInterface):
 
 		#self.conector.sendCommand( jdata )
 
-	
-	def __openTicket(self, tipoComprobante):
-	
-		return self.conector.sendCommand( 1 )
-
-
 	# Ticket fiscal (siempre es a consumidor final, no permite datos del cliente)
 
 	def openTicket(self, comprobanteType = "T"):
 		"""Abre documento fiscal"""
-		return self.__openTicket( comprobanteType )
+		comprobanteType = 1 #Tique
+		EpsonLibInterface.AbrirComprobante( comprobanteType )
+		self._sendCommand()
 
 	def openBillTicket(self, type, name, address, doc, docType, ivaType):
 		"""
@@ -164,7 +161,11 @@ class Epson2GenComandos(ComandoFiscalInterface):
 			@param  docType     Tipo de documento
 			@param  ivaType     Tipo de IVA
 		"""
-		pass
+
+		comprobanteType = 2 #Tique Factura A/B/C/M
+
+		EpsonLibInterface.AbrirComprobante( comprobanteType )
+		self._sendCommand()
 		
 
 	def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, reference="NC"):
@@ -178,7 +179,10 @@ class Epson2GenComandos(ComandoFiscalInterface):
 			@param  ivaType     Tipo de IVA
 			@param  reference
 		"""
-		pass
+		comprobanteType = 3 #Tique Nota de crédito A/B/C/M
+
+		EpsonLibInterface.AbrirComprobante( comprobanteType )
+		self._sendCommand()
 
 	def __cargarNumReferencia(self, numero):
 		pass
@@ -194,7 +198,11 @@ class Epson2GenComandos(ComandoFiscalInterface):
 			@param  ivaType     Tipo de IVA
 			@param  reference
 		"""
-		pass
+
+		comprobanteType = 4 #Tique Nota de débito A/B/C/M
+
+		EpsonLibInterface.AbrirComprobante( comprobanteType )
+		self._sendCommand()
 
 	def openRemit(self, name, address, doc, docType, ivaType):
 		"""
@@ -272,7 +280,11 @@ class Epson2GenComandos(ComandoFiscalInterface):
 		return self.cancelDocument()
 
 	def dailyClose(self, type):
-		pass
+		if type == 'Z':
+			EpsonLibInterface.ImprimirCierreZ()
+		else:
+			EpsonLibInterface.ImprimirCierreX()
+		self._sendCommand()
 
 
 	def getWarnings(self):
