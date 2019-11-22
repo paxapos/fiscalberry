@@ -5,8 +5,11 @@ from DriverInterface import DriverInterface
 import logging
 from FiscalPrinterDriver import PrinterException
 import ctypes
-from ctypes import byref, c_int, c_char, c_long, c_short, create_string_buffer
+from ctypes import byref, c_int, c_char, c_char_p, c_long, c_short, create_string_buffer
 import requests
+
+
+EpsonLibInterface = ctypes.cdll.LoadLibrary('/lib64/libEpsonFiscalInterface.so')
 
 
 class Epson2GenDriver(DriverInterface):
@@ -19,26 +22,81 @@ class Epson2GenDriver(DriverInterface):
 	printerStatusErrors = []
 
 
-	def __init__(self, device, port='HTTP'):
-		self.device = device
-		self.port = port
-		self.EpsonLibDriver = ctypes.cdll.LoadLibrary('Comandos/libEpsonFiscalDriver.so')
+	#
+	#	path disponibles
+	#	default serial: /dev/usb/lp0
+	#	“0” – USB.
+	#	“1” – COM1 o ttyS0.
+	#	“2” – COM2 o ttyS1.
+	#	“ x ” – COM x o ttyS( x -1).
+	#	“serial:COM x ” – COM x
+	#	“serial: /dev/ttyS x ” – ttyS x
+	#	“lan:192.168.1.1” – Http ip 192.168.1.1
+	#	“lan:192.168.1.1:443” – Http ip 192.168.1.1 puerto 443
+	#
+	def __init__(self, path='serial: /dev/usb/lp0', baudrate=9600):
+		self.port = path
+		self.baudrate = baudrate
+		self.EpsonLibInterface = EpsonLibInterface
+
 		self.start()
 
 	def start(self):
 		"""Inicia recurso de conexion con impresora"""
-		if port == 'serial':
-			self.EpsonLibDriver.OpenPortByName('serial:'+device)
-		else if port == 'usb':
-			self.EpsonLibDriver.OpenPortByName('usb:usb')
-		else if port == 'lan':
-			self.EpsonLibDriver.OpenPortByName('lan:'+device)
+		self.EpsonLibInterface.ConfigurarVelocidad( c_int(self.baudrate).value )
+		self.EpsonLibInterface.ConfigurarPuerto( self.port )
+		self.EpsonLibInterface.Conectar()
+
+		print "-"*25
+		print "*"*25
+		print "   EPSON FISCAL"
+		print "*"*25
+		print "-"*25
+
+
+		str_version_max_len = 500
+		str_version = create_string_buffer( b'\000' * str_version_max_len )
+		int_major = c_int()
+		int_minor = c_int()
+
+		error = self.EpsonLibInterface.ConsultarVersionEquipo( str_version, c_int(str_version_max_len).value, byref(int_major), byref(int_minor) )
+		print "Machinne Version        : ",
+		print error
+		print "String Machinne Version : ",
+		print str_version.value
+		print "Major Machinne Version  : ",
+		print int_major.value
+		print "Minor Machine Version   : ",
+		print int_minor.value
+
+
+		# status
+		error = self.EpsonLibInterface.ConsultarEstadoDeConexion()
+		print "Conexion Status         : ",
+		print error
+
+		self.EpsonLibInterface.ComenzarLog()
+
+		logging.getLogger().info("Conectada la Epson 2Gen al puerto  : %s" % (self.port) )
 
 	def close(self):
 		"""Cierra recurso de conexion con impresora"""
-		self.EpsonLibDriver.ClosePort();
+		self.EpsonLibInterface.Desconectar();
+		logging.getLogger().info("DESConectada la Epson 2Gen al puerto: %s" % (self.port) )
 
-	def sendCommand(self, parameters = None, skipStatusErrors = None):
-		"""Envia comando a impresora"""
-		self.EpsonLibDriver.sendCommand()
-		
+	def ObtenerEstadoFiscal():
+		return self.EpsonLibInterface.ObtenerEstadoFiscal()
+
+	def sendCommand(self, commandNumber, fields, skipStatusErrors=False):
+		print(" -- INIT"*20)	
+		fields = map(lambda x: x.encode("latin-1", 'ignore'), fields)
+		command = str(int(commandNumber))
+		if fields:
+			command += "|"
+		command += "|".join( fields[1:] ) 
+		print("*"*20)	
+		print(command)
+		print("*"*20)
+		ret = self.EpsonLibInterface.EnviarComando( command )
+
+		return [0,ret,3]

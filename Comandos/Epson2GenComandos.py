@@ -4,12 +4,10 @@ import types
 import logging
 import ctypes
 import unicodedata
-from ctypes import byref, c_int, c_char, c_long, c_short, create_string_buffer
+from ctypes import byref, c_int, c_char, c_char_p, c_long, c_short, c_float, create_string_buffer
 from Comandos.ComandoFiscalInterface import ComandoFiscalInterface
 from Drivers.FiscalPrinterDriver import PrinterException
 from ComandoInterface import formatText
-
-EpsonLibInterface = ctypes.cdll.LoadLibrary('Comandos/libEpsonFiscalInterface.so')
 
 
 class Epson2GenComandos(ComandoFiscalInterface):
@@ -17,7 +15,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
 	# path al modulo de traductor que este comando necesita
 	traductorModule = "Traductores.TraductorFiscal"
 
-	DEFAULT_DRIVER = "Json"
+	DEFAULT_DRIVER = "Epson2Gen"
 
 	
 	AVAILABLE_MODELS = ["TM-T900"]
@@ -60,15 +58,14 @@ class Epson2GenComandos(ComandoFiscalInterface):
 		"NDM": 4,
 	}
 
-	ivaPercentageIds {
+	ivaPercentageIds = {
 		'0.00': 0,
 		'10.50': 4,
 		'21.00': 5,
 	}
 
 	def getStatus(self, *args):
-		EpsonLibInterface.ObtenerEstadoFiscal()
-		self._sendCommand()
+		return {self.conector.driver.ObtenerEstadoFiscal()}
 
 	def setTrailer(self, trailer=None):
 		"""Establecer pie"""
@@ -80,8 +77,8 @@ class Epson2GenComandos(ComandoFiscalInterface):
 
 	def _setCustomerData(self, name=" ", address=" ", doc=" ", docType=" ", ivaType="T"):
 		#nombre, segunda línea nombre, primer segunda y tercera línea dirección, tipo de documento, número de documento y tipo de responsabilidad ante el IVA
-		EpsonLibInterface.CargarDatosCliente(name, None, address, None, None, self.docTypes.get(docType), doc, self.ivaTypes.get(ivaTypes))
-		self._sendCommand()
+		self.conector.driver.EpsonLibInterface.CargarDatosCliente(name, None, address, None, None, self.docTypes.get(docType), doc, self.ivaTypes.get(ivaTypes))
+		
 
 	# Documentos no fiscales
 
@@ -100,14 +97,14 @@ class Epson2GenComandos(ComandoFiscalInterface):
 
 	def closeDocument(self, copias = 0, email = None):
 		"""Cierra el documento que esté abierto"""
-		EpsonLibInterface.CerrarComprobante()
-		self._sendCommand()
+		self.conector.driver.EpsonLibInterface.CerrarComprobante()
+		
 
 
 	def cancelDocument(self):
 		"""Cancela el documento que esté abierto"""
-		EpsonLibInterface.Cancelar()
-		self._sendCommand()
+		self.conector.driver.EpsonLibInterface.Cancelar()
+		
 
 	def addItem(self, description, quantity, price, iva, itemNegative = False, discount=0, discountDescription='', discountNegative=False):
 		"""Agrega un item a la FC.
@@ -125,14 +122,13 @@ class Epson2GenComandos(ComandoFiscalInterface):
 		id_item = 200 #Agregar como ítem de venta.
 		if itemNegative == True:
 			id_item = 201
-		else if discountNegative == True:
+		if discountNegative == True:
 			id_item = 206
-
 
 		#id tipo de item, descripción, cantidad, porcentaje de IVA, 
 		#identificador II impuestos internos (0 = Ninguno), valor II, id_codigo (1 = Interno), valor del codigo, codigo_unidad_matrix, unidad de medida Unidad (7) 
-		EpsonLibInterface.ImprimirItem(id_item, description, quantity, self.ivaPercentageIds.get(iva),  0, 0, 1, "1", "1", 7)
-		self._sendCommand()
+		ret = self.conector.driver.EpsonLibInterface.ImprimirItem(id_item, description, c_char_p(str(quantity)), self.ivaPercentageIds.get(iva),  0, 0, 1, "1", "1", 7)
+		print("Imprimiendo item       : %s", ret)
 
 	def addPayment(self, description, payment):
 		"""Agrega un pago a la FC.
@@ -148,8 +144,8 @@ class Epson2GenComandos(ComandoFiscalInterface):
 	def openTicket(self, comprobanteType = "T"):
 		"""Abre documento fiscal"""
 		comprobanteType = 1 #Tique
-		EpsonLibInterface.AbrirComprobante( comprobanteType )
-		self._sendCommand()
+		self.conector.driver.EpsonLibInterface.AbrirComprobante( comprobanteType )
+		
 
 	def openBillTicket(self, type, name, address, doc, docType, ivaType):
 		"""
@@ -164,8 +160,8 @@ class Epson2GenComandos(ComandoFiscalInterface):
 
 		comprobanteType = 2 #Tique Factura A/B/C/M
 
-		EpsonLibInterface.AbrirComprobante( comprobanteType )
-		self._sendCommand()
+		self.conector.driver.EpsonLibInterface.AbrirComprobante( comprobanteType )
+		
 		
 
 	def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, reference="NC"):
@@ -181,8 +177,8 @@ class Epson2GenComandos(ComandoFiscalInterface):
 		"""
 		comprobanteType = 3 #Tique Nota de crédito A/B/C/M
 
-		EpsonLibInterface.AbrirComprobante( comprobanteType )
-		self._sendCommand()
+		self.conector.driver.EpsonLibInterface.AbrirComprobante( comprobanteType )
+		
 
 	def __cargarNumReferencia(self, numero):
 		pass
@@ -201,8 +197,8 @@ class Epson2GenComandos(ComandoFiscalInterface):
 
 		comprobanteType = 4 #Tique Nota de débito A/B/C/M
 
-		EpsonLibInterface.AbrirComprobante( comprobanteType )
-		self._sendCommand()
+		self.conector.driver.EpsonLibInterface.AbrirComprobante( comprobanteType )
+		
 
 	def openRemit(self, name, address, doc, docType, ivaType):
 		"""
@@ -281,11 +277,10 @@ class Epson2GenComandos(ComandoFiscalInterface):
 
 	def dailyClose(self, type):
 		if type == 'Z':
-			EpsonLibInterface.ImprimirCierreZ()
+			ret = self.conector.driver.EpsonLibInterface.ImprimirCierreZ()
 		else:
-			EpsonLibInterface.ImprimirCierreX()
-		self._sendCommand()
-
+			ret = self.conector.driver.EpsonLibInterface.ImprimirCierreX()
+		return ret
 
 	def getWarnings(self):
 		return []
