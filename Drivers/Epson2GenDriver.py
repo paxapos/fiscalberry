@@ -7,9 +7,18 @@ from FiscalPrinterDriver import PrinterException
 import ctypes
 from ctypes import byref, c_int, c_char, c_char_p, c_long, c_short, create_string_buffer
 import requests
+import platform
+import os
 
 
-EpsonLibInterface = ctypes.cdll.LoadLibrary('/lib64/libEpsonFiscalInterface.so')
+archbits = platform.architecture()[0]
+newpath  = os.path.dirname(os.path.realpath(__file__))
+if archbits[0:2] == "64":
+	fullpath = "/lib64/libEpsonFiscalInterface.so"
+else:
+	fullpath = "/lib/libEpsonFiscalInterface.so"
+
+EpsonLibInterface = ctypes.cdll.LoadLibrary(fullpath)
 
 
 class Epson2GenDriver(DriverInterface):
@@ -35,10 +44,15 @@ class Epson2GenDriver(DriverInterface):
 	#	“lan:192.168.1.1:443” – Http ip 192.168.1.1 puerto 443
 	#
 	def __init__(self, path='serial: /dev/usb/lp0', baudrate=9600):
+		print "-"*25
+		print "*"*25
+		print "   EPSON FISCAL"
+		print "*"*25
+		print "-"*25
+
 		self.port = path
 		self.baudrate = baudrate
 		self.EpsonLibInterface = EpsonLibInterface
-
 		self.start()
 
 	def start(self):
@@ -47,13 +61,7 @@ class Epson2GenDriver(DriverInterface):
 		self.EpsonLibInterface.ConfigurarPuerto( self.port )
 		self.EpsonLibInterface.Conectar()
 
-		print "-"*25
-		print "*"*25
-		print "   EPSON FISCAL"
-		print "*"*25
-		print "-"*25
-
-
+		
 		str_version_max_len = 500
 		str_version = create_string_buffer( b'\000' * str_version_max_len )
 		int_major = c_int()
@@ -75,12 +83,21 @@ class Epson2GenDriver(DriverInterface):
 		print "Conexion Status         : ",
 		print error
 
-		self.EpsonLibInterface.ComenzarLog()
+		error = self.EpsonLibInterface.ComenzarLog()
+		print "Log iniciado Status         : ",
+		print error
 
 		logging.getLogger().info("Conectada la Epson 2Gen al puerto  : %s" % (self.port) )
 
 	def close(self):
 		"""Cierra recurso de conexion con impresora"""
+
+		# get last error
+		error = self.EpsonLibInterface.ConsultarUltimoError()
+		print "Last Error            : ",
+		print error
+
+		
 		self.EpsonLibInterface.Desconectar();
 		logging.getLogger().info("DESConectada la Epson 2Gen al puerto: %s" % (self.port) )
 

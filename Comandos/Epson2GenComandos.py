@@ -144,7 +144,8 @@ class Epson2GenComandos(ComandoFiscalInterface):
 	def openTicket(self, comprobanteType = "T"):
 		"""Abre documento fiscal"""
 		comprobanteType = 1 #Tique
-		self.conector.driver.EpsonLibInterface.AbrirComprobante( comprobanteType )
+		err = self.conector.driver.EpsonLibInterface.AbrirComprobante( comprobanteType )
+		logging.getLogger().info("Abrio comprobante  : %s" % (err) )
 		
 
 	def openBillTicket(self, type, name, address, doc, docType, ivaType):
