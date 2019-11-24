@@ -142,9 +142,18 @@ class Epson2GenComandos(ComandoFiscalInterface):
 	# Ticket fiscal (siempre es a consumidor final, no permite datos del cliente)
 
 	def openTicket(self, comprobanteType = "T"):
-		"""Abre documento fiscal"""
-		comprobanteType = 1 #Tique
-		err = self.conector.driver.EpsonLibInterface.AbrirComprobante( comprobanteType )
+		"""Abre documento fiscal
+		str comprobanteType
+
+		• 1 – Tique.
+		• 2 – Tique factura A/B/C/M.
+		• 3 – Tique nota de crédito, tique nota crédito A/B/C/M.
+		• 4 – Tique nota de débito A/B/C/M.
+		• 21 – Documento no fiscal homologado genérico.
+		• 22 – Documento no fiscal homologado de uso interno.
+		"""
+		numcomp = self.comprobanteTypes[comprobanteType]
+		err = self.conector.driver.EpsonLibInterface.AbrirComprobante( numcomp )
 		logging.getLogger().info("Abrio comprobante  : %s" % (err) )
 		
 
@@ -159,8 +168,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
 			@param  ivaType     Tipo de IVA
 		"""
 
-		comprobanteType = 2 #Tique Factura A/B/C/M
-
+		comprobanteType = self.comprobanteTypes[comprobanteType]
 		self.conector.driver.EpsonLibInterface.AbrirComprobante( comprobanteType )
 		
 		
