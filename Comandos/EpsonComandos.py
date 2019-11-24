@@ -1,12 +1,13 @@
 # -*- coding: iso-8859-1 -*-
 import string
 import types
-import logging
 import json
 from Comandos.ComandoFiscalInterface import ComandoFiscalInterface
 from ComandoInterface import formatText, ComandoException
-
 from Drivers.FiscalPrinterDriver import PrinterException
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class FiscalPrinterError(Exception):
@@ -75,12 +76,12 @@ class EpsonComandos(ComandoFiscalInterface):
     def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
         print "_sendCommand", commandNumber, parameters
         try:
-            logging.getLogger().info("sendCommand: SEND|0x%x|%s|%s" % (commandNumber,
+            logger.debug("sendCommand: SEND|0x%x|%s|%s" % (commandNumber,
                                                                        skipStatusErrors and "T" or "F",
                                                                        str(parameters)))
             return self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
         except PrinterException, e:
-            logging.getLogger().error("PrinterException: %s" % str(e))
+            logger.exception("PrinterException: %s" % str(e))
             raise ComandoException("Error de la impresora fiscal: " + str(e))
 
     def openNonFiscalReceipt(self):
@@ -117,18 +118,28 @@ class EpsonComandos(ComandoFiscalInterface):
             line += 1
 
     def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, reference="NC"):
+        if docType == 'C':
+            docType = 'DOC_TYPE_CUIT'
+        elif docType == '2':
+            docType = 'DOC_TYPE_DNI'
         return self._openBillCreditTicket(type, name, address, doc, docType, ivaType, isCreditNote=True)
 
     def openBillTicket(self, type, name, address, doc, docType, ivaType):
+        if docType == 'C':
+            docType = 'DOC_TYPE_CUIT'
+        elif docType == '2':
+            docType = 'DOC_TYPE_DNI'
         return self._openBillCreditTicket(type, name, address, doc, docType, ivaType, isCreditNote=False)
 
-    def _openBillCreditTicket(self, type, name, address, doc, docType, ivaType, isCreditNote, reference=None):
-        if not docType:
-            docType, doc = '-', '-'
-        if doc and not isinstance(doc, basestring):
-            doc = str(doc)
-        if not ivaType:
-            ivaType = 'F'  # Default is Consumidor Final
+
+    def _openBillCreditTicket(self, type, name, address, doc, docType, ivaType, isCreditNote,
+                              reference=None):
+        if not doc or not docType in self.docTypeNames:
+            doc, docType = "", ""
+        else:
+            doc = doc.replace("-", "").replace(".", "")
+            docType = self.docTypeNames[docType]
+
         self._type = type
         # Remito primera linea - Es obligatorio si el cliente no es consumidor final
         if not reference:
@@ -160,27 +171,29 @@ class EpsonComandos(ComandoFiscalInterface):
                 "C", # No somos una farmacia
                 ]
         else:
-            parameters = [isCreditNote and "M" or "T", # Ticket NC o Factura
-                "C",  # Tipo de Salida - Ignorado
-                type, # Tipo de FC (A/B/C)
-                "1",   # Copias - Ignorado
-                "P",   # Tipo de Hoja - Ignorado
-                "17",   # Tamaño Carac - Ignorado
-                "E",   # Responsabilidad en el modo entrenamiento - Ignorado
-                ivaType or "F",   # Iva Comprador - El char del tipo de Iva ya fue obtenido en el TraductorFiscal
-                formatText(name[:40]), # Nombre
-                formatText(name[40:80]), # Segunda parte del nombre - Ignorado
-                docType or (isCreditNote and "-" or ""),
-                 # Tipo de Doc. - Si es NC obligado pongo algo
-                doc or (isCreditNote and "-" or ""), # Nro Doc - Si es NC obligado pongo algo
-                "N", # No imprime leyenda de BIENES DE USO
-                formatText(address[:self.ADDRESS_SIZE] or "-"), # Domicilio
-                formatText(address[self.ADDRESS_SIZE:self.ADDRESS_SIZE * 2]), # Domicilio 2da linea
-                formatText(address[self.ADDRESS_SIZE * 2:self.ADDRESS_SIZE * 3]), # Domicilio 3ra linea
-                reference, # Remito primera linea
-                "", # Remito segunda linea
-                "C", # No somos una farmacia
-                ]
+            if not ivaType:
+                ivaType = 'F'  # Default is Consumidor Final
+            parameters = [isCreditNote and "M" or "T",  # Ticket NC o Factura
+                          "C",  # Tipo de Salida - Ignorado
+                          type,  # Tipo de FC (A/B/C)
+                          "1",  # Copias - Ignorado
+                          "P",  # Tipo de Hoja - Ignorado
+                          "17",  # Tamaño Carac - Ignorado
+                          "E",  # Responsabilidad en el modo entrenamiento - Ignorado
+                          ivaType,  # Iva Comprador
+                          formatText(name[:40]),  # Nombre
+                          formatText(name[40:80]),  # Segunda parte del nombre - Ignorado
+                          formatText(docType) or (isCreditNote and "-" or ""), # Tipo de Doc. - Si es NC obligado pongo algo
+                          doc or (isCreditNote and "-" or ""),  # Nro Doc - Si es NC obligado pongo algo
+                          "N",  # No imprime leyenda de BIENES DE USO
+                          formatText(address[:self.ADDRESS_SIZE] or "-"),  # Domicilio
+                          formatText(address[self.ADDRESS_SIZE:self.ADDRESS_SIZE * 2]),  # Domicilio 2da linea
+                          formatText(address[self.ADDRESS_SIZE * 2:self.ADDRESS_SIZE * 3]),  # Domicilio 3ra linea
+                          (isCreditNote or (ivaType != "F")) and "-" or "",
+                          # Remito primera linea - Es obligatorio si el cliente no es consumidor final
+                          "",  # Remito segunda linea
+                          "C",  # No somos una farmacia
+                          ]
         if isCreditNote:
             self._currentDocument = self.CURRENT_DOC_CREDIT_TICKET
         else:
@@ -229,6 +242,17 @@ class EpsonComandos(ComandoFiscalInterface):
             return reply[2]
         if self._currentDocument in (self.CURRENT_DOC_NON_FISCAL,):
             return self._sendCommand(self.CMD_CLOSE_NON_FISCAL_RECEIPT, ["T"], True)
+
+        raise NotImplementedError
+
+    def cancelDocument(self):
+        if self._currentDocument in (self.CURRENT_DOC_TICKET, self.CURRENT_DOC_BILL_TICKET,
+                                     self.CURRENT_DOC_CREDIT_TICKET):
+            status = self._sendCommand(self.CMD_ADD_PAYMENT[self._getCommandIndex()], ["Cancelar", "0", 'C'])
+            return status
+        if self._currentDocument in (self.CURRENT_DOC_NON_FISCAL,):
+            self.printNonFiscalText("CANCELADO")
+            return self.closeDocument()
         #Esto es por si alguna razon un printTicket quedo sin completarse. Ya que si no, no hay manera de cancelar el documento abierto
         self.cancelAnyDocument()
         return []
@@ -248,8 +272,10 @@ class EpsonComandos(ComandoFiscalInterface):
         else:
             bultosStr = "00001" # No se usa en TM220AF ni TM300AF ni TMU220AF
         if self._currentDocumentType != 'A':
-            # enviar con el iva incluido 
-            priceUnitStr = str(int(round(price * 100, 0)))
+
+            # enviar con el iva incluido
+            # priceUnitStr = str(int(round(price * 100, 0)))
+            priceUnitStr = "%0.4f" % price
         else:
             if self.model == "tm-220-af" or self.model == "tm-t900fa" or self.model == 'sm-srp-270':
                 # enviar sin el iva (factura A)
@@ -283,6 +309,17 @@ class EpsonComandos(ComandoFiscalInterface):
         status = self._sendCommand(self.CMD_ADD_PAYMENT[self._getCommandIndex()],
                                    [formatText(description)[:20], paymentStr, type_payment])
         return status
+
+    def addPerception(self, description, amount):
+        tipoPerc = 'O'
+        montoPerc = str(int(amount * 100))
+        status = self._sendCommand(self.CMD_PERCEPTIONS, [formatText(description)[:20], tipoPerc, montoPerc])
+        return status
+        # paymentStr = str(int(amount * 100))
+        # status = self._sendCommand(self.CMD_ADD_PERCEPTION,
+        #                            [formatText(description)[:20], "O", "1.1", 'T'])
+        # return status
+
 
     def addPerception(self, description, amount):
         tipoPerc = 'O'

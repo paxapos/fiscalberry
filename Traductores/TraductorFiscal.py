@@ -42,31 +42,27 @@ class TraductorFiscal(TraductorInterface):
         return self.comando.cancelAnyDocument()
 
     def printTicket(self, encabezado=None, items=[], pagos=[], percepciones=[], addAdditional=None, setHeader=None, setTrailer=None):
-      try:
+
+        try:
           if setHeader:
-            self.setHeader(*setHeader)
+              self.setHeader(*setHeader)
 
           if setTrailer:
-            self.setTrailer(*setTrailer)
+              self.setTrailer(*setTrailer)
 
           if encabezado:
-            self._abrirComprobante(**encabezado)
+              self._abrirComprobante(**encabezado)
           else:
-            self._abrirComprobante()
+              self._abrirComprobante()
 
-          if items:
-            for item in items:
+          for item in items:
               self._imprimirItem(**item)
 
-            if pagos:
-              for pago in pagos:
-                self._imprimirPago(**pago)
-
           if percepciones:
-              for percepcion in percepciones:
-                self._imprimirPercepcion(**percepcion)
+                for percepcion in percepciones:
+                    self._imprimirPercepcion(**percepcion)
 
-              if pagos:
+          if pagos:
                 for pago in pagos:
                     self._imprimirPago(**pago)
 
@@ -75,9 +71,10 @@ class TraductorFiscal(TraductorInterface):
 
           rta = self._cerrarComprobante()
           return rta
-      except Exception, e:
-        self.comando.cancelAnyDocument()
-        raise
+
+        except Exception, e:
+          self.cancelDocument()
+          raise
 
     def _abrirComprobante(self,
                           tipo_cbte="T",  # tique
@@ -97,9 +94,7 @@ class TraductorFiscal(TraductorInterface):
                                            nombre_cliente=nombre_cliente,
                                            domicilio_cliente=domicilio_cliente,
                                            referencia=referencia),
-                                           "items": [], "pagos": [], "percepciones": []
-                        }
-
+                                           "items": [], "pagos": [], "percepciones": []}
         printer = self.comando
 
         letra_cbte = tipo_cbte[-1] if len(tipo_cbte) > 1 else None

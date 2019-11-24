@@ -1,13 +1,14 @@
 # -*- coding: iso-8859-1 -*-
 import string
 import types
-import logging
-import unicodedata
 from Comandos.ComandoFiscalInterface import ComandoFiscalInterface
 from Drivers.FiscalPrinterDriver import PrinterException
 from ComandoInterface import formatText, ComandoException
 
 NUMBER = 999990
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class HasarComandos(ComandoFiscalInterface):
@@ -141,14 +142,19 @@ class HasarComandos(ComandoFiscalInterface):
         try:
             commandString = "SEND|0x%x|%s|%s" % (commandNumber, skipStatusErrors and "T" or "F",
                                                  str(parameters))
-            logging.getLogger().info("sendCommand: %s" % commandString)
+            logger.debug("-> sendCommand: %s" % commandString)
 
             ret = self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
-            logging.getLogger().info("reply: %s" % ret)
+            logger.debug("<- sendCommand reply: %s" % ret)
             return ret
         except PrinterException, e:
+<<<<<<< HEAD
             logging.getLogger().error("PrinterException: %s" % str(e))
             raise Exception("Error de la impresora fiscal: %s.\nComando enviado: %s" % \
+=======
+            logger.exception("PrinterException: %s" % str(e))
+            raise ComandoException("Error de la impresora fiscal: %s.\nComando enviado: %s" %
+>>>>>>> 5ef8a5adf437aebce765e74143aedcf8ec72391c
                                    (str(e), commandString))
 
     def openNonFiscalReceipt(self):
@@ -368,6 +374,18 @@ class HasarComandos(ComandoFiscalInterface):
         paymentStr = ("%.2f" % round(payment, 2)).replace(",", ".")
         self._savedPayments.append((description, paymentStr))
         
+    def addPerception(self, description, price, iva='21.0', porcPerc=0):
+        priceUnit = price
+        priceUnitStr = str(priceUnit).replace(",", ".")
+
+        if isinstance(iva, basestring):
+            ivaStr = iva.replace(",", ".")
+        else:
+            ivaStr = str(float(iva)).replace(",", ".")
+
+        reply = self._sendCommand(self.CMD_PERCEPTIONS, [ivaStr, self._formatText(description, 'perception'), priceUnitStr])
+        return reply
+
     def addPerception(self, description, price, iva='21.0', porcPerc=0):
         priceUnit = price
         priceUnitStr = str(priceUnit).replace(",", ".")

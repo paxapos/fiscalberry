@@ -2,12 +2,14 @@
 import ComandoInterface
 import logging
 
+logger = logging.getLogger(__name__)
+
 
 class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
     """Interfaz que deben cumplir las impresoras fiscales."""
 
 
-    
+
     docTypes = {
         "CUIT": 'C',
         "LIBRETA_ENROLAMIENTO": '0',
@@ -36,12 +38,12 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
     def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
         print "_sendCommand", commandNumber, parameters
         try:
-            logging.getLogger().info("sendCommand: SEND|0x%x|%s|%s" % (commandNumber,
+            logger.debug("sendCommand: SEND|0x%x|%s|%s" % (commandNumber,
                                                                        skipStatusErrors and "T" or "F",
                                                                        str(parameters)))
             return self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
         except epsonFiscalDriver.ComandoException, e:
-            logging.getLogger().error("epsonFiscalDriver.ComandoException: %s" % str(e))
+            logger.exception("epsonFiscalDriver.ComandoException: %s" % str(e))
             raise ComandoException("Error de la impresora fiscal: " + str(e))
 
     # Documentos no fiscales
