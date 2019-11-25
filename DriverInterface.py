@@ -16,7 +16,7 @@ class DriverInterface:
 
     def start(self):
         """ iniciar """
-        pass
+        raise NotImplementedError
 
     def end(self):
         pass

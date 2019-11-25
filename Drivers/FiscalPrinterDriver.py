@@ -59,6 +59,9 @@ class FiscalPrinterDriver(DriverInterface):
         self._serialPort = serial.Serial(port=path, timeout=None, baudrate=speed)
         self._initSequenceNumber()
 
+    def start(self):
+        pass
+
     def close(self):
         try:
             self._serialPort.close()

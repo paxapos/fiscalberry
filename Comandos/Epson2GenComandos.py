@@ -67,9 +67,25 @@ class Epson2GenComandos(ComandoFiscalInterface):
 	def getStatus(self, *args):
 		return {self.conector.driver.ObtenerEstadoFiscal()}
 
-	def setTrailer(self, trailer=None):
+
+	def setHeader(self, headerlist=[]):
+		"""Establecer encabezado"""
+		print headerlist
+        line = 0
+        """
+        for text in header:
+            self.conector.driver.EstablecerEncabezado(line, text)
+            line += 1
+        """
+
+	def setTrailer(self, trailer=[]):
 		"""Establecer pie"""
-		pass
+		line = 0
+		"""
+        for text in trailer:
+            self.conector.driver.EstablecerCola(line, text)
+            line += 1
+		"""
 
 	def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
 		self.conector.sendCommand()
@@ -127,7 +143,9 @@ class Epson2GenComandos(ComandoFiscalInterface):
 
 		#id tipo de item, descripción, cantidad, porcentaje de IVA, 
 		#identificador II impuestos internos (0 = Ninguno), valor II, id_codigo (1 = Interno), valor del codigo, codigo_unidad_matrix, unidad de medida Unidad (7) 
-		ret = self.conector.driver.EpsonLibInterface.ImprimirItem(id_item, description, c_char_p(str(quantity)), self.ivaPercentageIds.get(iva),  0, 0, 1, "1", "1", 7)
+		ivaid = self.ivaPercentageIds.get(iva)
+		qty = str(quantity)
+		ret = self.conector.driver.ImprimirItem(id_item, description, qty, price, ivaid)
 		print("Imprimiendo item       : %s", ret)
 
 	def addPayment(self, description, payment):
@@ -153,7 +171,10 @@ class Epson2GenComandos(ComandoFiscalInterface):
 		• 22 – Documento no fiscal homologado de uso interno.
 		"""
 		numcomp = self.comprobanteTypes[comprobanteType]
+		print "*"*20
+		print numcomp
 		err = self.conector.driver.EpsonLibInterface.AbrirComprobante( numcomp )
+		print err
 		logging.getLogger().info("Abrio comprobante  : %s" % (err) )
 		
 
@@ -303,12 +324,14 @@ class Epson2GenComandos(ComandoFiscalInterface):
 
 		self.cancelDocument()
 		
+
 		if type == 'Z':
 			ret = self.conector.driver.EpsonLibInterface.ImprimirCierreZ()
 		else:
 			ret = self.conector.driver.EpsonLibInterface.ImprimirCierreX()
 
 		self.close()
+
 		return ret
 
 	def getWarnings(self):

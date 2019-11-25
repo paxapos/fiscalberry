@@ -54,6 +54,7 @@ class Epson2GenDriver(DriverInterface):
 		self.baudrate = baudrate
 		self.EpsonLibInterface = EpsonLibInterface
 
+
 	def start(self):
 		"""Inicia recurso de conexion con impresora"""
 		self.EpsonLibInterface.ConfigurarVelocidad( c_int(self.baudrate).value )
@@ -100,8 +101,29 @@ class Epson2GenDriver(DriverInterface):
 		self.EpsonLibInterface.Desconectar();
 		logging.getLogger().info("DESConectada la Epson 2Gen al puerto: %s" % (self.port) )
 
-	def ObtenerEstadoFiscal():
+	def ObtenerEstadoFiscal(self):
 		return self.EpsonLibInterface.ObtenerEstadoFiscal()
 
 	def sendCommand(self, commandNumber, fields, skipStatusErrors=False):
 		pass
+
+	def ImprimirItem(id_modificador, description, qty, precio, id_tasa_iva, ii_id = 0, ii_valor = "0.0", id_codigo = 1, codigo= "1", codigo_unidad_matrix = "1", codigo_unidad_medida = 7):
+		"""Integer ImprimirItem( 
+				Integer id_modificador, 
+				String descripcion,
+				String cantidad, 
+				String precio, 
+				Integer id_tasa_iva,
+				Integer ii_id, 
+				String ii_valor, 
+				Integer id_codigo,
+				String codigo, 
+				String codigo_unidad_matrix,
+				Integer código_unidad_medida )
+		"""
+		id_modificador 	= c_int(id_modificador).value
+		description = c_char_p(description).value
+		qty 		= c_char_p(qty).value
+		precio 		= c_char_p(precio).value
+		id_tasa_iva = c_int(id_tasa_iva).value
+		return self.EpsonLibInterface.ImprimirItem(id_modificador, description, qty, precio, id_tasa_iva)
