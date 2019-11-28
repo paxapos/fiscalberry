@@ -62,6 +62,10 @@ class Epson2GenComandos(ComandoFiscalInterface):
 		'0.00': 0,
 		'10.50': 4,
 		'21.00': 5,
+		'21.0': 5,
+		'21': 5,
+		21.: 5,
+		21 : 5
 	}
 
 	def getStatus(self, *args):
@@ -71,21 +75,28 @@ class Epson2GenComandos(ComandoFiscalInterface):
 	def setHeader(self, headerlist=[]):
 		"""Establecer encabezado"""
 		print headerlist
-        line = 0
-        """
-        for text in header:
-            self.conector.driver.EstablecerEncabezado(line, text)
-            line += 1
-        """
+		line=1
+		while line <= len(headerlist):
+
+			self.conector.driver.EpsonLibInterface.EstablecerEncabezado(line, headerlist[line-1])
+			line+=1
+			pass
+        #line = 0
+        #for text in headerlist:
+         #   self.conector.driver.EstablecerEncabezado(line, text)
+          #  line += 1
 
 	def setTrailer(self, trailer=[]):
 		"""Establecer pie"""
-		line = 0
-		"""
-        for text in trailer:
-            self.conector.driver.EstablecerCola(line, text)
-            line += 1
-		"""
+		line=1
+		while line <= len(trailer):
+			self.conector.driver.EpsonLibInterface.EstablecerCola(line, trailer[line-1])
+			line += 1
+			pass
+		#line = 0
+        #for text in trailer:
+         #   self.conector.driver.EstablecerCola(line, text)
+          #  line += 1
 
 	def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
 		self.conector.sendCommand()
@@ -143,7 +154,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
 
 		#id tipo de item, descripción, cantidad, porcentaje de IVA, 
 		#identificador II impuestos internos (0 = Ninguno), valor II, id_codigo (1 = Interno), valor del codigo, codigo_unidad_matrix, unidad de medida Unidad (7) 
-		ivaid = self.ivaPercentageIds.get(iva)
+		ivaid = self.ivaPercentageIds.get("iva", 5)
 		qty = str(quantity)
 		ret = self.conector.driver.ImprimirItem(id_item, description, qty, price, ivaid)
 		print("Imprimiendo item       : %s", ret)
@@ -171,8 +182,6 @@ class Epson2GenComandos(ComandoFiscalInterface):
 		• 22 – Documento no fiscal homologado de uso interno.
 		"""
 		numcomp = self.comprobanteTypes[comprobanteType]
-		print "*"*20
-		print numcomp
 		err = self.conector.driver.EpsonLibInterface.AbrirComprobante( numcomp )
 		print err
 		logging.getLogger().info("Abrio comprobante  : %s" % (err) )
@@ -189,7 +198,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
 			@param  ivaType     Tipo de IVA
 		"""
 
-		comprobanteType = self.comprobanteTypes[comprobanteType]
+		comprobanteType = self.comprobanteTypes[type]
 		self.conector.driver.EpsonLibInterface.AbrirComprobante( comprobanteType )
 		
 		
@@ -283,7 +292,8 @@ class Epson2GenComandos(ComandoFiscalInterface):
 			@param iva          Porcentaje de Iva
 			@param negative     Si negative = True, se añadira el monto como descuento, sino, sera un recargo
 		"""
-		pass
+		ivaid = self.ivaPercentageIds.get(iva)
+		self.conector.driver.cargarAjuste(description, amount, ivaid, negative)
 		
 
 	def setCodigoBarras(self, numero , tipoCodigo = "CodigoTipoI2OF5", imprimeNumero =  "ImprimeNumerosCodigo" ):

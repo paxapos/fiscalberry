@@ -42,7 +42,7 @@ class TraductorFiscal(TraductorInterface):
         return self.comando.cancelAnyDocument()
 
     def printTicket(self, encabezado=None, items=[], pagos=[], percepciones=[], addAdditional=None, setHeader=None, setTrailer=None):
-
+        self.comando.start()
         try:
           if setHeader:
               self.setHeader(*setHeader)
@@ -70,6 +70,7 @@ class TraductorFiscal(TraductorInterface):
               self.comando.addAdditional(**addAdditional)
 
           rta = self._cerrarComprobante()
+          self.comando.close()
           return rta
 
         except Exception, e:
@@ -127,7 +128,7 @@ class TraductorFiscal(TraductorInterface):
         return ret
 
     def _imprimirItem(self, ds, qty, importe, alic_iva=21., itemNegative=False, discount=0, discountDescription='',
-                      discountNegative=True):
+                      discountNegative=False):
         "Envia un item (descripcion, cantidad, etc.) a una factura"
 
         if importe < 0:

@@ -107,7 +107,26 @@ class Epson2GenDriver(DriverInterface):
 	def sendCommand(self, commandNumber, fields, skipStatusErrors=False):
 		pass
 
-	def ImprimirItem(id_modificador, description, qty, precio, id_tasa_iva, ii_id = 0, ii_valor = "0.0", id_codigo = 1, codigo= "1", codigo_unidad_matrix = "1", codigo_unidad_medida = 7):
+	def cargarAjuste(self, description, amount, ivaid, negative):
+		"""
+		Integer CargarAjuste( 
+			Integer id_modificador, 
+				• 400 – Descuento.
+				• 401 – Ajuste.
+				• 402 – Ajuste negativo.
+			String descripcion,
+			String monto,  “nnnnnnnnnn.nn”. (10,2)
+			int id_tasa
+			String codigo_interno
+
+		"""
+		amount 		= "%.2f" % float(amount)
+		id_modificador = 400
+		if negative:
+			id_modificador = 401
+		return self.EpsonLibInterface.CargarAjuste(id_modificador, description, str(amount), ivaid, "")
+
+	def ImprimirItem(self, id_modificador, description, qty, precio, id_tasa_iva, ii_id = 0, ii_valor = "0.0", id_codigo = 1, codigo= "1", codigo_unidad_matrix = "1", codigo_unidad_medida = 7):
 		"""Integer ImprimirItem( 
 				Integer id_modificador, 
 				String descripcion,
@@ -115,15 +134,21 @@ class Epson2GenDriver(DriverInterface):
 				String precio, 
 				Integer id_tasa_iva,
 				Integer ii_id, 
-				String ii_valor, 
+				String ii_valor, header
 				Integer id_codigo,
 				String codigo, 
 				String codigo_unidad_matrix,
-				Integer código_unidad_medida )
+				Integer codigo_unidad_medida )
 		"""
-		id_modificador 	= c_int(id_modificador).value
-		description = c_char_p(description).value
-		qty 		= c_char_p(qty).value
-		precio 		= c_char_p(precio).value
-		id_tasa_iva = c_int(id_tasa_iva).value
-		return self.EpsonLibInterface.ImprimirItem(id_modificador, description, qty, precio, id_tasa_iva)
+		description = description
+		qty 		= qty
+		precio 		= str(precio)
+		id_tasa_iva = id_tasa_iva
+
+
+
+		print " OoO "*25
+		print "imprime item modif %s - dec: %s qty: %s - precio %s - Iva %s " % (id_modificador, description, qty, precio, id_tasa_iva)
+
+
+		return self.EpsonLibInterface.ImprimirItem(id_modificador, description, qty, precio, id_tasa_iva,ii_id,ii_valor,id_codigo,codigo,codigo_unidad_matrix,codigo_unidad_medida)
