@@ -107,7 +107,7 @@ class Epson2GenDriver(DriverInterface):
 	def sendCommand(self, commandNumber, fields, skipStatusErrors=False):
 		pass
 
-	def ImprimirAuditoria( desde, hasta, id_modificador = 500 )
+	def ImprimirAuditoria( desde, hasta, id_modificador = 500):
 		"""
 
 		id_modificador 		integer
