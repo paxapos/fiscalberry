@@ -17,8 +17,7 @@ test_scripts/*
 env/*
 ssl/*
 
-# C extensions
-*.so
+
 
 # Distribution / packaging
 *.pyc
