@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-
+from datetime import datetime
 from DriverInterface import DriverInterface
 import logging
 from FiscalPrinterDriver import PrinterException
@@ -107,6 +107,27 @@ class Epson2GenDriver(DriverInterface):
 	def sendCommand(self, commandNumber, fields, skipStatusErrors=False):
 		pass
 
+	def ImprimirAuditoria( desde, hasta, id_modificador = 500 )
+		"""
+
+		id_modificador 		integer
+		• 500 – Auditoría detallada.
+		• 501 – Auditoría resumida.
+		
+		Número o fecha del cierre Z inicial.
+		desde string
+		• Formato para número de Cierre Z: “9999”
+		• Formato para fecha: “ddmmyy”
+		
+		Número o fecha del cierre Z final. (inclusive)
+		hasta string
+		• Formato para número de Cierre Z: “9999”
+		• Formato para fecha: “ddmmyy”
+
+		"""
+    
+		return self.EpsonLibInterface.ImprimirAuditoria( id_modificador, desde, hasta )
+
 	def cargarAjuste(self, description, amount, ivaid, negative):
 		"""
 		Integer CargarAjuste( 
@@ -140,7 +161,7 @@ class Epson2GenDriver(DriverInterface):
 				String codigo_unidad_matrix,
 				Integer codigo_unidad_medida )
 		"""
-		description = description
+		description = c_char_p(description).value
 		qty 		= qty
 		precio 		= str(precio)
 		id_tasa_iva = id_tasa_iva

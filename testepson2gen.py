@@ -1,9 +1,12 @@
 from Comandos.Epson2GenComandos import Epson2GenComandos
 import ctypes
 from ctypes import byref, c_int, c_char, c_char_p, c_long, c_short, create_string_buffer
+from Traductores.TraductoresHandler import TraductoresHandler, TraductorException
+
 
 fullpath = "/lib64/libEpsonFiscalInterface.so"
 EpsonLibInterface = ctypes.cdll.LoadLibrary(fullpath)
+
 
 
 def jsontest():
@@ -25,6 +28,9 @@ def jsontest():
 			"setTrailer":[" ","Mozo: Alejandra","Mesa: 1"," "]
 		}
 	}
+
+	t = TraductoresHandler()
+	return t.json_to_comando(jsoncomando)
 
 def geterr():
 

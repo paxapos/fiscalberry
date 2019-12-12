@@ -77,8 +77,8 @@ class Epson2GenComandos(ComandoFiscalInterface):
 		print headerlist
 		line=1
 		while line <= len(headerlist):
-
-			self.conector.driver.EpsonLibInterface.EstablecerEncabezado(line, headerlist[line-1])
+			texto = c_char_p(headerlist[line-1]).value
+			self.conector.driver.EpsonLibInterface.EstablecerEncabezado(line, texto)
 			line+=1
 			pass
         #line = 0
@@ -90,7 +90,8 @@ class Epson2GenComandos(ComandoFiscalInterface):
 		"""Establecer pie"""
 		line=1
 		while line <= len(trailer):
-			self.conector.driver.EpsonLibInterface.EstablecerCola(line, trailer[line-1])
+			texto = c_char_p(headerlist[line-1]).value
+			self.conector.driver.EpsonLibInterface.EstablecerCola(line, texto)
 			line += 1
 			pass
 		#line = 0
@@ -132,6 +133,10 @@ class Epson2GenComandos(ComandoFiscalInterface):
 		"""Cancela el documento que esté abierto"""
 		self.conector.driver.EpsonLibInterface.Cancelar()
 		
+	def imprimirAuditoria(self, cantDias):
+		hoy = datetime.today().strftime('%d%m%y')
+		desde = datetime.today().subtract(days=cantDias).strftime('%d%m%y')
+		self.conector.driver.ImprimirAuditoria(desde, hoy)
 
 	def addItem(self, description, quantity, price, iva, itemNegative = False, discount=0, discountDescription='', discountNegative=False):
 		"""Agrega un item a la FC.

@@ -87,7 +87,7 @@ class TraductoresHandler:
     config = Configberry.Configberry()
     webSocket = None
 
-    def __init__(self, webSocket, fbApp):
+    def __init__(self, webSocket = None, fbApp = None):
         self.webSocket = webSocket
         self.fbApp = fbApp
 
