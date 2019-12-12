@@ -90,7 +90,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
 		"""Establecer pie"""
 		line=1
 		while line <= len(trailer):
-			texto = c_char_p(headerlist[line-1]).value
+			texto = c_char_p(trailer[line-1]).value
 			self.conector.driver.EpsonLibInterface.EstablecerCola(line, texto)
 			line += 1
 			pass
