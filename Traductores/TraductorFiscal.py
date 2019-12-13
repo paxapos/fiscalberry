@@ -9,46 +9,62 @@ class TraductorFiscal(TraductorInterface):
         # cancelar y volver a un estado conocido
         self.comando.cancelAnyDocument()
 
+        self.comando.start()
         ret = self.comando.dailyClose(type)
+        self.comando.close()
         return ret
 
     def getStatus(self, *args):
         "getStatus"
+        self.comando.start()
         ret = self.comando.getStatus(list(args))
+        self.comando.close()
         return ret
 
     def setHeader(self, *args):
         "SetHeader"
+        self.comando.start()
         ret = self.comando.setHeader(list(args))
+        self.comando.close()
         return ret
 
     def setTrailer(self, *args):
         "SetTrailer"
+        self.comando.start()
         ret = self.comando.setTrailer(list(args))
+        self.comando.close()
         return ret
 
     def openDrawer(self, *args):
         "Abrir caja registradora"
-        return self.comando.openDrawer()
+        self.comando.start()
+        ret = self.comando.openDrawer()
+        self.comando.close()
+        return ret
 
     def getLastNumber(self, tipo_cbte):
         "Devuelve el último número de comprobante"
-
+        self.comando.start()
         letra_cbte = tipo_cbte[-1] if len(tipo_cbte) > 1 else None
-        return self.comando.getLastNumber(letra_cbte)
+        ret = self.comando.getLastNumber(letra_cbte)
+        self.comando.close()
+        return ret
 
     def cancelDocument(self, *args):
         "Cancelar comprobante en curso"
-        return self.comando.cancelAnyDocument()
+        self.comando.start()
+        self.comando.cancelAnyDocument()
+        self.comando.close()
 
     def printTicket(self, encabezado=None, items=[], pagos=[], percepciones=[], addAdditional=None, setHeader=None, setTrailer=None):
+        if setHeader:
+            self.setHeader(*setHeader)
+
+        if setTrailer:
+            self.setTrailer(*setTrailer)
+        
         self.comando.start()
         try:
-          if setHeader:
-              self.setHeader(*setHeader)
-
-          if setTrailer:
-              self.setTrailer(*setTrailer)
 
           if encabezado:
               self._abrirComprobante(**encabezado)
