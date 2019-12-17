@@ -230,8 +230,10 @@ class EscPComandos(ComandoInterface):
             len_desc = len(desc)
             if len_desc > 19:
                 desc = desc[:len_desc - (len_desc - 19)]
-            if len_desc < 19:
+            if len_desc < 19 and len_desc >= 6:
                 desc = desc.ljust(19 - len_desc)
+            if len_desc < 6:
+                desc = desc.ljust(6 - len_desc)
             can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
