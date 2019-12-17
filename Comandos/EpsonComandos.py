@@ -65,6 +65,12 @@ class EpsonComandos(ComandoFiscalInterface):
         "PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL": 'F',
         "NO_CATEGORIZADO": 'F',
     }
+    
+    def start(self):
+        pass
+
+    def close(self):
+        pass
 
     def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
         print "_sendCommand", commandNumber, parameters

@@ -24,3 +24,6 @@ class ReceiptFileDriver(printer.File, DriverInterface):
 
     def __init__(self, devfile="/dev/usb/lp0", auto_flush=True, *args, **kwargs):
         printer.File.__init__(self, devfile, auto_flush, *args, **kwargs)
+    
+    def start(self):
+        pass

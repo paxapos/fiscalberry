@@ -138,6 +138,12 @@ class HasarComandos(ComandoFiscalInterface):
         "NO_CATEGORIZADO": 'T',
     }
 
+    def start(self):
+        pass
+
+    def close(self):
+        pass
+
     def _sendCommand(self, commandNumber, parameters=(), skipStatusErrors=False):
         try:
             commandString = "SEND|0x%x|%s|%s" % (commandNumber, skipStatusErrors and "T" or "F",
@@ -160,7 +166,7 @@ class HasarComandos(ComandoFiscalInterface):
             return (fiscalStatus & (1 << 13)) == (1 << 13)
 
         if not checkStatusInComprobante(status[1]):
-            # No tomó el comando, el status fiscal dice que no hay comprobante abierto, intento de nuevo
+            # No tomï¿½ el comando, el status fiscal dice que no hay comprobante abierto, intento de nuevo
             status = self._sendCommand(self.CMD_OPEN_NON_FISCAL_RECEIPT, [])
             if not checkStatusInComprobante(status[1]):
                 raise ComandoException("Error de la impresora fiscal, no acepta el comando de iniciar "
@@ -191,7 +197,7 @@ class HasarComandos(ComandoFiscalInterface):
             header = []
         line = 3
         for text in (header + [chr(0x7f)] * 3)[:3]:  # Agrego chr(0x7f) (DEL) al final para limpiar las
-            # líneas no utilizadas
+            # lï¿½neas no utilizadas
             self._setHeaderTrailer(line, text)
             line += 1
 
@@ -220,7 +226,7 @@ class HasarComandos(ComandoFiscalInterface):
 
         if ivaType != "C" and (not doc or docType != "C"):
             raise ValidationError("Error, si el tipo de IVA del cliente NO es consumidor final, "
-                                  "debe ingresar su número de CUIT.")
+                                  "debe ingresar su nï¿½mero de CUIT.")
         parameters = [self._formatText(name, 'customerName'),
                       doc or " ",
                       ivaType,  # Iva Comprador
@@ -395,7 +401,7 @@ class HasarComandos(ComandoFiscalInterface):
 
     def addAdditional(self, description, amount, iva, negative=False):
         """Agrega un adicional a la FC.
-            @param description  Descripción
+            @param description  Descripciï¿½n
             @param amount       Importe (sin iva en FC A, sino con IVA)
             @param iva          Porcentaje de Iva
             @param negative True->Descuento, False->Recargo"""
@@ -483,8 +489,8 @@ class HasarComandos(ComandoFiscalInterface):
     def getLastNumber(self, letter):
         reply = self._sendCommand(self.CMD_STATUS_REQUEST, [], True)
         if len(reply) < 3:
-            # La respuesta no es válida. Vuelvo a hacer el pedido y
-            # si hay algún error que se reporte como excepción
+            # La respuesta no es vï¿½lida. Vuelvo a hacer el pedido y
+            # si hay algï¿½n error que se reporte como excepciï¿½n
             reply = self._sendCommand(self.CMD_STATUS_REQUEST, [], False)
         if letter == "A":
             return int(reply[4])
@@ -494,8 +500,8 @@ class HasarComandos(ComandoFiscalInterface):
     def getLastCreditNoteNumber(self, letter):
         reply = self._sendCommand(self.CMD_STATUS_REQUEST, [], True)
         if len(reply) < 3:
-            # La respuesta no es válida. Vuelvo a hacer el pedido y
-            # si hay algún error que se reporte como excepción
+            # La respuesta no es vï¿½lida. Vuelvo a hacer el pedido y
+            # si hay algï¿½n error que se reporte como excepciï¿½n
             reply = self._sendCommand(self.CMD_STATUS_REQUEST, [], False)
         if letter == "A":
             return int(reply[7])
@@ -505,8 +511,8 @@ class HasarComandos(ComandoFiscalInterface):
     def getLastRemitNumber(self):
         reply = self._sendCommand(self.CMD_STATUS_REQUEST, [], True)
         if len(reply) < 3:
-            # La respuesta no es válida. Vuelvo a hacer el pedido y si
-            # hay algún error que se reporte como excepción
+            # La respuesta no es vï¿½lida. Vuelvo a hacer el pedido y si
+            # hay algï¿½n error que se reporte como excepciï¿½n
             reply = self._sendCommand(self.CMD_STATUS_REQUEST, [], False)
         return int(reply[8])
 
