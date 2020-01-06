@@ -199,7 +199,7 @@ class EscPComandos(ComandoInterface):
         tot_neto = 0.0
         tot_iva = 0.0
         total = 0.0
-        if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A":
+        if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
             printer.text(u"DESCRIPCIÓN\t\t(IVA) PRECIO NETO\n")
             printer.text("\n")
         for item in items:
@@ -211,7 +211,7 @@ class EscPComandos(ComandoInterface):
                 porcentaje_iva = float(item.get('alic_iva'))
             else:
                 porcentaje_iva = 21.00
-            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A":
+            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
                 #es Factura A, enviamos neto e IVA separados.
                 precio_unitario_neto = precio_unitario / ((porcentaje_iva + 100.0) / 100)
                 precio_unitario_iva = precio_unitario - precio_unitario_neto
@@ -237,7 +237,7 @@ class EscPComandos(ComandoInterface):
             can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            if encabezado.get("tipo_comprobante") == "Factura A":
+            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
                 printer.text("  %g x $%g\n" % (cant, round(precio_unitario_neto, 4)))
                 printer.text(strTabs+"(%g)\t$%g\n" % (round(porcentaje_iva, 2), round(precio_total_neto, 2)))
             else:
@@ -248,7 +248,7 @@ class EscPComandos(ComandoInterface):
         printer.text("\n")
 
         if addAdditional:
-            if encabezado.get("tipo_comprobante") != "Factura A" or encabezado.get("tipo_comprobante") != "NOTAS DE CREDITO A":
+            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
                 # imprimir subtotal
                 printer.text("Subtotal: $%g\n" % round(total, 2))
 
@@ -257,12 +257,12 @@ class EscPComandos(ComandoInterface):
             total = total - sAmount
             printer.set("RIGHT", "A", "A", 1, 1)
             printer.text("%s $%g\n" % (addAdditional.get('description')[0:20], round(sAmount, 2)))
-            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A":
+            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
                 #recalculamos el neto e iva
                 tot_neto = total / ((porcentaje_iva + 100.0) / 100)
                 tot_iva = total - tot_neto
             
-        if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A":
+        if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
             printer.text("Subtotal Neto: $%g\n" % (round(tot_neto, 2)))
             printer.text("Subtotal IVA: $%g\n" % (round(tot_iva, 2)))
             printer.text("\n")
@@ -275,7 +275,7 @@ class EscPComandos(ComandoInterface):
 
         printer.set("LEFT", "B", "A", 1, 1)
 
-        if encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO B":
+        if encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO B" or encabezado.get("tipo_comprobante") == 'NOTAS DE CREDITO M':
             printer.text(u"Firma...................................................\n\n")
             printer.text(u"Aclaración..............................................\n")
         
