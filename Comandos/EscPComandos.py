@@ -203,7 +203,7 @@ class EscPComandos(ComandoInterface):
             printer.text(u"DESCRIPCIÓN\t\t(IVA) PRECIO NETO\n")
             printer.text("\n")
         for item in items:
-            desc = item.get('ds')[0:24]
+            desc = item.get('ds')[0:20]
             cant = float(item.get('qty'))
             precio_unitario = float(item.get('importe'))
             precio_total = cant * precio_unitario 
@@ -227,13 +227,7 @@ class EscPComandos(ComandoInterface):
             total += precio_total
 
             cant_tabs = 3
-            len_desc = len(desc)
-            if len_desc > 19:
-                desc = desc[:len_desc - (len_desc - 19)]
-            if len_desc < 19 and len_desc >= 6:
-                desc = desc.ljust(19 - len_desc)
-            if len_desc < 6:
-                desc = desc.ljust(6 - len_desc)
+            desc = desc.ljust(20, " ")
             can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
@@ -242,7 +236,7 @@ class EscPComandos(ComandoInterface):
                 printer.text(strTabs+"(%g)\t$%g\n" % (round(porcentaje_iva, 2), round(precio_total_neto, 2)))
             else:
                 printer.text("%g " % (cant))
-                printer.text(strTabs+"(%g)\t$%g\n" % (round(porcentaje_iva, 2), round(precio_total_neto, 2)))
+                printer.text("%s(%g)\t$%g\n" % (strTabs, round(porcentaje_iva, 2), round(precio_total_neto, 2)))
 
         printer.set("RIGHT", "A", "A", 1, 1)
         printer.text("\n")
