@@ -292,7 +292,7 @@ class EscPComandos(ComandoInterface):
         printer.text("Comprobante Autorizado \n")
  
         printer.set("CENTER", "B", "B", 1, 1)
-        printer.text(u"Comprobante electrónico impreso por www.paxapos.com")
+        printer.text(u"Software PAXAPOS - Hecho por y para gastronomicos")
         
         printer.cut("PART")
 
