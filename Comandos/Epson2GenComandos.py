@@ -135,8 +135,6 @@ class Epson2GenComandos(ComandoFiscalInterface):
 		
 	def imprimirAuditoria(self, desde, hasta):
 		#desde & Hasta = Nros de Zeta o fechas, ambos pueden ser usados como intervalos de tiempo.
-		print desde
-		print hasta
 		self.conector.driver.ImprimirAuditoria(desde, hasta)
 
 	def addItem(self, description, quantity, price, iva, itemNegative = False, discount=0, discountDescription='', discountNegative=False):
