@@ -399,7 +399,8 @@ class EpsonComandos(ComandoFiscalInterface):
         return ret
 
     def printAuditoria(self, numero_zeta_inicial, numero_zeta_final):
-        reply = self._sendCommand(self.CMD_PRINT_AUDITORIA, numero_zeta_inicial, numero_zeta_final)
+        #la 'D' significa que quiero que imprima un reporte detallado.
+        reply = self._sendCommand(self.CMD_PRINT_AUDITORIA, ['D', numero_zeta_inicial, numero_zeta_final])
         return reply
 
 
