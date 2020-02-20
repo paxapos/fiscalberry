@@ -133,10 +133,11 @@ class Epson2GenComandos(ComandoFiscalInterface):
 		"""Cancela el documento que esté abierto"""
 		self.conector.driver.EpsonLibInterface.Cancelar()
 		
-	def imprimirAuditoria(self, cantDias):
-		hoy = datetime.today().strftime('%d%m%y')
-		desde = datetime.today().subtract(days=cantDias).strftime('%d%m%y')
-		self.conector.driver.ImprimirAuditoria(desde, hoy)
+	def imprimirAuditoria(self, desde, hasta):
+		#desde & Hasta = Nros de Zeta o fechas, ambos pueden ser usados como intervalos de tiempo.
+		print desde
+		print hasta
+		self.conector.driver.ImprimirAuditoria(desde, hasta)
 
 	def addItem(self, description, quantity, price, iva, itemNegative = False, discount=0, discountDescription='', discountNegative=False):
 		"""Agrega un item a la FC.
