@@ -37,6 +37,8 @@ class EpsonComandos(ComandoFiscalInterface):
     CMD_DAILY_CLOSE = 0x39
     CMD_STATUS_REQUEST = 0x2a
 
+    CMD_PRINT_AUDITORIA = 0x3b
+
     CMD_OPEN_DRAWER = 0x7b
 
     CMD_SET_HEADER_TRAILER = 0x5d
@@ -395,6 +397,11 @@ class EpsonComandos(ComandoFiscalInterface):
         if ((1 << 5) & x) == (1 << 5):
             ret.append("Poco papel para comprobantes o tickets")
         return ret
+
+    def printAuditoria(self, numero_zeta_inicial, numero_zeta_final):
+        reply = self._sendCommand(self.CMD_PRINT_AUDITORIA, numero_zeta_inicial, numero_zeta_final)
+        return reply
+
 
     def __del__(self):
         try:

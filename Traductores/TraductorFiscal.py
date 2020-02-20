@@ -14,6 +14,15 @@ class TraductorFiscal(TraductorInterface):
         self.comando.close()
         return ret
 
+    def printAuditoria(self, numero_zeta_inicial, numero_zeta_final):
+        "Imprimir Auditoria"
+        #Solo compatible para Epson 1G por el momento...
+
+        self.comando.start()
+        ret = self.comando.printAuditoria(numero_zeta_inicial, numero_zeta_final)
+        self.comando.close()
+        return ret
+
     def getStatus(self, *args):
         "getStatus"
         self.comando.start()
