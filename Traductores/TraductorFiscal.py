@@ -14,12 +14,14 @@ class TraductorFiscal(TraductorInterface):
         self.comando.close()
         return ret
 
-    def printAuditoria(self, numero_zeta_inicial, numero_zeta_final):
+    def imprimirAuditoria(self, desde, hasta):
         "Imprimir Auditoria"
-        #Solo compatible para Epson 1G por el momento...
+        #Solo compatible para Epson 1G y 2G por el momento...
+
+        #desde & hasta parametros que pueden ser números de zetas o fechas en formato ddmmyyyy
 
         self.comando.start()
-        ret = self.comando.printAuditoria(numero_zeta_inicial, numero_zeta_final)
+        ret = self.comando.imprimirAuditoria(desde, hasta)
         self.comando.close()
         return ret
 

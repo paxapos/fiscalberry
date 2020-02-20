@@ -398,9 +398,10 @@ class EpsonComandos(ComandoFiscalInterface):
             ret.append("Poco papel para comprobantes o tickets")
         return ret
 
-    def printAuditoria(self, numero_zeta_inicial, numero_zeta_final):
+    def imprimirAuditoria(self, desde, hasta):
+        #desde & Hasta = Nros de Zeta o fechas, ambos pueden ser usados como intervalos de tiempo.
         #la 'D' significa que quiero que imprima un reporte detallado.
-        reply = self._sendCommand(self.CMD_PRINT_AUDITORIA, ['D', numero_zeta_inicial, numero_zeta_final])
+        reply = self._sendCommand(self.CMD_PRINT_AUDITORIA, ['D', desde, hasta])
         return reply
 
 
