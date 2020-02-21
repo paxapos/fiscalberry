@@ -401,7 +401,7 @@ class EpsonComandos(ComandoFiscalInterface):
     def imprimirAuditoria(self, desde, hasta):
         #desde & Hasta = Nros de Zeta o fechas, ambos pueden ser usados como intervalos de tiempo.
         #la 'D' significa que quiero que imprima un reporte detallado.
-        reply = self._sendCommand(self.CMD_PRINT_AUDITORIA, ['D', desde, hasta])
+        reply = self._sendCommand(self.CMD_PRINT_AUDITORIA, [desde, hasta, 'D'])
         return reply
 
 
