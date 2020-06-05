@@ -18,3 +18,4 @@ PyJWT
 GitPython
 pyOpenSSL	
 cryptography
+gitpython
