@@ -387,6 +387,7 @@ class EscPComandos(ComandoInterface):
 
         encabezado = kwargs.get("encabezado", None)
         items = kwargs.get("items", [])
+        pagos = kwargs.get("pagos", [])
         addAdditional = kwargs.get("addAdditional", None)
         setTrailer = kwargs.get("setTrailer", None)
         
@@ -417,7 +418,7 @@ class EscPComandos(ComandoInterface):
         printer.text("\n")
         tot_importe = 0.0
         for item in items:
-            desc = item.get('ds')[0:20]
+            desc = item.get('ds')[0:20]            
             cant = float(item.get('qty'))
             precio = cant * float(item.get('importe'))
             tot_importe += precio
@@ -444,6 +445,19 @@ class EscPComandos(ComandoInterface):
         printer.set("RIGHT", "A", "A", 2, 2)
         printer.text(u"TOTAL: $%g\n" % tot_importe)
         printer.text("\n\n\n")
+
+
+        for pago in pagos:
+            print("--a-a---a-a--a--a-aa")
+            print(pago)
+            print(pago.get('ds'))
+            print(pago.get('importe'))
+            print("--a-a---a-a--a--a-aa")
+            desc = pago.get('ds')[0:20]
+            importe = cant * float(pago.get('importe'))
+            printer.text("%s\t$%g\n" % (desc, importe))
+
+        printer.text("\n")
 
         self.__printExtras(kwargs)
 
