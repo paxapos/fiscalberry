@@ -22,5 +22,9 @@ class ReceiptFileDriver(printer.File, DriverInterface):
         :parts: 1
     """
 
-    def __init__(self, devfile="/dev/usb/lp0", auto_flush=True, *args, **kwargs):
-        printer.File.__init__(self, devfile, auto_flush, *args, **kwargs)
+    def __init__(self, devfile="/dev/usb/lp0", auto_flush=True, codepage="cp858", *args, **kwargs):
+        printer.File.__init__(self, devfile, auto_flush, codepage, *args, **kwargs)
+        self.codepage = codepage
+    
+    def start(self):
+        pass

@@ -2,7 +2,6 @@
 
 import json
 import Configberry
-import logging
 import importlib
 import socket
 import threading
@@ -17,6 +16,9 @@ if sys.platform == 'win32':
 
 
 INTERVALO_IMPRESORA_WARNING = 30.0
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def set_interval(func, sec):
@@ -84,7 +86,7 @@ class TraductoresHandler:
     config = Configberry.Configberry()
     webSocket = None
 
-    def __init__(self, webSocket, fbApp):
+    def __init__(self, webSocket = None, fbApp = None):
         self.webSocket = webSocket
         self.fbApp = fbApp
 
@@ -149,7 +151,8 @@ class TraductoresHandler:
                 rta["rta"] =  self._removerImpresora(jsonTicket["removerImpresora"])
 
             else:
-                logging.error("No se pasó un comando válido")
+
+                logger.error("No se pasó un comando válido")
                 raise TraductorException("No se pasó un comando válido")
 
             # cerrar el driver
@@ -236,7 +239,6 @@ class TraductoresHandler:
             print("la data es %s" % data)
             self.config.writeSectionWithKwargs(printerName, data)
 
-    
 
     def _upgrade(self):
         ret = self.fbApp.upgradeGitPull()
@@ -287,7 +289,7 @@ class TraductoresHandler:
 
         return {
             "action": "configure",
-            "rta": "La seccion "+printerName+" ha sido guardada" 
+            "rta": "La seccion "+printerName+" ha sido guardada"
         }
 
     def _removerImpresora(self, printerName):

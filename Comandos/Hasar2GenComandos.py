@@ -68,6 +68,11 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 		"NDC": 'TiqueNotaDebitoC',
 	}
 
+    def start(self):
+        pass
+		
+    def close(self):
+        pass
 
 	def getStatus(self, *args):
 		jdata = {"ConsultarEstado":{"CodigoComprobante" : "81"}}

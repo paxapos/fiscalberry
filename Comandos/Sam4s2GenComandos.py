@@ -86,6 +86,12 @@ class Sam4s2GenComandos(ComandoFiscalInterface):
 
 	esFacturaA = False
 
+    def start(self):
+        pass
+
+    def close(self):
+        pass
+
 	def getStatus(self, *args):
 		jdata = OrderedDict()
 		jdata['cmd'] = self.CMD_STATUS_REQUEST

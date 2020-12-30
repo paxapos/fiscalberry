@@ -199,11 +199,11 @@ class EscPComandos(ComandoInterface):
         tot_neto = 0.0
         tot_iva = 0.0
         total = 0.0
-        if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A":
+        if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
             printer.text(u"DESCRIPCIÓN\t\t(IVA) PRECIO NETO\n")
             printer.text("\n")
         for item in items:
-            desc = item.get('ds')[0:24]
+            desc = item.get('ds')[0:20]
             cant = float(item.get('qty'))
             precio_unitario = float(item.get('importe'))
             precio_total = cant * precio_unitario 
@@ -211,7 +211,7 @@ class EscPComandos(ComandoInterface):
                 porcentaje_iva = float(item.get('alic_iva'))
             else:
                 porcentaje_iva = 21.00
-            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A":
+            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
                 #es Factura A, enviamos neto e IVA separados.
                 precio_unitario_neto = precio_unitario / ((porcentaje_iva + 100.0) / 100)
                 precio_unitario_iva = precio_unitario - precio_unitario_neto
@@ -227,26 +227,22 @@ class EscPComandos(ComandoInterface):
             total += precio_total
 
             cant_tabs = 3
-            len_desc = len(desc)
-            if len_desc > 19:
-                desc = desc[:len_desc - (len_desc - 19)]
-            if len_desc < 19:
-                desc = desc.ljust(19 - len_desc)
+            desc = desc.ljust(20, " ")
             can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            if encabezado.get("tipo_comprobante") == "Factura A":
+            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
                 printer.text("  %g x $%g\n" % (cant, round(precio_unitario_neto, 4)))
                 printer.text(strTabs+"(%g)\t$%g\n" % (round(porcentaje_iva, 2), round(precio_total_neto, 2)))
             else:
                 printer.text("%g " % (cant))
-                printer.text(strTabs+"(%g)\t$%g\n" % (round(porcentaje_iva, 2), round(precio_total_neto, 2)))
+                printer.text("%s(%g)\t$%g\n" % (strTabs, round(porcentaje_iva, 2), round(precio_total_neto, 2)))
 
         printer.set("RIGHT", "A", "A", 1, 1)
         printer.text("\n")
 
         if addAdditional:
-            if encabezado.get("tipo_comprobante") != "Factura A" or encabezado.get("tipo_comprobante") != "NOTAS DE CREDITO A":
+            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
                 # imprimir subtotal
                 printer.text("Subtotal: $%g\n" % round(total, 2))
 
@@ -255,12 +251,12 @@ class EscPComandos(ComandoInterface):
             total = total - sAmount
             printer.set("RIGHT", "A", "A", 1, 1)
             printer.text("%s $%g\n" % (addAdditional.get('description')[0:20], round(sAmount, 2)))
-            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A":
+            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
                 #recalculamos el neto e iva
                 tot_neto = total / ((porcentaje_iva + 100.0) / 100)
                 tot_iva = total - tot_neto
             
-        if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A":
+        if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
             printer.text("Subtotal Neto: $%g\n" % (round(tot_neto, 2)))
             printer.text("Subtotal IVA: $%g\n" % (round(tot_iva, 2)))
             printer.text("\n")
@@ -273,7 +269,7 @@ class EscPComandos(ComandoInterface):
 
         printer.set("LEFT", "B", "A", 1, 1)
 
-        if encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO B":
+        if encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO B" or encabezado.get("tipo_comprobante") == 'NOTAS DE CREDITO M':
             printer.text(u"Firma...................................................\n\n")
             printer.text(u"Aclaración..............................................\n")
         
@@ -296,7 +292,7 @@ class EscPComandos(ComandoInterface):
         printer.text("Comprobante Autorizado \n")
  
         printer.set("CENTER", "B", "B", 1, 1)
-        printer.text(u"Comprobante electrónico impreso por www.paxapos.com")
+        printer.text(u"Software PAXAPOS - Hecho por y para gastronomicos")
         
         printer.cut("PART")
 
@@ -391,6 +387,7 @@ class EscPComandos(ComandoInterface):
 
         encabezado = kwargs.get("encabezado", None)
         items = kwargs.get("items", [])
+        pagos = kwargs.get("pagos", [])
         addAdditional = kwargs.get("addAdditional", None)
         setTrailer = kwargs.get("setTrailer", None)
         
@@ -421,7 +418,7 @@ class EscPComandos(ComandoInterface):
         printer.text("\n")
         tot_importe = 0.0
         for item in items:
-            desc = item.get('ds')[0:20]
+            desc = item.get('ds')[0:20]            
             cant = float(item.get('qty'))
             precio = cant * float(item.get('importe'))
             tot_importe += precio
@@ -448,6 +445,19 @@ class EscPComandos(ComandoInterface):
         printer.set("RIGHT", "A", "A", 2, 2)
         printer.text(u"TOTAL: $%g\n" % tot_importe)
         printer.text("\n\n\n")
+
+
+        for pago in pagos:
+            print("--a-a---a-a--a--a-aa")
+            print(pago)
+            print(pago.get('ds'))
+            print(pago.get('importe'))
+            print("--a-a---a-a--a--a-aa")
+            desc = pago.get('ds')[0:20]
+            importe = cant * float(pago.get('importe'))
+            printer.text("%s\t$%g\n" % (desc, importe))
+
+        printer.text("\n")
 
         self.__printExtras(kwargs)
 

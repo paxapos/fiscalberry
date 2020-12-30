@@ -1,3 +1,4 @@
+setuptools
 future
 pyserial
 python-escpos
@@ -7,7 +8,6 @@ pyutf8
 PyYAML
 qrcode
 requests
-setuptools
 singledispatch
 six
 tornado
@@ -18,3 +18,4 @@ PyJWT
 GitPython
 pyOpenSSL	
 cryptography
+gitpython

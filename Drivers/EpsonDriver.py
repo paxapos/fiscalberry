@@ -27,6 +27,11 @@ class EpsonDriver(FiscalPrinterDriver):
                            (1 << 6, "Buffer de impresora lleno"),
                            (1 << 14, "Impresora sin papel"),
                            ]
+    def start(self):
+        pass
+        
+    def close(self):
+        pass
 
     def _initSequenceNumber(self):
         self._sequenceNumber = random.randint(0x20, 0x7f)

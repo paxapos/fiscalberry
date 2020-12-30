@@ -3,17 +3,22 @@ from DriverInterface import DriverInterface
 
 import serial
 import sys
+import logging
+
+logger = logging.getLogger('drivers.FiscalPrinterDriver')
 
 
 def debugEnabled(*args):
-    print >> sys.stderr, " ".join(map(str, args))
+    # print >> sys.stderr, " ".join(map(str, args))
+    res = " ".join(map(str, args))
+    logger.debug(res)
 
 
 def debugDisabled(*args):
     pass
 
 
-debug = debugDisabled
+debug = debugEnabled
 
 
 class PrinterException(Exception):
@@ -50,8 +55,12 @@ class FiscalPrinterDriver(DriverInterface):
     NO_REPLY_TRIES = 200
 
     def __init__(self, path, speed=9600):
+        logger.info('Open Serial Port %s' % path)
         self._serialPort = serial.Serial(port=path, timeout=None, baudrate=speed)
         self._initSequenceNumber()
+
+    def start(self):
+        pass
 
     def close(self):
         try:
@@ -59,8 +68,11 @@ class FiscalPrinterDriver(DriverInterface):
         except:
             pass
         del self._serialPort
+        logger.info('Close Serial Port')
 
     def sendCommand(self, commandNumber, fields, skipStatusErrors=False):
+        logger.info('sendCommand\ncommandNumber: 0x%x\nfields: %s\nskipStatusErrors: %s' %
+                    (commandNumber, str(fields), skipStatusErrors))
         fields = map(lambda x: x.encode("latin-1", 'ignore'), fields)
         message = chr(0x02) + chr(self._sequenceNumber) + chr(commandNumber)
         if fields:
@@ -80,7 +92,7 @@ class FiscalPrinterDriver(DriverInterface):
 
     def _read(self, count):
         ret = self._serialPort.read(count)
-        debug("_read", ", ".join(["%x" % ord(c) for c in ret]))
+        # debug("_read", ", ".join(["%x" % ord(c) for c in ret]))
         return ret
 
     def __del__(self):
@@ -95,6 +107,7 @@ class FiscalPrinterDriver(DriverInterface):
         fields = r.split(chr(28))
         printerStatus = fields[0]
         fiscalStatus = fields[1]
+        logger.info('Complete Reply info is below\n Reply: {reply} \n printerStatus {printerStatus} fiscalStatus {fiscalStatus}'.format(**locals()))
         if not skipStatusErrors:
             self._parsePrinterStatus(printerStatus)
             self._parseFiscalStatus(fiscalStatus)
@@ -104,19 +117,19 @@ class FiscalPrinterDriver(DriverInterface):
         x = int(printerStatus, 16)
         for value, message in self.printerStatusErrors:
             if (value & x) == value:
+                logger.warning(message)
                 raise PrinterStatusError, message
 
     def _parseFiscalStatus(self, fiscalStatus):
         x = int(fiscalStatus, 16)
         for value, message in self.fiscalStatusErrors:
             if (value & x) == value:
+                logger.warning(message)
                 raise FiscalStatusError, message
 
     def _checkReplyBCC(self, reply, bcc):
-        debug("reply", reply, [ord(x) for x in reply])
         checkSum = sum([ord(x) for x in reply])
-        debug("checkSum", checkSum)
         checkSumHexa = ("0000" + hex(checkSum)[2:])[-4:].upper()
-        debug("checkSumHexa", checkSumHexa)
-        debug("bcc", bcc)
+        logger.debug('Reply from printer(_checkReplyBCC)\nReply> %s\nReply(ORD)> %s \nCHECKS> checkSum: %s; checkSumHexa: %s; bcc: %s' %
+                     (reply, [ord(x) for x in reply], checkSum, checkSumHexa, bcc))
         return checkSumHexa == bcc.upper()

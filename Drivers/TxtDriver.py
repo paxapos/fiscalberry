@@ -59,3 +59,6 @@ class TxtDriver(DriverInterface):
 
     def cut(self, *args):
         pass
+
+    def qr(self, *args):
+        pass
