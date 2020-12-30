@@ -13,7 +13,6 @@ import logging.config
 import time
 import ssl
 import Configberry
-import git
 import threading 
 
 
