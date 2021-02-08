@@ -178,7 +178,7 @@ class FiscalberryApp:
             (r"/(.*)", web.StaticFileHandler, dict(path=root + "/js_browser_client")),
         ], **settings)
 
-        # cuando cambia el config.ini levanta devuelta el servidor tronado
+        # cuando cambia el config.ini levanta devuelta el servidor tornado
         tornado.autoreload.watch("config.ini")
 
         myIP = socket.gethostbyname(socket.gethostname())
