@@ -8,7 +8,6 @@ import threading
 import tornado.ioloop
 import nmap
 import os
-import git
 from multiprocessing import Process, Queue, Pool
 
 import sys

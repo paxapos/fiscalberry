@@ -13,7 +13,6 @@ import logging.config
 import time
 import ssl
 import Configberry
-import git
 import threading 
 
 
@@ -137,7 +136,6 @@ class FiscalberryApp:
 
     def restart_service(self):
         self.shutdown()
-        # self.upgradeGitPull()
         self.discover()
         self.start()
 
@@ -152,11 +150,6 @@ class FiscalberryApp:
         io_loop.stop()
         logger.info('Shutdown')
 
-    def upgradeGitPull(self):
-        path = os.path.realpath(__file__)
-        g = git.cmd.Git( os.path.dirname( path ) )
-        
-        return g.pull()
 
     def discover(self):
         # send discover data to your server if the is no URL configured, so nothing will be sent
