@@ -10,6 +10,8 @@ from ComandoInterface import ComandoInterface, ComandoException, ValidationError
 import time
 import datetime
 from math import ceil
+import json
+import base64
 
 
 class PrinterException(Exception):
@@ -154,7 +156,7 @@ class EscPComandos(ComandoInterface):
         encabezado = kwargs.get("encabezado", None)
 
         # antes de comenzar descargo la imagen del barcode
-        barcodeImage = requests.get(encabezado.get("barcode_url"), stream=True).raw
+        #barcodeImage = requests.get(encabezado.get("barcode_url"), stream=True).raw
 
         items = kwargs.get("items", [])
         addAdditional = kwargs.get("addAdditional", None)
@@ -283,16 +285,60 @@ class EscPComandos(ComandoInterface):
         #imagen BARCODE bajada de la URL
 
 
-        printer.image( barcodeImage )
+        """
+        encabezado
+            "tipo_comprobante": "Factura B",
+            "ingresos_brutos": false,
+            "numero_comprobante": "0001-00000107",
+            "domicilio_cliente": "",
+            "razon_social": "Alejandro",
+            "tipo_responsable": "Responsable Monotributo",
+            "domicilio_comercial": false,
+            "fecha_comprobante": "09/02/2021",
+            "cae_vto": "19/02/2021",
+            "inicio_actividades": "22-01-2015",
+            "cuit_empresa": "20303683268",
+            "nombre_comercio": "The Big Resto",
+            "barcode_url": "https://dev.paxapos.com/the_big_resto/printers/afip_facturas/img_barcode/db02bf96-d2c8-4508-9ce0-45c365ebfc73",
+            "cae": "71068912582476"
+        """
+        fecha_comprobante = encabezado.get("cuit_empresa")
+        qrcode = {
+            "ver":1,
+            "fecha":"2020-10-13",
+            "cuit": encabezado.get("cuit_empresa"),
+            "ptoVta":10,
+            "tipoCmp":1,
+            "nroCmp":94,
+            "importe":12100,
+            "moneda":"PES", #pesos argentinoa
+            "ctz":1,
+            "tipoDocRec":80,
+            "nroDocRec":20000000001,
+            "tipoCodAut":"E",
+            "codAut":70417054367476
+        }
+        print("QR CODE ES")
+        print("QR CODE ES")
+        print("QR CODE ES")
+        print(qrcode)
+        qrcode = base64.encodestring( qrcode.encode() )
+        print("\n\n\nQR CODE ES BINARIO")
+        print(qrcode)
+        if qrcode:
+            printer.qr(qrcode)
+
+
+        #printer.image( barcodeImage )
         cae = encabezado.get("cae")
         caeVto = encabezado.get("cae_vto")
         printer.text(u"CAE: " + cae + "    CAE VTO: " + caeVto +"\n\n")
 
-        printer.image('afip.bmp');
+        #printer.image('afip.bmp');
         printer.text("Comprobante Autorizado \n")
  
         printer.set("CENTER", "B", "B", 1, 1)
-        printer.text(u"Software PAXAPOS - Hecho por y para gastronomicos")
+        printer.text(u"Software PAXAPOS - Hecho por y para gastronómicos")
         
         printer.cut("PART")
 
