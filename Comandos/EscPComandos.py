@@ -318,15 +318,14 @@ class EscPComandos(ComandoInterface):
             "tipoCodAut":"E",
             "codAut":70417054367476
         }
-        print("QR CODE ES")
-        print("QR CODE ES")
-        print("QR CODE ES")
+
+        logging.getLogger().info("Estoy por imprimir el QR")
         print(qrcode)
-        qrcode = base64.encodestring( qrcode.encode() )
+        #qrcode = base64.encodestring( qrcode.encode() )
         print("\n\n\nQR CODE ES BINARIO")
         print(qrcode)
-        if qrcode:
-            printer.qr(qrcode)
+        #if qrcode:
+        #    printer.qr(qrcode)
 
 
         #printer.image( barcodeImage )
