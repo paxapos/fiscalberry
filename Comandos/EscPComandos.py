@@ -161,18 +161,25 @@ class EscPComandos(ComandoInterface):
         items = kwargs.get("items", [])
         addAdditional = kwargs.get("addAdditional", None)
         setTrailer = kwargs.get("setTrailer", None)
+        
         printer = self.conector.driver
+        
         printer.start()
+        
         printer.set("LEFT", "A", "B", 2, 1)
         printer.text(encabezado.get("nombre_comercio")+"\n")
         printer.set("LEFT", "A", "A", 1, 1)
         printer.text(encabezado.get("razon_social")+"\n")
         printer.text("CUIT: "+encabezado.get("cuit_empresa")+"\n")
+        
+
         if encabezado.get('ingresos_brutos'):
             printer.text("Ingresos Brutos: "+encabezado.get("ingresos_brutos")+"\n")
         printer.text("Inicio de actividades: "+encabezado.get("inicio_actividades")+"\n")
         printer.text(encabezado.get("domicilio_comercial")+"\n")
         printer.text(encabezado.get("tipo_responsable")+"\n")
+        
+
         printer.set("CENTER", "A", "A", 1, 1)
         printer.text("----------------------------------------\n") #40 guíones
         printer.set("LEFT", "A", "B", 1, 1)
@@ -181,6 +188,7 @@ class EscPComandos(ComandoInterface):
         printer.set("CENTER", "A", "A", 1, 1)
         printer.text("----------------------------------------\n") #40 guíones
         printer.set("LEFT", "A", "A", 1, 1)
+
         if encabezado.has_key("nombre_cliente"):
             nombre_cliente = "A "+encabezado.get("nombre_cliente")
             tipo_responsable_cliente = encabezado.get("tipo_responsable_cliente")
@@ -195,6 +203,7 @@ class EscPComandos(ComandoInterface):
                 printer.text(domicilio_cliente+"\n")
         else:
             printer.text("A Consumidor Final \n")
+
         printer.set("CENTER", "A", "A", 1, 1)
         printer.text("----------------------------------------\n\n") #40 guíones
         printer.set("LEFT", "A", "A", 1, 1)
@@ -242,7 +251,6 @@ class EscPComandos(ComandoInterface):
 
         printer.set("RIGHT", "A", "A", 1, 1)
         printer.text("\n")
-
         if addAdditional:
             if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
                 # imprimir subtotal
@@ -263,7 +271,6 @@ class EscPComandos(ComandoInterface):
             printer.text("Subtotal IVA: $%g\n" % (round(tot_iva, 2)))
             printer.text("\n")
 
-
         # imprimir total
         printer.set("RIGHT", "A", "A", 2, 2)
         printer.text(u"TOTAL: $%g\n" % round(total, 2))
@@ -282,51 +289,44 @@ class EscPComandos(ComandoInterface):
             self._setTrailer(setTrailer)  
 
         printer.set("LEFT", "A", "A", 1, 1)
-        #imagen BARCODE bajada de la URL
+      
+        fecha_comprobante = encabezado.get("fecha_facturacion")
+        felist = fecha_comprobante.split("/")
+        fecha = felist[2]+"-"+felist[1]+"-"+felist[0]
 
+        fullnumero = encabezado.get("numero_comprobante")
+        numlist = fullnumero.split("-")
+        print(numlist)
+        pdv = int(numlist[0])
+        numticket = int(numlist[1])
 
-        """
-        encabezado
-            "tipo_comprobante": "Factura B",
-            "ingresos_brutos": false,
-            "numero_comprobante": "0001-00000107",
-            "domicilio_cliente": "",
-            "razon_social": "Alejandro",
-            "tipo_responsable": "Responsable Monotributo",
-            "domicilio_comercial": false,
-            "fecha_comprobante": "09/02/2021",
-            "cae_vto": "19/02/2021",
-            "inicio_actividades": "22-01-2015",
-            "cuit_empresa": "20303683268",
-            "nombre_comercio": "The Big Resto",
-            "barcode_url": "https://dev.paxapos.com/the_big_resto/printers/afip_facturas/img_barcode/db02bf96-d2c8-4508-9ce0-45c365ebfc73",
-            "cae": "71068912582476"
-        """
-        fecha_comprobante = encabezado.get("cuit_empresa")
         qrcode = {
             "ver":1,
-            "fecha":"2020-10-13",
+            "fecha":fecha,
             "cuit": encabezado.get("cuit_empresa"),
-            "ptoVta":10,
-            "tipoCmp":1,
-            "nroCmp":94,
-            "importe":12100,
+            "ptoVta":pdv,
+            "tipoCmp":encabezado.get("tipo_comprobante"),
+            "nroCmp":numticket,
+            "importe":encabezado.get("importe_total"),
             "moneda":"PES", #pesos argentinoa
             "ctz":1,
-            "tipoDocRec":80,
-            "nroDocRec":20000000001,
+           
             "tipoCodAut":"E",
-            "codAut":70417054367476
+            "codAut":encabezado.get("cae"),
         }
 
-        logging.getLogger().info("Estoy por imprimir el QR")
-        print(qrcode)
-        #qrcode = base64.encodestring( qrcode.encode() )
-        print("\n\n\nQR CODE ES BINARIO")
-        print(qrcode)
-        #if qrcode:
-        #    printer.qr(qrcode)
+        if ( encabezado.get("documento_cliente") ) :
+            qrcode["tipoDocRec"] = encabezado.get("tipoDocRec")
+            qrcode["nroDocRec"]  = encabezado.get("documento_cliente")
+        
 
+        # QR nueva disposicion de la AFIP
+        jsonqr = json.dumps(qrcode)
+        qrcode = base64.encodestring( jsonqr )
+        if qrcode:
+            printer.qr("https://www.afip.gob.ar/fe/qr/?p="+qrcode)
+
+        
 
         #printer.image( barcodeImage )
         cae = encabezado.get("cae")
