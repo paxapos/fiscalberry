@@ -290,13 +290,14 @@ class EscPComandos(ComandoInterface):
 
         printer.set("LEFT", "A", "A", 1, 1)
       
-        fecha_comprobante = encabezado.get("fecha_facturacion")
+
+        fecha_comprobante = encabezado.get("fecha_comprobante")
+
         felist = fecha_comprobante.split("/")
         fecha = felist[2]+"-"+felist[1]+"-"+felist[0]
 
         fullnumero = encabezado.get("numero_comprobante")
         numlist = fullnumero.split("-")
-        print(numlist)
         pdv = int(numlist[0])
         numticket = int(numlist[1])
 
