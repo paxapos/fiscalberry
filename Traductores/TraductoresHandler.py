@@ -60,15 +60,13 @@ def init_printer_traductor(printerName):
 
 def runTraductor(jsonTicket, queue):
     logging.info("mandando comando de impresora")
-    
-    printerName = jsonTicket.pop('printerName')
-
+    print(jsonTicket)
+    printerName = jsonTicket['printerName']
     traductor = init_printer_traductor(printerName)
 
     if traductor:
         if traductor.comando.conector is not None:
             queue.put(traductor.run(jsonTicket))
-            traductor.comando.close()
         else:
             strError = "el Driver no esta inicializado para la impresora %s" % printerName
             queue.put(strError)

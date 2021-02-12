@@ -5,6 +5,7 @@ __pycache__/
 *.pyc 
 .pyc
 *.log
+*.swp
 
 #configuration file for fiscalberry
 config.ini
@@ -16,7 +17,7 @@ test.py
 test_scripts/*
 env/*
 ssl/*
-
+tmp/*
 
 
 # Distribution / packaging

@@ -1,11 +1,19 @@
 class TraductorInterface:
     isRunning = False
     colaImpresion = []
+    isProxy = False
 
     def __init__(self, comando, *args):
         self.comando = comando
 
     def run(self, jsonTicket):
+
+        
+        if (self.isProxy): 
+            self.comando.conector.sendCommand(jsonTicket)
+            return []
+
+        printerName = jsonTicket.pop('printerName')
         actions = jsonTicket.keys()
         rta = []
         for action in actions:

@@ -136,7 +136,6 @@ class FiscalberryApp:
 
     def restart_service(self):
         self.shutdown()
-        # self.upgradeGitPull()
         self.discover()
         self.start()
 
@@ -151,11 +150,6 @@ class FiscalberryApp:
         io_loop.stop()
         logger.info('Shutdown')
 
-    def upgradeGitPull(self):
-        path = os.path.realpath(__file__)
-        g = git.cmd.Git( os.path.dirname( path ) )
-        
-        return g.pull()
 
     def discover(self):
         # send discover data to your server if the is no URL configured, so nothing will be sent
@@ -177,7 +171,7 @@ class FiscalberryApp:
             (r"/(.*)", web.StaticFileHandler, dict(path=root + "/js_browser_client")),
         ], **settings)
 
-        # cuando cambia el config.ini levanta devuelta el servidor tronado
+        # cuando cambia el config.ini levanta devuelta el servidor tornado
         tornado.autoreload.watch("config.ini")
 
         myIP = socket.gethostbyname(socket.gethostname())

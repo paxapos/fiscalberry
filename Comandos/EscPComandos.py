@@ -10,6 +10,8 @@ from ComandoInterface import ComandoInterface, ComandoException, ValidationError
 import time
 import datetime
 from math import ceil
+import json
+import base64
 
 
 class PrinterException(Exception):
@@ -154,23 +156,30 @@ class EscPComandos(ComandoInterface):
         encabezado = kwargs.get("encabezado", None)
 
         # antes de comenzar descargo la imagen del barcode
-        barcodeImage = requests.get(encabezado.get("barcode_url"), stream=True).raw
+        #barcodeImage = requests.get(encabezado.get("barcode_url"), stream=True).raw
 
         items = kwargs.get("items", [])
         addAdditional = kwargs.get("addAdditional", None)
         setTrailer = kwargs.get("setTrailer", None)
+        
         printer = self.conector.driver
+        
         printer.start()
+        
         printer.set("LEFT", "A", "B", 2, 1)
         printer.text(encabezado.get("nombre_comercio")+"\n")
         printer.set("LEFT", "A", "A", 1, 1)
         printer.text(encabezado.get("razon_social")+"\n")
         printer.text("CUIT: "+encabezado.get("cuit_empresa")+"\n")
+        
+
         if encabezado.get('ingresos_brutos'):
             printer.text("Ingresos Brutos: "+encabezado.get("ingresos_brutos")+"\n")
         printer.text("Inicio de actividades: "+encabezado.get("inicio_actividades")+"\n")
         printer.text(encabezado.get("domicilio_comercial")+"\n")
         printer.text(encabezado.get("tipo_responsable")+"\n")
+        
+
         printer.set("CENTER", "A", "A", 1, 1)
         printer.text("----------------------------------------\n") #40 guíones
         printer.set("LEFT", "A", "B", 1, 1)
@@ -179,6 +188,7 @@ class EscPComandos(ComandoInterface):
         printer.set("CENTER", "A", "A", 1, 1)
         printer.text("----------------------------------------\n") #40 guíones
         printer.set("LEFT", "A", "A", 1, 1)
+
         if encabezado.has_key("nombre_cliente"):
             nombre_cliente = "A "+encabezado.get("nombre_cliente")
             tipo_responsable_cliente = encabezado.get("tipo_responsable_cliente")
@@ -193,6 +203,7 @@ class EscPComandos(ComandoInterface):
                 printer.text(domicilio_cliente+"\n")
         else:
             printer.text("A Consumidor Final \n")
+
         printer.set("CENTER", "A", "A", 1, 1)
         printer.text("----------------------------------------\n\n") #40 guíones
         printer.set("LEFT", "A", "A", 1, 1)
@@ -240,7 +251,6 @@ class EscPComandos(ComandoInterface):
 
         printer.set("RIGHT", "A", "A", 1, 1)
         printer.text("\n")
-
         if addAdditional:
             if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
                 # imprimir subtotal
@@ -261,7 +271,6 @@ class EscPComandos(ComandoInterface):
             printer.text("Subtotal IVA: $%g\n" % (round(tot_iva, 2)))
             printer.text("\n")
 
-
         # imprimir total
         printer.set("RIGHT", "A", "A", 2, 2)
         printer.text(u"TOTAL: $%g\n" % round(total, 2))
@@ -280,19 +289,56 @@ class EscPComandos(ComandoInterface):
             self._setTrailer(setTrailer)  
 
         printer.set("LEFT", "A", "A", 1, 1)
-        #imagen BARCODE bajada de la URL
+      
 
+        fecha_comprobante = encabezado.get("fecha_comprobante")
 
-        printer.image( barcodeImage )
+        felist = fecha_comprobante.split("/")
+        fecha = felist[2]+"-"+felist[1]+"-"+felist[0]
+
+        fullnumero = encabezado.get("numero_comprobante")
+        numlist = fullnumero.split("-")
+        pdv = int(numlist[0])
+        numticket = int(numlist[1])
+
+        qrcode = {
+            "ver":1,
+            "fecha":fecha,
+            "cuit": encabezado.get("cuit_empresa"),
+            "ptoVta":pdv,
+            "tipoCmp":encabezado.get("tipo_comprobante"),
+            "nroCmp":numticket,
+            "importe":encabezado.get("importe_total"),
+            "moneda":"PES", #pesos argentinoa
+            "ctz":1,
+           
+            "tipoCodAut":"E",
+            "codAut":encabezado.get("cae"),
+        }
+
+        if ( encabezado.get("documento_cliente") ) :
+            qrcode["tipoDocRec"] = encabezado.get("tipoDocRec")
+            qrcode["nroDocRec"]  = encabezado.get("documento_cliente")
+        
+
+        # QR nueva disposicion de la AFIP
+        jsonqr = json.dumps(qrcode)
+        qrcode = base64.encodestring( jsonqr )
+        if qrcode:
+            printer.qr("https://www.afip.gob.ar/fe/qr/?p="+qrcode)
+
+        
+
+        #printer.image( barcodeImage )
         cae = encabezado.get("cae")
         caeVto = encabezado.get("cae_vto")
         printer.text(u"CAE: " + cae + "    CAE VTO: " + caeVto +"\n\n")
 
-        printer.image('afip.bmp');
+        #printer.image('afip.bmp');
         printer.text("Comprobante Autorizado \n")
  
         printer.set("CENTER", "B", "B", 1, 1)
-        printer.text(u"Software PAXAPOS - Hecho por y para gastronomicos")
+        printer.text(u"Software PAXAPOS - Hecho por y para gastronómicos")
         
         printer.cut("PART")
 

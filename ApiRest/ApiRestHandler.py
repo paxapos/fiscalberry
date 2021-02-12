@@ -37,7 +37,6 @@ class AuthHandler(tornado.web.RequestHandler):
     def post(self, *args, **kwargs):
         response = {}
         body= self.body
-
         try:
             users= self.config.get_users();
             if not('user' in body and 'key' in body):
@@ -65,14 +64,15 @@ class AuthHandler(tornado.web.RequestHandler):
             response["err"] = errtxt
             import sys, traceback
             traceback.print_exc(file=sys.stdout)
-
+        print("escribiendo la respuesrta")
+        print(response)
         self.write(response)
 
 #
 # API REST CONTROLLER
 # DECORATOR TO VALIDATE AUTH
 #
-@jwtauth
+#@jwtauth
 class ApiRestHandler(tornado.web.RequestHandler):
     def initialize(self):
         self.traductor = TraductoresHandler(self)
