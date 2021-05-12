@@ -16,63 +16,63 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 
 	DEFAULT_DRIVER = "Json"
 
-	
+
 	AVAILABLE_MODELS = ["PT-1000F","PT-250F", "P-HAS-5100-FAR"]
 
 
 	docTypeNames = {
-		"DOC_TYPE_CUIT": "CUIT",
-		"DOC_TYPE_LIBRETA_ENROLAMIENTO": 'L.E.',
-		"DOC_TYPE_LIBRETA_CIVICA": 'L.C.',
-		"DOC_TYPE_DNI": 'DNI',
-		"DOC_TYPE_PASAPORTE": 'PASAP',
-		"DOC_TYPE_CEDULA": 'CED',
-		"DOC_TYPE_SIN_CALIFICADOR": 'S/C'
+	"DOC_TYPE_CUIT": "CUIT",
+	"DOC_TYPE_LIBRETA_ENROLAMIENTO": 'L.E.',
+	"DOC_TYPE_LIBRETA_CIVICA": 'L.C.',
+	"DOC_TYPE_DNI": 'DNI',
+	"DOC_TYPE_PASAPORTE": 'PASAP',
+	"DOC_TYPE_CEDULA": 'CED',
+	"DOC_TYPE_SIN_CALIFICADOR": 'S/C'
 	}
 
 	docTypes = {
-		"CUIT": 'TipoCUIT',
-		"CUIL": 'TipoCUIL',
-		"LIBRETA_ENROLAMIENTO": 'TipoLE',
-		"LIBRETA_CIVICA": 'TipoLC',
-		"DNI": 'TipoDNI',
-		"PASAPORTE": 'TipoPasaporte',
-		"CEDULA": 'TipoCI',
-		"SIN_CALIFICADOR": ' ',
+	"CUIT": 'TipoCUIT',
+	"CUIL": 'TipoCUIL',
+	"LIBRETA_ENROLAMIENTO": 'TipoLE',
+	"LIBRETA_CIVICA": 'TipoLC',
+	"DNI": 'TipoDNI',
+	"PASAPORTE": 'TipoPasaporte',
+	"CEDULA": 'TipoCI',
+	"SIN_CALIFICADOR": ' ',
 	}
 
 
 	ivaTypes = {
-		"RESPONSABLE_INSCRIPTO": 'ResponsableInscripto',
-		"EXENTO": 'ResponsableExento',
-		"NO_RESPONSABLE": 'NoResponsable',
-		"CONSUMIDOR_FINAL": 'ConsumidorFinal',
-		"NO_CATEGORIZADO": 'NoCategorizado',
-		"RESPONSABLE_MONOTRIBUTO": 'Monotributo',
-		"MONOTRIBUTISTA_SOCIAL": 'MonotributoSocial',
-		"PEQUENIO_CONTRIBUYENTE_EVENTUAL": 'Eventual',
-		"PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL": 'EventualSocial',
+	"RESPONSABLE_INSCRIPTO": 'ResponsableInscripto',
+	"EXENTO": 'ResponsableExento',
+	"NO_RESPONSABLE": 'NoResponsable',
+	"CONSUMIDOR_FINAL": 'ConsumidorFinal',
+	"NO_CATEGORIZADO": 'NoCategorizado',
+	"RESPONSABLE_MONOTRIBUTO": 'Monotributo',
+	"MONOTRIBUTISTA_SOCIAL": 'MonotributoSocial',
+	"PEQUENIO_CONTRIBUYENTE_EVENTUAL": 'Eventual',
+	"PEQUENIO_CONTRIBUYENTE_EVENTUAL_SOCIAL": 'EventualSocial',
 	}
 
 	comprobanteTypes = {
-		"T": 'Tique',
-		"FB": 'TiqueFacturaB',
-		"FA": 'TiqueFacturaA',
-		"FC": 'TiqueFacturaC',
-		"NCT": 'TiqueNotaCredito',
-		"NCA": 'TiqueNotaCreditoA',
-		"NCB": 'TiqueNotaCreditoB',
-		"NCC": 'TiqueNotaCreditoC',
-		"NDA": 'TiqueNotaDebitoA',
-		"NDB": 'TiqueNotaDebitoB',
-		"NDC": 'TiqueNotaDebitoC',
+	"T": 'Tique',
+	"FB": 'TiqueFacturaB',
+	"FA": 'TiqueFacturaA',
+	"FC": 'TiqueFacturaC',
+	"NCT": 'TiqueNotaCredito',
+	"NCA": 'TiqueNotaCreditoA',
+	"NCB": 'TiqueNotaCreditoB',
+	"NCC": 'TiqueNotaCreditoC',
+	"NDA": 'TiqueNotaDebitoA',
+	"NDB": 'TiqueNotaDebitoB',
+	"NDC": 'TiqueNotaDebitoC',
 	}
 
-    def start(self):
-        pass
+	def start(self):
+		pass
 		
-    def close(self):
-        pass
+	def close(self):
+		pass
 
 	def getStatus(self, *args):
 		jdata = {"ConsultarEstado":{"CodigoComprobante" : "81"}}
@@ -206,14 +206,14 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 
 		self.conector.sendCommand( jdata )
 
-	
+
 	def __openTicket(self, tipoComprobante):
 		ctype = self.comprobanteTypes.get( tipoComprobante )
 		jdata = {"AbrirDocumento":{
 			"CodigoComprobante" : ctype
 			}
 		}
-	
+
 		return self.conector.sendCommand( jdata )
 
 
@@ -432,59 +432,59 @@ class Hasar2GenComandos(ComandoFiscalInterface):
 		"""
 		rta = {}
 		rta = rjson["CerrarJornadaFiscal"].get("Numero")
- 				
- 				"Reporte": "ReporteZ",
-                "Numero": "3",
-                "Fecha": "180219",
-                "": "0.00",
-                "DF_TotalGravado": "0.00",
-                "DF_TotalNoGravado": "0.00",
-                "DF_TotalExento": "0.00",
-                "": "0.00",
-                "DF_TotalTributos": "0.00",
-                "": "1",
-                "DF_CantidadCancelados": "1",
-                "NC_Total": "0.00",
-                "NC_TotalGravado": "0.00",
-                "NC_TotalNoGravado": "0.00",
-                "NC_TotalExento": "0.00",
-                "NC_TotalIVA": "0.00",
-                "NC_TotalTributos": "0.00",
-                "NC_CantidadEmitidos": "0",
-                "NC_CantidadCancelados": "0",
-                "DNFH_Total": "0.00",
-                "": "0"
+				
+				"Reporte": "ReporteZ",
+				"Numero": "3",
+				"Fecha": "180219",
+				"": "0.00",
+				"DF_TotalGravado": "0.00",
+				"DF_TotalNoGravado": "0.00",
+				"DF_TotalExento": "0.00",
+				"": "0.00",
+				"DF_TotalTributos": "0.00",
+				"": "1",
+				"DF_CantidadCancelados": "1",
+				"NC_Total": "0.00",
+				"NC_TotalGravado": "0.00",
+				"NC_TotalNoGravado": "0.00",
+				"NC_TotalExento": "0.00",
+				"NC_TotalIVA": "0.00",
+				"NC_TotalTributos": "0.00",
+				"NC_CantidadEmitidos": "0",
+				"NC_CantidadCancelados": "0",
+				"DNFH_Total": "0.00",
+				"": "0"
 		datos = {
-            "status_impresora": rjson["Estado"].get("Impresora"),
-            "status_fiscal": rjson["Estado"].get("Fiscal"),
-            "zeta_numero": rjson["Estado"].get("Numero"),
-            "cant_doc_fiscales_cancelados": rjson["Estado"].get("DF_CantidadCancelados"),
-            "cant_doc_nofiscales_homologados": rjson["Estado"].get("DNFH_CantidadEmitidos"),
-            "cant_doc_nofiscales":rjson["Estado"].get("DNFH_CantidadEmitidos"),
-            "cant_doc_fiscales":rjson["Estado"].get("DF_CantidadEmitidos"),
-           
-            "ultimo_doc_b",
-            "ultimo_doc_a",
-           
-            "monto_ventas_doc_fiscal":rjson["Estado"].get("DF_Total"),
-            "monto_iva_doc_fiscal":rjson["Estado"].get("DF_TotalIVA"),
-            "monto_imp_internos":rjson["Estado"].get("DF_TotalIVA"),
-            "monto_percepciones",
-            "monto_iva_no_inscripto",
-            "ultima_nc_b",
-            "ultima_nc_a",
-            "monto_credito_nc",
-            "monto_iva_nc",
-            "monto_imp_internos_nc",
-            "monto_percepciones_nc",
-            "monto_iva_no_inscripto_nc",
-            "ultimo_remito",
-            "cant_nc_canceladas",
-            "cant_doc_fiscales_bc_emitidos",
-            "cant_doc_fiscales_a_emitidos",
-            "cant_nc_bc_emitidos",
-            "cant_nc_a_fiscales_a_emitidos"
-        }
+			"status_impresora": rjson["Estado"].get("Impresora"),
+			"status_fiscal": rjson["Estado"].get("Fiscal"),
+			"zeta_numero": rjson["Estado"].get("Numero"),
+			"cant_doc_fiscales_cancelados": rjson["Estado"].get("DF_CantidadCancelados"),
+			"cant_doc_nofiscales_homologados": rjson["Estado"].get("DNFH_CantidadEmitidos"),
+			"cant_doc_nofiscales":rjson["Estado"].get("DNFH_CantidadEmitidos"),
+			"cant_doc_fiscales":rjson["Estado"].get("DF_CantidadEmitidos"),
+			
+			"ultimo_doc_b",
+			"ultimo_doc_a",
+			
+			"monto_ventas_doc_fiscal":rjson["Estado"].get("DF_Total"),
+			"monto_iva_doc_fiscal":rjson["Estado"].get("DF_TotalIVA"),
+			"monto_imp_internos":rjson["Estado"].get("DF_TotalIVA"),
+			"monto_percepciones",
+			"monto_iva_no_inscripto",
+			"ultima_nc_b",
+			"ultima_nc_a",
+			"monto_credito_nc",
+			"monto_iva_nc",
+			"monto_imp_internos_nc",
+			"monto_percepciones_nc",
+			"monto_iva_no_inscripto_nc",
+			"ultimo_remito",
+			"cant_nc_canceladas",
+			"cant_doc_fiscales_bc_emitidos",
+			"cant_doc_fiscales_a_emitidos",
+			"cant_nc_bc_emitidos",
+			"cant_nc_a_fiscales_a_emitidos"
+		}
 
 
 			<Numero>1</Numero>
