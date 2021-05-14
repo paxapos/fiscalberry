@@ -15,7 +15,6 @@ typing
 urllib3
 python-daemon	
 PyJWT
-GitPython
 pyOpenSSL	
 cryptography
 gitpython
