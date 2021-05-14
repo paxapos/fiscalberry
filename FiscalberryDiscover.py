@@ -8,11 +8,15 @@ import logging
 
 
 def send(configberry):
-    uuidvalue = str(uuid.uuid1(uuid.getnode(), 0))[24:]
-    configberry.writeSectionWithKwargs('SERVIDOR', {'uuid': uuidvalue})
+
+    uuid = configberry.config.get('SERVIDOR', 'uuid')
+
+    if not uuid:
+        uuid = str(uuid.uuid1(uuid.getnode(), 0))[24:]
+        configberry.writeSectionWithKwargs('SERVIDOR', {'uuid': uuid})
 
     senddata = {
-        "uuid": configberry.config.get('SERVIDOR', 'uuid'),
+        "uuid": uuid,
         "ip_privada": configberry.config.get('SERVIDOR', 'ip_privada'),
         "raw_data": json.dumps(configberry.getJSON())
     }
