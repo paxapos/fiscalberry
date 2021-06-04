@@ -47,6 +47,7 @@ class PageHandler(tornado.web.RequestHandler):
         try:
             with open(os.path.join(root + "/js_browser_client", 'example_ws_client.html')) as f:
                 self.write(f.read())
+                f.close()
         except IOError as e:
             self.write("404: Not Found")
 

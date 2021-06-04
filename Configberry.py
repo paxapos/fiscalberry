@@ -51,6 +51,7 @@ class Configberry:
 
         with open(CONFIG_FILE_NAME, 'w') as configfile:
             self.config.write(configfile)
+            configfile.close()
 
         return 1;
 
@@ -80,5 +81,6 @@ class Configberry:
 
         with open(CONFIG_FILE_NAME, 'w') as configfile:
             self.config.write(configfile)
+            configfile.close()
 
         return 1;
