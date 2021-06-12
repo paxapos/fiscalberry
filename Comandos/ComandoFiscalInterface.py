@@ -34,6 +34,17 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
         "NO_CATEGORIZADO": 'T',
     }
 
+    
+    docTypeNames = {
+        "DOC_TYPE_CUIT": "CUIT",
+        "DOC_TYPE_LIBRETA_ENROLAMIENTO": 'L.E.',
+        "DOC_TYPE_LIBRETA_CIVICA": 'L.C.',
+        "DOC_TYPE_DNI": 'DNI',
+        "DOC_TYPE_PASAPORTE": 'PASAP',
+        "DOC_TYPE_CEDULA": 'CED',
+        "DOC_TYPE_SIN_CALIFICADOR": 'S/C'
+    }
+
 
     def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
         print "_sendCommand", commandNumber, parameters
@@ -91,15 +102,6 @@ class ComandoFiscalInterface(ComandoInterface.ComandoInterface):
         """
         raise NotImplementedError
 
-    docTypeNames = {
-        "DOC_TYPE_CUIT": "CUIT",
-        "DOC_TYPE_LIBRETA_ENROLAMIENTO": 'L.E.',
-        "DOC_TYPE_LIBRETA_CIVICA": 'L.C.',
-        "DOC_TYPE_DNI": 'DNI',
-        "DOC_TYPE_PASAPORTE": 'PASAP',
-        "DOC_TYPE_CEDULA": 'CED',
-        "DOC_TYPE_SIN_CALIFICADOR": 'S/C'
-    }
 
     # Ticket fiscal (siempre es a consumidor final, no permite datos del cliente)
 

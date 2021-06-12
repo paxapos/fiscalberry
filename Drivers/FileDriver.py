@@ -25,7 +25,7 @@ class FileDriver(DriverInterface):
             self.file.write("Command: %s\n" % command)
             print("*** OUTPUT Command: %s\n" % command)
         if parameters:
-            self.file.write("Parameters: %s\n" % command)
+            self.file.write("Parameters: %s\n" % parameters)
             print("*** OUTPUT Parameters: %s\n" % parameters)
 
         number = random.randint(2, 12432)
