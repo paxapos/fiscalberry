@@ -160,11 +160,11 @@ if (!Array.isArray) {
                 ssl = true;
             }
 
-            var ws = 'ws';
+            var wsURI = 'ws';
             if ( ssl ) {
-                ws = 'wss';
+                wsURI = 'wss';
             }
-            var url = ws+"://" + host + ":" + port + uri;
+            var url = wsURI+"://" + host + ":" + port + uri;
 
             ws = new WebSocket(url);
             ws.addEventListener('open', function (e) {
@@ -221,7 +221,6 @@ if (!Array.isArray) {
                 JSON.parse(jsonstr);
                 return ws.send.apply(ws, fnargs);
             } catch (e) {
-                console.error("no es un JSON válido");
                 return $.error(e);
             }
         };
