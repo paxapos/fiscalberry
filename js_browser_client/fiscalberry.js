@@ -13,7 +13,7 @@ if (!Array.isArray) {
         __conected = false;
 
     /** Singleton, devuelve siempre la instancia $fb **/
-    Fiscalberry = function (host, port, uri) {
+    Fiscalberry = function (host, port, uri, ssl) {
         // WebSocket instance
         var ws;
 
@@ -25,6 +25,9 @@ if (!Array.isArray) {
             port = 12000; // default fiscalberry port
         }
 
+        if (typeof ssl == 'undefined' || ssl == false ) {
+            ssl = false; // default fiscalberry SSL
+        }
 
         // real Fiscalberry object that will be returned as instance
         if (!$fb) {
@@ -141,7 +144,7 @@ if (!Array.isArray) {
          *    creando una nueva instancia ws
          *    @return WebSocket instance
          **/
-        $fb.connect = function (host, port, uri) {
+        $fb.connect = function (host, port, uri, ssl) {
             if (typeof port == 'undefined') {
                 port = 12000; // default fiscalberry server port
             }
@@ -150,7 +153,18 @@ if (!Array.isArray) {
                 uri = "/ws";
             }
 
-            var url = "ws://" + host + ":" + port + uri;
+
+            if (typeof ssl == 'undefined' || ssl == false ) {
+                ssl = false; // default fiscalberry SSL
+            } else {
+                ssl = true;
+            }
+
+            var ws = 'ws';
+            if ( ssl ) {
+                ws = 'wss';
+            }
+            var url = ws+"://" + host + ":" + port + uri;
 
             ws = new WebSocket(url);
             ws.addEventListener('open', function (e) {
@@ -198,10 +212,17 @@ if (!Array.isArray) {
         $fb.send = function () {
             var fnargs = arguments;
             try {
-                JSON.parse(fnargs[0]);
+                var jsonstr;
+                if ( typeof fnargs[0] == 'string' ) {
+                    jsonstr = fnargs[0];
+                } else {
+                    jsonstr = JSON.stringify(fnargs[0]);
+                }
+                JSON.parse(jsonstr);
                 return ws.send.apply(ws, fnargs);
             } catch (e) {
-                return $.error("se debe enviar un JSON VALIDO");
+                console.error("no es un JSON válido");
+                return $.error(e);
             }
         };
 
