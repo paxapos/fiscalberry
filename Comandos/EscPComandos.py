@@ -147,7 +147,7 @@ class EscPComandos(ComandoInterface):
         qrcodeml = kwargs.get("qr-mercadopago", None)
         if qrcodeml:
             printer.text(u'Pagá rápido con Mercado Pago\n')
-            printer.text(u"1- Escaneá el código QR\n2- Ingresá el monto\n3- Seleccioná tipo de pago\n4- Listo!, ni hace falta que nos avises.\n")
+            printer.text(u"1- Escaneás el código QR\n\n2- Pagás\n4- Listo!, ni hace falta que nos avises.\n")
             printer.qr(qrcodeml)
     
     def printFacturaElectronica(self, **kwargs):
