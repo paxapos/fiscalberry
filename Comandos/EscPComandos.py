@@ -108,7 +108,7 @@ class EscPComandos(ComandoInterface):
             can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            printer.text(u"%g%s%s\t%s\n" % (cant," ",unidad_de_medida, strTabs))
+            printer.text(u"%.2f%s%s\t%s\n" % (cant," ",unidad_de_medida, strTabs))
 
             if observacion:
                 printer.set("LEFT", "B", "B", 1, 1)
@@ -243,37 +243,37 @@ class EscPComandos(ComandoInterface):
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
             if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
-                printer.text("  %g x $%g\n" % (cant, round(precio_unitario_neto, 4)))
-                printer.text(strTabs+"(%g)\t$%g\n" % (round(porcentaje_iva, 2), round(precio_total_neto, 2)))
+                printer.text("  %.2f x $%.2f\n" % (cant, round(precio_unitario_neto, 4)))
+                printer.text(strTabs+"(%.2f)\t$%.2f\n" % (round(porcentaje_iva, 2), round(precio_total_neto, 2)))
             else:
-                printer.text("%g " % (cant))
-                printer.text("%s(%g)\t$%g\n" % (strTabs, round(porcentaje_iva, 2), round(precio_total_neto, 2)))
+                printer.text("%.2f " % (cant))
+                printer.text("%s(%.2f)\t$%.2f\n" % (strTabs, round(porcentaje_iva, 2), round(precio_total_neto, 2)))
 
         printer.set("RIGHT", "A", "A", 1, 1)
         printer.text("\n")
         if addAdditional:
             if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
                 # imprimir subtotal
-                printer.text("Subtotal: $%g\n" % round(total, 2))
+                printer.text("Subtotal: $%.2f\n" % round(total, 2))
 
             # imprimir descuento
             sAmount = float(addAdditional.get('amount', 0))
             total = total - sAmount
             printer.set("RIGHT", "A", "A", 1, 1)
-            printer.text("%s $%g\n" % (addAdditional.get('description')[0:20], round(sAmount, 2)))
+            printer.text("%s $%.2f\n" % (addAdditional.get('description')[0:20], round(sAmount, 2)))
             if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
                 #recalculamos el neto e iva
                 tot_neto = total / ((porcentaje_iva + 100.0) / 100)
                 tot_iva = total - tot_neto
             
         if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
-            printer.text("Subtotal Neto: $%g\n" % (round(tot_neto, 2)))
-            printer.text("Subtotal IVA: $%g\n" % (round(tot_iva, 2)))
+            printer.text("Subtotal Neto: $%.2f\n" % (round(tot_neto, 2)))
+            printer.text("Subtotal IVA: $%.2f\n" % (round(tot_iva, 2)))
             printer.text("\n")
 
         # imprimir total
         printer.set("RIGHT", "A", "A", 2, 2)
-        printer.text(u"TOTAL: $%g\n" % round(total, 2))
+        printer.text(u"TOTAL: $%.2f\n" % round(total, 2))
         printer.text("\n")
 
         printer.set("LEFT", "B", "A", 1, 1)
@@ -387,24 +387,24 @@ class EscPComandos(ComandoInterface):
             can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            printer.text("%g\t%s$%g\n" % (cant, strTabs, precio))
+            printer.text("%.2f\t%s$%.2f\n" % (cant, strTabs, precio))
 
         printer.text("\n")
 
         if addAdditional:
             # imprimir subtotal
             printer.set("RIGHT", "A", "A", 1, 1)
-            printer.text("SUBTOTAL: $%g\n" % tot_importe)
+            printer.text("SUBTOTAL: $%.2f\n" % tot_importe)
 
             # imprimir descuento
             sAmount = float(addAdditional.get('amount', 0))
             tot_importe = tot_importe - sAmount
             printer.set("RIGHT", "A", "A", 1, 1)
-            printer.text("%s $%g\n" % (addAdditional.get('description'), sAmount))
+            printer.text("%s $%.2f\n" % (addAdditional.get('description'), sAmount))
 
         # imprimir total
         printer.set("RIGHT", "A", "A", 2, 2)
-        printer.text(u"TOTAL: $%g\n" % tot_importe)
+        printer.text(u"TOTAL: $%.2f\n" % tot_importe)
 
         printer.set("LEFT", "A", "A", 1, 1)
         
@@ -472,24 +472,24 @@ class EscPComandos(ComandoInterface):
             can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            printer.text("%g\t%s$%g\n" % (cant, strTabs, precio))
+            printer.text("%.2f\t%s$%.2f\n" % (cant, strTabs, precio))
 
         printer.text("\n")
 
         if addAdditional:
             # imprimir subtotal
             printer.set("RIGHT", "A", "A", 1, 1)
-            printer.text("SUBTOTAL: $%g\n" % tot_importe)
+            printer.text("SUBTOTAL: $%6.2f\n" % tot_importe)
 
             # imprimir descuento
             sAmount = float(addAdditional.get('amount', 0))
             tot_importe = tot_importe - sAmount
             printer.set("RIGHT", "A", "A", 1, 1)
-            printer.text("%s $%g\n" % (addAdditional.get('description'), sAmount))
+            printer.text("%s $%.2f\n" % (addAdditional.get('description'), sAmount))
 
         # imprimir total
         printer.set("RIGHT", "A", "A", 2, 2)
-        printer.text(u"TOTAL: $%g\n" % tot_importe)
+        printer.text(u"TOTAL: $%.2f\n" % tot_importe)
         printer.text("\n\n\n")
 
 
@@ -501,7 +501,7 @@ class EscPComandos(ComandoInterface):
             print("--a-a---a-a--a--a-aa")
             desc = pago.get('ds')[0:20]
             importe = cant * float(pago.get('importe'))
-            printer.text("%s\t$%g\n" % (desc, importe))
+            printer.text("%s\t$%.2f\n" % (desc, importe))
 
         printer.text("\n")
 

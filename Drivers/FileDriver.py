@@ -63,6 +63,13 @@ class FileDriver(DriverInterface):
             self.file.write(texto)
         pass
 
+    def qr(self, *kwargs):
+        print kwargs
+        for texto in kwargs:
+            texto = texto.encode(self.codepage)
+            self.file.write(texto)
+        pass
+
     def cut(self, *kwargs):
         pass
 
