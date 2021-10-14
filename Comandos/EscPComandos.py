@@ -12,6 +12,7 @@ import datetime
 from math import ceil
 import json
 import base64
+import locale
 
 
 class PrinterException(Exception):
@@ -41,10 +42,8 @@ class EscPComandos(ComandoInterface):
        printer = self.conector.driver
  
        printer.start()
-       printer.text(texto)
- 
-       printer.cut("PART")
- 
+       printer.text(texto) 
+       printer.cut("PART") 
        printer.end()
 
     def print_mesa_mozo(self, setTrailer):
@@ -622,4 +621,215 @@ class EscPComandos(ComandoInterface):
 
         # dejar letra chica alineada izquierda
         printer.set("LEFT", "A", "B", 1, 2)
+        printer.end()
+    
+    def printArqueo(self, **kwargs):
+        
+        printer = self.conector.driver 
+        printer.start()
+
+        
+        totalIngresosPorVenta = 0
+        ingresosEfectivo = 0
+        otrosIngresos = 0
+
+        totalEgresosPorPagos = 0
+        egresosEfectivo = 0
+        otrosEgresos = 0
+
+        totalRetiros = 0
+        totalIngresos = 0
+
+        encabezado = kwargs.get('encabezado')
+
+        fechaDesde = datetime.datetime.strptime(encabezado['fechaDesde'], '%d-%m-%Y %H:%M').strftime('%d/%m %H:%M',)
+        fechaHasta = datetime.datetime.strptime(encabezado['fechaHasta'], '%d-%m-%Y %H:%M').strftime('%d/%m %H:%M',)
+        fechaArqueo = datetime.datetime.strptime(encabezado['ArqueoDateTime'], '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%y %H:%M',)
+
+
+        def imprimirEncabezado():            
+            
+            printer.set("CENTER", "B", "B", 2, 2)
+            printer.text("ARQUEO DE CAJA\n\n")
+            printer.set("CENTER", "A", "A", 2, 1)
+            printer.text("%s\n" % encabezado['nombreComercio'])
+            printer.set("CENTER", "A", "A", 1, 1)
+            printer.text("------------------------------------------------\n")
+            printer.set("LEFT", "A", "B", 1, 1)
+            printer.text("\x1b\x2d\x01Fecha de Cierre\x1b\x2d\x00  : %s\n"  % fechaArqueo)
+            printer.text("\x1b\x2d\x01Fecha de Turno\x1b\x2d\x00   : %s al %s\n" % (fechaDesde , fechaHasta))
+            printer.text(u"\x1b\x2d\x01Reporte de Caja\x1b\x2d\x00  : %s\n"  % encabezado['nombreCaja'])
+            printer.text(u"\x1b\x2d\x01Usuario\x1b\x2d\x00          : %s\n" % encabezado['aliasUsuario'])
+            printer.text(u"\x1b\x2d\x01Observación\x1b\x2d\x00      : %s\n\n" % encabezado['observacion'])
+
+        def imprimirTitulo(titulo, ancho=1, alto=1):
+            printer.set("CENTER", "A", "B", 1, 1)
+            printer.text("------------------------------------------------\n")
+            printer.set("CENTER", "A", "B", ancho, alto)
+            printer.text(u"%s\n" % titulo)
+            printer.set("CENTER", "A", "B", 1, 1)
+            printer.text("------------------------------------------------\n")
+
+        def justificar(palabra, espacio):
+            palabraAjustada = str(palabra).ljust(espacio)
+            return palabraAjustada
+        
+        def crearTabla(firstCol, firstSize, secondCol, secondSize, thirdCol, thirdSize):
+            row = u"%s %s %s\n" %(justificar(firstCol, firstSize) , justificar(secondCol, secondSize) , justificar(thirdCol,thirdSize))
+            return row        
+
+        #########   ENCABEZADO
+        
+        imprimirEncabezado()
+
+        ######### INGRESOS POR VENTA
+
+        if 'ingresosPorVentas' in kwargs:
+            ingresosPorVentas = kwargs.get("ingresosPorVentas", [])
+            if (len(ingresosPorVentas['detalle']) > 0) or ingresosPorVentas['otros']:
+                imprimirTitulo(u"INGRESOS POR COBROS")
+
+                printer.set("LEFT", "A", "A", 1, 1)
+
+                for cobro in ingresosPorVentas['detalle']:
+                    printer.text(crearTabla(cobro['cant'] , 3 , cobro['tipoPago'][:16] , 25, "${:,.2f}".format(cobro['importe']) , 12))
+                    totalIngresosPorVenta += cobro['importe']
+                    if (cobro['tipoPago'] == 'Efectivo'):
+                        ingresosEfectivo = cobro['importe'] 
+
+                if (ingresosPorVentas['otros']):
+                    printer.text(crearTabla("", 3, "Otros Cobros", 25, "${:,.2f}".format(float(ingresosPorVentas['otros'])), 12))
+                    totalIngresosPorVenta += float(ingresosPorVentas['otros'])
+                    otrosIngresos += float(ingresosPorVentas['otros'])
+
+                printer.text("\n")
+                printer.set("LEFT", "A", "B", 1, 1)
+                printer.text(crearTabla("", 3 ,"TOTAL", 25 , "${:,.2f}".format(totalIngresosPorVenta), 12))
+                printer.text("\n")
+
+
+
+        ######### EGRESOS POR PAGOS
+
+        if 'egresosPorPagos' in kwargs:
+            egresosPorPagos = kwargs.get("egresosPorPagos", []) 
+            if (len(egresosPorPagos['detalle']) > 0) or egresosPorPagos['otros']:
+                imprimirTitulo(u"EGRESOS POR PAGOS")
+
+                printer.set("LEFT", "A", "A", 1, 1)
+                for pago in egresosPorPagos['detalle']:
+                    printer.text(crearTabla(pago['cant'] , 3 ,pago['tipoPago'][:16], 25 , "${:,.2f}".format(pago['importe']), 12))
+                    totalEgresosPorPagos +=pago['importe']
+                    if (pago['tipoPago'] == 'Efectivo'):
+                        egresosEfectivo = pago['importe']
+
+                if (egresosPorPagos['otros']):
+                    printer.text(crearTabla("", 3, "Otros", 25, "${:,.2f}".format(float(egresosPorPagos['otros'])), 12))
+                    totalEgresosPorPagos += float(egresosPorPagos['otros'])
+                    otrosEgresos += float(egresosPorPagos['otros'])
+
+                printer.text("\n")
+                printer.set("LEFT", "A", "B", 1, 1)
+                printer.text(crearTabla("", 3 ,"TOTAL", 25 , "${:,.2f}".format(totalEgresosPorPagos), 12))
+                printer.text("\n")
+
+
+
+        ######### RETIROS TRASPASOS
+
+        if ('retiros' in kwargs):
+            retiros = kwargs.get("retiros", [])            
+            if (len(retiros) > 0):
+                #Solo imprime cuando llega retiros en el JSON
+
+                imprimirTitulo(u"RETIROS DE CAJA")
+
+                printer.set("LEFT", "A", "A", 1, 1)
+
+                for retiro in retiros:
+                    fechaRetiro = datetime.datetime.strptime(retiro['fechaTraspaso'], '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y %H:%M',)
+                    printer.text(justificar(fechaRetiro, 30) + justificar("${:,.2f}".format(retiro['monto']), 16) + "\n")
+                    totalRetiros += retiro['monto']
+                    # if retiro['observacion']:
+                    #     printer.set("CENTER", "A", "A", 1, 1)
+                    #     printer.text(retiro['observacion'])        
+
+                printer.text("\n")
+                printer.set("LEFT", "A", "B", 1, 1)
+                printer.text(crearTabla("", 3 ,"TOTAL", 25 , "${:,.2f}".format(totalRetiros), 12))
+                printer.text("\n")
+
+        ######### INGRESOS TRASPASOS ##########
+
+        if ('ingresos' in kwargs):
+            ingresos = kwargs.get("ingresos", None)
+            if(len(ingresos) > 0):            
+                #Solo imprime cuando hay traspasos        
+
+                imprimirTitulo(u"INGRESOS DE CAJA")
+
+                printer.set("LEFT", "A", "A", 1, 1)
+
+                for ingreso in ingresos:
+                    fechaIngreso = datetime.datetime.strptime(ingreso['fechaTraspaso'], '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y %H:%M',)
+                    printer.text(justificar(fechaIngreso, 30) + justificar("${:,.2f}".format(ingreso['monto']), 16) + "\n")
+                    totalIngresos += ingreso['monto']
+                    # if ingreso['observacion']:
+                    #     printer.set("CENTER", "A", "A", 1, 1)
+                    #     printer.text(ingreso['observacion'])
+
+                printer.text("\n")
+                printer.set("LEFT", "A", "B", 1, 1)
+                printer.text(crearTabla("", 3, "TOTAL", 25, "${:,.2f}".format(totalIngresos), 12))
+                printer.text("\n")            
+        
+        ######### RESULTADO
+        if encabezado['importeFinal']:
+            importeFinal = float(encabezado['importeFinal'])
+        else:
+            importeFinal = 0
+
+        imprimirTitulo(u"RESÚMEN (Efectivo)", 1, 2)
+
+        printer.set("LEFT", "A", "A", 1, 1)
+        printer.text(crearTabla("+", 3 , "Importe Inicial:", 25, "${:,.2f}".format(float(encabezado['importeInicial'])) , 12))
+        printer.text(crearTabla("+", 3 , "Ingresos por Cobros:", 25, "${:,.2f}".format(ingresosEfectivo) , 12))
+        printer.text(crearTabla("+", 3 , "Ingresos de Caja:", 25, "${:,.2f}".format(totalIngresos) , 12))        
+        printer.text(crearTabla("+", 3 , "Otros Ingresos:", 25, "${:,.2f}".format(otrosIngresos) , 12))
+        printer.set("LEFT", "A", "B", 1, 1)
+        printer.text(crearTabla("", 3, "", 25 , "${:,.2f}".format(ingresosEfectivo + totalIngresos + float(encabezado['importeInicial'])) , 12))
+        printer.text("\n")
+        printer.set("LEFT", "A", "A", 1, 1)
+        printer.text(crearTabla("-", 3 , "Retiros de Caja:", 25, "${:,.2f}".format(totalRetiros) , 12))
+        printer.text(crearTabla("-", 3 , "Egresos por Pagos", 25, "${:,.2f}".format(egresosEfectivo) , 12))
+        printer.text(crearTabla("-", 3 , "Otros Egresos", 25, "${:,.2f}".format(otrosEgresos) , 12))
+        printer.text(crearTabla("-", 3 , "Importe Final:", 25, "${:,.2f}".format(importeFinal) , 12))
+        printer.set("LEFT", "A", "B", 1, 1)        
+        printer.text(crearTabla("", 3 , "", 25 , "${:,.2f}".format(egresosEfectivo + totalRetiros + importeFinal) , 12))
+        printer.set("LEFT", "A", "B", 1, 2)
+
+        montoSaldo = float(encabezado['diferencia'])
+        if (montoSaldo < 0):
+            saldo = "SOBRANTE"
+        elif (montoSaldo > 0):
+            saldo = "FALTANTE"
+        else:
+            saldo = ""
+
+        printer.text("\n")
+        printer.text(crearTabla("", 3, "Saldo %s" % saldo, 25, "${:,.2f}".format(abs(montoSaldo)), 12 ))
+
+        ##########   FIRMA
+
+        printer.text("\n\n\n\n\n\n\n")
+        printer.set("CENTER", "A", "A", 1, 1)
+        printer.text("..........................\n")
+        printer.text("Firma Responsable\n\n")
+        printer.set("CENTER", "B", "A", 1, 1)
+        printer.text("Reporte de Cierre de Caja\n")
+        printer.text(datetime.datetime.strftime(datetime.datetime.now(), '%d/%m/%y %H:%M'))
+
+
+        printer.set("LEFT", "A", "B", 1, 2)
+        printer.cut("PART")
         printer.end()

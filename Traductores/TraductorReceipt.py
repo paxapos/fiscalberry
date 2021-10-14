@@ -50,3 +50,7 @@ class TraductorReceipt(TraductorInterface):
             pass
         finally:    
             pass
+    
+    def printArqueo(self, **kwargs):
+        "Imprimir Cierre de Caja"
+        return self.comando.printArqueo(**kwargs)
