@@ -499,7 +499,7 @@ class EscPComandos(ComandoInterface):
             print(pago.get('importe'))
             print("--a-a---a-a--a--a-aa")
             desc = pago.get('ds')[0:20]
-            importe = cant * float(pago.get('importe'))
+            importe = float(pago.get('importe'))
             printer.text("%s\t$%.2f\n" % (desc, importe))
 
         printer.text("\n")
