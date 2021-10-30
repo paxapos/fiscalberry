@@ -77,32 +77,32 @@ class TraductorFiscal(TraductorInterface):
         self.comando.start()
         try:
 
-          if encabezado:
-              self._abrirComprobante(**encabezado)
-          else:
-              self._abrirComprobante()
+            if encabezado:
+                self._abrirComprobante(**encabezado)
+            else:
+                self._abrirComprobante()
 
-          for item in items:
-              self._imprimirItem(**item)
+            for item in items:
+                self._imprimirItem(**item)
 
-          if percepciones:
+            if percepciones:
                 for percepcion in percepciones:
                     self._imprimirPercepcion(**percepcion)
 
-          if pagos:
-                for pago in pagos:
-                    self._imprimirPago(**pago)
+            if pagos:
+                    for pago in pagos:
+                        self._imprimirPago(**pago)
 
-          if addAdditional:
-              self.comando.addAdditional(**addAdditional)
+            if addAdditional:
+                self.comando.addAdditional(**addAdditional)
 
-          rta = self._cerrarComprobante()
-          self.comando.close()
-          return rta
+            rta = self._cerrarComprobante()
+            self.comando.close()
+            return rta
 
-        except Exception, e:
-          self.cancelDocument()
-          raise
+        except Exception as e:
+            self.cancelDocument()
+            raise
 
     def _abrirComprobante(self,
                           tipo_cbte="T",  # tique

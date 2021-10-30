@@ -2,7 +2,6 @@ setuptools
 future
 pyserial
 python-escpos
-python-nmap
 pyusb
 PyYAML
 qrcode
@@ -17,3 +16,4 @@ PyJWT
 pyOpenSSL	
 cryptography
 gitpython
+dicttoxml

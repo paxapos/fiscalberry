@@ -38,7 +38,7 @@ class AuthHandler(tornado.web.RequestHandler):
         response = {}
         body= self.body
         try:
-            users= self.config.get_users();
+            users= self.config.get_users()
             if not('user' in body and 'key' in body):
                 response = {'err': 'Campos Incorrectos'}
                 self.set_status(HTTP_CODE_BAD_REQUEST)           
@@ -57,7 +57,7 @@ class AuthHandler(tornado.web.RequestHandler):
             else:
                 response = {'err': 'Usuario Incorrecto'}
                 self.set_status(HTTP_CODE_BAD_REQUEST)
-        except Exception, e:
+        except Exception as e:
             self.set_status(HTTP_CODE_INTERNAL_ERROR)
             errtxt = repr(e) + "- " + str(e)
             logging.error(errtxt)
@@ -85,27 +85,29 @@ class ApiRestHandler(tornado.web.RequestHandler):
 
     def post(self):
         traductor = self.traductor
-        body= self.body
+        body = self.body
         response = {}
         logging.info("----- - -- - - - ---")
         logging.info(body)
 
         try:
             response = traductor.json_to_comando(body)
-        except TypeError, e:
+        except TypeError as e:
             self.set_status(HTTP_CODE_BAD_REQUEST)
             errtxt = "Error parseando el JSON %s" % e
             logging.error(errtxt)
             response["err"] = errtxt
             import sys, traceback
             traceback.print_exc(file=sys.stdout)
-        except TraductorException, e:
+
+        except TraductorException as e:
             self.set_status(HTTP_CODE_NOT_METHOD)
             errtxt = "Traductor Comandos: %s" % str(e)
             logging.error(errtxt)
             response["err"] = errtxt
             import sys, traceback
             traceback.print_exc(file=sys.stdout)
+
         except KeyError as e:
             self.set_status(HTTP_CODE_NOT_METHOD)
             logging.info("Comando")
@@ -114,6 +116,7 @@ class ApiRestHandler(tornado.web.RequestHandler):
             response["err"] = errtxt
             import sys, traceback
             traceback.print_exc(file=sys.stdout)
+
         except socket.error as err:
             self.set_status(HTTP_CODE_INTERNAL_ERROR)
             import errno
@@ -122,7 +125,8 @@ class ApiRestHandler(tornado.web.RequestHandler):
             response["err"] = errtxt
             import sys, traceback
             traceback.print_exc(file=sys.stdout)
-        except Exception, e:
+            
+        except Exception as e:
             self.set_status(HTTP_CODE_INTERNAL_ERROR)
             errtxt = repr(e) + "- " + str(e)
             logging.error(errtxt)

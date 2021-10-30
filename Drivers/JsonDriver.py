@@ -41,7 +41,7 @@ class JsonDriver(DriverInterface):
 		url = "http://%s:%s/%s" % (self.host, self.port, self.after_port)
 
 		logging.getLogger().info("conectando a la URL %s"%url)
-		print jsonData
+		print(jsonData)
 		headers = {'Content-type': 'application/json'}
 
 
@@ -51,10 +51,9 @@ class JsonDriver(DriverInterface):
 			else:
 				reply = requests.post(url, data=json.dumps(jsonData), headers=headers)
 			print("INICIANDO::::")
-			print reply
-			print reply.content
+			print(reply)
+			print(reply.content)
 			print("salio la respuesta")
-			
 			return reply.content
 			
 		except requests.exceptions.Timeout:			

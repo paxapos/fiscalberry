@@ -1,6 +1,5 @@
 # -*- coding: iso-8859-1 -*-
 
-
 class DriverInterface:
     """Interfaz que deben cumplir las impresoras fiscales."""
 

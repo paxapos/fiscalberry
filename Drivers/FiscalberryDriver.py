@@ -1,11 +1,7 @@
 # -*- coding: utf-8 -*-
-
-
 from DriverInterface import DriverInterface
 import logging
 from FiscalPrinterDriver import PrinterException
-
-
 import requests
 import json
 
@@ -43,7 +39,7 @@ class FiscalberryDriver(DriverInterface):
 		url = self.url
 
 		logging.getLogger().info("conectando a la URL %s"%url)
-		print jsonData
+		print(jsonData)
 		headers = {'Content-type': 'application/json'}
 
 
@@ -53,8 +49,8 @@ class FiscalberryDriver(DriverInterface):
 			else:
 				reply = requests.post(url, data=json.dumps(jsonData), headers=headers)
 			print("INICIANDO::::")
-			print reply
-			print reply.content
+			print(reply)
+			print(reply.content)
 			print("salio la respuesta")
 			print(reply.content)
 			

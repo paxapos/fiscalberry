@@ -7,8 +7,6 @@ from Traductores.TraductoresHandler import TraductoresHandler, TraductorExceptio
 fullpath = "/lib64/libEpsonFiscalInterface.so"
 EpsonLibInterface = ctypes.cdll.LoadLibrary(fullpath)
 
-
-
 def jsontest():
 	jsoncomando = {
 		"printerName":"fiscalEpson",
@@ -33,30 +31,29 @@ def jsontest():
 	return t.json_to_comando(jsoncomando)
 
 def geterr():
-
-
+	
 	# connect
 	EpsonLibInterface.ConfigurarVelocidad( c_int(9600).value )
 	EpsonLibInterface.ConfigurarPuerto( "0" )
 	error = EpsonLibInterface.Conectar()
-	print "Connect               : ",
-	print error
+	print("Connect               : ",)
+	print(error)
 
 	# get last error
 	error = EpsonLibInterface.ConsultarUltimoError()
-	print "Last Error            : ",
-	print error
+	print("Last Error            : ",)
+	print(error)
 
 
 	# close port
 	error = EpsonLibInterface.Desconectar()
-	print "Disconect             : ",
-	print error
+	print("Disconect             : ",)
+	print(error)
 	
 
 def e2c():
 	comandin = Epson2GenComandos()
-	print "iniciando"
+	print("iniciando")
 	comandin.start()
 	
 	comandin.setHeader([" ", "     software paxapos", "      www.paxapos.com"])
@@ -64,7 +61,7 @@ def e2c():
 	
 	#comandin.dailyClose("x")
 	
-	print "abro ticket"
+	print("abro ticket")
 	#comandin.openTicket("T")
 	#comandin.addItem( "coca prueba", 1, 10, "21.00")
 	
@@ -88,10 +85,8 @@ def e2c():
 	#comandin.closeDocument()
 	#comandin.cancelDocument()
 
-	print "cierro coso"
+	print("cierro coso")
 	comandin.close()
-
-
 
 if __name__ == '__main__':
     geterr()

@@ -57,14 +57,14 @@ class FileDriver(DriverInterface):
         pass
 
     def text(self, *kwargs):
-        print kwargs
+        print(kwargs)
         for texto in kwargs:
             texto = texto.encode(self.codepage)
             self.file.write(texto)
         pass
 
     def qr(self, *kwargs):
-        print kwargs
+        print(kwargs)
         for texto in kwargs:
             texto = texto.encode(self.codepage)
             self.file.write(texto)

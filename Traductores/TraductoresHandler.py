@@ -6,7 +6,6 @@ import importlib
 import socket
 import threading
 import tornado.ioloop
-import nmap
 import os
 from multiprocessing import Process, Queue, Pool
 
@@ -80,16 +79,12 @@ class TraductoresHandler:
 
     traductores = {}
     fbApp = None
-
-    config = Configberry.Configberry()
     webSocket = None
+    config = Configberry.Configberry()
 
     def __init__(self, webSocket = None, fbApp = None):
         self.webSocket = webSocket
         self.fbApp = fbApp
-
-
-
 
     def json_to_comando(self, jsonTicket):
         import time        
@@ -115,26 +110,28 @@ class TraductoresHandler:
                     rta["rta"] = q.get(timeout=1)
                 q.close()
 
-            # aciones de comando genericos de Ststus y control
+            # aciones de comando genericos de Status y Control
             elif 'getStatus' in jsonTicket:
                 rta["rta"] = self._getStatus()
 
-            # reinicia
+            # TODO reinicia
             elif 'reboot' in jsonTicket:
                 rta["rta"] = self._reboot()
 
+            #  TODO 'restart': FiscalberryApp [INFO]: Response 
+            #  <- {'err': 'Socket error: [Errno 98] Address already in use'}
+            # /usr/lib/python3.9/asyncio/base_events.py:667: RuntimeWarning: coroutine 'WebSocketProtocol13.write_message.<locals>.wrapper' was never awaited
+            #   self._ready.clear()
+            # RuntimeWarning: Enable tracemalloc to get the object allocation traceback
             elif 'restart' in jsonTicket:
                 rta["rta"] = self._restartService()
 
+            # TODO 'upgrade'
             elif 'upgrade' in jsonTicket:
                 rta["rta"] = self._upgrade()
 
             elif 'getPrinterInfo' in jsonTicket:
                 rta["rta"] =  self._getPrinterInfo(jsonTicket["getPrinterInfo"])
-
-            elif 'findAvaliablePrinters' in jsonTicket:
-                self._findAvaliablePrinters()
-                rta["rta"] = self._getAvaliablePrinters()
 
             elif 'getAvaliablePrinters' in jsonTicket:
                 rta["rta"] = self._getAvaliablePrinters()
@@ -159,11 +156,10 @@ class TraductoresHandler:
 
             return rta
 
-        except Exception, e:
+        except Exception as e:
             # cerrar el driver
             if traductor and traductor.comando:
                 traductor.comando.close()
-
             raise
 
     def getWarnings(self):
@@ -177,65 +173,6 @@ class TraductoresHandler:
                 if warn:
                     collect_warnings[trad] = warn
         return collect_warnings
-
-    def __getDeviceData(self):
-        # avaliable mac address list
-        device_list = [
-            '00:0E:C3',  # Logic Controls BEMATECH
-            '00:07:25',  # Bematech
-            'D8:D8:D8',  # Hasar 2Gen
-        ]
-
-        avaliablePrinters = []  # lo retornado
-
-        logging.info('Iniciando la busqueda por nmap')
-
-        nm = nmap.PortScanner()
-
-        ipPrivada = self.config.config.get('SERVIDOR', 'ip_privada')
-        iplist = ipPrivada.split('.')
-        ipBroadcast = iplist[0] + "." + iplist[1] + "." + iplist[2] + ".0/24"
-
-        ret = nm.scan(hosts=ipBroadcast, arguments='-sP')
-
-        print("Ejecutando comando: nmap " + '-sP ' + ipBroadcast)
-        print(ret)
-
-        for h in nm.all_hosts():
-            if 'mac' in nm[h]['addresses']:
-                for x in device_list:
-                    if x in nm[h]['addresses']['mac']:
-                        print(nm[h])
-                        encontrada = {
-                            'host': nm[h]['addresses']['ipv4'],
-                            'vendor': nm[h]['vendor'][nm[h]['addresses']['mac']],
-                            'marca': 'EscP',
-                            'driver': 'ReceiptDirectJet',
-                            'mac': nm[h]['addresses']['mac']
-                        }
-                        avaliablePrinters.append(encontrada)
-        logging.info('Finalizó la busqueda por nmap')
-        return avaliablePrinters
-
-    def __getPrintersAndWriteConfig(self):
-        printerlist = self.__getDeviceData()
-        for data in printerlist:
-            elqueencontro = self.config.findByMac(data['mac'])
-            if elqueencontro:
-                (s, encontrada) = elqueencontro
-                if encontrada:
-                    print("::::::IMPRESORA ENCONTRADA::::::")
-                    print(encontrada)
-                    print("::::::********************::::::")
-                    encontrada['host'] = data['host']
-                    data = encontrada
-                    printerName = s
-            else:
-                printerName = data['vendor'] + "-%s" % data['mac']
-                data['marca'] = 'EscP'
-                data['driver'] = 'ReceiptDirectJet'
-            print("la data es %s" % data)
-            self.config.writeSectionWithKwargs(printerName, data)
 
 
     def _upgrade(self):
@@ -259,21 +196,22 @@ class TraductoresHandler:
     def _restartService(self):
         """ Reinicializa el WS server tornado y levanta la configuracion nuevamente """
         self.fbApp.restart_service()
-        resdict = {
+        rta = {
             "action": "restartService",
             "rta": "servidor reiniciado"
         }
+        return rta
 
     def _rebootFiscalberry(self):
         "reinicia el servicio fiscalberry"
         from subprocess import call
 
-        resdict = {
+        rta = {
             "action": "rebootFiscalberry",
             "rta": call(["reboot"])
         }
 
-        return resdict
+        return rta
 
     def _configure(self, **kwargs):
         "Configura generando o modificando el archivo configure.ini"
@@ -287,7 +225,7 @@ class TraductoresHandler:
 
         return {
             "action": "configure",
-            "rta": "La seccion "+printerName+" ha sido guardada"
+            "rta": "La seccion " + printerName + " ha sido guardada"
         }
 
     def _removerImpresora(self, printerName):
@@ -297,18 +235,10 @@ class TraductoresHandler:
 
         return {
             "action": "removerImpresora",
-            "rta": "La impresora "+printerName+" fue removida con exito"
+            "rta": "La impresora " + printerName + " fue removida con exito"
         }
 
 
-    def _findAvaliablePrinters(self):
-        # Esta función llama a otra que busca impresoras. Luego se encarga de escribir el config.ini con las impresoras encontradas.
-        if os.geteuid() != 0:
-            return {"action": "findAvaliablePrinters",
-                    "rta": "Error, no es superusuario (%s)" % os.geteuid()
-                    }
-
-        self.__getPrintersAndWriteConfig()
 
     def _getAvaliablePrinters(self):
 
@@ -322,19 +252,20 @@ class TraductoresHandler:
 
     def _getStatus(self, *args):
 
-        resdict = {"action": "getStatus", "rta": {}}
+        rta = {"action": "getStatus", "rta": {}}
         for tradu in self.traductores:
             if self.traductores[tradu]:
-                resdict["rta"][tradu] = "ONLINE"
+                rta["rta"][tradu] = "ONLINE"
             else:
-                resdict["rta"][tradu] = "OFFLINE"
-        return resdict
+                rta["rta"][tradu] = "OFFLINE"
+        return rta
 
-    def __manejar_socket_error(self, err, jsonTicket, traductor):
+    def _handleSocketError(self, err, jsonTicket, traductor):
         print(format(err))
         traductor.comando.conector.driver.reconnect()
         # volver a intententar el mismo comando
         try:
+            rta = {"action": "getStatus", "rta": {}}
             rta["rta"] = traductor.run(jsonTicket)
             return rta
         except Exception:
@@ -346,5 +277,4 @@ class TraductoresHandler:
             "action": "getActualConfig",
             "rta": self.config.get_actual_config()
         }
-
         return rta

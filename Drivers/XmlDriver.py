@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
-
-
 from JsonDriver import JsonDriver
+import logging
+import requests
 from dicttoxml import dicttoxml
-
 
 class XmlDriver(JsonDriver):
 
@@ -15,8 +14,6 @@ class XmlDriver(JsonDriver):
 
 		logging.getLogger().info("conectando a la URL %s"%url)
 		headers = {'Content-type': 'text/xml'}
-
-		xml = dicttoxml(some_dict)
 		xmlData = dicttoxml(jsonData)
 		print(xmlData)
 

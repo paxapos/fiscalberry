@@ -38,7 +38,7 @@ def send(configberry):
                 raise Exception("Error de conexion con "+discoverUrl)
             # antes de comenzar descargo la imagen del barcode
             # barcodeImage = requests.get( , stream=True).raw
-        except Exception, e:
+        except Exception as e:
             logging.getLogger().info("Mensaje de exception del discover: %s", e)
 
     return ret

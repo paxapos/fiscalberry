@@ -1,15 +1,14 @@
-import ConfigParser
+import configparser
 import os
 
 CONFIG_FILE_NAME = "config.ini"
 
 
 class Configberry:
-    config = ConfigParser.ConfigParser()
+    config = configparser.ConfigParser()
 
     def __init__(self):
         self.config.read(CONFIG_FILE_NAME)
-
         self.__create_config_if_not_exists()
 
     def getJSON(self):
@@ -40,7 +39,7 @@ class Configberry:
         return False
 
     def writeSectionWithKwargs(self, printerName, kwargs):
-        self.config = ConfigParser.RawConfigParser()
+        self.config = configparser.RawConfigParser()
         self.config.read(CONFIG_FILE_NAME)
 
         if not self.config.has_section(printerName):
@@ -53,7 +52,7 @@ class Configberry:
             self.config.write(configfile)
             configfile.close()
 
-        return 1;
+        return 1
 
     def __create_config_if_not_exists(self):
         newpath = os.path.dirname(os.path.realpath(__file__))
@@ -73,7 +72,7 @@ class Configberry:
         return dictConf
 
     def delete_printer_from_config(self, printerName):
-        self.config = ConfigParser.RawConfigParser()
+        self.config = configparser.RawConfigParser()
         self.config.read(CONFIG_FILE_NAME)
 
         if self.config.has_section(printerName):
@@ -83,4 +82,4 @@ class Configberry:
             self.config.write(configfile)
             configfile.close()
 
-        return 1;
+        return 1

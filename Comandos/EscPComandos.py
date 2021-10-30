@@ -32,10 +32,10 @@ class EscPComandos(ComandoInterface):
         try:
             ret = self.conector.sendCommand(comando, skipStatusErrors)
             return ret
-        except PrinterException, e:
+        except PrinterException as e:
             logging.getLogger().error("PrinterException: %s" % str(e))
             raise ComandoException("Error de la impresora: %s.\nComando enviado: %s" % \
-                                   (str(e), commandString))
+                                   (str(e),comando))
 
 
     def printTexto(self, texto):
@@ -333,7 +333,7 @@ class EscPComandos(ComandoInterface):
         caeVto = encabezado.get("cae_vto")
         printer.text(u"CAE: " + cae + "    CAE VTO: " + caeVto +"\n\n")
 
-        #printer.image('afip.bmp');
+        #printer.image('afip.bmp')
         printer.text("Comprobante Autorizado \n")
  
         printer.set("CENTER", "B", "B", 1, 1)
@@ -493,11 +493,6 @@ class EscPComandos(ComandoInterface):
 
 
         for pago in pagos:
-            print("--a-a---a-a--a--a-aa")
-            print(pago)
-            print(pago.get('ds'))
-            print(pago.get('importe'))
-            print("--a-a---a-a--a--a-aa")
             desc = pago.get('ds')[0:20]
             importe = cant * float(pago.get('importe'))
             printer.text("%s\t$%.2f\n" % (desc, importe))
@@ -528,7 +523,7 @@ class EscPComandos(ComandoInterface):
         self.__preFillTrailer = setTrailer
 
     def _setTrailer(self, setTrailer):
-        print self.conector.driver
+        print(self.conector.driver)
         printer = self.conector.driver
 
         for trailerLine in setTrailer:

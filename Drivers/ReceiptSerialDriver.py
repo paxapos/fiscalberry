@@ -48,4 +48,4 @@ class ReceiptSerialDriver(printer.Serial, DriverInterface):
             logging.error("Error de la impresora: "+str(e))
 
     def reconnect(self):
-		pass
+        pass

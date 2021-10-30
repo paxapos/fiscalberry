@@ -44,4 +44,4 @@ class ReceiptUSBDriver(printer.Usb, DriverInterface):
             logging.error("Error de la impresora: "+str(e))
 
     def reconnect(self):
-		pass
+        pass

@@ -4,7 +4,7 @@
 """
 import jwt
 import logging
-import ConfigParser
+import configparser
 
 AUTHORIZATION_HEADER = 'Authorization'
 AUTHORIZATION_METHOD = 'bearer'
@@ -27,7 +27,7 @@ AUTH_FILE_NAME = "auth.ini"
 # Auth Configuration
 #
 class AuthConfig:
-    config = ConfigParser.ConfigParser()
+    config = configparser.ConfigParser()
 
     def __init__(self):
         self.config.read(AUTH_FILE_NAME)
