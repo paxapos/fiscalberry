@@ -1,0 +1,1 @@
+start "" "pythonw" "C:\fiscalberry\server.py" 
