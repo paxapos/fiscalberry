@@ -25,12 +25,12 @@ HTTP_CODE_INTERNAL_ERROR = 500
 # API REST AUTH CONTROLLER
 #
 class AuthHandler(tornado.web.RequestHandler):
-    def initialize(self):
+    def initialize(self):        
         self.config= AuthConfig()
     
     def prepare(self):
         if self.request.headers["Content-Type"].startswith("application/json"):
-            self.body = json.loads(self.request.body)
+            self.body = self.request.body
         else:
             self.body = None        
 
@@ -74,21 +74,32 @@ class AuthHandler(tornado.web.RequestHandler):
 #
 #@jwtauth
 class ApiRestHandler(tornado.web.RequestHandler):
+    body= None
+
     def initialize(self):
+        print("iniciando API REST HANDLER ")
         self.traductor = TraductoresHandler(self)
+        print("cargo traductor ")
 
     def prepare(self):
         if self.request.headers["Content-Type"].startswith("application/json"):
-            self.body = json.loads(self.request.body)
-        else:
-            self.body = None
+            self.body = self.request.body
+        
+
+    def get(self):
+        print("vino get")
+        print(self.body)
+        self.write('<html><body>404: Not Found</body></html>')
 
     def post(self):
+        print("vino POST")
         traductor = self.traductor
-        body= self.body
+        body = self.body
         response = {}
         logging.info("----- - -- - - - ---")
         logging.info(body)
+        if not body: 
+            self.write('<html><body>404: Not JSON received</body></html>')
 
         try:
             response = traductor.json_to_comando(body)

@@ -73,11 +73,11 @@ class WSHandler(tornado.websocket.WebSocketHandler):
         try:
             jsonMes = json.loads(message, strict=False)
             response = self.traductor.json_to_comando(jsonMes)
-        except TypeError, e:
+        except TypeError as e:
             errtxt = "Error parseando el JSON %s" % e
             logger.exception(errtxt)
             response["err"] = errtxt
-        except TraductorException, e:
+        except TraductorException as e:
             errtxt = "Traductor Comandos: %s" % str(e)
             logger.exception(errtxt)
             response["err"] = errtxt
@@ -89,7 +89,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
             errtxt = "Socket error: %s" % err
             logger.exception(errtxt)
             response["err"] = errtxt
-        except Exception, e:
+        except Exception as e:
             errtxt = repr(e) + "- " + str(e)
             logger.exception(errtxt)
             response["err"] = errtxt
