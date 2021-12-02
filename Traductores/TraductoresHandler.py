@@ -6,7 +6,6 @@ import importlib
 import socket
 import threading
 import tornado.ioloop
-import nmap
 import os
 from multiprocessing import Process, Queue, Pool
 
@@ -177,66 +176,6 @@ class TraductoresHandler:
                 if warn:
                     collect_warnings[trad] = warn
         return collect_warnings
-
-    def __getDeviceData(self):
-        # avaliable mac address list
-        device_list = [
-            '00:0E:C3',  # Logic Controls BEMATECH
-            '00:07:25',  # Bematech
-            'D8:D8:D8',  # Hasar 2Gen
-        ]
-
-        avaliablePrinters = []  # lo retornado
-
-        logging.info('Iniciando la busqueda por nmap')
-
-        nm = nmap.PortScanner()
-
-        ipPrivada = self.config.config.get('SERVIDOR', 'ip_privada')
-        iplist = ipPrivada.split('.')
-        ipBroadcast = iplist[0] + "." + iplist[1] + "." + iplist[2] + ".0/24"
-
-        ret = nm.scan(hosts=ipBroadcast, arguments='-sP')
-
-        print("Ejecutando comando: nmap " + '-sP ' + ipBroadcast)
-        print(ret)
-
-        for h in nm.all_hosts():
-            if 'mac' in nm[h]['addresses']:
-                for x in device_list:
-                    if x in nm[h]['addresses']['mac']:
-                        print(nm[h])
-                        encontrada = {
-                            'host': nm[h]['addresses']['ipv4'],
-                            'vendor': nm[h]['vendor'][nm[h]['addresses']['mac']],
-                            'marca': 'EscP',
-                            'driver': 'ReceiptDirectJet',
-                            'mac': nm[h]['addresses']['mac']
-                        }
-                        avaliablePrinters.append(encontrada)
-        logging.info('Finalizó la busqueda por nmap')
-        return avaliablePrinters
-
-    def __getPrintersAndWriteConfig(self):
-        printerlist = self.__getDeviceData()
-        for data in printerlist:
-            elqueencontro = self.config.findByMac(data['mac'])
-            if elqueencontro:
-                (s, encontrada) = elqueencontro
-                if encontrada:
-                    print("::::::IMPRESORA ENCONTRADA::::::")
-                    print(encontrada)
-                    print("::::::********************::::::")
-                    encontrada['host'] = data['host']
-                    data = encontrada
-                    printerName = s
-            else:
-                printerName = data['vendor'] + "-%s" % data['mac']
-                data['marca'] = 'EscP'
-                data['driver'] = 'ReceiptDirectJet'
-            print("la data es %s" % data)
-            self.config.writeSectionWithKwargs(printerName, data)
-
 
     def _upgrade(self):
         ret = self.fbApp.upgradeGitPull()

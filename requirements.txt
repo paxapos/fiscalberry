@@ -2,7 +2,6 @@ setuptools
 future
 pyserial
 python-escpos
-python-nmap
 pyusb
 pyutf8
 PyYAML
