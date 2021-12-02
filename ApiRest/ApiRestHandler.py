@@ -30,7 +30,7 @@ class AuthHandler(tornado.web.RequestHandler):
     
     def prepare(self):
         if self.request.headers["Content-Type"].startswith("application/json"):
-            self.body = self.request.body
+            self.body = json.loads(self.request.body)
         else:
             self.body = None        
 
@@ -83,7 +83,7 @@ class ApiRestHandler(tornado.web.RequestHandler):
 
     def prepare(self):
         if self.request.headers["Content-Type"].startswith("application/json"):
-            self.body = self.request.body
+            self.body = json.loads(self.request.body)
         
 
     def get(self):

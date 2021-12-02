@@ -59,7 +59,6 @@ def init_printer_traductor(printerName):
 
 def runTraductor(jsonTicket, queue):
     logging.info("mandando comando de impresora")
-    print(jsonTicket)
     printerName = jsonTicket['printerName']
     traductor = init_printer_traductor(printerName)
 
