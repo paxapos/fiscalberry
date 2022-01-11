@@ -80,13 +80,12 @@ class EpsonComandos(ComandoFiscalInterface):
         pass
 
     def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
-        print "_sendCommand", commandNumber, parameters
         try:
             logger.debug("sendCommand: SEND|0x%x|%s|%s" % (commandNumber,
                                                                        skipStatusErrors and "T" or "F",
                                                                        str(parameters)))
             return self.conector.sendCommand(commandNumber, parameters, skipStatusErrors)
-        except PrinterException, e:
+        except PrinterException as e:
             logger.exception("PrinterException: %s" % str(e))
             raise ComandoException("Error de la impresora fiscal: " + str(e))
 
@@ -216,8 +215,6 @@ class EpsonComandos(ComandoFiscalInterface):
 
     def openTicket(self, defaultLetter='B'):
         if self.model == "epsonlx300+":
-            print self.ivaTypes
-            print self.ivaTypes.get("CONSUMIDOR_FINAL")
             return self.openBillTicket(defaultLetter, "CONSUMIDOR FINAL", "", None, None,
                                        self.ivaTypes.get("CONSUMIDOR_FINAL"))
         else:

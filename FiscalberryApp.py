@@ -1,8 +1,5 @@
-from tornado import gen
-import tornado.httpserver
-import tornado.websocket
-import tornado.ioloop
-import tornado.web
+
+import tornado
 from Traductores.TraductoresHandler import TraductoresHandler, TraductorException
 import sys
 import socket
@@ -11,6 +8,7 @@ import json
 import logging
 import logging.config
 import Configberry
+import socketio
 
 
 import FiscalberryDiscover
@@ -151,7 +149,9 @@ class FiscalberryApp:
 
     def discover(self):
         # send discover data to your server if the is no URL configured, so nothing will be sent
-        if self.configberry.config.has_option('SERVIDOR', "discover_url"):
+        hasopnURL  = self.configberry.config.has_option('SERVIDOR', "discover_url")
+        hasopnUUID = self.configberry.config.has_option('SERVIDOR', "UUID")
+        if hasopnURL and hasopnUUID:
             fbdiscover = FiscalberryDiscover.send(self.configberry)
 
     def start(self):
@@ -198,11 +198,28 @@ class FiscalberryApp:
 
         self.print_printers_resume()
        
+        self.connectSocketIOServer()
 
         tornado.ioloop.IOLoop.current().start()
         tornado.ioloop.IOLoop.current().close()
 
         logger.info("Bye!")
+    
+    def connectSocketIOServer(self):
+        '''' 
+        se conecta al socketio server
+        siempre y cuando tenga en el config la clave GET
+        para recibir los mensajes de la impresora 
+        escucha al canal de su mismo UUID
+        '''
+        if self.configberry.config.has_option('SERVER', 'SERVIDOR_SOCKET_IO'):
+            socketio_url = self.configberry.config.get('SERVER', 'SERVIDOR_SOCKET_IO')
+            if socketio_url:
+                logger.info("Conectando al socketio server %s" % socketio_url)
+                self.socketio_client = socketio.Client()
+                self.socketio_client.connect(socketio_url)
+                logger.info("Conectado al socketio server %s" % socketio_url)
+      
 
     def get_ip(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

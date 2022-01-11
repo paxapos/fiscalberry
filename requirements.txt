@@ -17,3 +17,4 @@ pyOpenSSL
 cryptography
 gitpython
 dicttoxml
+python-socketio[client]
