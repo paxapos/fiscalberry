@@ -9,7 +9,10 @@ import logging
 
 def send(configberry):
 
-    uuid = configberry.config.get('SERVIDOR', 'uuid')
+    uuid = False
+
+    if configberry.config.has_option('SERVIDOR', 'uuid'):
+        uuid = configberry.config.get('SERVIDOR', 'uuid')
 
     if not uuid:
         uuid = str(uuid.uuid1(uuid.getnode(), 0))[24:]
