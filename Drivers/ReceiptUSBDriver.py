@@ -12,7 +12,7 @@ from DriverInterface import DriverInterface
 
 class ReceiptUSBDriver(printer.Usb, DriverInterface):
 
-    def __init__(self, usb_vendor, usb_product, timeout=0, interface=0, in_ep=0x82, out_ep=0x01, codepage="cp858", *args, **kwargs):  # noqa: N803
+    def __init__(self, usb_vendor, usb_product, timeout=0, interface=0, in_ep="0x82", out_ep="0x01", codepage="cp858", *args, **kwargs):  # noqa: N803
         """
         :param idVendor: Vendor ID
         :param idProduct: Product ID
@@ -44,4 +44,4 @@ class ReceiptUSBDriver(printer.Usb, DriverInterface):
             logging.error("Error de la impresora: "+str(e))
 
     def reconnect(self):
-		pass
+        pass

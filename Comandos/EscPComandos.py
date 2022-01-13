@@ -1,11 +1,14 @@
 # -*- coding: UTF-8 -*-
+import sys
+reload(sys)
+sys.setdefaultencoding('utf-8')
 
 import string
 import types
 import requests
 import logging
 import unicodedata
-import escpos
+from escpos import escpos,constants
 from ComandoInterface import ComandoInterface, ComandoException, ValidationError, FiscalPrinterError, formatText
 import time
 import datetime
@@ -13,6 +16,19 @@ from math import ceil
 import json
 import base64
 import locale
+
+
+def floatToString(inputValue):
+    if ( not isinstance(inputValue, float) ):
+        inputValue = float(inputValue)
+    return ('%.2f' % inputValue).rstrip('0').rstrip('.')
+
+def pad(texto, size, relleno, float = 'l'):
+    text = str(texto)
+    if float.lower() == 'l':
+        return texto[0:size].ljust(size, relleno)
+    else:
+        return texto[0:size].rjust(size,relleno)
 
 
 class PrinterException(Exception):
@@ -32,7 +48,7 @@ class EscPComandos(ComandoInterface):
         try:
             ret = self.conector.sendCommand(comando, skipStatusErrors)
             return ret
-        except PrinterException, e:
+        except PrinterException as e:
             logging.getLogger().error("PrinterException: %s" % str(e))
             raise ComandoException("Error de la impresora: %s.\nComando enviado: %s" % \
                                    (str(e), commandString))
@@ -93,7 +109,7 @@ class EscPComandos(ComandoInterface):
                 if encabezado.get("pedido_recepcionado") == 1:
                     printer.text(u"Esta orden de compra ya ha sido recepcionada\n")
         printer.text(u"Fecha: %s \n\n\n" % fecha)
-
+        
         printer.text(u"CANT\tDESCRIPCIÓN\n")
         printer.text("\n")
         tot_chars = 40
@@ -141,13 +157,15 @@ class EscPComandos(ComandoInterface):
 
         qrcode = kwargs.get("qr", None)
         if qrcode:
-            printer.qr(qrcode)
+            printer.set("CENTER", "A", "A", 1, 1)
+            printer.qr(qrcode, constants.QR_ECLEVEL_H, 6, constants.QR_MODEL_2 , False)
 
         qrcodeml = kwargs.get("qr-mercadopago", None)
         if qrcodeml:
-            printer.text(u'Pagá rápido con Mercado Pago\n')
-            printer.text(u"1- Escaneás el código QR\n\n2- Pagás\n4- Listo!, ni hace falta que nos avises.\n")
-            printer.qr(qrcodeml)
+            printer.set("CENTER", "A", "A", 1, 1)
+            printer.text(u'QR de Pago rápido con Mercado Pago\n')
+            printer.set("CENTER", "A", "A", 1, 1)
+            printer.qr(qrcodeml, constants.QR_ECLEVEL_H, 6, constants.QR_MODEL_2 , False)
     
     def printFacturaElectronica(self, **kwargs):
         "imprimir Factura Electronica"
@@ -165,8 +183,9 @@ class EscPComandos(ComandoInterface):
         
         printer.start()
         
-        printer.set("LEFT", "A", "B", 2, 1)
+        printer.set("CENTER", "A", "B", 2, 1)
         printer.text(encabezado.get("nombre_comercio")+"\n")
+        printer.text("\n")
         printer.set("LEFT", "A", "A", 1, 1)
         printer.text(encabezado.get("razon_social")+"\n")
         printer.text("CUIT: "+encabezado.get("cuit_empresa")+"\n")
@@ -180,14 +199,13 @@ class EscPComandos(ComandoInterface):
         
 
         printer.set("CENTER", "A", "A", 1, 1)
-        printer.text("----------------------------------------\n") #40 guíones
-        printer.set("LEFT", "A", "B", 1, 1)
+        printer.text(u"┌──────────────────────────────────────────────┐\n")
+        printer.set("CENTER", "A", "B", 1, 1)
         printer.text(encabezado.get("tipo_comprobante")+" Nro. "+encabezado.get("numero_comprobante")+"\n")
         printer.text("Fecha "+encabezado.get("fecha_comprobante")+"\n")
         printer.set("CENTER", "A", "A", 1, 1)
-        printer.text("----------------------------------------\n") #40 guíones
-        printer.set("LEFT", "A", "A", 1, 1)
-
+        printer.text(u"─────────────────────────────────────\n")
+        print(" * * * ** *  A * * * ** * *")
         if encabezado.has_key("nombre_cliente"):
             nombre_cliente = "A "+encabezado.get("nombre_cliente")
             tipo_responsable_cliente = encabezado.get("tipo_responsable_cliente")
@@ -202,77 +220,89 @@ class EscPComandos(ComandoInterface):
                 printer.text(domicilio_cliente+"\n")
         else:
             printer.text("A Consumidor Final \n")
+        
+        printer.text(u"─────────────────────────────────────\n")
+        printer.text("\n")
 
-        printer.set("CENTER", "A", "A", 1, 1)
-        printer.text("----------------------------------------\n\n") #40 guíones
+        
         printer.set("LEFT", "A", "A", 1, 1)
-        tot_neto = 0.0
-        tot_iva = 0.0
-        total = 0.0
-        if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
-            printer.text(u"DESCRIPCIÓN\t\t(IVA) PRECIO NETO\n")
-            printer.text("\n")
+      
+        
+        #if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
+            #printer.text(u"DESCRIPCIÓN\t(IVA)\tIMPORTE\n")
+            #printer.text("\n")
+        print("antes de items")
+        itemIvas = {}
         for item in items:
-            desc = item.get('ds')[0:20]
-            cant = float(item.get('qty'))
-            precio_unitario = float(item.get('importe'))
-            precio_total = cant * precio_unitario 
+
             if item.get('alic_iva'):
                 porcentaje_iva = float(item.get('alic_iva'))
             else:
-                porcentaje_iva = 21.00
+                porcentaje_iva = 21.00;
+
+            qty      = float(item.get('qty'))
+            importe  = float(item.get('importe'))
+            ds       = item.get('ds')
+
+            itemIvasTot = float(itemIvas.get("porcentaje_iva", 0) )
+            importeiva = importe /  ( 1 + (100/porcentaje_iva) )
+
+            itemIvas[porcentaje_iva] = itemIvasTot + ( importeiva * qty )
+           
+            item_cant = floatToString( qty )
+            importe_unitario = floatToString( importe )
+
+            total_producto = "$%.2f" % round( qty * importe , 2 )
+            
             if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
-                #es Factura A, enviamos neto e IVA separados.
-                precio_unitario_neto = precio_unitario / ((porcentaje_iva + 100.0) / 100)
-                precio_unitario_iva = precio_unitario - precio_unitario_neto
-                precio_total_neto = cant * precio_unitario_neto
-                precio_total_iva = cant * precio_unitario_iva
-                tot_neto += precio_total_neto
-                tot_iva += precio_total_iva
+                printer.text(u"%s x $%s (%s)\n" % (item_cant, importe_unitario, floatToString(porcentaje_iva)))
+                dstxt = pad(ds, 38, " ", "l")
+                preciotxt = pad( total_producto, 10, " ", "r")
+                printer.text(  dstxt + preciotxt + "\n" )
             else:
-                #Usamos estas variables para no tener que agregar ifs abajo
-                precio_unitario_neto = precio_unitario
-                precio_total_neto = precio_total
+                itemcanttxt = pad(item_cant, 4, " ", "l")
+                dstxt = pad(ds, 36, " ", "l")
+                preciotxt = pad( total_producto, 8, " ", "r")
+                printer.text(  itemcanttxt + dstxt + preciotxt + "\n" )
 
-            total += precio_total
 
-            cant_tabs = 3
-            desc = desc.ljust(20, " ")
-            can_tabs_final = cant_tabs - ceil(len(desc) / 8)
-            strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
-
-            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
-                printer.text("  %.2f x $%.2f\n" % (cant, round(precio_unitario_neto, 4)))
-                printer.text(strTabs+"(%.2f)\t$%.2f\n" % (round(porcentaje_iva, 2), round(precio_total_neto, 2)))
-            else:
-                printer.text("%.2f " % (cant))
-                printer.text("%s(%.2f)\t$%.2f\n" % (strTabs, round(porcentaje_iva, 2), round(precio_total_neto, 2)))
-
+        tot_neto = float( encabezado.get("importe_neto") )
+        tot_iva  = float( encabezado.get("importe_iva") ) 
+        total    = float( encabezado.get("importe_total") )
+        print("EL IVA ES %s", tot_iva)
         printer.set("RIGHT", "A", "A", 1, 1)
         printer.text("\n")
-        if addAdditional:
-            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
-                # imprimir subtotal
-                printer.text("Subtotal: $%.2f\n" % round(total, 2))
 
+        if addAdditional:
             # imprimir descuento
-            sAmount = float(addAdditional.get('amount', 0))
-            total = total - sAmount
-            printer.set("RIGHT", "A", "A", 1, 1)
-            printer.text("%s $%.2f\n" % (addAdditional.get('description')[0:20], round(sAmount, 2)))
-            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
-                #recalculamos el neto e iva
-                tot_neto = total / ((porcentaje_iva + 100.0) / 100)
-                tot_iva = total - tot_neto
+            sAmount = float(addAdditional.get('amount', 0)) 
+            descuentoDesc = addAdditional.get('description')
+            desporcentaje = float(addAdditional.get('descuento_porcentaje'))
+            descuentoRatio = (1 - (desporcentaje/100)) if desporcentaje != 0 else 1
+
+            printer.set("RIGHT", "A", "B", 1, 1)
+            printer.text("SUBTOTAL: $%.2f\n" % round(total + sAmount,2))
+
+            printer.set("RIGHT", "A", "", 1, 1)
+            printer.text(u"%s -$%.2f\n" % (descuentoDesc[0:20], round(sAmount, 2)))
+
             
+
+
         if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
-            printer.text("Subtotal Neto: $%.2f\n" % (round(tot_neto, 2)))
-            printer.text("Subtotal IVA: $%.2f\n" % (round(tot_iva, 2)))
-            printer.text("\n")
+            # imprimir subtotal
+            print(" * * * ** *  B * * * ** * *")
+            printer.text("Total Sin IVA: $%.2f\n" % round(tot_neto, 2))
+
+            print(" * * * ** *  C * * * ** * *")
+            for nameiva, importeiva in itemIvas.items():
+                printer.text("IVA %s: $%.2f\n" % (str(nameiva)+"%", round(importeiva * descuentoRatio, 2)))
+
+
 
         # imprimir total
         printer.set("RIGHT", "A", "A", 2, 2)
-        printer.text(u"TOTAL: $%.2f\n" % round(total, 2))
+        printer.text(u"TOTAL: $%.2f\n" % round(total,2))
         printer.text("\n")
 
         printer.set("LEFT", "B", "A", 1, 1)
@@ -280,6 +310,10 @@ class EscPComandos(ComandoInterface):
         if encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO B" or encabezado.get("tipo_comprobante") == 'NOTAS DE CREDITO M':
             printer.text(u"Firma...................................................\n\n")
             printer.text(u"Aclaración..............................................\n")
+
+
+        printer.set("CENTER", "A", "A", 1, 1)
+        printer.text(u"└──────────────────────────────────────────────┘\n\n") #40 guíones        
         
         if self.__preFillTrailer:
             self._setTrailer(self.__preFillTrailer)
@@ -320,21 +354,22 @@ class EscPComandos(ComandoInterface):
             qrcode["nroDocRec"]  = encabezado.get("documento_cliente")
         
 
+        printer.set("CENTER", "A", "A", 1, 1)
+        printer.text("Comprobante Autorizado por AFIP\n")
         # QR nueva disposicion de la AFIP
         jsonqr = json.dumps(qrcode)
         qrcode = base64.encodestring( jsonqr )
-        if qrcode:
-            printer.qr("https://www.afip.gob.ar/fe/qr/?p="+qrcode)
-
         
+        if qrcode:
+            data = "https://www.afip.gob.ar/fe/qr/?p="+qrcode
+            printer.qr(data, constants.QR_ECLEVEL_H, 3, constants.QR_MODEL_2 , False)
 
         #printer.image( barcodeImage )
         cae = encabezado.get("cae")
         caeVto = encabezado.get("cae_vto")
-        printer.text(u"CAE: " + cae + "    CAE VTO: " + caeVto +"\n\n")
-
-        #printer.image('afip.bmp');
-        printer.text("Comprobante Autorizado \n")
+        printer.set("CENTER", "A", "A", 1, 1)
+        printer.text(u"\nCAE: " + cae + "    CAE VTO: " + caeVto +"\n\n")
+        
  
         printer.set("CENTER", "B", "B", 1, 1)
         printer.text(u"Software PAXAPOS - Hecho por y para gastronómicos")
@@ -347,6 +382,7 @@ class EscPComandos(ComandoInterface):
         # dejar letra chica alineada izquierda
         printer.set("LEFT", "A", "B", 1, 2)
         printer.end()
+
 
     def printRemitoCorto(self, **kwargs):
         "imprimir remito"
@@ -364,7 +400,7 @@ class EscPComandos(ComandoInterface):
         if encabezado.has_key("imprimir_fecha_remito"):
             fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M %x')
             printer.text(u"Fecha: %s" % fecha)
-        printer.text(u"\nNO VALIDO COMO FACTURA\n")
+        printer.text(u"\nNO VÁLIDO COMO FACTURA\n")
 
         if encabezado:
             printer.set("LEFT", "A", "A", 1, 1)
@@ -378,21 +414,22 @@ class EscPComandos(ComandoInterface):
 
         tot_importe = 0.0
         for item in items:
-            desc = item.get('ds')[0:20]
-            cant = float(item.get('qty'))
-            precio = cant * float(item.get('importe'))
-            tot_importe += precio
-            cant_tabs = 3
-            can_tabs_final = cant_tabs - ceil(len(desc) / 8)
-            strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
+            ds = item.get('ds')
+            item_cant = float(item.get('qty'))
+            total_producto = item_cant * float(item.get('importe'))
+            tot_importe += total_producto
+         
+            itemcanttxt = pad( floatToString(item_cant), 4, " ", "l")
+            dstxt = pad(ds, 36, " ", "l")
+            preciotxt = pad( "%.2f" % round(total_producto,2), 8, " ", "r")
+            printer.text(  itemcanttxt + dstxt + preciotxt + "\n" )
 
-            printer.text("%.2f\t%s$%.2f\n" % (cant, strTabs, precio))
 
         printer.text("\n")
 
         if addAdditional:
             # imprimir subtotal
-            printer.set("RIGHT", "A", "A", 1, 1)
+            printer.set("RIGHT", "A", "B", 1, 1)
             printer.text("SUBTOTAL: $%.2f\n" % tot_importe)
 
             # imprimir descuento
@@ -444,9 +481,9 @@ class EscPComandos(ComandoInterface):
         printer.set("CENTER", "A", "A", 1, 1)
         if encabezado.has_key("imprimir_fecha_remito"):
             fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M %x')
-            printer.text(u"Fecha: %s \n\n\n" % fecha)
-        printer.text(u"Verifique su cuenta por favor\n")
-        printer.text(u"NO VALIDO COMO FACTURA\n\n")
+            printer.text("Fecha: %s \n\n\n" % fecha)
+        printer.text("Verifique su cuenta por favor\n")
+        printer.text(u"NO VÁLIDO COMO FACTURA\n\n")
 
         if encabezado:
             printer.set("CENTER", "A", "A", 1, 2)
@@ -459,19 +496,22 @@ class EscPComandos(ComandoInterface):
                 printer.text(u"\n")
 
         printer.set("LEFT", "A", "A", 1, 1)
-        printer.text(u"CANT\tDESCRIPCIÓN\t\tPRECIO\n")
+        itemcanttxt = pad( "CANT", 4, " ", "l")
+        dstxt = pad("               DESCRIPCION", 36, " ", "l")
+        preciotxt = pad( "PRECIO", 8, " ", "r")
+        printer.text(  itemcanttxt + dstxt + preciotxt + "\n" )
         printer.text("\n")
         tot_importe = 0.0
         for item in items:
-            desc = item.get('ds')[0:20]            
-            cant = float(item.get('qty'))
-            precio = cant * float(item.get('importe'))
-            tot_importe += precio
-            cant_tabs = 3
-            can_tabs_final = cant_tabs - ceil(len(desc) / 8)
-            strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
-
-            printer.text("%.2f\t%s$%.2f\n" % (cant, strTabs, precio))
+            ds = item.get('ds')
+            item_cant = float(item.get('qty'))
+            total_producto = item_cant * float(item.get('importe'))
+            tot_importe += total_producto
+         
+            itemcanttxt = pad( floatToString(item_cant), 4, " ", "l")
+            dstxt = pad(ds, 36, " ", "l")
+            preciotxt = pad( "%.2f" % round(total_producto,2), 8, " ", "r")
+            printer.text(  itemcanttxt + dstxt + preciotxt + "\n" )
 
         printer.text("\n")
 
@@ -484,7 +524,7 @@ class EscPComandos(ComandoInterface):
             sAmount = float(addAdditional.get('amount', 0))
             tot_importe = tot_importe - sAmount
             printer.set("RIGHT", "A", "A", 1, 1)
-            printer.text("%s $%.2f\n" % (addAdditional.get('description'), sAmount))
+            printer.text(u"%s $%.2f\n" % (addAdditional.get('description'), sAmount))
 
         # imprimir total
         printer.set("RIGHT", "A", "A", 2, 2)
@@ -492,12 +532,8 @@ class EscPComandos(ComandoInterface):
         printer.text("\n\n\n")
 
 
-        for pago in pagos:
-            print("--a-a---a-a--a--a-aa")
-            print(pago)
-            print(pago.get('ds'))
-            print(pago.get('importe'))
-            print("--a-a---a-a--a--a-aa")
+        printer.set("LEFT", "A", "A", 1, 1)
+        for pago in pagos:          
             desc = pago.get('ds')[0:20]
             importe = float(pago.get('importe'))
             printer.text("%s\t$%.2f\n" % (desc, importe))
@@ -528,7 +564,6 @@ class EscPComandos(ComandoInterface):
         self.__preFillTrailer = setTrailer
 
     def _setTrailer(self, setTrailer):
-        print self.conector.driver
         printer = self.conector.driver
 
         for trailerLine in setTrailer:
@@ -602,7 +637,7 @@ class EscPComandos(ComandoInterface):
 
         if 'platos' in comanda:
             printer.set("CENTER", "A", "B", 1, 1)
-            printer.text(u"----- PRINCIPAL -----\n")
+            printer.text(u"───── PRINCIPAL ─────\n")
 
             for plato in comanda['platos']:
                 print_plato(plato)
@@ -654,7 +689,8 @@ class EscPComandos(ComandoInterface):
             printer.set("CENTER", "A", "A", 2, 1)
             printer.text("%s\n" % encabezado['nombreComercio'])
             printer.set("CENTER", "A", "A", 1, 1)
-            printer.text("------------------------------------------------\n")
+            printer.text(u"─────────────────────────────────────────────────\n")
+            
             printer.set("LEFT", "A", "B", 1, 1)
             printer.text("\x1b\x2d\x01Fecha de Cierre\x1b\x2d\x00  : %s\n"  % fechaArqueo)
             printer.text("\x1b\x2d\x01Fecha de Turno\x1b\x2d\x00   : %s al %s\n" % (fechaDesde , fechaHasta))
@@ -664,11 +700,11 @@ class EscPComandos(ComandoInterface):
 
         def imprimirTitulo(titulo, ancho=1, alto=1):
             printer.set("CENTER", "A", "B", 1, 1)
-            printer.text("------------------------------------------------\n")
+            printer.text(u"─────────────────────────────────────────────────\n")
             printer.set("CENTER", "A", "B", ancho, alto)
             printer.text(u"%s\n" % titulo)
             printer.set("CENTER", "A", "B", 1, 1)
-            printer.text("------------------------------------------------\n")
+            printer.text(u"─────────────────────────────────────────────────\n")
 
         def justificar(palabra, espacio):
             palabraAjustada = str(palabra).ljust(espacio)
