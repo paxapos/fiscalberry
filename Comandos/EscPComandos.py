@@ -261,8 +261,8 @@ class EscPComandos(ComandoInterface):
                 printer.text(  dstxt + preciotxt + "\n" )
             else:
                 itemcanttxt = pad(item_cant, 4, " ", "l")
-                dstxt = pad(ds, 36, " ", "l")
-                preciotxt = pad( total_producto, 8, " ", "r")
+                dstxt = pad(ds, 28, " ", "l")
+                preciotxt = pad( total_producto, 10, " ", "r")
                 printer.text(  itemcanttxt + dstxt + preciotxt + "\n" )
 
 
