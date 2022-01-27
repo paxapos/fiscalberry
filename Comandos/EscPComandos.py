@@ -199,12 +199,12 @@ class EscPComandos(ComandoInterface):
         
 
         printer.set("CENTER", "A", "A", 1, 1)
-        printer.text(u"┌──────────────────────────────────────────────┐\n")
+        printer.text(u"┌───────────────────────────────────────┐\n")
         printer.set("CENTER", "A", "B", 1, 1)
         printer.text(encabezado.get("tipo_comprobante")+" Nro. "+encabezado.get("numero_comprobante")+"\n")
         printer.text("Fecha "+encabezado.get("fecha_comprobante")+"\n")
         printer.set("CENTER", "A", "A", 1, 1)
-        printer.text(u"─────────────────────────────────────\n")
+        printer.text(u"──────────────────────────────────\n")
         print(" * * * ** *  A * * * ** * *")
         if encabezado.has_key("nombre_cliente"):
             nombre_cliente = "A "+encabezado.get("nombre_cliente")
@@ -221,7 +221,7 @@ class EscPComandos(ComandoInterface):
         else:
             printer.text("A Consumidor Final \n")
         
-        printer.text(u"─────────────────────────────────────\n")
+        printer.text(u"──────────────────────────────────\n")
         printer.text("\n")
 
         
@@ -308,12 +308,14 @@ class EscPComandos(ComandoInterface):
         printer.set("LEFT", "B", "A", 1, 1)
 
         if encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO B" or encabezado.get("tipo_comprobante") == 'NOTAS DE CREDITO M':
-            printer.text(u"Firma...................................................\n\n")
-            printer.text(u"Aclaración..............................................\n")
+            printer.text(u"Firma.......................................\n\n")
+            printer.text(u"Aclaración..................................\n")
 
 
         printer.set("CENTER", "A", "A", 1, 1)
-        printer.text(u"└──────────────────────────────────────────────┘\n\n") #40 guíones        
+
+        
+        printer.text(u"└───────────────────────────────────────┘\n\n") #40 guíones
         
         if self.__preFillTrailer:
             self._setTrailer(self.__preFillTrailer)
@@ -420,8 +422,8 @@ class EscPComandos(ComandoInterface):
             tot_importe += total_producto
          
             itemcanttxt = pad( floatToString(item_cant), 4, " ", "l")
-            dstxt = pad(ds, 36, " ", "l")
-            preciotxt = pad( "%.2f" % round(total_producto,2), 8, " ", "r")
+            dstxt = pad(ds, 28, " ", "l")
+            preciotxt = pad( "%.2f" % round(total_producto,2), 10, " ", "r")
             printer.text(  itemcanttxt + dstxt + preciotxt + "\n" )
 
 
@@ -689,7 +691,7 @@ class EscPComandos(ComandoInterface):
             printer.set("CENTER", "A", "A", 2, 1)
             printer.text("%s\n" % encabezado['nombreComercio'])
             printer.set("CENTER", "A", "A", 1, 1)
-            printer.text(u"─────────────────────────────────────────────────\n")
+            printer.text(u"───────────────────────────────────────\n")
             
             printer.set("LEFT", "A", "B", 1, 1)
             printer.text("\x1b\x2d\x01Fecha de Cierre\x1b\x2d\x00  : %s\n"  % fechaArqueo)
@@ -700,11 +702,11 @@ class EscPComandos(ComandoInterface):
 
         def imprimirTitulo(titulo, ancho=1, alto=1):
             printer.set("CENTER", "A", "B", 1, 1)
-            printer.text(u"─────────────────────────────────────────────────\n")
+            printer.text(u"───────────────────────────────────────\n")
             printer.set("CENTER", "A", "B", ancho, alto)
             printer.text(u"%s\n" % titulo)
             printer.set("CENTER", "A", "B", 1, 1)
-            printer.text(u"─────────────────────────────────────────────────\n")
+            printer.text(u"───────────────────────────────────────\n")
 
         def justificar(palabra, espacio):
             palabraAjustada = str(palabra).ljust(espacio)
