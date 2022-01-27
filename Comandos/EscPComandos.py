@@ -182,6 +182,7 @@ class EscPComandos(ComandoInterface):
         printer = self.conector.driver
         
         printer.start()
+
         
         printer.set("CENTER", "A", "B", 2, 1)
         printer.text(encabezado.get("nombre_comercio")+"\n")
@@ -256,7 +257,7 @@ class EscPComandos(ComandoInterface):
             
             if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
                 printer.text(u"%s x $%s (%s)\n" % (item_cant, importe_unitario, floatToString(porcentaje_iva)))
-                dstxt = pad(ds, 38, " ", "l")
+                dstxt = pad(ds, 28, " ", "l")
                 preciotxt = pad( total_producto, 10, " ", "r")
                 printer.text(  dstxt + preciotxt + "\n" )
             else:
@@ -269,7 +270,6 @@ class EscPComandos(ComandoInterface):
         tot_neto = float( encabezado.get("importe_neto") )
         tot_iva  = float( encabezado.get("importe_iva") ) 
         total    = float( encabezado.get("importe_total") )
-        print("EL IVA ES %s", tot_iva)
         printer.set("RIGHT", "A", "A", 1, 1)
         printer.text("\n")
 
