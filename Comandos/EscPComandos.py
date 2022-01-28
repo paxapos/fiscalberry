@@ -200,12 +200,12 @@ class EscPComandos(ComandoInterface):
         
 
         printer.set("CENTER", "A", "A", 1, 1)
-        printer.text(u"┌───────────────────────────────────────┐\n")
+        printer.text(u"----------------------------------------\n")
         printer.set("CENTER", "A", "B", 1, 1)
         printer.text(encabezado.get("tipo_comprobante")+" Nro. "+encabezado.get("numero_comprobante")+"\n")
         printer.text("Fecha "+encabezado.get("fecha_comprobante")+"\n")
         printer.set("CENTER", "A", "A", 1, 1)
-        printer.text(u"──────────────────────────────────\n")
+        printer.text(u"----------------------------------------\n")
         print(" * * * ** *  A * * * ** * *")
         if encabezado.has_key("nombre_cliente"):
             nombre_cliente = "A "+encabezado.get("nombre_cliente")
@@ -222,7 +222,7 @@ class EscPComandos(ComandoInterface):
         else:
             printer.text("A Consumidor Final \n")
         
-        printer.text(u"──────────────────────────────────\n")
+        printer.text(u"----------------------------------------\n")
         printer.text("\n")
 
         
@@ -315,7 +315,7 @@ class EscPComandos(ComandoInterface):
         printer.set("CENTER", "A", "A", 1, 1)
 
         
-        printer.text(u"└───────────────────────────────────────┘\n\n") #40 guíones
+        printer.text(u"----------------------------------------\n\n") #40 guíones
         
         if self.__preFillTrailer:
             self._setTrailer(self.__preFillTrailer)
