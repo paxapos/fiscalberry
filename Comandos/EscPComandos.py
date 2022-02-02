@@ -26,9 +26,9 @@ def floatToString(inputValue):
 def pad(texto, size, relleno, float = 'l'):
     text = str(texto)
     if float.lower() == 'l':
-        return texto[0:size].ljust(size, relleno)
+        return text[0:size].ljust(size, relleno)
     else:
-        return texto[0:size].rjust(size,relleno)
+        return text[0:size].rjust(size,relleno)
 
 
 class PrinterException(Exception):
@@ -234,21 +234,24 @@ class EscPComandos(ComandoInterface):
             #printer.text("\n")
         print("antes de items")
         itemIvas = {}
+        
         for item in items:
 
             if item.get('alic_iva'):
                 porcentaje_iva = float(item.get('alic_iva'))
             else:
-                porcentaje_iva = 21.00;
+                porcentaje_iva = 21.00
 
             qty      = float(item.get('qty'))
             importe  = float(item.get('importe'))
             ds       = item.get('ds')
 
-            itemIvasTot = float(itemIvas.get("porcentaje_iva", 0) )
-            importeiva = importe /  ( 1 + (100/porcentaje_iva) )
+            itemIvasTot = float(itemIvas.get(porcentaje_iva, 0) )
 
+            importeiva = (importe * (porcentaje_iva/100))/(1+porcentaje_iva/100) #Una regla de tres simple
+            
             itemIvas[porcentaje_iva] = itemIvasTot + ( importeiva * qty )
+
            
             item_cant = floatToString( qty )
             importe_unitario = floatToString( importe )
@@ -257,12 +260,12 @@ class EscPComandos(ComandoInterface):
             
             if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
                 printer.text(u"%s x $%s (%s)\n" % (item_cant, importe_unitario, floatToString(porcentaje_iva)))
-                dstxt = pad(ds, 28, " ", "l")
+                dstxt = pad(ds, 36, " ", "l")
                 preciotxt = pad( total_producto, 10, " ", "r")
                 printer.text(  dstxt + preciotxt + "\n" )
             else:
                 itemcanttxt = pad(item_cant, 4, " ", "l")
-                dstxt = pad(ds, 28, " ", "l")
+                dstxt = pad(ds, 32, " ", "l")
                 preciotxt = pad( total_producto, 10, " ", "r")
                 printer.text(  itemcanttxt + dstxt + preciotxt + "\n" )
 
@@ -273,6 +276,7 @@ class EscPComandos(ComandoInterface):
         printer.set("RIGHT", "A", "A", 1, 1)
         printer.text("\n")
 
+        descuentoRatio = 1
         if addAdditional:
             # imprimir descuento
             sAmount = float(addAdditional.get('amount', 0)) 
@@ -552,6 +556,8 @@ class EscPComandos(ComandoInterface):
         if setTrailer:
             self._setTrailer(setTrailer)   
 
+        printer.set("CENTER", "B", "B", 1, 1)
+        printer.text(u"Software PAXAPOS")
 
         printer.cut("PART")
 
