@@ -260,12 +260,12 @@ class EscPComandos(ComandoInterface):
             
             if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
                 printer.text(u"%s x $%s (%s)\n" % (item_cant, importe_unitario, floatToString(porcentaje_iva)))
-                dstxt = pad(ds, 36, " ", "l")
+                dstxt = pad(ds, 30, " ", "l")
                 preciotxt = pad( total_producto, 10, " ", "r")
                 printer.text(  dstxt + preciotxt + "\n" )
             else:
                 itemcanttxt = pad(item_cant, 4, " ", "l")
-                dstxt = pad(ds, 32, " ", "l")
+                dstxt = pad(ds, 26, " ", "l")
                 preciotxt = pad( total_producto, 10, " ", "r")
                 printer.text(  itemcanttxt + dstxt + preciotxt + "\n" )
 
@@ -515,7 +515,7 @@ class EscPComandos(ComandoInterface):
             tot_importe += total_producto
          
             itemcanttxt = pad( floatToString(item_cant), 4, " ", "l")
-            dstxt = pad(ds, 36, " ", "l")
+            dstxt = pad(ds, 30, " ", "l")
             preciotxt = pad( "%.2f" % round(total_producto,2), 8, " ", "r")
             printer.text(  itemcanttxt + dstxt + preciotxt + "\n" )
 
