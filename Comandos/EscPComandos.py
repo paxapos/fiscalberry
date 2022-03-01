@@ -84,7 +84,7 @@ class EscPComandos(ComandoInterface):
         printer.set("CENTER", "A", "A", 1, 1)
         
         # colocar en modo ESC P
-        printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "1")
+        # printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "1")
 
         if encabezado.has_key("es_pedido"):
             printer.text(u"Nuevo Pedido \n")
