@@ -14,7 +14,7 @@ from DriverInterface import DriverInterface
 class ReceiptDirectJetDriver(printer.Network, DriverInterface):
     connected = False
 
-    def __init__(self, host, port=9100, timeout=10, codepage="cp858", mac="", vendor="", *args, **kwargs):
+    def __init__(self, host, port=9100, timeout=10, codepage="cp858", mac="", vendor="", cols=42, *args, **kwargs):
         """ escrito aqui solo para tener bien en claro las variables iniciales"""
         """
         :param host : Printer's hostname or IP address
@@ -27,6 +27,7 @@ class ReceiptDirectJetDriver(printer.Network, DriverInterface):
         self.port = int(port)
         self.timeout = timeout
         self.codepage = codepage
+        self.cols = int(cols)
 
     def start(self):
         """ iniciar """

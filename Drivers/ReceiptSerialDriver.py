@@ -16,7 +16,7 @@ class ReceiptSerialDriver(printer.Serial, DriverInterface):
 
     def __init__(self, devfile="/dev/ttyS0", baudrate=9600, bytesize=8, timeout=1,
                  parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-                 xonxoff=False, dsrdtr=True, codepage="cp858", *args, **kwargs):
+                 xonxoff=False, dsrdtr=True, codepage="cp858", cols=42, *args, **kwargs):
         """
         @param devfile  : Device file under dev filesystem
         @param baudrate : Baud rate for serial transmission
@@ -33,6 +33,7 @@ class ReceiptSerialDriver(printer.Serial, DriverInterface):
         self.xonxoff = xonxoff
         self.dsrdtr = dsrdtr
         self.codepage = codepage
+        self.cols = int(cols)
        
 
     def start(self):
@@ -48,4 +49,4 @@ class ReceiptSerialDriver(printer.Serial, DriverInterface):
             logging.error("Error de la impresora: "+str(e))
 
     def reconnect(self):
-		pass
+        pass

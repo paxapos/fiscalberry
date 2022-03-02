@@ -24,3 +24,9 @@ marca = Epson2Gen
 modelo = tm-t900fa
 driver = Epson2Gen
 path = serial: /dev/usb/lp0
+
+[IMPRESORA_RED]
+marca = EscP
+host = 127.0.0.1
+driver = ReceiptDirectJet
+cols = 48
