@@ -67,7 +67,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
         logger.info("Request \n -> %s" % message)
         try:
             jsonMes = json.loads(message, strict=False)
-            response = self.traductor.json_to_comando(jsonMes)
+            response = traductor.json_to_comando(jsonMes)
         except TypeError as e:
             errtxt = "Error parseando el JSON %s" % e
             logger.exception(errtxt)

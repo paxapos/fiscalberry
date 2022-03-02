@@ -1,1 +1,0 @@
-KERNEL=="ttyUSB[0-9]*",NAME="tts/USB%n",SYMLINK+="%k",GROUP="dialout",MODE="0666"

@@ -12,7 +12,7 @@ from DriverInterface import DriverInterface
 
 class ReceiptUSBDriver(printer.Usb, DriverInterface):
 
-    def __init__(self, usb_vendor, usb_product, timeout=0, interface=0, in_ep=0x82, out_ep=0x01, codepage="cp858", *args, **kwargs):  # noqa: N803
+    def __init__(self, usb_vendor, usb_product, timeout=0, interface=0, in_ep=0x82, out_ep=0x01, codepage="cp858", cols = 42, *args, **kwargs):  # noqa: N803
         """
         :param idVendor: Vendor ID
         :param idProduct: Product ID
@@ -29,6 +29,7 @@ class ReceiptUSBDriver(printer.Usb, DriverInterface):
         self.in_ep = int(in_ep, 16)
         self.out_ep = int(out_ep, 16)
         self.codepage = codepage
+        self.cols = int(cols)
    
 
     def start(self):

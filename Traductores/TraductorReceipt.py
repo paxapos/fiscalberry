@@ -27,6 +27,10 @@ class TraductorReceipt(TraductorInterface):
        "Imprime texto libre"
        return self.comando.printTexto(texto)
 
+    def printMuestra(self, *args):
+        "Imprime muestra de fuentes"
+        return self.comando.printMuestra()
+
     def openDrawer(self, *args):
         return self.comando.openDrawer()
 

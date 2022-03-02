@@ -45,12 +45,12 @@ def init_printer_traductor(printerName):
     try:
         dictSectionConf = config.get_config_for_printer(printerName)
     except KeyError as e:
-        raise TraductorException("En el archivo de configuracion no existe la impresora: '%s'" % printerName)
+        raise TraductorException(f"En el archivo de configuracion no existe la impresora: '{printerName}'")
 
     marca = dictSectionConf.get("marca")
     del dictSectionConf['marca']
     # instanciar los comandos dinamicamente
-    libraryName = "Comandos." + marca + "Comandos"
+    libraryName = f"Comandos.{marca}Comandos"
     comandoModule = importlib.import_module(libraryName)
     comandoClass = getattr(comandoModule, marca + "Comandos")
     
@@ -67,7 +67,7 @@ def runTraductor(jsonTicket, queue):
         if traductor.comando.conector is not None:
             queue.put(traductor.run(jsonTicket))
         else:
-            strError = "el Driver no esta inicializado para la impresora %s" % printerName
+            strError = f"el Driver no esta inicializado para la impresora {printerName}"
             queue.put(strError)
             logging.error(strError)
 
@@ -93,7 +93,7 @@ class TraductoresHandler:
         try:
             """ leer y procesar una factura en formato JSON
             """
-            logging.info("Iniciando procesamiento de json:::: "+json.dumps(jsonTicket))
+            logging.info(f"Iniciando procesamiento de json:::: {json.dumps(jsonTicket)}")
 
             rta = {"rta": ""}
             # seleccionar impresora

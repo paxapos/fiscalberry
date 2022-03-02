@@ -6,21 +6,21 @@ ssl_key_path =
 ip_privada = 192.168.0.109
 uuid = 94de80b28c4b
 
-[IMPRESORA_FISCAL]
-marca = Hasar
-modelo = 715v1
-path = COM2
-driver = Hasar
+[IMPRESORA_RED]
+marca = EscP
+host = 192.168.0.33
+port = 9100
+driver = ReceiptDirectJet
 
-[IMPRESORA_FISCAL_H2G]
-marca = Hasar2Gen
-modelo = PT-1000F
-host = 127.0.0.1
-port = 6500
-driver = Json
+[IMPRESORA_USB]
+marca = EscP
+driver = ReceiptUSB
+usb_vendor = 0x7008
+usb_product = 0x20d1
+in_ep = 0x81
+out_ep = 0x01
 
-[IMPRESORA_FISCAL_E2G]
-marca = Epson2Gen
-modelo = tm-t900fa
-driver = Epson2Gen
-path = serial: /dev/usb/lp0
+[IMPRESORA_SERIAL]
+marca = EscP
+driver = ReceiptSerial
+path = /dev/ttyUSB0

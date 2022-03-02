@@ -159,19 +159,13 @@
         </div>
     </div>
 
-    </br>
+    <br/>
     <input type="button" id="msg-get-printers" value="Listar Impresoras"/>
-
     <input type="button" id="msg-drawer" value="Mensaje Open Drawer"/>
-
-
-    <input type="button" id="msg-status" value="Mensaje Status (get Config values)"/>
-    <input type="button" id="msg-lst-number" value="Last Ticket Number"/>
-    <input type="button" id="msg-cancel" value="Cancelar Comprobante en curso"/>
-    <input type="button" id="msg-daily" value="Cierre X"/>
-    <input type="button" id="msg-ticket" value="Ticket"/>
-    <input type="button" id="msg-nc" value="Nota de Credito Factura A"/>
-    <input type="button" id="msg-nc-test" value="Nota de Credito Factura B"/>
+    <input type="button" id="msg-ticket" value="Fact. Electrónica" />
+    <input type="button" id="msg-comanda" value="Comanda" />
+    <input type="button" id="msg-remito" value="Remito" />
+    <input type="button" id="msg-arqueo" value="Arqueo" />
 
     <br><br/>
     <label for="message">JSON a enviar mediante WS message:</label><br>
@@ -402,77 +396,23 @@
         ponerJSONenTextarea('{"getStatus": {}}');
     });
 
-    $("#msg-lst-number").on('click', function () {
-        ponerJSONenTextarea('{"getLastNumber": "T"}');
-    });
-
-    $("#msg-daily").on('click', function () {
-        ponerJSONenTextarea('{"dailyClose": "X"}');
-    });
-
-    $("#msg-cancel").on('click', function () {
-        ponerJSONenTextarea('{"cancelDocument": ""}');
-    });
-
     $("#msg-get-printers").on('click', function () {
         ponerJSONenTextarea('{"getAvaliablePrinters": ""}');
     });
+    $("#msg-remito").on('click', function () {
+        ponerJSONenTextarea(remitoString);
+    });
 
-
-    var ticketString =
-            '{"printTicket": {\
-                "encabezado": {\
-                    "tipo_cbte": "T"\
-                },\
-                "items": [{\
-                  "alic_iva":21.0,\
-                  "importe": 0.01,\
-                  "ds": "PEPSI",\
-                  "qty": 1.0\
-                },\
-                {\
-                  "alic_iva": 21.0,\
-                  "importe": 0.12,\
-                  "ds": "COCA",\
-                  "qty": 2.0\
-                }]\
-            }}';
-
-    var NCString =
-            '{"printTicket": {\
-                "encabezado": {\
-                    "tipo_cbte": "NCA",\
-                    "referencia": "00066778",\
-                    "nombre_cliente": "Carlos Tevez",\
-                    "domicilio_cliente": "zaraza",\
-                    "tipo_responsable": "RESPONSABLE_INSCRIPTO",\
-                    "tipo_doc": "CUIT",\
-                    "nro_doc": 22222222226\
-                },\
-                "items": [{\
-                  "alic_iva":21.0,\
-                  "importe": 1.00,\
-                  "ds": "PEPSI",\
-                  "qty": 1.0\
-                }]\
-            }}';
-
-    var NCStringTest =
-            '{"printTicket": {\
-                "encabezado": {\
-                    "tipo_cbte": "NCB",\
-                    "referencia": "00066811"\
-                },\
-                "items": [{\
-                  "alic_iva":21.0,\
-                  "importe": 1.00,\
-                  "ds": "PEPSI",\
-                  "qty": 1.0\
-                }]\
-            }}';
+    $("#msg-comanda").on('click', function () {
+        ponerJSONenTextarea(comandaString);
+    });
 
     $("#msg-ticket").on('click', function () {
-        ponerJSONenTextarea(ticketString);
+        ponerJSONenTextarea(facturaElectronicaString);
+    });
+
+    $("#msg-arqueo").on('click', function () {
+        ponerJSONenTextarea(arqueoString);
     });
 
 
@@ -484,14 +424,182 @@
     });
 
 
-    $("#msg-nc").on('click', function () {
-        ponerJSONenTextarea(NCString);
-    });
-
-    $("#msg-nc-test").on('click', function () {
-        ponerJSONenTextarea(NCStringTest);
-    });
-
+    var remitoString =
+        '{"printRemito": {\
+                "encabezado": {\
+                    "tipo_cbte": "T",\
+                    "imprimir_fecha_remito": 1,\
+                    "tipo_responsable": "CONSUMIDOR_FINAL",\
+                    "tipo_doc": "SIN_CALIFICADOR",\
+                    "domicilio_cliente": "Avenida Siempreviva 742",\
+                    "nombre_cliente": "Cliente Ejemplo"\
+                },\
+                "items": [{\
+                    "importe": 950,\
+                    "ds": "ARROZ C/ CALAMARES",\
+                    "qty": 1\
+                }, {\
+                    "importe": 100,\
+                    "ds": "Cubiertos",\
+                    "qty": "2"\
+                }],\
+                "pagos": [{\
+                    "ds": "Efectivo",\
+                    "importe": 460\
+                }, {\
+                    "ds": "Tarjeta Visa Debito",\
+                    "importe": 460\
+                }],\
+                "addAdditional": {\
+                    "description": "20%",\
+                    "amount": 230,\
+                    "iva": "21.00",\
+                    "negative": true\
+                },\
+                "setTrailer": [" ", "Mozo: Mozo Omar", "Mesa: Mesa 35", " "]\
+            }\
+        }'
+    var comandaString =
+        '{\
+            "printComanda": {\
+                "comanda": {\
+                    "id": "191",\
+                    "created": "2021-10-22 01:57:24",\
+                    "platos": [{\
+                        "nombre": "Porcion Bife de Chorizo",\
+                        "cant": 1\
+                    }, {\
+                        "nombre": "Espresso",\
+                        "cant": 1\
+                    }]\
+                },\
+                "setTrailer": ["", "Mozo: Mozo Roberto", "Mesa: 151", ""]\
+            }\
+        }'
+    var facturaElectronicaString =
+        '{\
+            "printFacturaElectronica": {\
+                "encabezado": {\
+                    "nombre_comercio": "Nombre de Fantasía",\
+                    "razon_social": "Empresa SRL",\
+                    "cuit_empresa": "30998887771",\
+                    "ingresos_brutos": false,\
+                    "domicilio_comercial": "Avenida Siempreviva 742",\
+                    "tipo_responsable": "IVA Responsable Inscripto",\
+                    "inicio_actividades": "01/12/2020",\
+                    "tipo_comprobante": "Factura B",\
+                    "tipo_comprobante_codigo": "006",\
+                    "numero_comprobante": "0005-00056017",\
+                    "fecha_comprobante": "08/10/2021",\
+                    "domicilio_cliente": "",\
+                    "barcode_url": "http://www.paxapos.com/santiago_petrungaro/printers/afip_facturas/img_barcode/c4fd1071-4baf-4be3-b6e4-ccb1c7c4a025",\
+                    "cae": "1234567890",\
+                    "cae_vto": "18/10/2021",\
+                    "fecha_facturacion": "08/10/2021",\
+                    "importe_total": "121",\
+                    "importe_neto": "100",\
+                    "importe_iva": "21",\
+                    "moneda": "PES",\
+                    "ctz": 1,\
+                    "tipoDocRec": 99,\
+                    "tipoCodAut": "E"\
+                },\
+                "items": [{\
+                    "ds": "ARROZ C/ CALAMARES",\
+                    "qty": "1",\
+                    "importe": 950,\
+                    "alic_iva": "21.00"\
+                }, {\
+                    "ds": "Cubiertos",\
+                    "qty": "2",\
+                    "importe": "100",\
+                    "alic_iva": "21.00"\
+                }],\
+                "addAdditional": {\
+                    "description": "20%",\
+                    "descuento_porcentaje": "20.0000",\
+                    "amount": 230,\
+                    "iva": "21.00",\
+                    "negative": true\
+                },\
+                "setTrailer": [" ", "Mozo: Mozo Omar", "Mesa: Mesa", " "]\
+            }\
+        }'
+    var arqueoString = 
+        '{\
+            "printArqueo": {\
+                "encabezado": {\
+                    "nombreComercio": "Nombre Comercio",\
+                    "nombreCaja": "Caja Ventas",\
+                    "aliasUsuario": "3564ad56-45ab-469f-b7fe-23986dab59e6",\
+                    "ArqueoDateTime": "2022-03-01 06:26:20",\
+                    "fechaDesde": "28-02-2022 16:26",\
+                    "fechaHasta": "01-03-2022 06:26",\
+                    "importeInicial": "3245.00",\
+                    "importeFinal": "2677.00",\
+                    "diferencia": "-10.00",\
+                    "observacion": ""\
+                },\
+                "ingresosPorVentas": {\
+                    "detalle": [{\
+                        "tipoPago": "Efectivo",\
+                        "importe": 120140.21,\
+                        "cant": 76\
+                    }, {\
+                        "tipoPago": "MP",\
+                        "importe": 853.84,\
+                        "cant": 3\
+                    }, {\
+                        "tipoPago": "QR",\
+                        "importe": 279.92,\
+                        "cant": 2\
+                    }, {\
+                        "tipoPago": "Tarjeta Amex",\
+                        "importe": 2904.82,\
+                        "cant": 7\
+                    }, {\
+                        "tipoPago": "Tarjeta Maestro",\
+                        "importe": 4063.11,\
+                        "cant": 10\
+                    }, {\
+                        "tipoPago": "Tarjeta Master Card",\
+                        "importe": 13957.5,\
+                        "cant": 17\
+                    }, {\
+                        "tipoPago": "Tarjeta Visa",\
+                        "importe": 15240.4,\
+                        "cant": 9\
+                    }, {\
+                        "tipoPago": "Tarjeta Visa Debito",\
+                        "importe": 8879.75,\
+                        "cant": 10\
+                    }],\
+                    "otros": "18776.00"\
+                },\
+                "egresosPorPagos": {\
+                    "detalle": [],\
+                    "otros": "234.00"\
+                },\
+                "retiros": [{\
+                    "fechaTraspaso": "2022-03-01 06:26:15",\
+                    "observacion": "",\
+                    "monto": 66600\
+                }, {\
+                    "fechaTraspaso": "2022-03-01 06:26:10",\
+                    "observacion": "",\
+                    "monto": 3332\
+                }],\
+                "ingresos": [{\
+                    "fechaTraspaso": "2022-03-01 06:26:20",\
+                    "observacion": "",\
+                    "monto": 45900\
+                }, {\
+                    "fechaTraspaso": "2022-03-01 06:26:03",\
+                    "observacion": "",\
+                    "monto": 23454\
+                }]\
+            }\
+        }'
 
     $("div#message_details").hide();
 
