@@ -26,11 +26,11 @@ def floatToString(inputValue):
     return ('%.2f' % inputValue).rstrip('0').rstrip('.')
 
 def pad(texto, size, relleno, float = 'l'):
-    text = str(u""+texto)
+    text = str(texto).encode('utf-8')
     if float.lower() == 'l':
-        return text[0:size].ljust(size, relleno)
+        return text.decode('utf-8')[0:size].ljust(size, relleno)
     else:
-        return text[0:size].rjust(size,relleno)
+        return text.decode('utf-8')[0:size].rjust(size,relleno)
 
 
 class PrinterException(Exception):
@@ -315,7 +315,7 @@ class EscPComandos(ComandoInterface):
         if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
             # imprimir subtotal
             print(u" * * * ** *  B * * * ** * *")
-            printer.text(pad("Total Sin IVA",self.total_cols-self.price_cols, " ", "l") 
+            printer.text(pad(u"Total Sin IVA",self.total_cols-self.price_cols, " ", "l") 
                         + "$" + pad("{:,.2f}".format(round(tot_neto, 2)),self.price_cols-1, " ", "r")+"\n")
 
             print(u" * * * ** *  C * * * ** * *")
@@ -327,7 +327,7 @@ class EscPComandos(ComandoInterface):
 
         # imprimir total
         printer.set("RIGHT", "A", "B", 1, 2)
-        printer.text(pad("TOTAL",self.total_cols-self.price_cols, " ", "l")
+        printer.text(pad(u"TOTAL",self.total_cols-self.price_cols, " ", "l")
                     + "$" + pad("{:,.2f}".format(round(total,2)),self.price_cols-1," ", "r") + "\n")
 
         printer.set("RIGHT", "A", "A", 1, 1)
@@ -536,9 +536,9 @@ class EscPComandos(ComandoInterface):
             tot_importe += total_producto
          
             itemcanttxt = pad( floatToString(item_cant), self.cant_cols, " ", "l")
-            dstxt = pad(ds, self.desc_cols, " ", "l")
+            dstxt = pad(u""+ds, self.desc_cols, " ", "l")
             preciotxt = pad( u"%.2f" % round(total_producto,2), self.price_cols, " ", "r")
-            printer.text(  u""+ itemcanttxt + dstxt + preciotxt + "\n" )
+            printer.text(  itemcanttxt + dstxt + preciotxt + "\n" )
 
         printer.text("\n")
 
