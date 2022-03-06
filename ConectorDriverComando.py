@@ -14,7 +14,7 @@ class ConectorDriverComando:
 
     def __init__(self, comando, driver, *args, **kwargs):
         # logging.getLogger().info("inicializando ConectorDriverComando driver de %s" % driver)
-        logging.getLogger().info("inicializando ConectorDriverComando driver de '${0}'".format(driver))
+        logging.getLogger().info(u"inicializando ConectorDriverComando driver de '${0}'".format(driver))
 
         self._comando = comando
         self.driver_name = driver
@@ -28,7 +28,7 @@ class ConectorDriverComando:
 
     def sendCommand(self, *args):
         # logging.getLogger().info("Enviando comando %s" % args)
-        logging.getLogger().info("Enviando comando '${0}'".format(args))
+        logging.getLogger().info(u"Enviando comando '${0}'".format(args))
         return self.driver.sendCommand(*args)
 
     def close(self):

@@ -69,28 +69,28 @@ class WSHandler(tornado.websocket.WebSocketHandler):
     def on_message(self, message):
         traductor = self.traductor
         response = {}
-        logger.info("Request \n -> %s" % message)
+        logger.info(u"Request \n -> %s" % message)
         try:
             jsonMes = json.loads(message, strict=False)
             response = self.traductor.json_to_comando(jsonMes)
         except TypeError as e:
-            errtxt = "Error parseando el JSON %s" % e
+            errtxt = u"Error parseando el JSON %s" % e
             logger.exception(errtxt)
             response["err"] = errtxt
         except TraductorException as e:
-            errtxt = "Traductor Comandos: %s" % str(e)
+            errtxt = u"Traductor Comandos: %s" % str(e)
             logger.exception(errtxt)
             response["err"] = errtxt
         except KeyError as e:
-            errtxt = "El comando no es valido para ese tipo de impresora: %s" % e
+            errtxt = u"El comando no es valido para ese tipo de impresora: %s" % e
             logger.exception(errtxt)
             response["err"] = errtxt
         except socket.error as err:
-            errtxt = "Socket error: %s" % err
+            errtxt = u"Socket error: %s" % err
             logger.exception(errtxt)
             response["err"] = errtxt
         except Exception as e:
-            errtxt = repr(e) + "- " + str(e)
+            errtxt = u""+ repr(e) + "- " + str(e)
             logger.exception(errtxt)
             response["err"] = errtxt
 
@@ -129,7 +129,7 @@ class FiscalberryApp:
 
         # evento para terminar ejecucion mediante CTRL+C
         def sig_handler(sig, frame):
-            logger.info('Caught signal: %s', sig)
+            logger.info(u'Caught signal: %s', sig)
             tornado.ioloop.IOLoop.instance().add_callback(self.shutdown)
 
         signal(SIGTERM, sig_handler)
@@ -155,7 +155,7 @@ class FiscalberryApp:
     def discover(self):
         # send discover data to your server if the is no URL configured, so nothing will be sent
         if self.configberry.config.has_option('SERVIDOR', "discover_url"):
-            fbdiscover = FiscalberryDiscover.send(self.configberry);
+            fbdiscover = FiscalberryDiscover.send(self.configberry)
 
     def start(self):
         logger.info("Iniciando Fiscalberry Server")

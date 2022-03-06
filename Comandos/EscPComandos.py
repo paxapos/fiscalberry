@@ -581,11 +581,7 @@ class EscPComandos(ComandoInterface):
         printer.text(u"Software PAXAPOS")
 
         printer.cut("PART")
-
-        # volver a poner en modo ESC Bematech, temporal para testing
-        # printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "0")
-
-        # dejar letra chica alineada izquierda
+        
         printer.set("LEFT", "A", "B", 1, 2)
         printer.end()
 
