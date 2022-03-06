@@ -157,7 +157,7 @@ class TraductoresHandler:
 
             return rta
 
-        except Exception, e:
+        except Exception as e:
             # cerrar el driver
             if traductor and traductor.comando:
                 traductor.comando.close()
