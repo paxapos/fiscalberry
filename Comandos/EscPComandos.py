@@ -1,7 +1,7 @@
-# -*- coding: UTF-8 -*-
+# -*- coding: utf-8 -*-
 import logging
 from ComandoInterface import ComandoInterface, ComandoException
-from .EscPConstants import *
+from Comandos.EscPConstants import *
 import datetime
 from math import ceil
 import json
@@ -46,7 +46,6 @@ class EscPComandos(ComandoInterface):
 
     def printTexto(self, texto):
         printer = self.conector.driver
-        print(PARTIAL_CUT)
         printer.start()
         printer.text(texto)
         printer.cut(PARTIAL_CUT) 
@@ -214,7 +213,7 @@ class EscPComandos(ComandoInterface):
         printer.text("Fecha "+encabezado.get("fecha_comprobante")+"\n")
         printer.set(CENTER, FONT_A, NORMAL, 1, 1)
         printer.text("-" * self.total_cols + "\n")
-        print(" * * * ** *  A * * * ** * *")
+        # print(" * * * ** *  A * * * ** * *")
 
         if "nombre_cliente" in encabezado:
             nombre_cliente = "A " + encabezado.get("nombre_cliente")
@@ -245,7 +244,7 @@ class EscPComandos(ComandoInterface):
             
         printer.set(LEFT, FONT_A, NORMAL, 1, 1)
 
-        print("antes de items")
+        # print("antes de items")
         itemIvas = {}
         
         for item in items:
@@ -284,7 +283,7 @@ class EscPComandos(ComandoInterface):
                 dstxt = pad(ds, self.desc_cols, " ", "l")
                 preciotxt = pad( total_producto, self.price_cols - 1, " ", "r")
                 printer.text(  itemcanttxt + dstxt + "$" + preciotxt + "\n" )
-            print("Item Impreso")
+            # print("Item Impreso")
 
 
         tot_neto = float( encabezado.get("importe_neto") )
@@ -308,10 +307,10 @@ class EscPComandos(ComandoInterface):
 
         if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
             # imprimir subtotal
-            print(" * * * ** *  B * * * ** * *")
+            # print(" * * * ** *  B * * * ** * *")
             printer.text("Total Sin IVA: $%.2f\n" % round(tot_neto, 2))
 
-            print(" * * * ** *  C * * * ** * *")
+            # print(" * * * ** *  C * * * ** * *")
             for nameiva, importeiva in itemIvas.items():
                 printer.text("IVA %s: $%.2f\n" % (str(nameiva)+"%", round(importeiva * descuentoRatio, 2)))
 
@@ -541,7 +540,6 @@ class EscPComandos(ComandoInterface):
             printer.set(LEFT, FONT_A, NORMAL, 1, 1)
             subtotText = pad("SUBTOTAL:", self.total_cols - self.price_cols, " ", "r") + pad(f"${tot_importe:6.2f}",self.price_cols," ", "r")
             printer.text(subtotText + "\n")
-            #printer.text("SUBTOTAL: $%6.2f\n" % tot_importe)
 
             # imprimir descuento
             sAmount = float(addAdditional.get('amount', 0))
@@ -588,7 +586,7 @@ class EscPComandos(ComandoInterface):
         self.__preFillTrailer = setTrailer
 
     def _setTrailer(self, setTrailer):
-        print(self.conector.driver)
+        #print(self.conector.driver)
         printer = self.conector.driver
 
         for trailerLine in setTrailer:
@@ -731,7 +729,7 @@ class EscPComandos(ComandoInterface):
             if (len(ingresosPorVentas['detalle']) > 0) or ingresosPorVentas['otros']:
                 imprimirTitulo(u"INGRESOS POR COBROS")
 
-                printer.set(TXT_ALIGN_LT, FONT_A, NORMAL, 1, 1)
+                printer.set(LEFT, FONT_A, NORMAL, 1, 1)
                 for cobro in ingresosPorVentas['detalle']:
                     printer.text(pad(cobro['cant'],self.cant_cols," ","l") 
                                 + pad(cobro['tipoPago'][:self.desc_cols-1],self.desc_cols," ","l")
@@ -746,7 +744,7 @@ class EscPComandos(ComandoInterface):
                     totalIngresosPorVenta += float(ingresosPorVentas['otros'])
                     otrosIngresos += float(ingresosPorVentas['otros'])
 
-                printer.set(TXT_ALIGN_LT, FONT_A, BOLD, 1, 1)
+                printer.set(LEFT, FONT_A, BOLD, 1, 1)
                 printer.text(pad("    TOTAL",self.total_cols - self.price_cols, " ", "l")
                             + "$" +  pad(f"{totalIngresosPorVenta:,.2f}", self.price_cols - 1, " ","r") + "\n\n")
 
@@ -757,7 +755,7 @@ class EscPComandos(ComandoInterface):
             if (len(egresosPorPagos['detalle']) > 0) or egresosPorPagos['otros']:
                 imprimirTitulo(u"EGRESOS POR PAGOS")
 
-                printer.set(TXT_ALIGN_LT, FONT_A, NORMAL, 1, 1)
+                printer.set(LEFT, FONT_A, NORMAL, 1, 1)
                 for pago in egresosPorPagos['detalle']:
                     printer.text(pad(pago['cant'],self.cant_cols," ","l") 
                                 + pad(pago['tipoPago'][:self.desc_cols-1],self.desc_cols," ","l")
@@ -772,7 +770,7 @@ class EscPComandos(ComandoInterface):
                     totalEgresosPorPagos += float(egresosPorPagos['otros'])
                     otrosEgresos += float(egresosPorPagos['otros'])
 
-                printer.set(TXT_ALIGN_LT, FONT_A, BOLD, 1, 1)
+                printer.set(LEFT, FONT_A, BOLD, 1, 1)
                 printer.text(pad("    TOTAL",self.total_cols - self.price_cols, " ", "l")
                             + "$" +  pad(f"{totalEgresosPorPagos:,.2f}", self.price_cols - 1, " ","r") + "\n\n")
 
@@ -787,7 +785,7 @@ class EscPComandos(ComandoInterface):
 
                 imprimirTitulo(u"RETIROS DE CAJA")
 
-                printer.set(TXT_ALIGN_LT, FONT_A, NORMAL, 1, 1)
+                printer.set(LEFT, FONT_A, NORMAL, 1, 1)
 
                 for retiro in retiros:
                     fechaRetiro = datetime.datetime.strptime(retiro['fechaTraspaso'], '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y %H:%M',)
@@ -800,7 +798,7 @@ class EscPComandos(ComandoInterface):
                     #     printer.text(retiro['observacion'])        
 
                 printer.text("\n")
-                printer.set(TXT_ALIGN_LT, FONT_A, BOLD, 1, 1)
+                printer.set(LEFT, FONT_A, BOLD, 1, 1)
                 printer.text(pad("    TOTAL",self.total_cols - self.price_cols, " ", "l")
                             + "$" +  pad(f"{totalRetiros:,.2f}", self.price_cols - 1, " ","r") + "\n\n")
 
@@ -826,7 +824,7 @@ class EscPComandos(ComandoInterface):
                     #     printer.text(ingreso['observacion'])
 
                 printer.text("\n")
-                printer.set(TXT_ALIGN_LT, FONT_A, BOLD, 1, 1)
+                printer.set(LEFT, FONT_A, BOLD, 1, 1)
                 printer.text(pad("    TOTAL",self.total_cols - self.price_cols, " ", "l")
                             + "$" +  pad(f"{totalIngresos:,.2f}", self.price_cols - 1, " ","r") + "\n\n")
         
@@ -838,7 +836,7 @@ class EscPComandos(ComandoInterface):
 
         imprimirTitulo(u"RESÚMEN (Efectivo)", 1, 2)
 
-        printer.set(TXT_ALIGN_LT, FONT_A, NORMAL, 1, 1)
+        printer.set(LEFT, FONT_A, NORMAL, 1, 1)
 
         ingresosDict = {"Importe Inicial:"    : f"{float(encabezado['importeInicial']):,.2f}",
                         "Ingresos por Cobros:": f"{ingresosEfectivo:,.2f}",
@@ -849,12 +847,12 @@ class EscPComandos(ComandoInterface):
             printer.text(pad("+",self.cant_cols," ","l") + pad(key,self.desc_cols," ","l") + "$" + 
                          pad(ingresosDict[key],self.price_cols - 1 ," ","r") + "\n")
         
-        printer.set(TXT_ALIGN_LT, FONT_A, BOLD, 1, 1)
+        printer.set(LEFT, FONT_A, BOLD, 1, 1)
 
         sumaIngresos = (ingresosEfectivo + totalIngresos + float(encabezado['importeInicial']))
         printer.text(" " * (self.total_cols - self.price_cols) + "$" + pad(f"{sumaIngresos:,.2f}",self.price_cols - 1, " ","r") + "\n\n")
         
-        printer.set(TXT_ALIGN_LT, FONT_A, NORMAL, 1, 1)
+        printer.set(LEFT, FONT_A, NORMAL, 1, 1)
 
         egresosDict = {"Retiros de Caja:"   :   f"{totalRetiros:,.2f}",
                        "Egresos por Pagos"  :   f"{egresosEfectivo:,.2f}",
@@ -865,12 +863,12 @@ class EscPComandos(ComandoInterface):
             printer.text(pad("-",self.cant_cols," ","l") + pad(key,self.desc_cols," ","l") + "$" + 
                          pad(egresosDict[key],self.price_cols - 1 ," ","r") + "\n")
 
-        printer.set(TXT_ALIGN_LT, FONT_A, BOLD, 1, 1) 
+        printer.set(LEFT, FONT_A, BOLD, 1, 1) 
 
         sumaEgresos = (egresosEfectivo + totalRetiros + importeFinal)
         printer.text(" " * (self.total_cols - self.price_cols)+ "$" + pad(f"{sumaEgresos:,.2f}",self.price_cols - 1, " ","r") + "\n\n")
         
-        printer.set(TXT_ALIGN_LT, FONT_A, BOLD, 1, 2, density=1,invert=True)
+        printer.set(LEFT, FONT_A, BOLD, 1, 2, density=1,invert=True)
 
         montoSaldo = float(encabezado['diferencia'])
         if (montoSaldo < 0):
@@ -894,6 +892,6 @@ class EscPComandos(ComandoInterface):
         printer.text(datetime.datetime.strftime(datetime.datetime.now(), '%d/%m/%y %H:%M'))
 
 
-        printer.set(TXT_ALIGN_LT,FONT_A, NORMAL, 1, 1)
+        printer.set(LEFT, FONT_A, NORMAL, 1, 1)
         printer.cut(PARTIAL_CUT)
         printer.end()

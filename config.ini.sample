@@ -11,6 +11,7 @@ marca = EscP
 host = 192.168.0.33
 port = 9100
 driver = ReceiptDirectJet
+cols = 42
 
 [IMPRESORA_USB]
 marca = EscP

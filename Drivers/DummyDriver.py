@@ -5,9 +5,15 @@ from DriverInterface import DriverInterface
 
 
 class DummyDriver(DriverInterface):
+    
+    
+    def __init__(self,*args,**kwargs):
+        self.cols = 48
+        print("\n\n")
     def close(self):
         pass
 
+    
     def sendCommand(self, commandNumber=None, parameters=None, skipStatusErrors=None):
         print("Enviando Comando DUMMY")
         print(commandNumber, parameters, skipStatusErrors)
@@ -17,6 +23,14 @@ class DummyDriver(DriverInterface):
     def start(self):
         """ iniciar """
         pass
+    def text(self, text:bytes):
+        text = text.replace("\x1bE\x01\x1b-\x01", "").replace("\x1b-\x00\x1bE\x00", "")
+        print("\033[1m"+text+"\033[0m")
+
+    def cut(self, text):
+        print("\n\n")
+        print(f"<--------------     CORTE    --------------->")
+        print("\n\n\n")
 
     def end(self):
         pass
@@ -24,5 +38,13 @@ class DummyDriver(DriverInterface):
     def reconnect(self):
         pass
 
-    def set(self):
-        pass
+    def set(self, *args, **kwargs): pass
+
+    def qr(*args):
+        print("OOO   OOO   OO")
+        print("O OO OO OOOOOO")
+        print("  O OO O  O   ")
+        print("O  O O OOOOOO ")
+        print(" OOO O  O O   ")
+        print(" O OO OO  O OO")
+        print("OO  O  OOO  OO")
