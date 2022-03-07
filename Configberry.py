@@ -53,7 +53,7 @@ class Configberry:
             self.config.write(configfile)
             configfile.close()
 
-        return 1;
+        return 1
 
     def __create_config_if_not_exists(self):
         newpath = os.path.dirname(os.path.realpath(__file__))
@@ -83,4 +83,4 @@ class Configberry:
             self.config.write(configfile)
             configfile.close()
 
-        return 1;
+        return 1

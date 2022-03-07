@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from tornado import gen
 import tornado.httpserver
 import tornado.websocket
@@ -10,21 +11,19 @@ import os
 import json
 import logging
 import logging.config
-import time
+import time, pyutf8
 import ssl
 import Configberry
 import threading 
-
-
 import FiscalberryDiscover
 from  tornado import web
+from ApiRest.ApiRestHandler import ApiRestHandler, AuthHandler
+
 if sys.platform == 'win32':
     from signal import signal, SIG_DFL, SIGTERM, SIGINT
 else:
     from signal import signal, SIGPIPE, SIG_DFL, SIGTERM, SIGINT
     signal(SIGPIPE,SIG_DFL)
-#API
-from ApiRest.ApiRestHandler import ApiRestHandler, AuthHandler
 
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
@@ -62,8 +61,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 
     def open(self):
         self.clients.append(self)
-        logger.info('Connection Established')
-
+        logger.info(u"Connection Established")
 
 
     def on_message(self, message):
@@ -94,12 +92,12 @@ class WSHandler(tornado.websocket.WebSocketHandler):
             logger.exception(errtxt)
             response["err"] = errtxt
 
-        logger.info("Response \n <- %s" % response)
+        logger.info(u"Response \n <- %s" % response)
         self.write_message(response)
 
     def on_close(self):
         self.clients.remove(self)
-        logger.info('connection closed')
+        logger.info("Connection Closed")
 
     def check_origin(self, origin):
         return True
@@ -114,7 +112,7 @@ class FiscalberryApp:
     timerPrinterWarnings = None
 
     def __init__(self):
-        logger.info("Preparando Fiscalberry Server")
+        logger.info(u"Preparando Fiscalberry Server")
 
         newpath = os.path.dirname(os.path.realpath(__file__))
         os.chdir(newpath)
@@ -124,7 +122,7 @@ class FiscalberryApp:
         # actualizar ip privada por si cambio
         ip = self.get_ip()
         self.configberry.writeSectionWithKwargs('SERVIDOR', {'ip_privada': ip})
-        logger.info("La IP privada es %s" % ip)
+        logger.info(u"La IP privada es %s" % ip)
 
 
         # evento para terminar ejecucion mediante CTRL+C
@@ -141,7 +139,7 @@ class FiscalberryApp:
         self.start()
 
     def shutdown(self):
-        logger.info('Stopping http server')
+        logger.info(u'Stopping http server')
 
         #logger.info('Will shutdown in %s seconds ...', MAX_WAIT_SECONDS_BEFORE_SHUTDOWN)
         io_loop = tornado.ioloop.IOLoop.current()
@@ -149,16 +147,19 @@ class FiscalberryApp:
         #deadline = time.time() + MAX_WAIT_SECONDS_BEFORE_SHUTDOWN
 
         io_loop.stop()
-        logger.info('Shutdown')
+        logger.info(u'Shutdown')
 
 
     def discover(self):
         # send discover data to your server if the is no URL configured, so nothing will be sent
-        if self.configberry.config.has_option('SERVIDOR', "discover_url"):
-            fbdiscover = FiscalberryDiscover.send(self.configberry)
+        hasopnURL  = self.configberry.config.has_option('SERVIDOR', "discover_url")
+        hasopnUUID = self.configberry.config.has_option('SERVIDOR', "uuid")
+        if hasopnURL and hasopnUUID:
+            _ = FiscalberryDiscover.send(self.configberry)
+        
 
     def start(self):
-        logger.info("Iniciando Fiscalberry Server")
+        logger.info(u"Iniciando Fiscalberry Server")
         settings = {  
             "autoreload": True          
         }
@@ -180,7 +181,7 @@ class FiscalberryApp:
         self.http_server = tornado.httpserver.HTTPServer(self.application)
         puerto = self.configberry.config.get('SERVIDOR', "puerto")
         self.http_server.listen(puerto)
-        logger.info('*** Websocket Server Started as HTTP at %s port %s***' % (myIP, puerto))
+        logger.info(u'*** Websocket Server Started as HTTP at %s port %s***' % (myIP, puerto))
 
 
         hasCrt = self.configberry.config.has_option('SERVIDOR', "ssl_crt_path")
