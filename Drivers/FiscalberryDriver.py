@@ -20,14 +20,14 @@ class FiscalberryDriver(DriverInterface):
 	printerStatusErrors = []
 
 
-	def __init__(self, host, printerName = "", port=12000, uri = "http", user = None, password = None, after_port = "api"):
+	def __init__(self, host, printername = "", port=12000, uri = "http", user = None, password = None, after_port = "api"):
 		logging.getLogger().info("conexion con JSON Driver en uri: %s, host: %s puerto: %s" % (uri, host, port))
 		self.host = host
 		self.port = port
 		self.uri = uri
 		self.user = user
 		self.password = password
-		self.printerName = printerName
+		self.printerName = printername
 		self.after_port = after_port
 		self.url = "%s://%s:%s/%s" % (uri, host, port, after_port)
 
