@@ -31,5 +31,4 @@ class TraductorInterface:
                 res = fnAction(jsonTicket[action])
                 rta.append({"action": action, "rta": res})
 
-        # vuelvo a poner la impresora que estaba por default inicializada
         return rta

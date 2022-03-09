@@ -71,8 +71,7 @@ def runTraductor(jsonTicket, queue):
             queue.put(strError)
             logging.error(strError)
 
-
-
+            
 
 class TraductoresHandler:
     """Convierte un JSON a Comando Fiscal Para Cualquier tipo de Impresora fiscal"""

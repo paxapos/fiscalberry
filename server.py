@@ -29,7 +29,7 @@ if __name__ == "__main__":
 	freeze_support()
 	
 	parser = argparse.ArgumentParser(description='servidor websockets para impresión fiscal y ESCP')
-	parser.add_argument('--discover', 
+	parser.add_argument('--discover', '-d', 
 							help='envia a la URL información de este servicio.', 
 							action='store_true')
 	args = parser.parse_args()
