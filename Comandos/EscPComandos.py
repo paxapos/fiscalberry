@@ -34,6 +34,13 @@ class EscPComandos(ComandoInterface):
 
     __preFillTrailer = None
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)        
+        self.total_cols = self.conector.driver.cols
+        self.price_cols = 12
+        self.cant_cols = 4
+        self.desc_cols =  self.total_cols - self.cant_cols - self.price_cols
+
     def _sendCommand(self, comando, skipStatusErrors=False):
         try:
             ret = self.conector.sendCommand(comando, skipStatusErrors)
