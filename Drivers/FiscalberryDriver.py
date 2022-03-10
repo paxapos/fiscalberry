@@ -5,6 +5,7 @@ import requests
 import json
 
 
+
 class FiscalberryDriver(DriverInterface):
 
 	__name__ = "FiscalberryDriver"
@@ -15,16 +16,18 @@ class FiscalberryDriver(DriverInterface):
 	printerStatusErrors = []
 
 
-	def __init__(self, host, printerName = "", port=12000, uri = "http", user = None, password = None, after_port = "api"):
-		logging.getLogger().info("conexion con JSON Driver en uri: %s, host: %s puerto: %s" % (uri, host, port))
+	def __init__(self, host, printername = "", port=12000, uri = "http", user = None, password = None, after_port = "api", timeout = 5):
+		self.logger = logging.getLogger("ProxyDriver")
+		self.logger.info(f"conexion con JSON Driver en uri: {uri}, host: {host} puerto: {port}")
 		self.host = host
 		self.port = port
 		self.uri = uri
 		self.user = user
 		self.password = password
-		self.printerName = printerName
+		self.printerName = printername
 		self.after_port = after_port
-		self.url = "%s://%s:%s/%s" % (uri, host, port, after_port)
+		self.url = f"{uri}://{host}:{port}/{after_port}"
+		self.timeout = int(timeout)
 
 	def start(self):
 		"""Inicia recurso de conexion con impresora"""
@@ -38,8 +41,7 @@ class FiscalberryDriver(DriverInterface):
 		"""Envia comando a impresora"""
 		url = self.url
 
-		logging.getLogger().info("conectando a la URL %s"%url)
-		print(jsonData)
+		self.logger.info(f"Conectando a la URL {url}")
 		headers = {'Content-type': 'application/json'}
 
 		if self.printerName and jsonData["printerName"]:
@@ -47,21 +49,22 @@ class FiscalberryDriver(DriverInterface):
 
 		try: 
 			if self.password:
-				reply = requests.post(url, data=json.dumps(jsonData), headers=headers, auth=(self.user, self.password))
+				reply = requests.post(url, data=json.dumps(jsonData), headers=headers, auth=(self.user, self.password), timeout=self.timeout)
 			else:
-				reply = requests.post(url, data=json.dumps(jsonData), headers=headers)
-			print("INICIANDO::::")
-			print(reply)
-			print(reply.content)
-			print("salio la respuesta")
-			print(reply.content)
+				reply = requests.post(url, data=json.dumps(jsonData), headers=headers, timeout=self.timeout)
 			
-			return reply.content
+			if reply.status_code == 200:
+				self.logger.info("Conexión exitosa")
+				return []
 			
 		except requests.exceptions.Timeout as e:			
 			# Maybe set up for a retry, or continue in a retry loop
-			logging.getLogger().error("timeout de conexion con la impresora fiscal")
+			# Sin timeout, si NO existe la IP de destino, queda intentando infinitamente. 
+			self.logger.error(f"Timeout de conexión con {url} después de {self.timeout} segundos")
+			return []
 
 		except requests.exceptions.RequestException as e:
 		    # catastrophic error. bail.
-		    logging.getLogger().error(str(e))
+			# Raises en caso de que exista la IP destino pero el puerto esté cerrado
+			self.logger.error(f"No se pudo establecer la conexión con {url}")
+			return []
