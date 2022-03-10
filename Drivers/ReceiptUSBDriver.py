@@ -1,13 +1,9 @@
 # -*- coding: utf-8 -*-
-
 from escpos import printer, escpos
 import threading
 import time
 import logging
 from DriverInterface import DriverInterface
-
-
-# TCP_PORT = 9100
 
 
 class ReceiptUSBDriver(printer.Usb, DriverInterface):
@@ -30,19 +26,19 @@ class ReceiptUSBDriver(printer.Usb, DriverInterface):
         self.out_ep = int(out_ep, 16)
         self.codepage = codepage
         self.cols = int(cols)
-   
+        self.logger = logging.getLogger("USBDriver")
 
     def start(self):
         try:
             self.open()
         except Exception as e:
-            logging.error("Error de la impresora: "+str(e))
+            self.logger.error("Error de la impresora: "+str(e))
 
     def end(self):
         try:
             self.close()
         except Exception as e:
-            logging.error("Error de la impresora: "+str(e))
+            self.logger.error("Error de la impresora: "+str(e))
 
     def reconnect(self):
         pass

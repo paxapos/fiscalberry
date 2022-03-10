@@ -9,10 +9,10 @@ import logging
 import logging.config
 import Configberry
 import socketio
-
-
 import FiscalberryDiscover
 from  tornado import web
+
+
 if sys.platform == 'win32':
     from signal import signal, SIG_DFL, SIGTERM, SIGINT
 else:
@@ -28,10 +28,9 @@ MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 # en config.ini
 
 root = os.path.dirname(os.path.abspath(__file__))
-
-
 logging.config.fileConfig(root+'/logging.ini')
 logger = logging.getLogger(__name__)
+
 
 class WebSocketException(Exception):
     pass
@@ -46,19 +45,18 @@ class PageHandler(tornado.web.RequestHandler):
         except IOError as e:
             self.write("404: Not Found")
 
-# inicializar intervalo para verificar que la impresora tenga papel
-#
 
 class WSHandler(tornado.websocket.WebSocketHandler):
+
     def initialize(self, ref_object):
         self.fbApp = ref_object
         self.clients = []
         self.traductor = TraductoresHandler(self, self.fbApp)
 
+
     def open(self):
         self.clients.append(self)
         logger.info('Connection Established')
-
 
 
     def on_message(self, message):
@@ -92,9 +90,11 @@ class WSHandler(tornado.websocket.WebSocketHandler):
         logger.info("Response \n <- %s" % response)
         self.write_message(response)
 
+
     def on_close(self):
         self.clients.remove(self)
         logger.info('Connection Closed')
+
 
     def check_origin(self, origin):
         return True
@@ -119,7 +119,7 @@ class FiscalberryApp:
         # actualizar ip privada por si cambio
         ip = self.get_ip()
         self.configberry.writeSectionWithKwargs('SERVIDOR', {'ip_privada': ip})
-        logger.info("La IP privada es %s" % ip)
+        logger.info(f"La IP privada es {ip}")
 
 
         # evento para terminar ejecucion mediante CTRL+C
@@ -177,7 +177,7 @@ class FiscalberryApp:
         self.http_server = tornado.httpserver.HTTPServer(self.application)
         puerto = self.configberry.config.get('SERVIDOR', "puerto")
         self.http_server.listen(puerto)
-        logger.info('*** Websocket Server Started as HTTP at %s port %s***' % (myIP, puerto))
+        logger.info(f'*** Websocket Server Started as HTTP at {myIP} port {puerto} ***')
 
 
         hasCrt = self.configberry.config.has_option('SERVIDOR', "ssl_crt_path")
@@ -194,7 +194,7 @@ class FiscalberryApp:
                     })
                 puerto = int(puerto) + 1
                 self.https_server.listen(puerto)
-                logger.info('*** Websocket Server Started as HTTPS at %s port %s***' % (myIP, puerto))
+                logger.info(f'*** Websocket Server Started as HTTPS at {myIP} port {puerto} ***')
 
         self.print_printers_resume()
        
@@ -220,16 +220,13 @@ class FiscalberryApp:
         printers = self.configberry.sections()[1:]
 
         if len(printers) > 1:
-            logger.info("Hay %s impresoras disponibles" % len(printers))
+            logger.info(f"Hay {len(printers)} impresoras disponibles")
         else:
             logger.info("Impresora disponible:")
         for printer in printers:
-            logger.info("  - %s" % printer)
-            modelo = None
+            logger.info(f"  - {printer}")
             marca = self.configberry.config.get(printer, "marca")
             driver = "default"
             if self.configberry.config.has_option(printer, "driver"):
                 driver = self.configberry.config.get(printer, "driver")
-            if self.configberry.config.has_option(printer, "modelo"):
-                modelo = self.configberry.config.get(printer, "modelo")
-            logger.info("      marca: %s, driver: %s" % (marca, driver))
+            logger.info(f"      marca: {marca}, driver: {driver}")

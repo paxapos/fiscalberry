@@ -8,9 +8,6 @@ import time
 from DriverInterface import DriverInterface
 
 
-# TCP_PORT = 9100
-
-
 class ReceiptSerialDriver(printer.Serial, DriverInterface):
     connected = False
 
@@ -34,19 +31,19 @@ class ReceiptSerialDriver(printer.Serial, DriverInterface):
         self.dsrdtr = dsrdtr
         self.codepage = codepage
         self.cols = int(cols)
-       
+        self.logger = logging.getLogger("SerialDriver")
 
     def start(self):
         try:
             self.open()
         except Exception as e:
-            logging.error("Error de la impresora: "+str(e))
+            self.logger.error("Error de la impresora: "+str(e))
 
     def end(self):
         try:
             self.close()
         except Exception as e:
-            logging.error("Error de la impresora: "+str(e))
+            self.logger.error("Error de la impresora: "+str(e))
 
     def reconnect(self):
         pass

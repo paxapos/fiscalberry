@@ -8,17 +8,13 @@ import threading
 import tornado.ioloop
 import os
 from multiprocessing import Process, Queue, Pool
+import logging
 
 import sys
 if sys.platform == 'win32':
     import multiprocessing.reduction    # make sockets pickable/inheritable
 
-
 INTERVALO_IMPRESORA_WARNING = 30.0
-import logging
-
-logger = logging.getLogger(__name__)
-
 
 def set_interval(func, sec):
     def func_wrapper():
@@ -37,11 +33,8 @@ def set_interval(func, sec):
 class TraductorException(Exception):
     pass
 
-
-
 def init_printer_traductor(printerName):
     config = Configberry.Configberry()
-
     try:
         dictSectionConf = config.get_config_for_printer(printerName)
     except KeyError as e:
@@ -58,7 +51,7 @@ def init_printer_traductor(printerName):
     return comando.traductor
 
 def runTraductor(jsonTicket, queue):
-    logging.info("mandando comando de impresora")
+    logging.info("Mandando comando de impresora")
     print(jsonTicket)
     printerName = jsonTicket['printerName']
     traductor = init_printer_traductor(printerName)
@@ -85,8 +78,7 @@ class TraductoresHandler:
         self.webSocket = webSocket
         self.fbApp = fbApp
 
-    def json_to_comando(self, jsonTicket):
-        import time        
+    def json_to_comando(self, jsonTicket): 
         traductor = None
         
         try:
@@ -146,7 +138,7 @@ class TraductoresHandler:
 
             else:
 
-                logger.error("No se pasó un comando válido")
+                logging.error("No se pasó un comando válido")
                 raise TraductorException("No se pasó un comando válido")
 
             # cerrar el driver
@@ -269,7 +261,7 @@ class TraductoresHandler:
             return rta
         except Exception:
             # ok, no quiere conectar, continuar sin hacer nada
-            print("No hay caso, probe de reconectar pero no se pudo")
+            logging.warning("No hay caso, probe de reconectar pero no se pudo")
 
     def _getActualConfig(self):
         rta = {

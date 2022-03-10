@@ -22,7 +22,7 @@ class FiscalberryComandos(ComandoInterface):
             ret = self.conector.sendCommand(comando, skipStatusErrors)
             return ret
         except PrinterException as e:
-            logging.getLogger().error("PrinterException: %s" % str(e))
+            logging.getLogger("ProxyComandos").error("PrinterException: %s" % str(e))
             raise ComandoException("Error de la impresora: %s.\nComando enviado: %s" % \
                                    (str(e), comando))
 
