@@ -1,10 +1,9 @@
 #!/bin/bash
-echo "para instalar es necesario ser superusuario "
+echo "Para instalar es necesario ser superusuario"
 
-
-apt-get install python-pip build-essential python-dev libjpeg-dev nmap
-pip install --upgrade pip
-pip install -r requirements.txt
+apt install python3-dev build-essential libjpeg-dev nmap python3-pip
+pip3 install --upgrade pip
+pip3 install -r requirements.txt
 
 
 echo -n "Instalar el servicio fiscalberry.service (y/n)? "
@@ -17,5 +16,5 @@ if echo "$answer" | grep -iq "^y" ;then
   echo "ejecutar systemctl start fiscalberry.service"
   echo "caso contrario se iniciara cuando reinicie la PC"
 else
-  echo "Finalizó todo correctamente sin instalar el daemond ni el servicio. Deberá iniciarlos manualmente."
+  echo "Finalizó todo correctamente sin instalar el Daemon ni el servicio. Deberá iniciarlos manualmente."
 fi
