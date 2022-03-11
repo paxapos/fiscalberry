@@ -208,8 +208,6 @@ class EscPComandos(ComandoInterface):
         printer.set("CENTER", "A", "A", 1, 1)
         printer.text(u"-" * self.total_cols + "\n")
 
-        print(" * * * ** *  A * * * ** * *")
-
         if encabezado.has_key("nombre_cliente"):
             nombre_cliente = u"A "+encabezado.get("nombre_cliente")
             tipo_responsable_cliente = u""+encabezado.get("tipo_responsable_cliente")
@@ -240,9 +238,7 @@ class EscPComandos(ComandoInterface):
             printer.set("LEFT", "A", "B", 1,1)
             printer.text(u'CANT'+"        DESCRIPCION".center(self.desc_cols," ")+pad("IMPORTE", self.price_cols, " ", "r")+'\n\n')
         
-        
-        print("antes de items")
-        
+                
         itemIvas = {}
         
         for item in items:
@@ -282,8 +278,6 @@ class EscPComandos(ComandoInterface):
                 preciotxt = pad( total_producto, self.price_cols, " ", "r")
                 printer.text(  u""+itemcanttxt + dstxt  + preciotxt + "\n" )
 
-            print("Item Impreso")
-
 
         tot_neto = float( encabezado.get("importe_neto") )
         tot_iva  = float( encabezado.get("importe_iva") ) 
@@ -314,11 +308,9 @@ class EscPComandos(ComandoInterface):
 
         if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
             # imprimir subtotal
-            print(u" * * * ** *  B * * * ** * *")
             printer.text(pad(u"Total Sin IVA",self.total_cols-self.price_cols, " ", "l") 
                         + "$" + pad("{:,.2f}".format(round(tot_neto, 2)),self.price_cols-1, " ", "r")+"\n")
 
-            print(u" * * * ** *  C * * * ** * *")
             for nameiva, importeiva in itemIvas.items():
                 printer.text(pad("IVA %s " % (str(nameiva)+"%"),self.total_cols-self.price_cols, " ", "l") 
                             + "$" + pad("{:,.2f}".format(round(importeiva * descuentoRatio, 2)),self.price_cols-1, " ", "r")+"\n")
@@ -364,28 +356,27 @@ class EscPComandos(ComandoInterface):
         qrcode = {
             "ver":1,
             "fecha":fecha,
-            "cuit": encabezado.get("cuit_empresa"),
+            "cuit": int(encabezado.get("cuit_empresa")),
             "ptoVta":pdv,
-            "tipoCmp":encabezado.get("tipo_comprobante"),
+            "tipoCmp":int(encabezado.get('tipo_comprobante_codigo')),
             "nroCmp":numticket,
-            "importe":encabezado.get("importe_total"),
-            "moneda":"PES", #pesos argentinoa
-            "ctz":1,
-           
+            "importe": total,
+            "moneda":"PES",
+            "ctz":1,           
             "tipoCodAut":"E",
-            "codAut":encabezado.get("cae"),
+            "codAut":int(encabezado.get("cae")),
         }
 
         if ( encabezado.get("documento_cliente") ) :
-            qrcode["tipoDocRec"] = encabezado.get("tipoDocRec")
-            qrcode["nroDocRec"]  = encabezado.get("documento_cliente")
+            qrcode["tipoDocRec"] = int(encabezado.get("tipoDocRec"))
+            qrcode["nroDocRec"]  = int(encabezado.get("documento_cliente"))
         
 
         printer.set("CENTER", "A", "A", 1, 1)
         printer.text(u"Comprobante Autorizado por AFIP\n")
         # QR nueva disposicion de la AFIP
         jsonqr = json.dumps(qrcode)
-        qrcode = base64.encodestring( jsonqr )
+        qrcode = base64.encodestring( jsonqr.encode() ).replace("\n", "")
         
         if qrcode:
             data = "https://www.afip.gob.ar/fe/qr/?p="+qrcode
@@ -510,7 +501,7 @@ class EscPComandos(ComandoInterface):
             fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M %x')
             printer.text(u"Fecha: %s \n\n\n" % fecha)
         printer.text(u"Verifique su cuenta por favor\n")
-        printer.text(u"NO VÁLIDO COMO FACTURA\n\n")
+        printer.text(u"NO VALIDO COMO FACTURA\n\n")
 
         if encabezado:
             printer.set("CENTER", "A", "A", 1, 2)
