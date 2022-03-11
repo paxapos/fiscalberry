@@ -162,7 +162,8 @@
     <br/>
     <input type="button" id="msg-get-printers" value="Listar Impresoras"/>
     <input type="button" id="msg-drawer" value="Mensaje Open Drawer"/>
-    <input type="button" id="msg-ticket" value="Fact. Electrónica" />
+    <input type="button" id="msg-ticketA" value="Factura A" />
+    <input type="button" id="msg-ticketB" value="Factura B" />
     <input type="button" id="msg-comanda" value="Comanda" />
     <input type="button" id="msg-remito" value="Remito" />
     <input type="button" id="msg-arqueo" value="Arqueo" />
@@ -407,10 +408,14 @@
         ponerJSONenTextarea(comandaString);
     });
 
-    $("#msg-ticket").on('click', function () {
-        ponerJSONenTextarea(facturaElectronicaString);
+    $("#msg-ticketA").on('click', function () {
+        ponerJSONenTextarea(facturaAElectronicaString);
     });
-
+    
+    $("#msg-ticketB").on('click', function () {
+        ponerJSONenTextarea(facturaBElectronicaString);
+    });
+    
     $("#msg-arqueo").on('click', function () {
         ponerJSONenTextarea(arqueoString);
     });
@@ -425,38 +430,41 @@
 
 
     var remitoString =
-        '{"printRemito": {\
+        '{\
+            "printRemito": {\
                 "encabezado": {\
                     "tipo_cbte": "T",\
-                    "imprimir_fecha_remito": 1,\
-                    "tipo_responsable": "CONSUMIDOR_FINAL",\
-                    "tipo_doc": "SIN_CALIFICADOR",\
-                    "domicilio_cliente": "Avenida Siempreviva 742",\
-                    "nombre_cliente": "Cliente Ejemplo"\
+                    "imprimir_fecha_remito": 1\
                 },\
                 "items": [{\
-                    "importe": 950,\
-                    "ds": "ARROZ C/ CALAMARES",\
-                    "qty": 1\
+                    "importe": 780,\
+                    "ds": "CAZUELA DE MARISCOS",\
+                    "qty": 2\
+                }, {\
+                    "importe": 320,\
+                    "ds": "COCA COLA",\
+                    "qty": 2\
+                }, {\
+                    "importe": 170,\
+                    "ds": "AGUA MINERAL",\
+                    "qty": 3\
+                }, {\
+                    "importe": 1290,\
+                    "ds": "Rabas",\
+                    "qty": 2\
                 }, {\
                     "importe": 100,\
                     "ds": "Cubiertos",\
-                    "qty": "2"\
+                    "qty": "4"\
                 }],\
                 "pagos": [{\
-                    "ds": "Efectivo",\
-                    "importe": 460\
+                    "ds": "Tarjeta Master Card",\
+                    "importe": 3500\
                 }, {\
-                    "ds": "Tarjeta Visa Debito",\
-                    "importe": 460\
+                    "ds": "Efectivo",\
+                    "importe": 2190\
                 }],\
-                "addAdditional": {\
-                    "description": "20%",\
-                    "amount": 230,\
-                    "iva": "21.00",\
-                    "negative": true\
-                },\
-                "setTrailer": [" ", "Mozo: Mozo Omar", "Mesa: Mesa 35", " "]\
+                "setTrailer": [" ", "Mozo: Ejemplo", "Mesa: 15", " "]\
             }\
         }'
     var comandaString =
@@ -473,56 +481,138 @@
                         "cant": 1\
                     }]\
                 },\
-                "setTrailer": ["", "Mozo: Mozo Roberto", "Mesa: 151", ""]\
+                "setTrailer": ["", "Mozo: Ejemplo", "Mesa: 151", ""]\
             }\
         }'
-    var facturaElectronicaString =
+    var facturaBElectronicaString =
         '{\
             "printFacturaElectronica": {\
                 "encabezado": {\
-                    "nombre_comercio": "Nombre de Fantasía",\
-                    "razon_social": "Empresa SRL",\
-                    "cuit_empresa": "30998887771",\
+                    "nombre_comercio": "Nombre de Fantasia",\
+                    "razon_social": "Razon Social",\
+                    "cuit_empresa": "30998887770",\
                     "ingresos_brutos": false,\
-                    "domicilio_comercial": "Avenida Siempreviva 742",\
+                    "domicilio_comercial": "Domicilio Comercial 1945",\
                     "tipo_responsable": "IVA Responsable Inscripto",\
-                    "inicio_actividades": "01/12/2020",\
+                    "inicio_actividades": "07/08/1999",\
                     "tipo_comprobante": "Factura B",\
                     "tipo_comprobante_codigo": "006",\
-                    "numero_comprobante": "0005-00056017",\
-                    "fecha_comprobante": "08/10/2021",\
+                    "numero_comprobante": "0001-00000200",\
+                    "fecha_comprobante": "11/03/2022",\
                     "domicilio_cliente": "",\
-                    "barcode_url": "http://www.paxapos.com/santiago_petrungaro/printers/afip_facturas/img_barcode/c4fd1071-4baf-4be3-b6e4-ccb1c7c4a025",\
-                    "cae": "1234567890",\
-                    "cae_vto": "18/10/2021",\
-                    "fecha_facturacion": "08/10/2021",\
-                    "importe_total": "121",\
-                    "importe_neto": "100",\
-                    "importe_iva": "21",\
+                    "cae": "72108989737919",\
+                    "cae_vto": "21/03/2022",\
+                    "fecha_facturacion": "11/03/2022",\
+                    "importe_total": "4552.00",\
+                    "importe_neto": "4022.08",\
+                    "importe_iva": "529.92",\
                     "moneda": "PES",\
                     "ctz": 1,\
                     "tipoDocRec": 99,\
                     "tipoCodAut": "E"\
                 },\
                 "items": [{\
-                    "ds": "ARROZ C/ CALAMARES",\
-                    "qty": "1",\
-                    "importe": 950,\
+                    "ds": "Rabas",\
+                    "qty": "2",\
+                    "importe": 1290,\
+                    "alic_iva": "10.50"\
+                }, {\
+                    "ds": "COCA COLA",\
+                    "qty": "2",\
+                    "importe": 320,\
                     "alic_iva": "21.00"\
                 }, {\
-                    "ds": "Cubiertos",\
+                    "ds": "AGUA MINERAL",\
+                    "qty": "3",\
+                    "importe": 170,\
+                    "alic_iva": "21.00"\
+                }, {\
+                    "ds": "CAZUELA DE MARISCOS",\
                     "qty": "2",\
+                    "importe": 780,\
+                    "alic_iva": "10.50"\
+                }, {\
+                    "ds": "Cubiertos",\
+                    "qty": "4",\
                     "importe": "100",\
                     "alic_iva": "21.00"\
                 }],\
                 "addAdditional": {\
                     "description": "20%",\
                     "descuento_porcentaje": "20.0000",\
-                    "amount": 230,\
+                    "amount": 1138,\
                     "iva": "21.00",\
                     "negative": true\
                 },\
-                "setTrailer": [" ", "Mozo: Mozo Omar", "Mesa: Mesa", " "]\
+                "setTrailer": [" ", "Mozo: Eugenia", "Mesa: 20", " "]\
+            }\
+        }'
+    var facturaAElectronicaString =
+        '{\
+            "printFacturaElectronica": {\
+                "encabezado": {\
+                    "nombre_comercio": "El Patio DEV",\
+                    "razon_social": "ale vilar",\
+                    "cuit_empresa": "20303683268",\
+                    "ingresos_brutos": false,\
+                    "domicilio_comercial": "Un domicilio 211212",\
+                    "tipo_responsable": "IVA Responsable Inscripto",\
+                    "inicio_actividades": "212121212",\
+                    "tipo_comprobante": "Factura A",\
+                    "tipo_comprobante_codigo": "001",\
+                    "numero_comprobante": "0001-00000056",\
+                    "fecha_comprobante": "11/03/2022",\
+                    "nombre_cliente": "Google ",\
+                    "nombre_tipo_documento": "CUIT",\
+                    "documento_cliente": "33709585229",\
+                    "tipo_responsable_cliente": "Resp. Inscripto",\
+                    "domicilio_cliente": "",\
+                    "barcode_url": "http://dev.paxapos.com/ale/printers/afip_facturas/img_barcode/0dbf1f26-ba2a-43f6-8746-0e4e63c0813a",\
+                    "cae": "72108989740083",\
+                    "cae_vto": "21/03/2022",\
+                    "fecha_facturacion": "11/03/2022",\
+                    "importe_total": "4552.00",\
+                    "importe_neto": "4022.08",\
+                    "importe_iva": "529.92",\
+                    "moneda": "PES",\
+                    "ctz": 1,\
+                    "tipoDocRec": "80",\
+                    "tipoCodAut": "E"\
+                },\
+                "items": [{\
+                    "ds": "CAZUELA DE MARISCOS",\
+                    "qty": "2",\
+                    "importe": 780,\
+                    "alic_iva": "10.50"\
+                }, {\
+                    "ds": "Rabas",\
+                    "qty": "2",\
+                    "importe": 1290,\
+                    "alic_iva": "10.50"\
+                }, {\
+                    "ds": "COCA COLA",\
+                    "qty": "2",\
+                    "importe": 320,\
+                    "alic_iva": "21.00"\
+                }, {\
+                    "ds": "AGUA MINERAL",\
+                    "qty": "3",\
+                    "importe": 170,\
+                    "alic_iva": "21.00"\
+                }, {\
+                    "ds": "Cubiertos",\
+                    "qty": "4",\
+                    "importe": "100",\
+                    "alic_iva": "21.00"\
+                }],\
+                "addAdditional": {\
+                    "description": "20%",\
+                    "descuento_porcentaje": "20.0000",\
+                    "amount": 1138,\
+                    "iva": "21.00",\
+                    "negative": true\
+                },\
+                "setTrailer": [" ", "Mozo: Eugenia", "Habitacion: Ejemplos", " "]\
             }\
         }'
     var arqueoString = 
