@@ -124,8 +124,8 @@ class TraductoresHandler:
             elif 'getPrinterInfo' in jsonTicket:
                 rta["rta"] =  self._getPrinterInfo(jsonTicket["getPrinterInfo"])
 
-            elif 'getAvaliablePrinters' in jsonTicket:
-                rta["rta"] = self._getAvaliablePrinters()
+            elif 'getAvailablePrinters' in jsonTicket:
+                rta["rta"] = self._getAvailablePrinters()
 
             elif 'getActualConfig' in jsonTicket:
                 rta["rta"] = self._getActualConfig()
@@ -231,11 +231,11 @@ class TraductoresHandler:
 
 
 
-    def _getAvaliablePrinters(self):
+    def _getAvailablePrinters(self):
 
         # la primer seccion corresponde a SERVER, el resto son las impresoras
         rta = {
-            "action": "getAvaliablePrinters",
+            "action": "getAvailablePrinters",
             "rta": self.config.sections()[1:]
         }
 

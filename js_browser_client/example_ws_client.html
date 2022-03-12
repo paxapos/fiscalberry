@@ -161,6 +161,7 @@
 
     <br/>
     <input type="button" id="msg-get-printers" value="Listar Impresoras"/>
+    <input type="button" id="msg-status" value="Status"/>
     <input type="button" id="msg-drawer" value="Mensaje Open Drawer"/>
     <input type="button" id="msg-ticketA" value="Factura A" />
     <input type="button" id="msg-ticketB" value="Factura B" />
@@ -292,8 +293,8 @@
 
 
     // Handle msg recibido del server.py
-    fbrry.on("fb:rta:getAvaliablePrinters", function (ob, evt) {
-        console.info("Vino RTA DE  getAvaliablePrinters: %o", evt.data);
+    fbrry.on("fb:rta:getAvailablePrinters", function (ob, evt) {
+        console.info("Vino RTA de getAvailablePrinters: %o", evt.data);
 
         var $select = $("<select>"),
                 ops, val;
@@ -387,19 +388,19 @@
         }
         $("#message").html(JSON.stringify(jsontemp));
     }
-
-    $(document).on('click', "#msg-drawer", function () {
-        ponerJSONenTextarea('{"openDrawer": true}');
-
+   
+    $("#msg-get-printers").on('click', function () {
+        $("#message").html('{"getAvailablePrinters":""}');
+    });
+    
+    $("#msg-drawer").on('click', function(){
+        ponerJSONenTextarea('{"openDrawer": true}')
     });
 
-    $(document).on('click', "#msg-status", function () {
+    $("#msg-status").on('click', function () {
         ponerJSONenTextarea('{"getStatus": {}}');
     });
 
-    $("#msg-get-printers").on('click', function () {
-        ponerJSONenTextarea('{"getAvaliablePrinters": ""}');
-    });
     $("#msg-remito").on('click', function () {
         ponerJSONenTextarea(remitoString);
     });
@@ -425,7 +426,6 @@
     $("#open").on("click", function (evt) {
         evt.preventDefault();
         startWs();
-
     });
 
 
@@ -691,17 +691,18 @@
             }\
         }'
 
+
     $("div#message_details").hide();
 
 
-    //startWs();
-
+    
     // Send websocket message function
     $("#send").on("click", function (evt) {
         log("Sending Message: " + $("#message").val());
         fbrry.send($("#message").val());
     });
-
+    
+    startWs();
 
 </script>
 
