@@ -1,6 +1,5 @@
-
 import tornado
-from tornado import gen, httpserver, websocket, ioloop, web
+from tornado import httpserver, websocket, ioloop, web
 from Traductores.TraductoresHandler import TraductoresHandler, TraductorException
 import sys
 import socket
@@ -36,7 +35,7 @@ class WebSocketException(Exception):
     pass
 
 
-class PageHandler(tornado.web.RequestHandler):
+class PageHandler(web.RequestHandler):
     def get(self):
         try:
             with open(os.path.join(root + "/js_browser_client", 'example_ws_client.html')) as f:
@@ -46,7 +45,7 @@ class PageHandler(tornado.web.RequestHandler):
             self.write("404: Not Found")
 
 
-class WSHandler(tornado.websocket.WebSocketHandler):
+class WSHandler(websocket.WebSocketHandler):
 
     def initialize(self, ref_object):
         self.fbApp = ref_object
@@ -124,8 +123,8 @@ class FiscalberryApp:
 
         # evento para terminar ejecucion mediante CTRL+C
         def sig_handler(sig, frame):
-            logger.info('Caught signal: %s', sig)
-            tornado.ioloop.IOLoop.instance().add_callback(self.shutdown)
+            logger.info(f'Caught signal: {sig}')
+            ioloop.IOLoop.current().add_callback_from_signal(self.shutdown)
 
         signal(SIGTERM, sig_handler)
         signal(SIGINT, sig_handler)       
@@ -160,7 +159,7 @@ class FiscalberryApp:
             "autoreload": True          
         }
 
-        self.application = tornado.web.Application([
+        self.application = web.Application([
             (r'/wss', WSHandler, {"ref_object" : self}),
             (r'/ws', WSHandler, {"ref_object" : self}),
             (r'/api', ApiRestHandler),
@@ -174,7 +173,7 @@ class FiscalberryApp:
 
         myIP = socket.gethostbyname(socket.gethostname())
 
-        self.http_server = tornado.httpserver.HTTPServer(self.application)
+        self.http_server = httpserver.HTTPServer(self.application)
         puerto = self.configberry.config.get('SERVIDOR', "puerto")
         self.http_server.listen(puerto)
         logger.info(f'*** Websocket Server Started as HTTP at {myIP} port {puerto} ***')
@@ -187,7 +186,7 @@ class FiscalberryApp:
             ssl_crt_path = self.configberry.config.get('SERVIDOR', "ssl_crt_path")
             ssl_key_path = self.configberry.config.get('SERVIDOR', "ssl_key_path")
             if ( ssl_crt_path and ssl_key_path ):
-                self.https_server = tornado.httpserver.HTTPServer(self.application, ssl_options=
+                self.https_server = httpserver.HTTPServer(self.application, ssl_options=
                     {
                         "certfile": ssl_crt_path,
                         "keyfile": ssl_key_path,
@@ -198,8 +197,8 @@ class FiscalberryApp:
 
         self.print_printers_resume()
        
-        tornado.ioloop.IOLoop.current().start()
-        tornado.ioloop.IOLoop.current().close()
+        ioloop.IOLoop.current().start()
+        ioloop.IOLoop.current().close()
 
         logger.info("Bye!")
 
