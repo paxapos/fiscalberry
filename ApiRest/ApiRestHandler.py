@@ -87,7 +87,7 @@ class ApiRestHandler(tornado.web.RequestHandler):
         traductor = self.traductor
         body = self.body
         response = {}
-        logging.info(f"Request \n -> {body}")
+        logging.getLogger("ApiRestHandler").info(f"Request \n -> {body}")
 
         try:
             response = traductor.json_to_comando(body)
@@ -133,5 +133,5 @@ class ApiRestHandler(tornado.web.RequestHandler):
             import sys, traceback
             traceback.print_exc(file=sys.stdout)
 
-        logging.info("Response \n <- %s" % response)
+        logging.getLogger("ApiRestHandler").info("Response \n <- %s" % response)
         self.write(response)
