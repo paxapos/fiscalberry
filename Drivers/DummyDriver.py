@@ -12,6 +12,7 @@ class DummyDriver(DriverInterface):
         self.cols = 48
         self.align = "LEFT"
         self.font = "NORMAL"
+        self.connected = True
         print("\n\n")
 
     def start(self): pass

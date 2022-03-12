@@ -58,3 +58,7 @@ class TraductorReceipt(TraductorInterface):
     def printArqueo(self, **kwargs):
         "Imprimir Cierre de Caja"
         return self.comando.printArqueo(**kwargs)
+
+    def getStatus(self, **kwargs):
+        "Devuelve la ip si es DirectJet"
+        return self.comando.getStatus()
