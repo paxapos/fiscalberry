@@ -5,7 +5,7 @@ from Traductores.TraductoresHandler import TraductoresHandler, TraductorExceptio
 from Configberry import Configberry
 import socketio
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("SocketIOClient")
 
 class SioClientHandler():
 
@@ -13,12 +13,11 @@ class SioClientHandler():
 
         self.serverUrl = Configberry.config.get("SERVIDOR","sio_host")
         self.serverPort = Configberry.config.get("SERVIDOR","sio_port")
-        self.uuid = Configberry.config.get("SERVIDOR","uuid")
         self.password = Configberry.config.get("SERVIDOR","sio_password")
         self.traductor = TraductoresHandler(self)        
 
-    def startSioClient(self):
-        sio = socketio.Client(logger=logger)
+    def startSioClient(self, uuid):
+        sio = socketio.Client(logger = logger)
 
         def on_comando(comando):
             traductor = self.traductor
@@ -48,11 +47,11 @@ class SioClientHandler():
                 response["err"] = errtxt
     
             logger.info("Response \n <- %s" % response)
-            sio.emit('response', response)
+            return response
         
         @sio.event
         def connect():
-            print(self.uuid)
+            print(uuid)
             
 
         @sio.event
@@ -62,12 +61,12 @@ class SioClientHandler():
         @sio.event
         def command(msg):
             print(msg)
-            on_comando(msg)
+            return on_comando(msg)
 
 
         try:
             url = f"http://{self.serverUrl}:{self.serverPort}"
-            sio.connect(url = url, socketio_path = "/socket.io/", headers = {"X_UUID":self.uuid, "X_PWD": self.password})
+            sio.connect(url = url, socketio_path = "/socket.io/", headers = {"X_UUID":uuid, "X_PWD": self.password})
         except Exception as e:
             logging.getLogger("Client").error(f"Error {e}")
         sio.wait()
