@@ -84,14 +84,14 @@ class ApiRestHandler(tornado.web.RequestHandler):
         else:
             self.body = None
 
-    def post(self):
+    async def post(self):
         traductor = self.traductor
         body = self.body
         response = {}
         logging.getLogger("ApiRestHandler").info(f"Request \n -> {body}")
 
         try:
-            response = asyncio.run(traductor.json_to_comando(body))
+            response = await traductor.json_to_comando(body)
         except TypeError as e:
             self.set_status(HTTP_CODE_BAD_REQUEST)
             errtxt = "Error parseando el JSON %s" % e
