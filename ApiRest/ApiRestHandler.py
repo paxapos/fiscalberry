@@ -1,5 +1,6 @@
 # coding=utf-8
 
+import asyncio
 import tornado.httpserver
 import tornado.web
 import socket
@@ -90,7 +91,7 @@ class ApiRestHandler(tornado.web.RequestHandler):
         logging.getLogger("ApiRestHandler").info(f"Request \n -> {body}")
 
         try:
-            response = traductor.json_to_comando(body)
+            response = asyncio.run(traductor.json_to_comando(body))
         except TypeError as e:
             self.set_status(HTTP_CODE_BAD_REQUEST)
             errtxt = "Error parseando el JSON %s" % e

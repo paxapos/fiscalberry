@@ -16,7 +16,6 @@ class SioClientHandler():
         self.uuid = Configberry.config.get("SERVIDOR","uuid")
         self.password = Configberry.config.get("SERVIDOR","sio_password")
         self.traductor = TraductoresHandler(self)        
-        
 
     def startSioClient(self):
         sio = socketio.Client(logger=logger)
