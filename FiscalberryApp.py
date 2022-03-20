@@ -145,7 +145,7 @@ class FiscalberryApp:
         logger.info('Stopping http server')
         io_loop = ioloop.IOLoop.current()
         if self.sioProcess:
-            self.sioProcess.terminate()
+            self.sioProcess.join(timeout=3)
         io_loop.stop()
         logger.info('Shutdown')
 
@@ -232,7 +232,7 @@ class FiscalberryApp:
             logger.info("Iniciando Socket.io Client")
             from SioClientHandler import SioClientHandler
             self.socketio = SioClientHandler()
-            self.sioProcess = multiprocessing.Process(target = self.socketio.startSioClient, args=(), name="SocketIOClient")
+            self.sioProcess = multiprocessing.Process(target = self.socketio.startSioClient, args=(self.configberry.config.get("SERVIDOR", "uuid"),), name="SocketIOClient")
             self.sioProcess.start()
 
 
