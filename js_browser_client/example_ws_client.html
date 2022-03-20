@@ -362,7 +362,7 @@
         $(".panel_configuracion").val("Abrir panel de configuración de Fiscalberry");
         $("#listadoImpresoras").children(".impresora").remove();
         $("#sectionServidor").children("label[name='port_label'], input[name='server_port']").remove();
-        fbrry.send('{ "getActualConfig":"" }');
+        fbrry.send('{ "getActualConfig":"password" }');
     });
 
 
@@ -567,7 +567,6 @@
                     "documento_cliente": "33709585229",\
                     "tipo_responsable_cliente": "Resp. Inscripto",\
                     "domicilio_cliente": "",\
-                    "barcode_url": "http://dev.paxapos.com/ale/printers/afip_facturas/img_barcode/0dbf1f26-ba2a-43f6-8746-0e4e63c0813a",\
                     "cae": "72108989740083",\
                     "cae_vto": "21/03/2022",\
                     "fecha_facturacion": "11/03/2022",\

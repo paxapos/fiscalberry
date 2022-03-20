@@ -1,3 +1,5 @@
+import multiprocessing
+import socketio
 import tornado
 from tornado import httpserver, websocket, ioloop, web
 from Traductores.TraductoresHandler import TraductoresHandler, TraductorException
@@ -58,13 +60,13 @@ class WSHandler(websocket.WebSocketHandler):
         logger.info('Connection Established')
 
 
-    def on_message(self, message):
+    async def on_message(self, message):
         traductor = self.traductor
         response = {}
         logger.info("Request \n -> %s" % message)
         try:
             jsonMes = json.loads(message, strict=False)
-            response = traductor.json_to_comando(jsonMes)
+            response = await traductor.json_to_comando(jsonMes)
         except TypeError as e:
             errtxt = "Error parseando el JSON %s" % e
             logger.exception(errtxt)
@@ -104,6 +106,11 @@ class FiscalberryApp:
     http_server = None
     https_server = None
 
+    socketio = None
+    sioServerTornadoHandler = None
+    sioProcess = None
+    sio = None
+
     # thread timer para hacer broadcast cuando hay mensaje de la impresora
     timerPrinterWarnings = None
 
@@ -136,12 +143,9 @@ class FiscalberryApp:
 
     def shutdown(self):
         logger.info('Stopping http server')
-
-        #logger.info('Will shutdown in %s seconds ...', MAX_WAIT_SECONDS_BEFORE_SHUTDOWN)
-        io_loop = tornado.ioloop.IOLoop.current()
-
-        #deadline = time.time() + MAX_WAIT_SECONDS_BEFORE_SHUTDOWN
-
+        io_loop = ioloop.IOLoop.current()
+        if self.sioProcess:
+            self.sioProcess.terminate()
         io_loop.stop()
         logger.info('Shutdown')
 
@@ -153,20 +157,31 @@ class FiscalberryApp:
         if hasopnURL and hasopnUUID:
             fbdiscover = FiscalberryDiscover.send(self.configberry)
 
-    def start(self):
+
+    def start(self, isSioServer = False, isSioClient = False):
+
+        self.isSioServer = isSioServer
+        self.isSioClient = isSioClient
+        
+        self.startSocketIO()
+
         logger.info("Iniciando Fiscalberry Server")
         settings = {  
-            "autoreload": True          
+            "autoreload": True
         }
 
         self.application = web.Application([
+            
+            (r'/socket.io/', self.sioServerTornadoHandler),
             (r'/wss', WSHandler, {"ref_object" : self}),
             (r'/ws', WSHandler, {"ref_object" : self}),
             (r'/api', ApiRestHandler),
             (r'/api/auth', AuthHandler),
             (r'/', PageHandler),
-            (r"/(.*)", web.StaticFileHandler, dict(path=root + "/js_browser_client")),
+            (r"/(.*)", web.StaticFileHandler, dict(path=root + "/js_browser_client"))
+
         ], **settings)
+        # self.application.add_handlers(r'/socket.io/', socketio.get_tornado_handler(self.sio))
 
         # cuando cambia el config.ini levanta devuelta el servidor tornado
         tornado.autoreload.watch("config.ini")
@@ -199,8 +214,27 @@ class FiscalberryApp:
        
         ioloop.IOLoop.current().start()
         ioloop.IOLoop.current().close()
-
+        if self.sioProcess:
+            self.sioProcess.terminate()
         logger.info("Bye!")
+
+    def startSocketIO(self):
+        
+        if (self.isSioServer and not self.isSioClient): 
+            logger.info("Iniciando Socket.io Server")           
+            import SioServerHandler
+            self.socketio = SioServerHandler
+            sio = self.socketio.sio
+            self.sioServerTornadoHandler = socketio.get_tornado_handler(sio)
+            self.socketio.password = self.configberry.config.get("SERVIDOR", "sio_password", fallback = "password")
+
+        if (self.isSioClient and not self.isSioServer):
+            logger.info("Iniciando Socket.io Client")
+            from SioClientHandler import SioClientHandler
+            self.socketio = SioClientHandler()
+            self.sioProcess = multiprocessing.Process(target = self.socketio.startSioClient, args=(), name="SocketIOClient")
+            self.sioProcess.start()
+
 
     def get_ip(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

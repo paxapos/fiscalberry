@@ -18,3 +18,4 @@ cryptography
 gitpython
 dicttoxml
 libusb
+python-socketio

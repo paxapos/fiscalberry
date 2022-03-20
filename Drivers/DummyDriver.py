@@ -1,7 +1,5 @@
 # -*- coding: iso-8859-1 -*-
 import random
-from webbrowser import Elinks
-
 from DriverInterface import DriverInterface
 
 
