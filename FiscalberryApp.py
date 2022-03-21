@@ -214,8 +214,6 @@ class FiscalberryApp:
        
         ioloop.IOLoop.current().start()
         ioloop.IOLoop.current().close()
-        if self.sioProcess:
-            self.sioProcess.terminate()
         logger.info("Bye!")
 
     def startSocketIO(self):
