@@ -1,9 +1,9 @@
 #!/bin/bash
 echo "Para instalar es necesario ser superusuario"
 
-#apt install python3-dev build-essential libjpeg-dev nmap python3-pip
-#pip3 install --upgrade pip
-#pip3 install -r requirements.txt
+apt install python3-dev build-essential libjpeg-dev nmap python3-pip
+pip3 install --upgrade pip
+pip3 install -r requirements.txt
 
 
 echo -n "Instalar el servicio fiscalberry.service (y/n)? "
