@@ -191,6 +191,8 @@
 <script>
     // instancio la clase Fiscalberry del archivo fiscablerry.js
     var fbrry = new Fiscalberry();
+    $("#host").val(window.location.hostname)
+    $("#port").val(window.location.port)
 
     // log function
     log = function (txt) {
