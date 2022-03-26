@@ -223,6 +223,7 @@ class FiscalberryApp:
             import SioServerHandler
             self.socketio = SioServerHandler
             sio = self.socketio.sio
+            sio.eio.cors_allowed_origins = "*"
             self.sioServerTornadoHandler = socketio.get_tornado_handler(sio)
             self.socketio.password = self.configberry.config.get("SERVIDOR", "sio_password", fallback = "password")
 
