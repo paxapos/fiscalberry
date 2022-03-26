@@ -100,17 +100,19 @@ class EscPComandos(ComandoInterface):
 
     def printPedido(self, **kwargs):
         "imprimir pedido de compras"
-        printer = self.conector.driver
 
         encabezado = kwargs.get("encabezado", None)
         items = kwargs.get("items", [])
 
+        if encabezado is None or len(items) == 0:
+            logging.getLogger("EscP-Comandos").error("No hay datos suficientes para imprimir")
+            return False
+
+        printer = self.conector.driver
+
         printer.start()
         
         printer.set(CENTER, FONT_A, NORMAL, 1, 1)
-        
-        # colocar en modo ESC P
-        #printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "1")
 
         if "es_pedido" in encabezado:
             printer.text(u"Nuevo Pedido \n")
@@ -197,28 +199,32 @@ class EscPComandos(ComandoInterface):
     def printFacturaElectronica(self, **kwargs):
         "Imprimir Factura Electronica"
 
-        printer = self.conector.driver
-
         # Secciones de la Factura
-        encabezado    = kwargs.get("encabezado", None)
-        items         = kwargs.get("items", None)
-        pagos         = kwargs.get("pagos", [])
+        encabezado = kwargs.get("encabezado", None)
+        items = kwargs.get("items", [])
+        pagos = kwargs.get("pagos", [])
         addAdditional = kwargs.get("addAdditional", False)
-        setTrailer    = kwargs.get("setTrailer", False)
+        setTrailer = kwargs.get("setTrailer", False)
+
+        if encabezado is None or len(items) == 0:
+            logging.getLogger("EscP-Comandos").error("No hay datos suficientes para imprimir")
+            return False
+
             
         tiposInscripto = ["Factura A", "NOTAS DE CREDITO A", "Factura M", "NOTAS DE CREDITO M"]
         tiposNC        = ["NOTAS DE CREDITO A", "NOTAS DE CREDITO B", "NOTAS DE CREDITO C" "NOTAS DE CREDITO M"]
         
+        printer = self.conector.driver
         printer.start()
         
 
         # 1- DATOS DEL COMERCIO
-        nombreComercio      = encabezado.get('nombre_comercio')
-        razonSocial         = encabezado.get('nombre_comercio')
-        cuitComercio        = encabezado.get('cuit_empresa')
-        ingresosBrutos      = encabezado.get('ingresos_brutos')
-        domicilioComercial  = encabezado.get('domicilio_comercial')
-        inicioActividades   = encabezado.get('inicio_actividades')
+        nombreComercio = encabezado.get('nombre_comercio')
+        razonSocial = encabezado.get('nombre_comercio')
+        cuitComercio = encabezado.get('cuit_empresa')
+        ingresosBrutos = encabezado.get('ingresos_brutos')
+        domicilioComercial = encabezado.get('domicilio_comercial')
+        inicioActividades = encabezado.get('inicio_actividades')
         tipoResponsabilidad = encabezado.get('tipo_responsable')
 
         printer.set(CENTER, FONT_A, BOLD, 2, 1)
@@ -238,12 +244,12 @@ class EscPComandos(ComandoInterface):
         printer.text("-" * self.total_cols + "\n")
 
         # 2- IDENTIFICACIÓN DEL COMPROBANTE
-        tipoComprobante     = encabezado.get('tipo_comprobante')
-        tipoCmp             = encabezado.get('tipo_comprobante_codigo')
-        nroComprobante      = encabezado.get('numero_comprobante')
-        fechaComprobante    = encabezado.get('fecha_comprobante')
-        cae                 = encabezado.get("cae")
-        caeVto              = encabezado.get("cae_vto")
+        tipoComprobante = encabezado.get('tipo_comprobante')
+        tipoCmp = encabezado.get('tipo_comprobante_codigo')
+        nroComprobante = encabezado.get('numero_comprobante')
+        fechaComprobante = encabezado.get('fecha_comprobante')
+        cae = encabezado.get("cae")
+        caeVto = encabezado.get("cae_vto")
 
         printer.set(CENTER, FONT_A, BOLD, 1, 1)
         printer.text(f"{ tipoComprobante } Nro. { nroComprobante }\n")
@@ -253,12 +259,12 @@ class EscPComandos(ComandoInterface):
 
         # 3- DATOS DEL CLIENTE
         if "nombre_cliente" in encabezado:
-            nombreCliente    = f"A {encabezado.get('nombre_cliente')}"
-            tipoRespCliente  = encabezado.get('tipo_responsable_cliente', False)
-            tipoDocCliente   = encabezado.get('nombre_tipo_documento', False)
+            nombreCliente = f"A {encabezado.get('nombre_cliente')}"
+            tipoRespCliente = encabezado.get('tipo_responsable_cliente', False)
+            tipoDocCliente = encabezado.get('nombre_tipo_documento', False)
             documentoCliente = encabezado.get('documento_cliente', False)
             domicilioCliente = encabezado.get("domicilio_cliente", False)
-            tipoDocRec       = encabezado.get('tipoDocRec')
+            tipoDocRec = encabezado.get('tipoDocRec')
 
             printer.text(nombreCliente + "\n")
             if documentoCliente and tipoDocCliente:
@@ -276,9 +282,9 @@ class EscPComandos(ComandoInterface):
         # 4.1- ENCABEZADOS ITEMS
         if tipoComprobante in tiposInscripto:
 
-            cantHeader      = "Cant. x Precio Unit. (%IVA)"
-            dsHeader        = pad("Descripción", (self.desc_cols_ext), " ", "l")
-            precioHeader    = pad("Importe", self.price_cols, " ", "r")
+            cantHeader = "Cant. x Precio Unit. (%IVA)"
+            dsHeader = pad("Descripción", (self.desc_cols_ext), " ", "l")
+            precioHeader = pad("Importe", self.price_cols, " ", "r")
             
             printer.set(LEFT, FONT_B, BOLD, 1,1)
             printer.text(f"{cantHeader}\n")
@@ -286,9 +292,9 @@ class EscPComandos(ComandoInterface):
             printer.text(f"{dsHeader}{precioHeader}\n")
             printer.text("-" * self.total_cols + "\n")
         else:
-            cantHeader   = pad( "CANT", self.cant_cols, " ", "l")
-            dsCentrador  = (" " * (self.price_cols - self.cant_cols))
-            dsHeader     = (dsCentrador + "DESCRIPCIÓN").center(self.desc_cols, " ")
+            cantHeader = pad( "CANT", self.cant_cols, " ", "l")
+            dsCentrador = (" " * (self.price_cols - self.cant_cols))
+            dsHeader = (dsCentrador + "DESCRIPCIÓN").center(self.desc_cols, " ")
             precioHeader = pad( "PRECIO", self.price_cols, " ", "r")
 
             printer.set(LEFT, FONT_A, BOLD, 1,1)
@@ -306,17 +312,17 @@ class EscPComandos(ComandoInterface):
             else:
                 alicIva = 21.00
 
-            qty               = float(item.get('qty'))
-            importe           = float(item.get('importe'))
-            ds                = item.get('ds')[0:self.desc_cols-2]
+            qty = float(item.get('qty'))
+            importe = float(item.get('importe'))
+            ds = item.get('ds')[0:self.desc_cols-2]
 
-            itemIvasTot       = float(itemIvas.get(alicIva, 0) )
-            importeiva        = (importe * (alicIva/100))/(1+alicIva/100)
+            itemIvasTot = float(itemIvas.get(alicIva, 0) )
+            importeiva = (importe * (alicIva/100))/(1+alicIva/100)
             itemIvas[alicIva] = itemIvasTot + ( importeiva * qty )
            
-            itemCant          = floatToString( qty )
-            importeUnitario   = floatToString( importe )
-            totalProducto     = f"{round( qty * importe , 2 ):,.2f}"
+            itemCant = floatToString( qty )
+            importeUnitario = floatToString( importe )
+            totalProducto = f"{round( qty * importe , 2 ):,.2f}"
 
             if tipoComprobante in tiposInscripto:
                 printer.set(LEFT, FONT_B, BOLD, 1,1)
@@ -325,9 +331,9 @@ class EscPComandos(ComandoInterface):
                 printer.text(f'{pad(ds, self.desc_cols_ext, " ", "l")}{pad( totalProducto, self.price_cols , " ", "r")}\n' )
             else:
                 printer.set(LEFT, FONT_A, NORMAL, 1, 1)
-                cantTxt     = pad(itemCant, self.cant_cols, " ", "l")
-                dsTxt       = pad(ds, self.desc_cols, " ", "l")
-                totalTxt    = pad(totalProducto, self.price_cols, " ", "r")
+                cantTxt = pad(itemCant, self.cant_cols, " ", "l")
+                dsTxt = pad(ds, self.desc_cols, " ", "l")
+                totalTxt = pad(totalProducto, self.price_cols, " ", "r")
 
                 printer.text(f'{cantTxt}{dsTxt}{totalTxt}\n')
 
@@ -340,18 +346,18 @@ class EscPComandos(ComandoInterface):
         # 5- DESCUENTOS / RECARGOS
         descuentoRatio = 1
         if addAdditional:
-            sAmount        = float(addAdditional.get('amount', 0))
-            descuentoDesc  = addAdditional.get('description')[0:20]
-            desporcentaje  = float(addAdditional.get('descuento_porcentaje'))
-            negative       = addAdditional.get('negative', True)
+            sAmount = float(addAdditional.get('amount', 0))
+            descuentoDesc = addAdditional.get('description')[0:20]
+            desporcentaje = float(addAdditional.get('descuento_porcentaje'))
+            negative = addAdditional.get('negative', True)
             if negative:
-                sAmount    = -sAmount
+                sAmount = -sAmount
             descuentoRatio = (1 - (desporcentaje/100)) if desporcentaje != 0 else 1
 
             # 5.1- SUBTOTAL
-            dsSubtotal       = pad("SUBTOTAL:", self.desc_cols_ext - 1, " ", "l")
-            importeSubtotal  = pad(f"{round(total - sAmount,2):,.2f}",self.price_cols, " ", "r")
-            dsDescuento      = pad(descuentoDesc, self.desc_cols_ext - 1, " ", "l")
+            dsSubtotal = pad("SUBTOTAL:", self.desc_cols_ext - 1, " ", "l")
+            importeSubtotal = pad(f"{round(total - sAmount,2):,.2f}",self.price_cols, " ", "r")
+            dsDescuento = pad(descuentoDesc, self.desc_cols_ext - 1, " ", "l")
             importeDescuento = pad(f"{round(sAmount, 2):,.2f}",self.price_cols, " ", "r")
 
             printer.set(LEFT, FONT_A, BOLD, 1, 1)
@@ -361,22 +367,22 @@ class EscPComandos(ComandoInterface):
 
         # 6- DETALLE IVAS (INSCRIPTO)
         if tipoComprobante in tiposInscripto:
-            dsSinIva        = pad("Total sin IVA:", self.desc_cols_ext - 1, " ", "l")
-            importeSinIva   = pad(f"{round(totalNeto, 2):,.2f}",self.price_cols, " ", "r")
+            dsSinIva = pad("Total sin IVA:", self.desc_cols_ext - 1, " ", "l")
+            importeSinIva = pad(f"{round(totalNeto, 2):,.2f}",self.price_cols, " ", "r")
             printer.set(LEFT, FONT_A, NORMAL, 1, 1)
 
             printer.text(f'{dsSinIva}{self.signo}{importeSinIva}\n')
 
             for nameiva, importeiva in itemIvas.items():
-                dsIva       = pad(f"IVA {str(nameiva)}%:", self.desc_cols_ext - 1, " ", "l")
-                importeIva  = pad(f"{round(importeiva * descuentoRatio, 2):,.2f}",self.price_cols, " ", "r")
+                dsIva = pad(f"IVA {str(nameiva)}%:", self.desc_cols_ext - 1, " ", "l")
+                importeIva = pad(f"{round(importeiva * descuentoRatio, 2):,.2f}",self.price_cols, " ", "r")
                 printer.set(LEFT, FONT_A, NORMAL, 1, 1)
 
                 printer.text(f'{dsIva}{self.signo}{importeIva}\n')
 
         # 7- TOTAL
         printer.set(LEFT, FONT_A, BOLD, 1, 2)
-        dsTotal      =  pad("TOTAL:", self.desc_cols_ext - 1, " ", "l")
+        dsTotal =  pad("TOTAL:", self.desc_cols_ext - 1, " ", "l")
         importeTotal =  pad(f"{round(total,2):,.2f}",self.price_cols, " ", "r")
 
         printer.text(f'{dsTotal}{self.signo}{importeTotal}\n\n')
@@ -466,12 +472,17 @@ class EscPComandos(ComandoInterface):
 
     def printRemitoCorto(self, **kwargs):
         "Imprimir remito corto"
-        printer = self.conector.driver
 
         encabezado = kwargs.get("encabezado", None)
         items = kwargs.get("items", [])
         addAdditional = kwargs.get("addAdditional", None)
-        setTrailer = kwargs.get("setTrailer", None)        
+        setTrailer = kwargs.get("setTrailer", None)     
+
+        if encabezado is None or len(items) == 0:
+            logging.getLogger("EscP-Comandos").error("No hay datos suficientes para imprimir")
+            return False
+
+        printer = self.conector.driver          
 
         printer.start()
 
@@ -547,21 +558,26 @@ class EscPComandos(ComandoInterface):
 
     def printRemito(self, **kwargs):
         "Imprimir remito"
+
+        encabezado = kwargs.get("encabezado", None)
+        items = kwargs.get("items", [])
+        pagos = kwargs.get("pagos", [])
+        addAdditional = kwargs.get("addAdditional", None)
+        setTrailer = kwargs.get("setTrailer", None)
+
+        if encabezado is None or len(items) == 0:
+            logging.getLogger("EscP-Comandos").error("No hay datos suficientes para imprimir")
+            return False
+
         printer = self.conector.driver
-
-        encabezado      = kwargs.get("encabezado", None)
-        items           = kwargs.get("items", [])
-        pagos           = kwargs.get("pagos", [])
-        addAdditional   = kwargs.get("addAdditional", None)
-        setTrailer      = kwargs.get("setTrailer", None)        
-
         printer.start()
         
         printer.set(CENTER, FONT_A, NORMAL, 1, 1)
 
-        if "imprimir_fecha_remito" in encabezado:
+        if encabezado and "imprimir_fecha_remito" in encabezado:
             fecha = datetime.datetime.strftime(datetime.datetime.now(), "%d/%m/%Y %H:%M")
             printer.text(f"Fecha: {fecha} \n\n\n")
+
         printer.text(u"Verifique su cuenta por favor\n")
         printer.text(u"NO VÁLIDO COMO FACTURA\n\n")
 
@@ -577,9 +593,9 @@ class EscPComandos(ComandoInterface):
 
         printer.set(LEFT, FONT_A, NORMAL, 1, 1)
 
-        cantHeader   = pad( "CANT", self.cant_cols, " ", "l")
-        dsCentrador  = (" " * (self.price_cols - self.cant_cols))
-        dsHeader     = (dsCentrador + "DESCRIPCIÓN").center(self.desc_cols, " ")
+        cantHeader = pad( "CANT", self.cant_cols, " ", "l")
+        dsCentrador = (" " * (self.price_cols - self.cant_cols))
+        dsHeader = (dsCentrador + "DESCRIPCIÓN").center(self.desc_cols, " ")
         precioHeader = pad( "PRECIO", self.price_cols, " ", "r")
         
         printer.text( f"{cantHeader}{dsHeader}{precioHeader}\n" )
@@ -590,18 +606,18 @@ class EscPComandos(ComandoInterface):
         importeSubTotal = 0.0
 
         for item in items:
-            qty           = float(item.get('qty', 1))
-            importe       = float(item.get('importe'))
-            ds            = item.get('ds')[0:self.desc_cols-2]
-            total         = importe * qty
+            qty = float(item.get('qty', 1))
+            importe = float(item.get('importe'))
+            ds = item.get('ds')[0:self.desc_cols-2]
+            total = importe * qty
          
-            itemCant          = floatToString( qty )
-            totalProducto     = f"{round( qty * importe , 2 ):,.2f}"
+            itemCant = floatToString( qty )
+            totalProducto = f"{round( qty * importe , 2 ):,.2f}"
 
             printer.set(LEFT, FONT_A, NORMAL, 1, 1)
-            cantTxt     = pad(itemCant, self.cant_cols, " ", "l")
-            dsTxt       = pad(ds, self.desc_cols, " ", "l")
-            totalTxt    = pad(totalProducto, self.price_cols, " ", "r")
+            cantTxt = pad(itemCant, self.cant_cols, " ", "l")
+            dsTxt = pad(ds, self.desc_cols, " ", "l")
+            totalTxt = pad(totalProducto, self.price_cols, " ", "r")
 
             printer.text(f'{cantTxt}{dsTxt}{totalTxt}\n')            
             
@@ -612,16 +628,16 @@ class EscPComandos(ComandoInterface):
         importeTotal = importeSubTotal
 
         if addAdditional:
-            sAmount          = float(addAdditional.get('amount', 0))
-            descuentoDesc    = addAdditional.get('description')[0:self.desc_cols_ext - 2]
-            negative         = addAdditional.get('negative', True)
+            sAmount = float(addAdditional.get('amount', 0))
+            descuentoDesc = addAdditional.get('description')[0:self.desc_cols_ext - 2]
+            negative = addAdditional.get('negative', True)
             if negative:
-                sAmount      = -sAmount
-            importeTotal    += sAmount
+                sAmount = -sAmount
+            importeTotal += sAmount
 
-            dsSubtotal       = pad("SUBTOTAL:", self.desc_cols_ext - 1, " ", "l")
-            importeSubTotal  = pad(f"{round(importeSubTotal,2):,.2f}",self.price_cols, " ", "r")
-            dsDescuento      = pad(descuentoDesc, self.desc_cols_ext - 1, " ", "l")
+            dsSubtotal = pad("SUBTOTAL:", self.desc_cols_ext - 1, " ", "l")
+            importeSubTotal = pad(f"{round(importeSubTotal,2):,.2f}",self.price_cols, " ", "r")
+            dsDescuento = pad(descuentoDesc, self.desc_cols_ext - 1, " ", "l")
             importeDescuento = pad(f"{round(sAmount, 2):,.2f}",self.price_cols, " ", "r")
 
             printer.set(LEFT, FONT_A, BOLD, 1, 1)
@@ -631,8 +647,8 @@ class EscPComandos(ComandoInterface):
 
         # Imprimir total
         printer.set(LEFT, FONT_A, BOLD, 1, 2)
-        dsTotal      =  pad("TOTAL:", self.desc_cols_ext - 1, " ", "l")
-        importeTotal =  pad(f"{round(importeTotal,2):,.2f}",self.price_cols, " ", "r")
+        dsTotal = pad("TOTAL:", self.desc_cols_ext - 1, " ", "l")
+        importeTotal = pad(f"{round(importeTotal,2):,.2f}",self.price_cols, " ", "r")
 
         printer.text(f'{dsTotal}{self.signo}{importeTotal}\n\n')
 
@@ -688,9 +704,9 @@ class EscPComandos(ComandoInterface):
         else: 
             return False
 
-        vuelto     = 0
+        vuelto = 0
         totalPagos = 0
-        cantPagos  = 0
+        cantPagos = 0
         printer.set(LEFT, FONT_A, NORMAL, 1, 1)
         for pago in pagos:
             importe = float(pago.get('importe'))
@@ -725,6 +741,7 @@ class EscPComandos(ComandoInterface):
 
     def printComanda(self, comanda, setHeader=None, setTrailer=None):
         "observacion, entradas{observacion, cant, nombre, sabores}, platos{observacion, cant, nombre, sabores}"
+        
         printer = self.conector.driver
         printer.start()
         
@@ -804,6 +821,13 @@ class EscPComandos(ComandoInterface):
     
     def printArqueo(self, **kwargs):
         
+        encabezado = kwargs.get('encabezado', None)
+
+        if encabezado is None:
+            logging.getLogger("EscP-Comandos").error("No hay datos suficientes para imprimir")
+            return False
+
+
         printer = self.conector.driver 
         printer.start()
 
@@ -819,10 +843,8 @@ class EscPComandos(ComandoInterface):
         totalRetiros  = 0
         totalIngresos = 0
 
-        encabezado = kwargs.get('encabezado')
-
-        fechaDesde  = datetime.datetime.strptime(encabezado['fechaDesde'], '%d-%m-%Y %H:%M').strftime('%d/%m %H:%M',)
-        fechaHasta  = datetime.datetime.strptime(encabezado['fechaHasta'], '%d-%m-%Y %H:%M').strftime('%d/%m %H:%M',)
+        fechaDesde = datetime.datetime.strptime(encabezado['fechaDesde'], '%d-%m-%Y %H:%M').strftime('%d/%m %H:%M',)
+        fechaHasta = datetime.datetime.strptime(encabezado['fechaHasta'], '%d-%m-%Y %H:%M').strftime('%d/%m %H:%M',)
         fechaArqueo = datetime.datetime.strptime(encabezado['ArqueoDateTime'], '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%y %H:%M',)
 
 
@@ -976,13 +998,14 @@ class EscPComandos(ComandoInterface):
                         "Otros Ingresos:"     : f"{otrosIngresos:,.2f}"}
 
         for key in ingresosDict:
-            printer.text(pad("+",self.cant_cols," ","l") + pad(key,self.desc_cols," ","l") + "$" + 
-                         pad(ingresosDict[key],self.price_cols - 1 ," ","r") + "\n")
+            printer.text(pad("+",self.cant_cols," ","l") + pad(key,self.desc_cols," ","l") + "$" 
+                        + pad(ingresosDict[key],self.price_cols - 1 ," ","r") + "\n")
         
         printer.set(LEFT, FONT_A, BOLD, 1, 1)
 
         sumaIngresos = (ingresosEfectivo + totalIngresos + float(encabezado['importeInicial']))
-        printer.text(" " * (self.desc_cols_ext) + "$" + pad(f"{sumaIngresos:,.2f}",self.price_cols - 1, " ","r") + "\n\n")
+        printer.text(" " * (self.desc_cols_ext) + "$" 
+                    + pad(f"{sumaIngresos:,.2f}",self.price_cols - 1, " ","r") + "\n\n")
         
         printer.set(LEFT, FONT_A, NORMAL, 1, 1)
 
@@ -992,13 +1015,14 @@ class EscPComandos(ComandoInterface):
                        "Importe Final:"     :   f"{importeFinal:,.2f}"}
 
         for key in egresosDict:
-            printer.text(pad("-",self.cant_cols," ","l") + pad(key,self.desc_cols," ","l") + "$" + 
-                         pad(egresosDict[key],self.price_cols - 1 ," ","r") + "\n")
+            printer.text(pad("-",self.cant_cols," ","l") + pad(key,self.desc_cols," ","l") + "$" 
+                        + pad(egresosDict[key],self.price_cols - 1 ," ","r") + "\n")
 
         printer.set(LEFT, FONT_A, BOLD, 1, 1) 
 
         sumaEgresos = (egresosEfectivo + totalRetiros + importeFinal)
-        printer.text(" " * (self.desc_cols_ext)+ "$" + pad(f"{sumaEgresos:,.2f}",self.price_cols - 1, " ","r") + "\n\n")
+        printer.text(" " * (self.desc_cols_ext) + "$" 
+                    + pad(f"{sumaEgresos:,.2f}",self.price_cols - 1, " ","r") + "\n\n")
         
         printer.set(LEFT, FONT_A, BOLD, 1, 2, invert=True)
 

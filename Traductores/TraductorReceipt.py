@@ -46,14 +46,7 @@ class TraductorReceipt(TraductorInterface):
 
     def printFacturaElectronica(self, **kwargs):
         "Factura Electronica"
-        try:
-            return self.comando.printFacturaElectronica(**kwargs)        
-        except Exception as e:
-            print(e)
-        else:
-            pass
-        finally:    
-            pass
+        return self.comando.printFacturaElectronica(**kwargs)
     
     def printArqueo(self, **kwargs):
         "Imprimir Cierre de Caja"
