@@ -100,7 +100,7 @@ class TraductorFiscal(TraductorInterface):
           self.comando.close()
           return rta
 
-        except Exception, e:
+        except Exception as e:
           self.cancelDocument()
           raise
 

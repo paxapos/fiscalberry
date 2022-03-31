@@ -197,7 +197,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
                 @param  docType     Tipo de documento
                 @param  ivaType     Tipo de IVA
         """
-
+        type = 'F' + type
         comprobanteType = self.comprobanteTypes[type]
         self.conector.driver.EpsonLibInterface.AbrirComprobante(
             comprobanteType)
