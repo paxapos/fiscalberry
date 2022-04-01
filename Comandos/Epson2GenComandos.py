@@ -207,7 +207,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
         address2= address[40:80]
         address3= address[80:120]
 
-        err = self.conector.driver.abrirComprobante(
+        err = self.conector.driver.AbrirComprobante(
             comprobanteType, name1, name2, address1, address2, address3,
             self.docTypes[docType], doc, self.ivaTypes[ivaType])
         
@@ -226,7 +226,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
         """
         comprobanteType = 3  # Tique Nota de crédito A/B/C/M
 
-        self.conector.driver.abrirComprobante(
+        self.conector.driver.AbrirComprobante(
             comprobanteType)
 
     def __cargarNumReferencia(self, numero):
@@ -246,7 +246,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
 
         comprobanteType = 4  # Tique Nota de débito A/B/C/M
 
-        self.conector.driver.EpsonLibInterface.AbrirComprobante(
+        self.conector.driver.AbrirComprobante(
             comprobanteType)
 
     def openRemit(self, name, address, doc, docType, ivaType):
