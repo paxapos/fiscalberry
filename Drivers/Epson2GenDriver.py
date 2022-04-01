@@ -143,7 +143,7 @@ class Epson2GenDriver(DriverInterface):
             id_modificador = 401
         return self.EpsonLibInterface.CargarAjuste(id_modificador, description, str(amount), ivaid, "")
 
-    def AbrirComprobante(self, type, name1, name2=" ", address1=" ", address2=" ", address3=" ", docType=0, doc=" ", ivaType=5):
+    def AbrirComprobante(self, type, name1=" ", name2=" ", address1=" ", address2=" ", address3=" ", docType=0, doc=" ", ivaType=5):
 
         if (type != 'T'):
             self.EpsonLibInterface.CargarDatosCliente(
