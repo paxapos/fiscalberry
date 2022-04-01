@@ -159,7 +159,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
         ivaid = self.ivaPercentageIds.get("iva", 5)
         qty = str(quantity)
         ret = self.conector.driver.ImprimirItem(
-            id_item, description, qty, price, ivaid, id_ii=id_ii, ii_valor=ii_valor)
+            id_item, description, qty, price, ivaid, id_ii, ii_valor)
         print("Imprimiendo item       : %s", str(ret))
 
     def addPayment(self, description, payment):
