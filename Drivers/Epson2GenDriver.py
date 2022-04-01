@@ -163,7 +163,7 @@ class Epson2GenDriver(DriverInterface):
         id_tasa_iva = id_tasa_iva
 
         print(" OoO " * 25)
-        print("imprime item modif %s - dec: %s qty: %s - precio %s - Iva %s " %
-              (id_modificador, description, qty, precio, id_tasa_iva))
+        print("imprime item modif %s - dec: %s qty: %s - precio %s - Iva %s - IIid %d - II %s" %
+              (id_modificador, description, qty, precio, id_tasa_iva, ii_id, ii_valor))
 
         return self.EpsonLibInterface.ImprimirItem(id_modificador, description, qty, precio, id_tasa_iva, ii_id, ii_valor, id_codigo, codigo, codigo_unidad_matrix, codigo_unidad_medida)

@@ -133,18 +133,19 @@ class Epson2GenComandos(ComandoFiscalInterface):
         # desde & Hasta = Nros de Zeta o fechas, ambos pueden ser usados como intervalos de tiempo.
         self.conector.driver.ImprimirAuditoria(desde, hasta)
 
-    def addItem(self, description, quantity, price, iva, itemNegative=False, discount=0, discountDescription='', discountNegative=False, id_ii=0, ii_valor=""):
+    def addItem(self, description, quantity, price, iva, itemNegative=False, discount=0, discountDescription='', discountNegative=False, id_ii: int =0, ii_valor: str =""):
         """Agrega un item a la FC.
-                @param description          Descripción del item. Puede ser un string o una lista.
+                * param `description`          Descripción del item. Puede ser un string o una lista.
                         Si es una lista cada valor va en una línea.
-                @param quantity             Cantidad
-                @param price                Precio (incluye el iva si la FC es B o C, si es A no lo incluye)
-                @param iva                  Porcentaje de iva
-                @param itemNegative         Anulación del ítem.
-                @param discount             Importe de descuento
-                @param discountDescription  Descripción del descuento
-                @param discountNegative     True->Resta de la FC
-                @param 
+                * param `quantity`             Cantidad
+                * param `price`                Precio (incluye el iva si la FC es B o C, si es A no lo incluye)
+                * param `iva`                  Porcentaje de iva
+                * param `itemNegative`         Anulación del ítem.
+                * param `discount`             Importe de descuento
+                * param `discountDescription`  Descripción del descuento
+                * param `discountNegative`     True->Resta de la FC
+                * param `id_ii`                ID de Impuesto Interno: 0-Ninguno; 1-Impuesto Fijo; 2-Impuesto Porcentual
+                * param `ii_valor`             Valor del impuesto 1=(7,4); 2=(0,8)
         """
 
         id_item = 200  # Agregar como ítem de venta.
@@ -158,8 +159,8 @@ class Epson2GenComandos(ComandoFiscalInterface):
         ivaid = self.ivaPercentageIds.get("iva", 5)
         qty = str(quantity)
         ret = self.conector.driver.ImprimirItem(
-            id_item, description, qty, price, ivaid, id_ii, ii_valor)
-        print("Imprimiendo item       : %s", ret)
+            id_item, description, qty, price, ivaid, id_ii=id_ii, ii_valor=ii_valor)
+        print("Imprimiendo item       : %s", str(ret))
 
     def addPayment(self, description, payment):
         """Agrega un pago a la FC.
