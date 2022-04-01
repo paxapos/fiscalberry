@@ -133,7 +133,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
         # desde & Hasta = Nros de Zeta o fechas, ambos pueden ser usados como intervalos de tiempo.
         self.conector.driver.ImprimirAuditoria(desde, hasta)
 
-    def addItem(self, description, quantity, price, iva, itemNegative=False, discount=0, discountDescription='', discountNegative=False, id_ii: int =0, ii_valor: str =""):
+    def addItem(self, description, quantity, price, iva, itemNegative=False, discount=0, discountDescription='', discountNegative=False, id_ii=0, ii_valor=""):
         """Agrega un item a la FC.
                 * param `description`          Descripción del item. Puede ser un string o una lista.
                         Si es una lista cada valor va en una línea.
