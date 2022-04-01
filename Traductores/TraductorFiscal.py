@@ -14,14 +14,14 @@ class TraductorFiscal(TraductorInterface):
         self.comando.close()
         return ret
 
-    def imprimirAuditoria(self, desde, hasta):
+    def imprimirAuditoria(self, desde, hasta, **kwargs):
         "Imprimir Auditoria"
         #Solo compatible para Epson 1G y 2G por el momento...
 
         #desde & hasta parametros que pueden ser números de zetas o fechas en formato ddmmyyyy
 
         self.comando.start()
-        ret = self.comando.imprimirAuditoria(desde, hasta)
+        ret = self.comando.imprimirAuditoria(desde, hasta, **kwargs)
         self.comando.close()
         return ret
 
@@ -179,10 +179,10 @@ class TraductorFiscal(TraductorInterface):
         self.factura["pagos"].append(dict(ds=ds, importe=importe))
         return self.comando.addPayment(ds, float(importe))
 
-    def _imprimirPercepcion(self, ds, importe):
+    def _imprimirPercepcion(self, ds, importe, **kwargs):
         "Imprime una linea con nombre de percepcion y monto"
         self.factura["percepciones"].append(dict(ds=ds, importe=importe))
-        return self.comando.addPerception(ds, float(importe))
+        return self.comando.addPerception(ds, float(importe), **kwargs)
 
     def _cerrarComprobante(self, *args):
         "Envia el comando para cerrar un comprobante Fiscal"
