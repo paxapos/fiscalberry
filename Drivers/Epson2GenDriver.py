@@ -143,7 +143,19 @@ class Epson2GenDriver(DriverInterface):
             id_modificador = 401
         return self.EpsonLibInterface.CargarAjuste(id_modificador, description, str(amount), ivaid, "")
 
-    def ImprimirItem(self, id_modificador, description, qty, precio, id_tasa_iva, ii_id=0, ii_valor="0.0", id_codigo=1, codigo="1", codigo_unidad_matrix="1", codigo_unidad_medida=7):
+    def AbrirComprobante(self, type, name1, name2=" ", address1=" ", address2=" ", address3=" ", docType=0, doc=" ", ivaType=5):
+
+        if (type != 'T'):
+            self.EpsonLibInterface.CargarDatosCliente(
+                name1, name2, address1, address2, address3, docType, doc, ivaType)
+
+        self.EpsonLibInterface.AbrirComprobante(type)
+
+    def ImprimirItem(
+        self, id_modificador, description, qty, precio, id_tasa_iva,
+        ii_id=0, ii_valor="0.0", id_codigo=1, codigo="1", codigo_unidad_matrix="1",
+        codigo_unidad_medida=7):
+
         """Integer ImprimirItem( 
                         Integer id_modificador, 
                         String descripcion,
@@ -166,4 +178,9 @@ class Epson2GenDriver(DriverInterface):
         print("imprime item modif %s - dec: %s qty: %s - precio %s - Iva %s - IIid %d - II %s" %
               (id_modificador, description, qty, precio, id_tasa_iva, ii_id, ii_valor))
 
-        return self.EpsonLibInterface.ImprimirItem(id_modificador, description, qty, precio, id_tasa_iva, ii_id, ii_valor, id_codigo, codigo, codigo_unidad_matrix, codigo_unidad_medida)
+        return self.EpsonLibInterface.ImprimirItem(
+            id_modificador, description, qty, precio, id_tasa_iva, ii_id, ii_valor,
+            id_codigo, codigo, codigo_unidad_matrix, codigo_unidad_medida)
+
+    def CerrarComprobante(self):
+        self.EpsonLibInterface.CerrarComprobante()

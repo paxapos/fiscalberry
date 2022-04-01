@@ -123,11 +123,11 @@ class Epson2GenComandos(ComandoFiscalInterface):
 
     def closeDocument(self, copias=0, email=None):
         """Cierra el documento que esté abierto"""
-        self.conector.driver.EpsonLibInterface.CerrarComprobante()
+        self.conector.driver.CerrarComprobante()
 
     def cancelDocument(self):
         """Cancela el documento que esté abierto"""
-        self.conector.driver.EpsonLibInterface.Cancelar()
+        self.conector.driver.Cancelar()
 
     def imprimirAuditoria(self, desde, hasta):
         # desde & Hasta = Nros de Zeta o fechas, ambos pueden ser usados como intervalos de tiempo.
@@ -185,7 +185,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
         • 22 - Documento no fiscal homologado de uso interno.
         """
         numcomp = self.comprobanteTypes[comprobanteType]
-        err = self.conector.driver.EpsonLibInterface.AbrirComprobante(numcomp)
+        err = self.conector.driver.AbrirComprobante(numcomp)
         print(err)
         logging.getLogger().info("Abrio comprobante  : %s" % (err))
 
@@ -201,8 +201,17 @@ class Epson2GenComandos(ComandoFiscalInterface):
         """
         type = 'F' + type
         comprobanteType = self.comprobanteTypes[type]
-        self.conector.driver.EpsonLibInterface.AbrirComprobante(
-            comprobanteType)
+        name1 = name[0:40]
+        name2 = name[40:80]
+        address1= address[0:40]
+        address2= address[40:80]
+        address3= address[80:120]
+
+        err = self.conector.driver.abrirComprobante(
+            comprobanteType, name1, name2, address1, address2, address3,
+            self.docTypes[docType], doc, self.ivaTypes[ivaType])
+        
+        print(err)
 
     def openBillCreditTicket(self, type, name, address, doc, docType, ivaType, reference="NC"):
         """
@@ -217,7 +226,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
         """
         comprobanteType = 3  # Tique Nota de crédito A/B/C/M
 
-        self.conector.driver.EpsonLibInterface.AbrirComprobante(
+        self.conector.driver.abrirComprobante(
             comprobanteType)
 
     def __cargarNumReferencia(self, numero):
