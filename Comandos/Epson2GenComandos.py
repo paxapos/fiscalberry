@@ -160,7 +160,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
         qty = str(quantity)
         ret = self.conector.driver.ImprimirItem(
             id_item, description, qty, price, ivaid, id_ii, ii_valor)
-        print("Imprimiendo item       : %s", str(ret))
+        print("Imprimiendo item       : %s" % str(ret))
 
     def addPayment(self, description, payment):
         """Agrega un pago a la FC.
