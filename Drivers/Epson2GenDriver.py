@@ -184,3 +184,6 @@ class Epson2GenDriver(DriverInterface):
 
     def CerrarComprobante(self):
         self.EpsonLibInterface.CerrarComprobante()
+
+    def Cancelar(self):
+        self.EpsonLibInterface.Cancelar()
