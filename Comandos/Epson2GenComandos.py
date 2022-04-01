@@ -133,7 +133,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
         # desde & Hasta = Nros de Zeta o fechas, ambos pueden ser usados como intervalos de tiempo.
         self.conector.driver.ImprimirAuditoria(desde, hasta)
 
-    def addItem(self, description, quantity, price, iva, itemNegative=False, discount=0, discountDescription='', discountNegative=False):
+    def addItem(self, description, quantity, price, iva, itemNegative=False, discount=0, discountDescription='', discountNegative=False, id_ii=0, ii_valor=""):
         """Agrega un item a la FC.
                 @param description          Descripción del item. Puede ser un string o una lista.
                         Si es una lista cada valor va en una línea.
@@ -144,6 +144,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
                 @param discount             Importe de descuento
                 @param discountDescription  Descripción del descuento
                 @param discountNegative     True->Resta de la FC
+                @param 
         """
 
         id_item = 200  # Agregar como ítem de venta.
@@ -157,7 +158,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
         ivaid = self.ivaPercentageIds.get("iva", 5)
         qty = str(quantity)
         ret = self.conector.driver.ImprimirItem(
-            id_item, description, qty, price, ivaid)
+            id_item, description, qty, price, ivaid, id_ii, ii_valor)
         print("Imprimiendo item       : %s", ret)
 
     def addPayment(self, description, payment):
