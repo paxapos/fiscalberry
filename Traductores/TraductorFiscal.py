@@ -155,7 +155,7 @@ class TraductorFiscal(TraductorInterface):
         return ret
 
     def _imprimirItem(self, ds, qty, importe, alic_iva=21., itemNegative=False, discount=0, discountDescription='',
-                      discountNegative=False, **kwargs):
+                      discountNegative=False, id_ii = 0, ii_valor = 0, **kwargs):
         "Envia un item (descripcion, cantidad, etc.) a una factura"
 
         if importe < 0:
@@ -172,7 +172,7 @@ class TraductorFiscal(TraductorInterface):
             discountDescription = ds
 
         return self.comando.addItem(ds, float(qty), float(importe), float(alic_iva),
-                                    itemNegative, float(discount), discountDescription, discountNegative, **kwargs)
+                                    itemNegative, float(discount), discountDescription, discountNegative, id_ii, float(ii_valor), **kwargs)
 
     def _imprimirPago(self, ds, importe):
         "Imprime una linea con la forma de pago y monto"

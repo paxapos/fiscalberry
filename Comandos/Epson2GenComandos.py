@@ -138,7 +138,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
         return self.conector.driver.EpsonLibInterface.CargarDatosCliente(str(name1), str(name2), str(address1), str(address2), str(address3), docType, str(doc) , ivaType)
 
     def addItem(self, description, quantity, price, iva, itemNegative=False, discount=0, discountDescription='',
-                discountNegative=False, id_ii=0, ii_valor="", id_codigo=1, codigo="1",
+                discountNegative=False, id_ii=0, ii_valor=0, id_codigo=1, codigo="1",
                 codigo_unidad_matrix="1",codigo_unidad_medida=0):
         """Agrega un item a la FC.
                 * param `description`          Descripción del item. Puede ser un string o una lista.
@@ -166,12 +166,16 @@ class Epson2GenComandos(ComandoFiscalInterface):
         qty = str(quantity)
         description = c_char_p(description).value
         precio = str(price)
+        iiValor = ""
+
+        if (ii_valor > 0):
+            str(ii_valor)
 
         logging.info("Item:  Mod: %s - Desc: %s Cant: %s - Precio: %s - Iva: %s - IIid: %d - IIvalor: %s" %
-              (id_item, description, qty, precio, ivaid, id_ii, ii_valor))
+              (id_item, description, qty, precio, ivaid, id_ii, iiValor))
 
         return self.conector.driver.EpsonLibInterface.ImprimirItem(id_item, description, qty, precio, ivaid, id_ii,
-                ii_valor,id_codigo, codigo, codigo_unidad_matrix, codigo_unidad_medida)
+                iiValor,id_codigo, codigo, codigo_unidad_matrix, codigo_unidad_medida)
 
     def openTicket(self, comprobanteType="T"):
         """Abre ticket
