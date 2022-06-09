@@ -137,6 +137,9 @@ class Epson2GenComandos(ComandoFiscalInterface):
 
         return self.conector.driver.EpsonLibInterface.CargarDatosCliente(str(name1), str(name2), str(address1), str(address2), str(address3), docType, str(doc) , ivaType)
 
+    def _cargarNumReferencia(self, numero):
+        return self.conector.driver.EpsonLibInterface.CargarComprobanteAsociado(str(numero))
+
     def addItem(self, description, quantity, price, iva, itemNegative=False, discount=0, discountDescription='',
                 discountNegative=False, id_ii=0, ii_valor=0, id_codigo=1, codigo="1",
                 codigo_unidad_matrix="1",codigo_unidad_medida=0):
@@ -169,7 +172,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
         iiValor = ""
 
         if (ii_valor > 0):
-            str(ii_valor)
+            iiValor = str(ii_valor)
 
         logging.info("Item:  Mod: %s - Desc: %s Cant: %s - Precio: %s - Iva: %s - IIid: %d - IIvalor: %s" %
               (id_item, description, qty, precio, ivaid, id_ii, iiValor))
@@ -195,6 +198,41 @@ class Epson2GenComandos(ComandoFiscalInterface):
         error = self.conector.driver.EpsonLibInterface.ConsultarNumeroComprobanteActual(str_doc_number, c_int(str_doc_number_max_len).value) 
         self.comprobanteNro = str_doc_number.value   
         logging.info("Abrio comprobante Ticket : %s" % self.comprobanteNro)
+
+        return error
+
+    def openDNFH(self, tipo_cbte):
+        if tipo_cbte == 'G':
+            ret = self.conector.driver.EpsonLibInterface.AbrirComprobante(21)
+        else:
+            ret = self.conector.driver.EpsonLibInterface.AbrirComprobante(22)
+        return ret
+
+    def imprimirTextoLibre(self, linea=""):
+        ret = self.conector.driver.EpsonLibInterface.ImprimirTextoLibre(linea)
+        return ret
+
+    """ @fchiappano Abrir un tiquet no fiscal """
+    def openBillTicketNoFiscal(self, comprobanteType, name, address, doc, docType, ivaType, referencia):
+        """
+        Abre un ticket-factura
+                @param  type        Tipo de Factura "A", "B", o "C"
+                @param  name        Nombre del cliente
+                @param  address     Domicilio
+                @param  doc         Documento del cliente según docType
+                @param  docType     Tipo de documento
+                @param  ivaType     Tipo de IVA
+        """
+
+        self._setCustomerData(name, address, doc, docType, ivaType)
+        self._cargarNumReferencia(referencia)
+        self.conector.driver.EpsonLibInterface.AbrirComprobante(c_int(54).value)
+
+        str_doc_number_max_len = 20
+        str_doc_number = create_string_buffer(b'\000' * str_doc_number_max_len)
+        error = self.conector.driver.EpsonLibInterface.ConsultarNumeroComprobanteActual(str_doc_number, c_int(str_doc_number_max_len).value)
+        self.comprobanteNro = str_doc_number.value
+        logging.info("Abrio comprobante No Fiscal : %s" % self.comprobanteNro)
 
         return error
 
@@ -322,6 +360,9 @@ class Epson2GenComandos(ComandoFiscalInterface):
 
         return self.comprobanteNro
 
+    def closeDNFH(self):
+        return self.conector.driver.EpsonLibInterface.CerrarComprobante()
+
     def cancelDocument(self):
         self.conector.driver.EpsonLibInterface.Cancelar()
 
@@ -360,9 +401,6 @@ class Epson2GenComandos(ComandoFiscalInterface):
 
 
     ##### NO IMPLEMENTADOS #####
-
-    def __cargarNumReferencia(self, numero):
-        pass
     def getWarnings(self):
         return []
 

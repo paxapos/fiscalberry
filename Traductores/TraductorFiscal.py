@@ -67,6 +67,21 @@ class TraductorFiscal(TraductorInterface):
         self.comando.cancelAnyDocument()
         self.comando.close()
 
+    def printDNFH(self, tipo_cbte="G", lineas=[]):
+        self.comando.start()
+        try:
+            self.comando.openDNFH(tipo_cbte)
+
+            for linea in lineas:
+                self.comando.imprimirTextoLibre(linea)
+
+            rta = self.comando.closeDNFH()
+            self.comando.close()
+            return rta
+        except Exception as e:
+          self.cancelDocument()
+          raise
+
     def printTicket(self, encabezado=None, items=[], pagos=[], percepciones=[], addAdditional=None, setHeader=None, setTrailer=None):
         if setHeader:
             self.setHeader(*setHeader)
@@ -151,6 +166,9 @@ class TraductorFiscal(TraductorInterface):
             ret = printer.openBillCreditTicket(letra_cbte, nombre_cliente,
                                                domicilio_cliente, nro_doc, doc_fiscal,
                                                pos_fiscal, referencia)
+        elif tipo_cbte.startswith("NFP"):
+            ret = printer.openBillTicketNoFiscal(letra_cbte, nombre_cliente, domicilio_cliente,
+                                         nro_doc, doc_fiscal, pos_fiscal, referencia)
 
         return ret
 
@@ -172,7 +190,7 @@ class TraductorFiscal(TraductorInterface):
             discountDescription = ds
 
         return self.comando.addItem(ds, float(qty), float(importe), float(alic_iva),
-                                    itemNegative, float(discount), discountDescription, discountNegative, id_ii, float(ii_valor), **kwargs)
+                                    itemNegative, float(discount), discountDescription, discountNegative, id_ii, ii_valor, **kwargs)
 
     def _imprimirPago(self, ds, importe):
         "Imprime una linea con la forma de pago y monto"
