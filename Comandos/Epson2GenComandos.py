@@ -209,7 +209,7 @@ class Epson2GenComandos(ComandoFiscalInterface):
         return ret
 
     def imprimirTextoLibre(self, linea=""):
-        ret = self.conector.driver.EpsonLibInterface.ImprimirTextoLibre(linea)
+        ret = self.conector.driver.EpsonLibInterface.ImprimirTextoLibre(str(linea))
         return ret
 
     """ @fchiappano Abrir un tiquet no fiscal """
