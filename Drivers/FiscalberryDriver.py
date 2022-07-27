@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-
-
-from socket import timeout
 from DriverInterface import DriverInterface
 import logging
 from FiscalPrinterDriver import PrinterException
