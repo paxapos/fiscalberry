@@ -349,9 +349,7 @@ class EscPComandos(ComandoInterface):
             sAmount = float(addAdditional.get('amount', 0))
             descuentoDesc = addAdditional.get('description')[0:20]
             desporcentaje = float(addAdditional.get('descuento_porcentaje'))
-            negative = addAdditional.get('negative', True)
-            if negative:
-                sAmount = -sAmount
+            sAmount = -sAmount
             descuentoRatio = (1 - (desporcentaje/100)) if desporcentaje != 0 else 1
 
             # 5.1- SUBTOTAL
@@ -631,8 +629,7 @@ class EscPComandos(ComandoInterface):
             sAmount = float(addAdditional.get('amount', 0))
             descuentoDesc = addAdditional.get('description')[0:self.desc_cols_ext - 2]
             negative = addAdditional.get('negative', True)
-            if negative:
-                sAmount = -sAmount
+            sAmount = -sAmount
             importeTotal += sAmount
 
             dsSubtotal = pad("SUBTOTAL:", self.desc_cols_ext - 1, " ", "l")
