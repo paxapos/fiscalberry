@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 
+from socket import timeout
 from DriverInterface import DriverInterface
 import logging
 from FiscalPrinterDriver import PrinterException
@@ -20,7 +21,7 @@ class FiscalberryDriver(DriverInterface):
 	printerStatusErrors = []
 
 
-	def __init__(self, host, printername = "", port=12000, uri = "http", user = None, password = None, after_port = "api"):
+	def __init__(self, host, printername = "", port=12000, uri = "http", user = None, password = None, after_port = "api", timeout=3):
 		logging.getLogger().info("conexion con JSON Driver en uri: %s, host: %s puerto: %s" % (uri, host, port))
 		self.host = host
 		self.port = port
@@ -30,6 +31,7 @@ class FiscalberryDriver(DriverInterface):
 		self.printerName = printername
 		self.after_port = after_port
 		self.url = "%s://%s:%s/%s" % (uri, host, port, after_port)
+		self.timeout = int(timeout)
 
 	def start(self):
 		"""Inicia recurso de conexion con impresora"""
@@ -51,9 +53,9 @@ class FiscalberryDriver(DriverInterface):
 
 		try: 
 			if self.password:
-				reply = requests.post(url, data=json.dumps(jsonData), headers=headers, auth=(self.user, self.password))
+				reply = requests.post(url, data=json.dumps(jsonData), headers=headers, auth=(self.user, self.password), timeout=self.timeout)
 			else:
-				reply = requests.post(url, data=json.dumps(jsonData), headers=headers)
+				reply = requests.post(url, data=json.dumps(jsonData), headers=headers, timeout=self.timeout)
 			print(reply.content)
 			
 			return reply.content
