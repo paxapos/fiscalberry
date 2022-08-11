@@ -65,14 +65,21 @@ class EscPComandos(ComandoInterface):
 
     def printTexto(self, texto):
         printer = self.conector.driver
-        printer.start()
+        try:
+            printer.start()
+        except Exception as e:
+            return False
         printer.text(texto)
         printer.cut(PARTIAL_CUT) 
         printer.end()
+        return True
 
     def printMuestra(self):
         printer = self.conector.driver 
-        printer.start()
+        try:
+            printer.start()
+        except Exception as e:
+            return False
         firstLetter = [FONT_B,FONT_A]
         secondLetter = [NORMAL, BOLD]
         iteration = 0
@@ -94,7 +101,10 @@ class EscPComandos(ComandoInterface):
 
     def openDrawer(self):
         printer = self.conector.driver
-        printer.start()
+        try:
+            printer.start()
+        except Exception as e:
+            return False
         printer.cashdraw(2)
         printer.end()
 
@@ -110,7 +120,10 @@ class EscPComandos(ComandoInterface):
 
         printer = self.conector.driver
 
-        printer.start()
+        try:
+            printer.start()
+        except Exception as e:
+            return False
         
         printer.set(CENTER, FONT_A, NORMAL, 1, 1)
 
@@ -215,7 +228,10 @@ class EscPComandos(ComandoInterface):
         tiposNC        = ["NOTAS DE CREDITO A", "NOTAS DE CREDITO B", "NOTAS DE CREDITO C" "NOTAS DE CREDITO M"]
         
         printer = self.conector.driver
-        printer.start()
+        try:
+            printer.start()
+        except Exception as e:
+            return False
         
 
         # 1- DATOS DEL COMERCIO
@@ -482,7 +498,10 @@ class EscPComandos(ComandoInterface):
 
         printer = self.conector.driver          
 
-        printer.start()
+        try:
+            printer.start()
+        except Exception as e:
+            return False
 
         printer.set(CENTER, FONT_A, NORMAL, 1, 1)
         if "imprimir_fecha_remito" in encabezado:
@@ -568,7 +587,10 @@ class EscPComandos(ComandoInterface):
             return False
 
         printer = self.conector.driver
-        printer.start()
+        try:
+            printer.start()
+        except Exception as e:
+            return False
         
         printer.set(CENTER, FONT_A, NORMAL, 1, 1)
 
@@ -740,7 +762,10 @@ class EscPComandos(ComandoInterface):
         "observacion, entradas{observacion, cant, nombre, sabores}, platos{observacion, cant, nombre, sabores}"
         
         printer = self.conector.driver
-        printer.start()
+        try:
+            printer.start()
+        except Exception as e:
+            return False
         
         printer.set(CENTER, FONT_A, NORMAL, 1, 1)
 
@@ -826,7 +851,11 @@ class EscPComandos(ComandoInterface):
 
 
         printer = self.conector.driver 
-        printer.start()
+        
+        try:
+            printer.start()
+        except Exception as e:
+            return False
 
         
         totalIngresosPorVenta = 0

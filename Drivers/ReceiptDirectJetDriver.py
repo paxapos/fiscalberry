@@ -34,7 +34,10 @@ class ReceiptDirectJetDriver(printer.Network, DriverInterface):
             self.connected = True
         except Exception as e:
             self.logger.error(f"Error de la impresora: {str(e)}")
-            return True
+            self.logger.info(f"Cerrando Socket: {self.device}")
+            self.device.close()
+            self.logger.info(f"Socket Cerrado: {self.device}")
+            raise
 
 
     def end(self):
@@ -43,10 +46,18 @@ class ReceiptDirectJetDriver(printer.Network, DriverInterface):
             self.connected = False
         except Exception as e:
             self.logger.error("Error de la impresora: " + str(e))
+            self.logger.info(f"Cerrando Socket: {self.device}")
+            self.device.close()
+            self.logger.info(f"Socket Cerrado: {self.device}")
+            
+
 
     def reconnect(self):
         try:
             self.open()
             self.connected = True
         except Exception as e:
-            self.connected = False
+            self.logger.error(f"Error de la impresora: {str(e)}")
+            self.logger.info(f"Cerrando Socket: {self.device}")
+            self.device.close()
+            self.logger.info(f"Socket Cerrado: {self.device}")
