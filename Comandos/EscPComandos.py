@@ -236,7 +236,7 @@ class EscPComandos(ComandoInterface):
 
         # 1- DATOS DEL COMERCIO
         nombreComercio = encabezado.get('nombre_comercio')
-        razonSocial = encabezado.get('nombre_comercio')
+        razonSocial = encabezado.get('razon_social')
         cuitComercio = encabezado.get('cuit_empresa')
         ingresosBrutos = encabezado.get('ingresos_brutos')
         domicilioComercial = encabezado.get('domicilio_comercial')
