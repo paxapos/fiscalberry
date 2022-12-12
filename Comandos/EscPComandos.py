@@ -177,6 +177,7 @@ class EscPComandos(ComandoInterface):
         #barcodeImage = requests.get(encabezado.get("barcode_url"), stream=True).raw
 
         items = kwargs.get("items", [])
+        pagos = kwargs.get("pagos", [])
         addAdditional = kwargs.get("addAdditional", None)
         setTrailer = kwargs.get("setTrailer", None)
         
@@ -330,6 +331,11 @@ class EscPComandos(ComandoInterface):
         if encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO B" or encabezado.get("tipo_comprobante") == 'NOTAS DE CREDITO M':
             printer.text(u"Firma.......................................\n\n")
             printer.text(u"Aclaración..................................\n")
+        
+        else:
+            imprime_pagos = encabezado.get("imprime_pagos", True)
+            if imprime_pagos:
+                self._printPagoDetallado(pagos)
 
 
         printer.set("CENTER", "A", "A", 1, 1)
@@ -401,6 +407,35 @@ class EscPComandos(ComandoInterface):
         printer.set("LEFT", "A", "B", 1, 2)
         printer.end()
 
+    def _printPagoDetallado(self, pagos):
+        printer = self.conector.driver
+        if len(pagos) > 0:
+            printer.set("LEFT", "A", "B", 1, 1)
+            printer.text("Recibimos:\n")
+        else: 
+            return False
+
+        vuelto = 0
+        totalPagos = 0
+        cantPagos = 0
+        printer.set("LEFT", "A", "A", 1, 1)
+        for pago in pagos:
+            importe = float(pago.get('importe'))
+            if importe > 0:
+                totalPagos += importe
+                desc = str(pago.get('ds')[0:20]).upper()
+                printer.text(pad(desc, self.total_cols - self.price_cols, " ", "l") + "$" + pad("%.2f" % importe, self.price_cols  - 1," ", "r") + "\n")
+                cantPagos += 1
+            else:
+                vuelto += importe
+        if totalPagos > 0 and cantPagos > 1:
+            printer.set("LEFT", "A", "B", 1, 1)
+            printer.text(pad("La suma de sus pagos:", self.total_cols - self.price_cols, " ", "l") + "$" +  pad("%.2f" % totalPagos, self.price_cols  - 1, " ", "r") + "\n")
+        if vuelto < 0: 
+            printer.set("LEFT", "A", "B", 1, 1)
+            printer.text(pad("Su vuelto:", self.total_cols - self.price_cols, " ", "l") + "$" + pad("%.2f" % abs(vuelto), self.price_cols -1, " ", "r") + "\n")
+        
+        return True
 
     def printRemitoCorto(self, **kwargs):
         "imprimir remito"
