@@ -13,8 +13,7 @@ class ConectorDriverComando:
     driver = None
 
     def __init__(self, comando, driver, *args, **kwargs):
-        # logging.getLogger().info("inicializando ConectorDriverComando driver de %s" % driver)
-        logging.getLogger().info(u"inicializando ConectorDriverComando driver de '${0}'".format(driver))
+        logging.getLogger().info("inicializando ConectorDriverComando driver de %s" % driver)
 
         self._comando = comando
         self.driver_name = driver
