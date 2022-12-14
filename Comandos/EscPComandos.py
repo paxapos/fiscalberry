@@ -180,6 +180,12 @@ class EscPComandos(ComandoInterface):
         pagos = kwargs.get("pagos", [])
         addAdditional = kwargs.get("addAdditional", None)
         setTrailer = kwargs.get("setTrailer", None)
+
+        tiposInscriptoString = ["Factura A", "NOTAS DE CREDITO A", "Factura M", "NOTAS DE CREDITO M", "Factura \"A\"", "NOTAS DE CREDITO \"A\"", "Factura \"M\"", "NOTAS DE CREDITO \"M\""]
+        tiposInscriptoCod = ["001","051","003","053"]
+        tiposNC = ["NOTAS DE CREDITO A", "NOTAS DE CREDITO B", "NOTAS DE CREDITO C", "NOTAS DE CREDITO M",
+                      "NOTAS DE CREDITO \"A\"" "NOTAS DE CREDITO \"B\"", "NOTAS DE CREDITO \"C\"", "NOTAS DE CREDITO \"M\"",
+                      "003", "008", "013", "053"]
         
         printer = self.conector.driver
         
@@ -229,7 +235,7 @@ class EscPComandos(ComandoInterface):
         
         printer.set("LEFT", "A", "A", 1, 1)
 
-        if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
+        if encabezado.get("tipo_comprobante") in tiposInscriptoString or encabezado.get("tipo_comprobante_codigo") in tiposInscriptoCod:
             printer.set("LEFT", "B", "B", 1,1)
             printer.text(u""+"Cant. x Precio Unit. (%IVA)\n")
             printer.set("LEFT", "A", "A", 1, 1)
@@ -265,9 +271,9 @@ class EscPComandos(ComandoInterface):
 
             total_producto = "%.2f" % round( qty * importe , 2 )
             
-            if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
+            if encabezado.get("tipo_comprobante") in tiposInscriptoString or encabezado.get("tipo_comprobante_codigo") in tiposInscriptoCod:
                 printer.set("LEFT", "B", "B", 1,1)
-                printer.text(u""+item_cant +" x "+ importe_unitario + "(" + floatToString(porcentaje_iva)+")\n")
+                printer.text(u""+item_cant +" x "+ importe_unitario + " (" + floatToString(porcentaje_iva) + ")\n")
                 dstxt = pad(ds, self.desc_cols + self.cant_cols, " ", "l")
                 preciotxt = pad( total_producto, self.price_cols , " ", "r")
                 printer.set("LEFT", "A", "A", 1, 1)
@@ -307,7 +313,7 @@ class EscPComandos(ComandoInterface):
             
 
 
-        if encabezado.get("tipo_comprobante") == "Factura A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "Factura M" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO M":
+        if encabezado.get("tipo_comprobante") in tiposInscriptoString or encabezado.get("tipo_comprobante_codigo") in tiposInscriptoCod:
             # imprimir subtotal
             printer.text(pad(u"Total Sin IVA",self.total_cols-self.price_cols, " ", "l") 
                         + "$" + pad("{:,.2f}".format(round(tot_neto, 2)),self.price_cols-1, " ", "r")+"\n")
@@ -328,7 +334,7 @@ class EscPComandos(ComandoInterface):
 
         printer.set("LEFT", "B", "A", 1, 1)
 
-        if encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO A" or encabezado.get("tipo_comprobante") == "NOTAS DE CREDITO B" or encabezado.get("tipo_comprobante") == 'NOTAS DE CREDITO M':
+        if encabezado.get("tipo_comprobante") in tiposNC or encabezado.get("tipo_comprobante_codigo") in tiposNC:
             printer.text(u"Firma.......................................\n\n")
             printer.text(u"Aclaración..................................\n")
         
