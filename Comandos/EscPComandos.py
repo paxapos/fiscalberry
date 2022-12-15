@@ -5,19 +5,15 @@ import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
-import string
 import types
-import requests
 import logging
 import unicodedata
 from escpos import escpos,constants
 from ComandoInterface import ComandoInterface, ComandoException, ValidationError, FiscalPrinterError, formatText
-import time
 import datetime
 from math import ceil
 import json
 import base64
-import locale
 
 
 def floatToString(inputValue):
@@ -257,7 +253,7 @@ class EscPComandos(ComandoInterface):
 
             qty      = float(item.get('qty'))
             importe  = float(item.get('importe'))
-            ds       = item.get('ds')[0:self.desc_cols]
+            ds       = item.get('ds')[0:self.desc_cols-1]
 
             itemIvasTot = float(itemIvas.get(porcentaje_iva, 0) )
 
@@ -304,11 +300,11 @@ class EscPComandos(ComandoInterface):
 
             printer.set("RIGHT", "A", "B", 1, 1)
             printer.text(pad("SUBTOTAL",self.total_cols-self.price_cols, " ","l") 
-                        + "$" + pad("{:,.2f}".format(round(total + sAmount,2)),self.price_cols-1, " ", "r")+"\n")
+                        + "$" + pad("%.2f" % round(total + sAmount,2), self.price_cols-1, " ", "r")+"\n")
 
             printer.set("RIGHT", "A", "A", 1, 1)
             printer.text(pad("Dto: %s" % descuentoDesc[0:self.desc_cols],self.total_cols-self.price_cols-1," ", "l") 
-                        + "-$" + pad("{:,.2f}".format(round(sAmount, 2)),self.price_cols-1, " ", "r")+"\n\n")
+                        + "-$" + pad("%.2f" % round(sAmount, 2), self.price_cols-1, " ", "r")+"\n\n")
 
             
 
@@ -316,18 +312,18 @@ class EscPComandos(ComandoInterface):
         if encabezado.get("tipo_comprobante") in tiposInscriptoString or encabezado.get("tipo_comprobante_codigo") in tiposInscriptoCod:
             # imprimir subtotal
             printer.text(pad(u"Total Sin IVA",self.total_cols-self.price_cols, " ", "l") 
-                        + "$" + pad("{:,.2f}".format(round(tot_neto, 2)),self.price_cols-1, " ", "r")+"\n")
+                        + "$" + pad("%.2f" % round(tot_neto, 2), self.price_cols-1, " ", "r")+"\n")
 
             for nameiva, importeiva in itemIvas.items():
                 printer.text(pad("IVA %s " % (str(nameiva)+"%"),self.total_cols-self.price_cols, " ", "l") 
-                            + "$" + pad("{:,.2f}".format(round(importeiva * descuentoRatio, 2)),self.price_cols-1, " ", "r")+"\n")
+                            + "$" + pad("%.2f" % round(importeiva * descuentoRatio, 2),self.price_cols-1, " ", "r")+"\n")
 
 
 
         # imprimir total
         printer.set("RIGHT", "A", "B", 1, 2)
         printer.text(pad(u"TOTAL",self.total_cols-self.price_cols, " ", "l")
-                    + "$" + pad("{:,.2f}".format(round(total,2)),self.price_cols-1," ", "r") + "\n")
+                    + "$" + pad("%.2f" % round(total,2),self.price_cols-1," ", "r") + "\n")
 
         printer.set("RIGHT", "A", "A", 1, 1)
         printer.text(u"-" * self.total_cols + "\n\n")
