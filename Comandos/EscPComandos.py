@@ -843,7 +843,7 @@ class EscPComandos(ComandoInterface):
     
     def printArqueo(self, **kwargs):
         
-        encabezado = kwargs.get('encabezado', None)
+        encabezado: dict = kwargs.get('encabezado', None)
 
         if encabezado is None:
             logging.getLogger("EscP-Comandos").error("No hay datos suficientes para imprimir")
@@ -879,7 +879,7 @@ class EscPComandos(ComandoInterface):
             printer.text("ARQUEO DE CAJA")
             printer.text("\n\n")
             printer.set(CENTER, FONT_A, NORMAL, 2, 1)
-            printer.text(f"{encabezado['nombreComercio']}")
+            printer.text(f"{encabezado.get('nombreComercio', '')}")
             printer.text("\n")
             printer.set(CENTER, FONT_A, NORMAL, 1, 1)
             printer.text("-" * self.total_cols + "\n")
