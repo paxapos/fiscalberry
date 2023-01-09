@@ -871,7 +871,7 @@ class EscPComandos(ComandoInterface):
 
         fechaDesde = datetime.datetime.strptime(encabezado['fechaDesde'], '%d-%m-%Y %H:%M').strftime('%d/%m %H:%M',)
         fechaHasta = datetime.datetime.strptime(encabezado['fechaHasta'], '%d-%m-%Y %H:%M').strftime('%d/%m %H:%M',)
-        fechaArqueo = datetime.datetime.strptime(encabezado['ArqueoDateTime'], '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%y %H:%M',)
+        fechaArqueo = datetime.datetime.strptime(encabezado['ArqueoDateTime'], '%d-%m-%Y %H:%M:%S').strftime('%d/%m/%y %H:%M',)
 
 
         def imprimirEncabezado():            
