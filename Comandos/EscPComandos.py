@@ -740,7 +740,7 @@ class EscPComandos(ComandoInterface):
             printer.set("CENTER", "B", "B", 2, 2)
             printer.text("ARQUEO DE CAJA\n\n")
             printer.set("CENTER", "A", "A", 2, 1)
-            printer.text("%s\n" % encabezado['nombreComercio'])
+            printer.text("%s\n" % encabezado.get('nombreComercio', ''))
             printer.set("CENTER", "A", "A", 1, 1)
             printer.text(u"───────────────────────────────────────\n")
             
