@@ -224,8 +224,11 @@ class EscPComandos(ComandoInterface):
             return False
 
             
-        tiposInscripto = ["Factura A", "NOTAS DE CREDITO A", "Factura M", "NOTAS DE CREDITO M"]
-        tiposNC        = ["NOTAS DE CREDITO A", "NOTAS DE CREDITO B", "NOTAS DE CREDITO C" "NOTAS DE CREDITO M"]
+        tiposInscriptoString = ["Factura A", "NOTAS DE CREDITO A", "Factura M", "NOTAS DE CREDITO M", "Factura \"A\"", "NOTAS DE CREDITO \"A\"", "Factura \"M\"", "NOTAS DE CREDITO \"M\""]
+        tiposInscriptoCod = ["001","051","003","053"]
+        tiposNC = ["NOTAS DE CREDITO A", "NOTAS DE CREDITO B", "NOTAS DE CREDITO C", "NOTAS DE CREDITO M",
+                      "NOTAS DE CREDITO \"A\"" "NOTAS DE CREDITO \"B\"", "NOTAS DE CREDITO \"C\"", "NOTAS DE CREDITO \"M\"",
+                      "003", "008", "013", "053"]
         
         printer = self.conector.driver
         try:
@@ -296,7 +299,7 @@ class EscPComandos(ComandoInterface):
         
         # 4- ITEMS
         # 4.1- ENCABEZADOS ITEMS
-        if tipoComprobante in tiposInscripto:
+        if tipoComprobante in tiposInscriptoString or tipoCmp in tiposInscriptoCod:
 
             cantHeader = "Cant. x Precio Unit. (%IVA)"
             dsHeader = pad("Descripción", (self.desc_cols_ext), " ", "l")
@@ -340,7 +343,7 @@ class EscPComandos(ComandoInterface):
             importeUnitario = floatToString( importe )
             totalProducto = f"{round( qty * importe , 2 ):,.2f}"
 
-            if tipoComprobante in tiposInscripto:
+            if tipoComprobante in tiposInscriptoString or tipoCmp in tiposInscriptoCod:
                 printer.set(LEFT, FONT_B, BOLD, 1,1)
                 printer.text(f"{itemCant} x {importeUnitario} ({floatToString(alicIva)})\n")
                 printer.set(LEFT, FONT_A, NORMAL, 1, 1)
@@ -380,7 +383,7 @@ class EscPComandos(ComandoInterface):
             printer.text(f'{dsDescuento}{self.signo}{importeDescuento}\n\n')
 
         # 6- DETALLE IVAS (INSCRIPTO)
-        if tipoComprobante in tiposInscripto:
+        if tipoComprobante in tiposInscriptoString or tipoCmp in tiposInscriptoCod:
             dsSinIva = pad("Total sin IVA:", self.desc_cols_ext - 1, " ", "l")
             importeSinIva = pad(f"{round(totalNeto, 2):,.2f}",self.price_cols, " ", "r")
             printer.set(LEFT, FONT_A, NORMAL, 1, 1)
@@ -403,7 +406,7 @@ class EscPComandos(ComandoInterface):
 
         printer.set(LEFT, FONT_B, NORMAL, 1, 1)
 
-        if tipoComprobante in tiposNC:
+        if tipoComprobante in tiposNC or tipoCmp in tiposNC:
             printer.text(u"Firma.......................................\n\n")
             printer.text(u"Aclaración..................................\n")
         else:
