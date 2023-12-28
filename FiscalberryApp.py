@@ -27,7 +27,9 @@ MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
 # en config.ini
 
 root = os.path.dirname(os.path.abspath(__file__))
-logging.config.fileConfig(root+'/logging.ini')
+loginFile = root+'/logging.ini'
+if os.path.isfile(loginFile):
+    logging.config.fileConfig(loginFile)
 logger = logging.getLogger(__name__)
 
 
