@@ -1,15 +1,26 @@
 import configparser
 import os
-
-CONFIG_FILE_NAME = "config.ini"
+import logging
 
 
 class Configberry:
     config = configparser.ConfigParser()
 
+
     def __init__(self):
-        self.config.read(CONFIG_FILE_NAME)
+        self.logger = logging.getLogger("Configberry")
+
+        self.config.read( self.getConfigFIle() )
         self.__create_config_if_not_exists()
+
+    def getConfigFIle(self):
+        FILE_PATH = os.getenv('CONFIG_FILE_PATH', './')
+        CONFIG_FILE_NAME = os.path.join(FILE_PATH, 'config.ini')
+
+        self.logger.debug("Config file path: %s" % CONFIG_FILE_NAME)   
+
+        return CONFIG_FILE_NAME
+
 
     def getJSON(self):
         jsondata = {}
@@ -20,11 +31,11 @@ class Configberry:
         return jsondata
 
     def items(self):
-        self.config.read(CONFIG_FILE_NAME)
+        self.config.read( self.getConfigFIle() )
         return self.config.items()
 
     def sections(self):
-        self.config.read(CONFIG_FILE_NAME)
+        self.config.read( self.getConfigFIle() )
         return self.config.sections()
 
     def findByMac(self, mac):
@@ -32,15 +43,15 @@ class Configberry:
         for s in self.sections()[1:]:
             if self.config.has_option(s, 'mac'):
                 mymac = self.config.get(s, 'mac')
-                print("mymac %s y la otra es mac %s" % (mymac, mac))
+                self.logger.debug("mymac %s y la otra es mac %s" % (mymac, mac))
                 if mymac == mac:
-                    print(s)
+                    self.logger.debug("encontre la mac %s" % mac)
                     return (s, self.get_config_for_printer(s))
         return False
 
     def writeSectionWithKwargs(self, printerName, kwargs):
         self.config = configparser.RawConfigParser()
-        self.config.read(CONFIG_FILE_NAME)
+        self.config.read( self.getConfigFIle() )
 
         if not self.config.has_section(printerName):
             self.config.add_section(printerName)
@@ -48,7 +59,7 @@ class Configberry:
         for param in kwargs:
             self.config.set(printerName, param, kwargs[param])
 
-        with open(CONFIG_FILE_NAME, 'w') as configfile:
+        with open(self.getConfigFIle(), 'w') as configfile:
             self.config.write(configfile)
             configfile.close()
 
@@ -57,6 +68,7 @@ class Configberry:
     def __create_config_if_not_exists(self):
         newpath = os.path.dirname(os.path.realpath(__file__))
         os.chdir(newpath)
+        CONFIG_FILE_NAME = self.getConfigFIle()
         if not os.path.isfile(CONFIG_FILE_NAME):
             import shutil
             shutil.copy("config.ini.install", CONFIG_FILE_NAME)
@@ -73,6 +85,9 @@ class Configberry:
 
     def delete_printer_from_config(self, printerName):
         self.config = configparser.RawConfigParser()
+        
+        CONFIG_FILE_NAME = self.getConfigFIle()
+
         self.config.read(CONFIG_FILE_NAME)
 
         if self.config.has_section(printerName):

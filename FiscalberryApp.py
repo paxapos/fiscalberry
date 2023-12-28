@@ -1,5 +1,4 @@
 import multiprocessing
-import socketio
 import tornado
 from tornado import httpserver, websocket, ioloop, web
 from Traductores.TraductoresHandler import TraductoresHandler, TraductorException
@@ -20,7 +19,6 @@ else:
     from signal import signal, SIGPIPE, SIG_DFL, SIGTERM, SIGINT
     signal(SIGPIPE,SIG_DFL)
 #API
-from ApiRest.ApiRestHandler import ApiRestHandler, AuthHandler
 
 
 MAX_WAIT_SECONDS_BEFORE_SHUTDOWN = 2
@@ -106,7 +104,6 @@ class FiscalberryApp:
     http_server = None
     https_server = None
 
-    socketio = None
     sioServerTornadoHandler = None
     sioProcess = None
     sio = None
@@ -163,8 +160,6 @@ class FiscalberryApp:
         self.isSioServer = isSioServer
         self.isSioClient = isSioClient
         
-        self.startSocketIO()
-
         logger.info("Iniciando Fiscalberry Server")
         settings = {  
             "autoreload": True
@@ -172,16 +167,12 @@ class FiscalberryApp:
 
         self.application = web.Application([
             
-            (r'/socket.io/', self.sioServerTornadoHandler),
             (r'/wss', WSHandler, {"ref_object" : self}),
             (r'/ws', WSHandler, {"ref_object" : self}),
-            (r'/api', ApiRestHandler),
-            (r'/api/auth', AuthHandler),
             (r'/', PageHandler),
             (r"/(.*)", web.StaticFileHandler, dict(path=root + "/js_browser_client"))
 
         ], **settings)
-        # self.application.add_handlers(r'/socket.io/', socketio.get_tornado_handler(self.sio))
 
         # cuando cambia el config.ini levanta devuelta el servidor tornado
         tornado.autoreload.watch("config.ini")
@@ -216,26 +207,15 @@ class FiscalberryApp:
         ioloop.IOLoop.current().close()
         logger.info("Bye!")
 
-    def startSocketIO(self):
-        
-        if (self.isSioServer and not self.isSioClient): 
-            logger.info("Iniciando Socket.io Server")           
-            import SioServerHandler
-            self.socketio = SioServerHandler
-            sio = self.socketio.sio
-            sio.eio.cors_allowed_origins = "*"
-            self.sioServerTornadoHandler = socketio.get_tornado_handler(sio)
-            self.socketio.password = self.configberry.config.get("SERVIDOR", "sio_password", fallback = "password")
-
-        if (self.isSioClient and not self.isSioServer):
-            logger.info("Iniciando Socket.io Client")
-            from SioClientHandler import SioClientHandler
-            self.socketio = SioClientHandler()
-            self.sioProcess = multiprocessing.Process(target = self.socketio.startSioClient, args=(self.configberry.config.get("SERVIDOR", "uuid"),), name="SocketIOClient")
-            self.sioProcess.start()
-
 
     def get_ip(self):
+        
+        # get docker ip
+        ip = os.environ.get('HOSTIP')
+        logger.info("Obteniendo IP privada del host "+str(ip))
+        if ip:
+            return ip
+        
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             # doesn't even have to be reachable
