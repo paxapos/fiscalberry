@@ -114,9 +114,6 @@ class FiscalberryApp:
     def __init__(self):
         logger.info("Preparando Fiscalberry Server")
 
-        newpath = os.path.dirname(os.path.realpath(__file__))
-        os.chdir(newpath)
-
         self.configberry = Configberry.Configberry()
 
         # actualizar ip privada por si cambio

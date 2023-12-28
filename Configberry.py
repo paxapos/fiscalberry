@@ -1,6 +1,7 @@
 import configparser
 import os
 import logging
+import shutil
 
 
 class Configberry:
@@ -66,12 +67,12 @@ class Configberry:
         return 1
 
     def __create_config_if_not_exists(self):
-        newpath = os.path.dirname(os.path.realpath(__file__))
-        os.chdir(newpath)
         CONFIG_FILE_NAME = self.getConfigFIle()
         if not os.path.isfile(CONFIG_FILE_NAME):
-            import shutil
-            shutil.copy("config.ini.install", CONFIG_FILE_NAME)
+
+            curpath = os.path.dirname(os.path.realpath(__file__))
+            configIniInstallFile = os.path.join(curpath, 'config.ini.install')
+            shutil.copy(configIniInstallFile, CONFIG_FILE_NAME)
 
     def get_config_for_printer(self, printerName):
         dictConf = {s: dict(self.config.items(s)) for s in self.config.sections()}
