@@ -18,5 +18,14 @@
 	// "customizations": {},
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
-	"remoteUser": "root"
+	"remoteUser": "root",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"KevinRose.vsc-python-indent",
+				"mgesbert.python-path",
+				"demystifying-javascript.python-extensions-pack"
+			]
+		}
+	}
 }

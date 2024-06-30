@@ -6,6 +6,11 @@ __pycache__/
 .pyc
 *.log
 *.swp
+py3env
+bin
+lib
+lib64
+fiscalberry
 
 #configuration file for fiscalberry
 config.ini
@@ -106,3 +111,4 @@ ENV/
 
 .vscode/
 fiscalberry3env
+pyvenv.cfg

@@ -48,8 +48,6 @@ def init_printer_traductor(printerName):
     return comando.traductor
 
 def runTraductor(jsonTicket, queue):
-    logging.info("Mandando comando de impresora")
-    print(jsonTicket)
     printerName = jsonTicket['printerName']
     traductor = init_printer_traductor(printerName)
 
@@ -61,7 +59,6 @@ def runTraductor(jsonTicket, queue):
             queue.put(strError)
             logging.error(strError)
 
-            
 
 class TraductoresHandler:
     """Convierte un JSON a Comando Fiscal Para Cualquier tipo de Impresora fiscal"""
@@ -183,7 +180,6 @@ class TraductoresHandler:
 
     def _upgrade(self):
         ret = self.fbApp.upgradeGitPull()
-        print(ret)
         rta = {
             "rta": ret
         }
@@ -196,7 +192,6 @@ class TraductoresHandler:
             "action": "getPrinterInfo",
             "rta": self.config.get_config_for_printer(printerName)
         }
-        print(rta)
         return rta
 
     def _restartService(self):
@@ -267,7 +262,7 @@ class TraductoresHandler:
         return rta
 
     def _handleSocketError(self, err, jsonTicket, traductor):
-        print(format(err))
+        logging.error(format(err))
         traductor.comando.conector.driver.reconnect()
         # volver a intententar el mismo comando
         try:

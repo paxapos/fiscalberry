@@ -65,8 +65,6 @@ class AuthHandler(tornado.web.RequestHandler):
             response["err"] = errtxt
             import sys, traceback
             traceback.print_exc(file=sys.stdout)
-        print("escribiendo la respuesrta")
-        print(response)
         self.write(response)
 
 #

@@ -8,6 +8,7 @@ import random
 
 class FileDriver(DriverInterface):
     def __init__(self, path, codepage="utf8"):
+        self.cols = 48
         bufsize = 1  # line buffer
         self.file = open(path, "a", bufsize)
         self.codepage = codepage
@@ -57,11 +58,14 @@ class FileDriver(DriverInterface):
         pass
 
     def text(self, *kwargs):
-        print(kwargs)
         for texto in kwargs:
-            texto = texto.encode(self.codepage)
-            self.file.write(texto)
-        pass
+            if isinstance(texto, str):
+                self.file.write(texto.encode(self.codepage))
+            elif isinstance(texto, bytes):
+                self.file.write(texto)
+            else:
+                raise TypeError(f"Unsupported type for texto: {type(texto)}")
+        
 
     def qr(self, *kwargs):
         print(kwargs)
@@ -72,6 +76,8 @@ class FileDriver(DriverInterface):
 
     def cut(self, *kwargs):
         pass
+    
+   
 
     def image(self, *kwargs):
         pass

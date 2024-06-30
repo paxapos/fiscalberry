@@ -75,9 +75,50 @@ class Configberry:
             shutil.copy(configIniInstallFile, CONFIG_FILE_NAME)
 
     def get_config_for_printer(self, printerName):
-        dictConf = {s: dict(self.config.items(s)) for s in self.config.sections()}
-
-        return dictConf[printerName]
+        '''
+        printerName: string
+        '''
+        self.logger.info("Agarrando configgggggggggggggg 111111111111")
+        print("Agarrando configgggggggggggggg 222222222222222222222222222")
+        # if printerName is an IP address, extract IP and PORT.
+        # e.g.
+        # printerName = "192.168.0.25:9100"
+        # host is 192.168.0.25
+        # port is 9100
+        # e.g. 2
+        # printerName = "192.168.0.25"
+        # host is 192.168.0.25
+        # port is 9100
+        # e.g. 3
+        # printerName = "192.168.0.25:6100"
+        # host is 192.168.0.25
+        # port is 6100
+        if ":" in printerName:
+            host, port = printerName.split(":")
+            ret = {
+                "marca": "EscP",
+                "driver": "ReceiptDirectJet",
+                "host": host,
+                "port": port
+            }
+            print("444444444444")
+            print(ret)
+            self.logger.debug("lc config donde voy a mandar porque vino IP es: %s" % ret)
+            return ret
+        elif "&" in printerName:
+            params = printerName.split('&')
+            dictConf = {}
+            for param in params:
+                key, value = param.split('=')
+                dictConf[key] = value
+            self.logger.debug("lc config donde voy a mandar con ampersand es: %s" % dictConf)
+            print("55555555555555")
+            print(dictConf)
+            return dictConf
+        else:
+            printerName = printer
+            dictConf = {s: dict(self.config.items(s)) for s in self.config.sections()}
+            return dictConf[printerName]
 
     def get_actual_config(self):
         dictConf = {s: dict(self.config.items(s)) for s in self.config.sections()}
