@@ -78,8 +78,6 @@ class Configberry:
         '''
         printerName: string
         '''
-        self.logger.info("Agarrando configgggggggggggggg 111111111111")
-        print("Agarrando configgggggggggggggg 222222222222222222222222222")
         # if printerName is an IP address, extract IP and PORT.
         # e.g.
         # printerName = "192.168.0.25:9100"
@@ -101,9 +99,6 @@ class Configberry:
                 "host": host,
                 "port": port
             }
-            print("444444444444")
-            print(ret)
-            self.logger.debug("lc config donde voy a mandar porque vino IP es: %s" % ret)
             return ret
         elif "&" in printerName:
             params = printerName.split('&')
@@ -111,9 +106,6 @@ class Configberry:
             for param in params:
                 key, value = param.split('=')
                 dictConf[key] = value
-            self.logger.debug("lc config donde voy a mandar con ampersand es: %s" % dictConf)
-            print("55555555555555")
-            print(dictConf)
             return dictConf
         else:
             printerName = printer
