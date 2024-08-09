@@ -1,0 +1,55 @@
+#:kivy 1.0.9
+#:import utils kivy.utils
+
+
+MainPage:
+
+<MainPage@GridLayout>
+    cols: 2
+    Label:
+        text: "Hello"
+        font_size: 50
+        color: 1, 1, 1, 1
+    LayoutWidget:
+        cols: 1
+        Label:
+            text: "Hello"
+            font_size: 50
+            color: 1, 1, 1, 1
+
+
+<LayoutWidget>:
+    orientation: 'vertical'
+    canvas:
+        Color:
+            rgba: utils.get_color_from_hex('#fceed1')
+        Rectangle:
+            pos: self.pos
+            size: self.size
+    SocketStatusWidget:
+        size_hint_y: None
+        height: '50dp'
+    Label:
+        center_y: self.parent.center_y
+        center_x: self.parent.center_x
+        text: "Hello"
+        font_size: 50
+        color: 1, 1, 1, 1
+
+
+<SocketStatusWidget>:
+    id: status_widget
+    canvas:
+        Color:
+            rgba: (0, 1, 0, 1) if status_widget.connected else (1, 0, 0, 1)
+        Ellipse:
+            pos: self.pos
+            size: 40, 40
+    Label:
+        top: self.parent.top + 20
+        right: self.parent.right + 55
+        text: "Connected" if status_widget.connected else "Disconnected"
+        font_size: 20
+        color: (0, 1, 0, 1) if status_widget.connected else (1, 0, 0, 1)
+            
+    

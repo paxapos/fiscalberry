@@ -4,6 +4,8 @@ import logging
 import requests
 import json
 
+from fiscalberry_logger import getLogger
+
 
 
 class FiscalberryDriver(DriverInterface):
@@ -17,7 +19,7 @@ class FiscalberryDriver(DriverInterface):
 
 
 	def __init__(self, host, printername = "", port=12000, uri = "http", user = None, password = None, after_port = "api", timeout = 5):
-		self.logger = logging.getLogger("ProxyDriver")
+		self.logger = getLogger()
 		self.logger.info(f"conexion con JSON Driver en uri: {uri}, host: {host} puerto: {port}")
 		self.host = host
 		self.port = port

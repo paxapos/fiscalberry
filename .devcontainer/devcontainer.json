@@ -24,7 +24,8 @@
 			"extensions": [
 				"KevinRose.vsc-python-indent",
 				"mgesbert.python-path",
-				"demystifying-javascript.python-extensions-pack"
+				"demystifying-javascript.python-extensions-pack",
+				"BattleBas.kivy-vscode"
 			]
 		}
 	}

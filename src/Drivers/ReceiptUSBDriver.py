@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 from escpos import printer, escpos
-import threading
-import time
-import logging
 from DriverInterface import DriverInterface
+from fiscalberry_logger import getLogger
 
 
 class ReceiptUSBDriver(printer.Usb, DriverInterface):
@@ -26,7 +24,7 @@ class ReceiptUSBDriver(printer.Usb, DriverInterface):
         self.out_ep = int(out_ep, 16)
         self.codepage = codepage
         self.cols = int(cols)
-        self.logger = logging.getLogger("USBDriver")
+        self.logger = getLogger()
 
     def start(self):
         try:

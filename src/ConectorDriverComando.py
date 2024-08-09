@@ -1,6 +1,6 @@
 # -*- coding: iso-8859-1 -*-
 import importlib
-import logging
+from fiscalberry_logger import getLogger
 
 class ConectorError(Exception):
     pass
@@ -9,7 +9,7 @@ class ConectorDriverComando:
     driver = None
 
     def __init__(self, comando, driver, *args, **kwargs):
-        self.logger = logging.getLogger("ConectorDriverComando")
+        self.logger = getLogger()
         self.logger.info(f"Inicializando ConectorDriverComando driver de '${driver}'")
 
         self._comando = comando

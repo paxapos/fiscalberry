@@ -1,5 +1,5 @@
-python-escpos==v2.2.0
-future
-requests
-six
-tornado
+python-escpos==3.1
+python-socketio==5.11.3
+requests==2.32.3
+aiohttp==3.10.2
+argparse==1.4.0

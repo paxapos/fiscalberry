@@ -112,3 +112,10 @@ ENV/
 .vscode/
 fiscalberry3env
 pyvenv.cfg
+
+
+kivy_venv
+fiscalberry3env
+pyManjaroEnv
+bin
+build

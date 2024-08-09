@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import logging
 from ComandoInterface import ComandoInterface, ComandoException
 from Comandos.EscPConstants import *
 import datetime
@@ -7,6 +6,9 @@ from math import ceil
 import json
 import base64
 
+from fiscalberry_logger import getLogger
+
+logger = getLogger()
 
 def floatToString(inputValue):
     if ( not isinstance(inputValue, float) ):
@@ -49,9 +51,8 @@ class EscPComandos(ComandoInterface):
             ret = self.conector.sendCommand(comando, skipStatusErrors)
             return ret
         except PrinterException as e:
-            logging.getLogger("EscPComandos").error("PrinterException: %s" % str(e))
-            raise ComandoException("Error de la impresora: %s.\nComando enviado: %s" % \
-                                   (str(e),comando))
+            getLogger("EscPComandos").error("PrinterException: %s" % str(e))
+            raise ComandoException("Error de la impresora: %s.\nComando enviado: %s" % (str(e),comando))
     def getStatus(self):
         printer = self.conector.driver
         printer.start()
@@ -115,7 +116,7 @@ class EscPComandos(ComandoInterface):
         items = kwargs.get("items", [])
 
         if encabezado is None or len(items) == 0:
-            logging.getLogger("EscP-Comandos").error("No hay datos suficientes para imprimir")
+            logger.error("No hay datos suficientes para imprimir")
             return False
 
         printer = self.conector.driver
@@ -220,7 +221,7 @@ class EscPComandos(ComandoInterface):
         setTrailer = kwargs.get("setTrailer", False)
 
         if encabezado is None or len(items) == 0:
-            logging.getLogger("EscP-Comandos").error("No hay datos suficientes para imprimir")
+            logger.error("No hay datos suficientes para imprimir")
             return False
 
             
@@ -496,7 +497,7 @@ class EscPComandos(ComandoInterface):
         setTrailer = kwargs.get("setTrailer", None)     
 
         if encabezado is None or len(items) == 0:
-            logging.getLogger("EscP-Comandos").error("No hay datos suficientes para imprimir")
+            logger.error("No hay datos suficientes para imprimir")
             return False
 
         printer = self.conector.driver          
@@ -586,7 +587,7 @@ class EscPComandos(ComandoInterface):
         setTrailer = kwargs.get("setTrailer", None)
 
         if encabezado is None or len(items) == 0:
-            logging.getLogger("EscP-Comandos").error("No hay datos suficientes para imprimir")
+            logger.error("No hay datos suficientes para imprimir")
             return False
 
         printer = self.conector.driver
@@ -849,7 +850,7 @@ class EscPComandos(ComandoInterface):
         encabezado: dict = kwargs.get('encabezado', None)
 
         if encabezado is None:
-            logging.getLogger("EscP-Comandos").error("No hay datos suficientes para imprimir")
+            logger.error("No hay datos suficientes para imprimir")
             return False
 
 

@@ -1,7 +1,7 @@
 import configparser
 import os
-import logging
 import shutil
+from fiscalberry_logger import getLogger
 
 
 class Configberry:
@@ -9,7 +9,7 @@ class Configberry:
 
 
     def __init__(self):
-        self.logger = logging.getLogger("Configberry")
+        self.logger = getLogger()
 
         self.config.read( self.getConfigFIle() )
         self.__create_config_if_not_exists()
