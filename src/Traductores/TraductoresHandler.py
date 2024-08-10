@@ -81,8 +81,6 @@ class TraductoresHandler:
         rta = {"rta": ""}
 
         try:
-            logging.info(f"Iniciando procesamiento de json:::: {json.dumps(jsonTicket)}")
-
             # Interceptar la key 'uuid'
             if 'uuid' in jsonTicket:
                 uuidFb = jsonTicket.pop("uuid")
@@ -98,7 +96,6 @@ class TraductoresHandler:
                 q = Queue()
                 p = Process(target=runTraductor, args=(jsonTicket,q))
                 p.daemon = True
-                #p = MultiprocesingTraductor(traductorhandler=self, jsonTicket=jsonTicket, q=q)
                 p.start()
                 p.join()
                 if q.empty() == False:

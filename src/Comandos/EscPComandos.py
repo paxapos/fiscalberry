@@ -203,12 +203,14 @@ class EscPComandos(ComandoInterface):
         if qrcode:
             printer.set(CENTER, FONT_A, NORMAL, 1, 1)
             printer.qr(qrcode, QR_ECLEVEL_H, 6, QR_MODEL_2 , False)
+            printer.text(u'\n')
 
         qrcodeml = kwargs.get("qr-mercadopago", None)
         if qrcodeml:
             printer.set(CENTER, FONT_A, NORMAL, 1, 1)
-            printer.text(u'QR de Pago rápido con Mercado Pago\n')
+            printer.text(u'QR Mercado Pago\n')
             printer.qr(qrcodeml, QR_ECLEVEL_H, 5, QR_MODEL_2 , False)
+            printer.text(u'\n')
     
     def printFacturaElectronica(self, **kwargs):
         "Imprimir Factura Electronica"
@@ -770,6 +772,8 @@ class EscPComandos(ComandoInterface):
             printer.start()
         except Exception as e:
             return False
+        print("* * * * * * * * * ** * * * * * * * * * * * * * * * * * *")
+        print(comanda)
         
         printer.set(CENTER, FONT_A, NORMAL, 1, 1)
 
@@ -779,13 +783,7 @@ class EscPComandos(ComandoInterface):
                 printer.text("\n\n")
 
         if "id" in comanda:
-            if "nuevaComanda" in comanda:
-                printer.text("Nueva Comanda\n")
-            else:
-                printer.text("- REIMPRESION -\n")
             printer.text(f"Comanda #{comanda['id']}\n")
-        else:
-            printer.text(u"Nueva Comanda\n")
 
         if "created" in comanda:
             fecha = datetime.datetime.strptime(comanda['created'], '%Y-%m-%d %H:%M:%S').strftime('%H:%M',)

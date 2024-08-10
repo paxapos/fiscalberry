@@ -108,7 +108,7 @@ class Configberry:
                 dictConf[key] = value
             return dictConf
         else:
-            printerName = printer
+            printerName = printerName
             dictConf = {s: dict(self.config.items(s)) for s in self.config.sections()}
             return dictConf[printerName]
 

@@ -27,7 +27,10 @@ async def message(self, data):
     logger.info(f"Message received: {data}")
     
 @sio.event
-async def command(self, comando):
+async 
+'''
+
+async def send_command(comando):
     response = {}
     logger.info(f"Request \n -> {comando}")
     try:
@@ -36,7 +39,7 @@ async def command(self, comando):
         else:
             jsonMes = comando
         traductor = TraductoresHandler()
-        response = asyncio.run(traductor.json_to_comando(jsonMes))
+        response = await traductor.json_to_comando(jsonMes)
     except TypeError as e:
         errtxt = "Error parseando el JSON %s" % e
         logger.exception(errtxt)
@@ -56,32 +59,42 @@ async def command(self, comando):
 
     logger.info("Response \n <- %s" % response)
     return response
-'''
-
-
-@sio.on("connect")
-def connect():
-    print(f"connection established with sid {sio.sid}")
-
-@sio.on('hi', namespace='/paxaprinter')
-async def sayhi(event, namespace, sid, data):
-    print(f"HI!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Event {event} - Namespace {namespace} - SID {sid} - Data {data}")
         
-
-@sio.on('*', namespace='*')
-async def any_event_any_namespace(event, namespace, sid, data):
-    print(f"Event {event} - Namespace {namespace} - SID {sid} - Data {data}")
-    
 
     
 async def start(sockeiIoServer, uuid, namespaces = ["/paxaprinter"]):
-    try:
-        
-        await sio.connect(sockeiIoServer, namespaces=namespaces, headers={"X_UUID":uuid})
-        
-        print("Iniciado SioClient en %s con uuid %s" % (sockeiIoServer, uuid))
+    
+    @sio.on("connect", namespace='/paxaprinter')
+    async def handleConnect(**kwargs):
+        def handleJoin(*args, **kwargs):
+            print(f"Joined!!!!!!!! OKK {args} {kwargs}")
+            
+            
+        print(f"connection established with sid {sio.sid}")
+        await sio.emit("join", data=uuid, namespace='/paxaprinter', callback=handleJoin)
 
+
+    @sio.on('hi', namespace='*')
+    async def any_event_any_namespace( *kargs, **kwargs):
+        print(f"Any event in any namespace {kargs}")
+        
+    @sio.on('disconnect', namespace='*')
+    async def handleDisconnect():
+        print("Disconnected")
+        logger.info("Disconnected from server")
+        sys.exit(0)
+        
+    @sio.on('command', namespace='/paxaprinter')
+    async def handle_command(data):
+        print(f"message received with {data}")
+        return await send_command(data)
+    
+        
+    try:
+        await sio.connect(sockeiIoServer, namespaces=namespaces, headers={"X_UUID":uuid})
+        print("Iniciado SioClient en %s con uuid %s" % (sockeiIoServer, uuid))
         return await sio.wait()
+    except socketio.exceptions.ConnectionError as e:
+        print(f"socketio Connection error: {e}")
     except Exception as e:
-        print(f"Error {e} quedo re cuelgue?=")
-        logger.error(f"Error {e}")
+        print(f"An unexpected error occurred: {e}")

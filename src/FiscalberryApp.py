@@ -18,5 +18,5 @@ class FiscalberryApp:
         serverUrl = self.configberry.config.get("SERVIDOR","sio_host", fallback="")
         uuid = self.configberry.config.get("SERVIDOR","uuid")
         
-        asyncio.run(start(serverUrl, uuid))
+        asyncio.gather(start(serverUrl, uuid))
         
