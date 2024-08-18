@@ -6,6 +6,7 @@ from fiscalberry_logger import getLogger
 import Configberry
 from sio_handler import start
 import asyncio
+import time
 
 logger = getLogger()
 
@@ -22,4 +23,8 @@ def main():
 
 if __name__ == "__main__":
     freeze_support()
-    main()
+    
+    while True:
+        main()
+        time.sleep(3)
+        

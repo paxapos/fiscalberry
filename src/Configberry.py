@@ -2,6 +2,7 @@ import configparser
 import os
 import shutil
 from fiscalberry_logger import getLogger
+import uuid
 
 
 class Configberry:
@@ -71,27 +72,39 @@ class Configberry:
         if not os.path.isfile(CONFIG_FILE_NAME):
 
             curpath = os.path.dirname(os.path.realpath(__file__))
-            configIniInstallFile = os.path.join(curpath, 'config.ini.install')
-            shutil.copy(configIniInstallFile, CONFIG_FILE_NAME)
+
+            myUuid = str(uuid.uuid4())
+
+            defaultConfig = f'''
+[SERVIDOR]
+uuid = {myUuid}
+sio_host = https://www.paxapos.com
+sio_password =
+'''
+            with open(CONFIG_FILE_NAME, 'w') as configfile:
+                configfile.write(defaultConfig)
+                configfile.close()
+
 
     def get_config_for_printer(self, printerName):
         '''
         printerName: string
         '''
-        # if printerName is an IP address, extract IP and PORT.
-        # e.g.
-        # printerName = "192.168.0.25:9100"
-        # host is 192.168.0.25
-        # port is 9100
-        # e.g. 2
-        # printerName = "192.168.0.25"
-        # host is 192.168.0.25
-        # port is 9100
-        # e.g. 3
-        # printerName = "192.168.0.25:6100"
-        # host is 192.168.0.25
-        # port is 6100
+
         if ":" in printerName:
+            # if printerName is an IP address, extract IP and PORT.
+            # e.g.
+            # printerName = "192.168.0.25:9100"
+            # host is 192.168.0.25
+            # port is 9100
+            # e.g. 2
+            # printerName = "192.168.0.25"
+            # host is 192.168.0.25
+            # port is 9100
+            # e.g. 3
+            # printerName = "192.168.0.25:6100"
+            # host is 192.168.0.25
+            # port is 6100
             host, port = printerName.split(":")
             ret = {
                 "marca": "EscP",
@@ -101,12 +114,34 @@ class Configberry:
             }
             return ret
         elif "&" in printerName:
+            # if printerName is a string with parameters, extract them.
+            # e.g.
+            # printerName = "marca=EscP&driver=ReceiptDirectJet&host=192.168.0.25&port=9100"
+            # or printerName = "marca=EscP&driver=ReceiptUsb&device=/dev/usb/lp0"
+            #
             params = printerName.split('&')
             dictConf = {}
             for param in params:
                 key, value = param.split('=')
                 dictConf[key] = value
             return dictConf
+        elif printerName == "":
+            return {}
+        elif printerName.count(".") == 3:
+            # if printerName is an IP address, use it as the host.
+            # e.g.
+            # printerName = "192.168.0.25"
+            # host is 192.168.0.25
+            # port is 9100
+            host = printerName
+            port = 9100
+            ret = {
+            "marca": "EscP",
+            "driver": "ReceiptDirectJet",
+            "host": host,
+            "port": port
+            }
+            return ret
         else:
             printerName = printerName
             dictConf = {s: dict(self.config.items(s)) for s in self.config.sections()}

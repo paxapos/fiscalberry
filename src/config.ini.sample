@@ -1,27 +1,9 @@
 [SERVIDOR]
 puerto = 12000
-discover_url = 
-ssl_crt_path = 
-ssl_key_path = 
-ip_privada = 192.168.0.109
-uuid = 94de80b28c4b
-
-[IMPRESORA_RED]
-marca = EscP
-host = 192.168.0.33
-port = 9100
-driver = ReceiptDirectJet
-cols = 42
-
-[IMPRESORA_USB]
-marca = EscP
-driver = ReceiptUSB
-usb_vendor = 0x7008
-usb_product = 0x20d1
-in_ep = 0x81
-out_ep = 0x01
-
-[IMPRESORA_SERIAL]
-marca = EscP
-driver = ReceiptSerial
-path = /dev/ttyUSB0
+discover_url =
+ssl_crt_path =
+ssl_key_path =
+ip_privada =
+uuid = aledev
+sio_host =
+sio_password =

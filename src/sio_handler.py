@@ -77,24 +77,28 @@ async def start(sockeiIoServer, uuid, namespaces = ["/paxaprinter"]):
     @sio.on('hi', namespace='*')
     async def any_event_any_namespace( *kargs, **kwargs):
         print(f"Any event in any namespace {kargs}")
-        
+
     @sio.on('disconnect', namespace='*')
     async def handleDisconnect():
         print("Disconnected")
         logger.info("Disconnected from server")
         sys.exit(0)
-        
+
     @sio.on('command', namespace='/paxaprinter')
     async def handle_command(data):
         print(f"message received with {data}")
         return await send_command(data)
-    
-        
+
+
     try:
         await sio.connect(sockeiIoServer, namespaces=namespaces, headers={"X_UUID":uuid})
         print("Iniciado SioClient en %s con uuid %s" % (sockeiIoServer, uuid))
         return await sio.wait()
     except socketio.exceptions.ConnectionError as e:
         print(f"socketio Connection error: {e}")
+        sio.disconnect()
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+    finally:
+        sio.disconnect()
+

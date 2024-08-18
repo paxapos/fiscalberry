@@ -3,3 +3,4 @@ python-socketio==5.11.3
 requests==2.32.3
 aiohttp==3.10.2
 argparse==1.4.0
+uuid==1.30

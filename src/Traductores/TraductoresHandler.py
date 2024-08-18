@@ -43,7 +43,7 @@ def init_printer_traductor(printerName):
     libraryName = f"Comandos.{marca}Comandos"
     comandoModule = importlib.import_module(libraryName)
     comandoClass = getattr(comandoModule, marca + "Comandos")
-    
+
     comando = comandoClass(**dictSectionConf)
     return comando.traductor
 
@@ -158,7 +158,7 @@ class TraductoresHandler:
             # cerrar el driver
             if traductor and traductor.comando:
                 traductor.comando.close()
-            raise
+            logging.error(format(e))
 
         return rta
 

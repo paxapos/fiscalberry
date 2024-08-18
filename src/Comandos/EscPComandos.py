@@ -37,14 +37,14 @@ class EscPComandos(ComandoInterface):
     __preFillTrailer = None
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)        
+        super().__init__(*args, **kwargs)
         self.total_cols = self.conector.driver.cols
         self.price_cols = 12 #12 espacios permiten hasta 9,999,999.99
         self.cant_cols = 6   #4 no admitiría decimales, 6 sería mejor
         self.desc_cols =  self.total_cols - self.cant_cols - self.price_cols
         self.desc_cols_ext = self.total_cols - self.price_cols
         self.signo = "$" # Agregar el signo $ opcionalmente o espacio.
-        
+
 
     def _sendCommand(self, comando, skipStatusErrors=False):
         try:
@@ -194,9 +194,9 @@ class EscPComandos(ComandoInterface):
         "Imprimir QRs y Barcodes"
         printer = self.conector.driver
         printer.set(CENTER, FONT_A, NORMAL, 1, 1)
-        
+
         barcode = kwargs.get("barcode", None)
-        if barcode:            
+        if barcode:
             printer.barcode(str(barcode).rjust(8, "0"), 'EAN13')
 
         qrcode = kwargs.get("qr", None)
@@ -208,7 +208,12 @@ class EscPComandos(ComandoInterface):
         qrcodeml = kwargs.get("qr-mercadopago", None)
         if qrcodeml:
             printer.set(CENTER, FONT_A, NORMAL, 1, 1)
-            printer.text(u'QR Mercado Pago\n')
+            printer.text(u'ABONE SU CUENTA\n')
+            printer.text(u'ESCANEANDO EL QR\n')
+            printer.text(u'\\______/ \n')
+            printer.text(u' \\    /  \n')
+            printer.text(u'  \\  /   \n')
+            printer.text(u'   \\/    \n')
             printer.qr(qrcodeml, QR_ECLEVEL_H, 5, QR_MODEL_2 , False)
             printer.text(u'\n')
     
@@ -428,7 +433,7 @@ class EscPComandos(ComandoInterface):
 
         # 8- AFIP
         # 8.1- Json Datos AFIP
-        felist = fechaComprobante.split("/")
+        felist = fechaComprobante.split("/") if "/" in fechaComprobante else fechaComprobante.split("-")
         fecha = felist[2]+"-"+felist[1]+"-"+felist[0]
 
         fullnumero = nroComprobante
@@ -478,11 +483,11 @@ class EscPComandos(ComandoInterface):
         printer.text("\n")
         printer.text(f"{caeTxt}    {caeVtoTxt}")
         printer.text("\n")
-        
- 
+
         printer.set(CENTER, FONT_B, BOLD, 1, 1)
-        printer.text("Software PAXAPOS - Hecho por y para gastronómicos")
-        
+        printer.text("Software PAXAPOS")
+
+
         printer.cut(PARTIAL_CUT)
 
         printer.set(LEFT, FONT_A, NORMAL, 1, 1)
@@ -765,8 +770,9 @@ class EscPComandos(ComandoInterface):
             printer.text("\n")
 
     def printComanda(self, comanda, setHeader=None, setTrailer=None):
-        "observacion, entradas{observacion, cant, nombre, sabores}, platos{observacion, cant, nombre, sabores}"
-        
+        """id,observacion, entradas{observacion, cant, nombre, sabores}, platos{observacion, cant, nombre, sabores}"""
+
+
         printer = self.conector.driver
         try:
             printer.start()
@@ -774,7 +780,7 @@ class EscPComandos(ComandoInterface):
             return False
         print("* * * * * * * * * ** * * * * * * * * * * * * * * * * * *")
         print(comanda)
-        
+
         printer.set(CENTER, FONT_A, NORMAL, 1, 1)
 
         if setHeader:

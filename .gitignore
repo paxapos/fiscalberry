@@ -11,6 +11,7 @@ bin
 lib
 lib64
 fiscalberry
+output
 
 #configuration file for fiscalberry
 config.ini
