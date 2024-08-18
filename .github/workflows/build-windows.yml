@@ -29,7 +29,7 @@ jobs:
 
       - name: Build executable
         run: |
-          pyinstaller --onefile src/server.py  # Reemplaza con el nombre de tu script
+          pyinstaller --onefile --name fiscalberry --distpath dist/win src/server.py
 
       - name: Upload executable
         uses: actions/upload-artifact@v3
