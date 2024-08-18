@@ -16,7 +16,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'  # Puedes especificar la versión de Python que necesitas
+          python-version: '3.12.4'
 
       - name: Install dependencies
         run: |
@@ -35,4 +35,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: fiscalberry
-          path: dist/win  # Cambia esto si tu ejecutable está en una ruta diferente
+          path: dist/win
