@@ -1,24 +1,13 @@
 import asyncio
-from ui.FiscalberryUiApp import MainApp
+from socket_io_app.socket_io_app import SocketIoApp
+from fiscalberry_logger import getLogger
 
-
-
-
-
-async def main() -> None:
-    def startSocketIOClient():
-        MainApp().sioHandler.start()
-
-    def startKivyApp():
-        MainApp().run()
-        
-    # Crear tareas asincrónicas
-    start_task = asyncio.create_task(startSocketIOClient())
-    additional_tasks = asyncio.create_task(startKivyApp())
-    
-    # Esperar a que ambas tareas terminen
-    await asyncio.gather(start_task, additional_tasks)
+Logger = getLogger()
 
 if __name__ == '__main__':
-    main()
+    try:
+        SocketIoApp().run()
+    except Exception as e:
+        Logger.error(f'Error: {e}')
+        Logger.exception('Exception occurred:')
 

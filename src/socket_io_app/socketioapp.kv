@@ -1,0 +1,36 @@
+#:kivy 2.3.0
+
+
+BoxLayout:
+    orientation: 'vertical'
+    padding: 10
+
+    GridLayout:
+        cols: 2
+        size_hint_y: None
+        height: 40
+
+        Image:
+            id: status_icon
+            source: 'disconnected.png'
+            size_hint_y: None
+            height: 50
+
+
+        TextInput:
+            id: host_input
+            text: 'https://www.paxapos.com'
+            multiline: False
+            size_hint_y: None
+            height: 40
+            on_text: app.store_new_host()
+
+    Button:
+        text: "Conectar"
+        size_hint_y: None
+        height: 40
+        on_press: app.connect_to_server()
+
+    Label:
+        id: event_label
+        text: "Escuchando eventos..."

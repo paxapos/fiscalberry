@@ -11,20 +11,18 @@ import time
 logger = getLogger()
 
 
-def main():
-    logger.info("Preparando Fiscalberry Server")
-
-    configberry = Configberry.Configberry()
-    serverUrl = configberry.config.get("SERVIDOR", "sio_host", fallback="")
-    uuid = configberry.config.get("SERVIDOR", "uuid")
-
-    asyncio.run(start(serverUrl, uuid))
-
 
 if __name__ == "__main__":
     freeze_support()
-    
+
     while True:
-        main()
-        time.sleep(3)
-        
+        logger.info("Preparando Fiscalberry Server")
+
+        configberry = Configberry.Configberry()
+        serverUrl = configberry.config.get("SERVIDOR", "sio_host", fallback="")
+        uuid = configberry.config.get("SERVIDOR", "uuid")
+
+        start(serverUrl, uuid)
+
+        logger.warning("Termino ejecucion de server socketio?.. reconectando en 5s")
+        time.sleep(5)

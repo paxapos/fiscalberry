@@ -1,1 +1,0 @@
-start /B server.py

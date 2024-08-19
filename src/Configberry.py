@@ -3,6 +3,9 @@ import os
 import shutil
 from fiscalberry_logger import getLogger
 import uuid
+import platformdirs
+
+appname = 'Fiscalberry'
 
 
 class Configberry:
@@ -16,10 +19,14 @@ class Configberry:
         self.__create_config_if_not_exists()
 
     def getConfigFIle(self):
-        FILE_PATH = os.getenv('CONFIG_FILE_PATH', './')
-        CONFIG_FILE_NAME = os.path.join(FILE_PATH, 'config.ini')
 
-        self.logger.debug("Config file path: %s" % CONFIG_FILE_NAME)   
+        configDirPath = platformdirs.user_config_dir(appname)
+        if not os.path.exists(configDirPath):
+            os.makedirs(configDirPath)
+
+        CONFIG_FILE_NAME = os.path.join(configDirPath, 'config.ini')
+
+        self.logger.debug("Config file path: %s" % CONFIG_FILE_NAME)
 
         return CONFIG_FILE_NAME
 
@@ -51,15 +58,31 @@ class Configberry:
                     return (s, self.get_config_for_printer(s))
         return False
 
-    def writeSectionWithKwargs(self, printerName, kwargs):
+    def writeKeyForSection(self, section, key, value):
         self.config = configparser.RawConfigParser()
         self.config.read( self.getConfigFIle() )
 
-        if not self.config.has_section(printerName):
-            self.config.add_section(printerName)
+        if not self.config.has_section(section):
+            self.config.add_section(section)
+
+        self.config.set(section, key, value)
+
+        with open(self.getConfigFIle(), 'w') as configfile:
+            self.config.write(configfile)
+            configfile.close()
+
+        return 1
+
+
+    def writeSectionWithKwargs(self, section, kwargs):
+        self.config = configparser.RawConfigParser()
+        self.config.read( self.getConfigFIle() )
+
+        if not self.config.has_section(section):
+            self.config.add_section(section)
 
         for param in kwargs:
-            self.config.set(printerName, param, kwargs[param])
+            self.config.set(section, param, kwargs[param])
 
         with open(self.getConfigFIle(), 'w') as configfile:
             self.config.write(configfile)
@@ -68,6 +91,9 @@ class Configberry:
         return 1
 
     def __create_config_if_not_exists(self):
+        
+        print(f"User config files stored in {platformdirs.user_config_dir(appname)}")
+
         CONFIG_FILE_NAME = self.getConfigFIle()
         if not os.path.isfile(CONFIG_FILE_NAME):
 

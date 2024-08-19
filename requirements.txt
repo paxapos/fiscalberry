@@ -4,3 +4,6 @@ requests==2.32.3
 aiohttp==3.10.2
 argparse==1.4.0
 uuid==1.30
+appdirs==1.4.4
+kivy==2.3.0
+python-dotenv==1.0.1
