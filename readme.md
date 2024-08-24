@@ -4,8 +4,7 @@ Para enviar un JSON (mediante websocket), que fiscalberry lo reciba, lo transfor
 
 
 Descarga la última versión socketio para windows
-[fiscalberry.zip](https://github.com/user-attachments/files/16653314/fiscalberry.zip)
-
+https://github.com/paxapos/fiscalberry/actions/runs/10536787365/artifacts/1849968248
 
 # ¿Qué es?
 Fiscalberry es un servidor de websockets desarrollado en Python pensado para que corra en una raspberry-pi (de ahí viene el nombre de este proyecto). **Pero funciona perfectamente en otros sistemas operativos.**
