@@ -72,7 +72,7 @@ class TraductoresHandler:
         self.webSocket = webSocket
         self.fbApp = fbApp
 
-    async def json_to_comando(self, jsonTicket): 
+    def json_to_comando(self, jsonTicket): 
         """Leer y procesar una factura en formato JSON 
         ``jsonTicket`` factura a procesar
         """
@@ -85,7 +85,7 @@ class TraductoresHandler:
             if 'uuid' in jsonTicket:
                 uuidFb = jsonTicket.pop("uuid")
                 if (self.fbApp.isSioServer):
-                    status = await self.fbApp.socketio.sendCommand(command=jsonTicket,uuid=uuidFb)
+                    status = self.fbApp.socketio.sendCommand(command=jsonTicket,uuid=uuidFb)
                     rta["rta"] = {"action":"sio:sendCommand", "rta": "Sent"} if status else {"action":"sio:sendCommand", "rta": "Failed"}                        
                     return rta
 
@@ -132,19 +132,19 @@ class TraductoresHandler:
 
             ### Comandos Socket.io Server
             elif 'flushDisconnectedClients' in jsonTicket:
-                rta["rta"] = await self.fbApp.socketio.flushDisconnectedClients()
+                rta["rta"] = self.fbApp.socketio.flushDisconnectedClients()
 
             elif 'listClients' in jsonTicket:
-                rta["rta"] = await self.fbApp.socketio.listClients()
+                rta["rta"] = self.fbApp.socketio.listClients()
 
             elif 'getClientConfig' in jsonTicket:
-                rta["rta"] = await self.fbApp.socketio.getClientConfig(jsonTicket['getClientConfig'])
+                rta["rta"] = self.fbApp.socketio.getClientConfig(jsonTicket['getClientConfig'])
             
             elif 'disconnectClient' in jsonTicket:
-                rta["rta"] = await self.fbApp.socketio.disconnectByUuid(jsonTicket['disconnectClient'])
+                rta["rta"] = self.fbApp.socketio.disconnectByUuid(jsonTicket['disconnectClient'])
 
             elif 'disconnectAll' in jsonTicket:
-                rta["rta"] = await self.fbApp.socketio.disconnectAll()
+                rta["rta"] = self.fbApp.socketio.disconnectAll()
 
             else:
                 logging.error("No se pasó un comando válido")

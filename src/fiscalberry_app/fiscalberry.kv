@@ -1,0 +1,70 @@
+#:kivy 2.3.0
+
+MainLayout:
+    id: main_layout
+
+
+
+<MainLayout>:
+    title: "Fiscalberry App Iupi!"
+    orientation: 'vertical'
+    
+    canvas.before:
+        Rectangle:
+            pos: self.pos
+            size: self.size
+            source: 'assets/bg.jpg'
+    
+
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 10
+
+        Label:
+            id: title_label
+            text: "Fiscalberry App"
+            font_size: 32
+            bold: True
+            size_hint_y: None
+            height: 64
+            color: 0, 0, 128, 1
+
+
+        Label:
+            id: host_label
+            text: app.uuidSmall
+            font_size: 48
+            size_hint_y: None
+            height: 40
+            color: 128, 0, 0, 1
+
+        TextInput:
+            id: host_input
+            text: app.sioServerUrl
+            multiline: False
+            size_hint_y: None
+            height: 40
+            on_text: app.store_new_host(self.text)
+
+
+        ConnectedImage:
+
+
+        Button:
+            text: "Conectar"
+            size_hint_y: None
+            height: 40
+            on_press: app.connect_to_server()
+            disabled: app.connected
+
+        Label:
+            id: event_label
+            text: "Escuchando eventos..."
+            color: 0, 0, 128, 1
+
+
+<LogWidget>:
+    height: 200
+
+<ConnectedImage>:
+    source: 'assets/connected.png' if app.is_connected() else 'assets/disconnected.png'
