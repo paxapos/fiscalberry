@@ -1,9 +1,11 @@
 import asyncio
 import json
-from Traductores.TraductoresHandler import TraductoresHandler, TraductorException
 import socketio
 import sys
-from fiscalberry_logger import getLogger
+
+
+from common.Traductores.TraductoresHandler import TraductoresHandler, TraductorException
+from common.fiscalberry_logger import getLogger
 
 sio = socketio.Client(reconnection=True, reconnection_attempts=0, reconnection_delay=2, logger=False, engineio_logger=False)
 

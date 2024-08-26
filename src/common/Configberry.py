@@ -1,9 +1,9 @@
 import configparser
 import os
 import shutil
-from fiscalberry_logger import getLogger
 import uuid
 import platformdirs
+from common.fiscalberry_logger import getLogger
 
 appname = 'Fiscalberry'
 

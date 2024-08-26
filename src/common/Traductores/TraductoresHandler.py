@@ -1,17 +1,20 @@
 # coding=utf-8
 
 import json
-import Configberry
 import importlib
 import threading
 from multiprocessing import Process, Queue, Pool
-import logging
+from common.Configberry import Configberry
+from common.fiscalberry_logger import getLogger
 
 import sys
 if sys.platform == 'win32':
     import multiprocessing.reduction    # make sockets pickable/inheritable
 
 INTERVALO_IMPRESORA_WARNING = 30.0
+
+
+loggin = getLogger()
 
 def set_interval(func, sec):
     def func_wrapper():
@@ -66,7 +69,7 @@ class TraductoresHandler:
     traductores = {}
     fbApp = None
     webSocket = None
-    config = Configberry.Configberry()
+    config = Configberry()
 
     def __init__(self, webSocket = None, fbApp = None):
         self.webSocket = webSocket

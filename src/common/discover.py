@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import requests
 import json
-from Configberry import Configberry
-from fiscalberry_logger import getLogger 
+from common.Configberry import Configberry
+from common.fiscalberry_logger import getLogger 
 
 
 configberry = Configberry()
