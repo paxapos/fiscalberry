@@ -29,10 +29,10 @@ jobs:
 
       - name: Build executable
         run: |
-          pyinstaller --onefile --console --name fiscalberry --distpath dist/win --icon ./src/common/assets/fiscalberry.ico src/cli.py
+          pyinstaller --onefile --console --name fiscalberry --distpath dist --icon ./src/common/assets/fiscalberry.ico src/cli.py
 
       - name: Upload executable
         uses: actions/upload-artifact@v3
         with:
           name: fiscalberry
-          path: dist/win
+          path: dist

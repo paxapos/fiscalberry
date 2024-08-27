@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-from DriverInterface import DriverInterface
-import logging
 import requests
 import json
+from common.DriverInterface import DriverInterface
 
-from fiscalberry_logger import getLogger
+from common.fiscalberry_logger import getLogger
 
 
 

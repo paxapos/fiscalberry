@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-
-from DriverInterface import DriverInterface
-import logging
 import time
 import random
+from common.DriverInterface import DriverInterface
 
 
 class FileDriver(DriverInterface):

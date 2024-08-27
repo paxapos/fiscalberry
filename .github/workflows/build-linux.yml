@@ -29,10 +29,10 @@ jobs:
 
       - name: Build executable
         run: |
-          pyinstaller --onefile --console --name fiscalberry --distpath dist/linux src/cli.py
+          pyinstaller --onefile --console --name fiscalberry --distpath dist src/cli.py
 
       - name: Upload executable
         uses: actions/upload-artifact@v3
         with:
           name: fiscalberry
-          path: dist/linux  # Cambia esto si tu ejecutable está en una ruta diferente
+          path: dist  # Cambia esto si tu ejecutable está en una ruta diferente

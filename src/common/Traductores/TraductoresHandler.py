@@ -1,11 +1,12 @@
 # coding=utf-8
 
 import json
-import importlib
 import threading
 from multiprocessing import Process, Queue, Pool
 from common.Configberry import Configberry
 from common.fiscalberry_logger import getLogger
+from common.Comandos.EscPComandos import EscPComandos
+from common.Comandos.FiscalberryComandos import FiscalberryComandos
 
 import sys
 if sys.platform == 'win32':
@@ -14,7 +15,7 @@ if sys.platform == 'win32':
 INTERVALO_IMPRESORA_WARNING = 30.0
 
 
-loggin = getLogger()
+logging = getLogger()
 
 def set_interval(func, sec):
     def func_wrapper():
@@ -34,7 +35,7 @@ class TraductorException(Exception):
     pass
 
 def init_printer_traductor(printerName):
-    config = Configberry.Configberry()
+    config = Configberry()
     try:
         dictSectionConf = config.get_config_for_printer(printerName)
     except KeyError as e:
@@ -43,10 +44,14 @@ def init_printer_traductor(printerName):
     marca = dictSectionConf.get("marca")
     del dictSectionConf['marca']
     # instanciar los comandos dinamicamente
-    libraryName = f"Comandos.{marca}Comandos"
-    comandoModule = importlib.import_module(libraryName)
-    comandoClass = getattr(comandoModule, marca + "Comandos")
-
+    comandoClass = marca + "Comandos"
+    print("el cososososososos")
+    print(comandoClass)
+    print(dictSectionConf)
+    print("el cososososososos")
+    print("el cososososososos")
+    print("el cososososososos")
+    print("el cososososososos")
     comando = comandoClass(**dictSectionConf)
     return comando.traductor
 

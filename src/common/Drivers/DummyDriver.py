@@ -1,6 +1,6 @@
 # -*- coding: iso-8859-1 -*-
 import random
-from DriverInterface import DriverInterface
+from common.DriverInterface import DriverInterface
 
 
 class DummyDriver(DriverInterface):

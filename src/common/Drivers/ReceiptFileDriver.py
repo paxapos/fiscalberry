@@ -2,14 +2,11 @@
 
 # -*- coding: utf-8 -*-
 
-import socket
 from escpos import printer
-from DriverInterface import DriverInterface
+from common.DriverInterface import DriverInterface
 
 
 TCP_PORT = 9100
-
-from DriverInterface import DriverInterface
 
 
 class ReceiptFileDriver(printer.File, DriverInterface):

@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
-import socket
 from escpos import printer, escpos
-import threading
-import time
-import logging
-from DriverInterface import DriverInterface
+from common.fiscalberry_logger import getLogger
+from common.DriverInterface import DriverInterface
 
 
 class ReceiptDirectJetDriver(printer.Network, DriverInterface):
@@ -25,7 +22,7 @@ class ReceiptDirectJetDriver(printer.Network, DriverInterface):
         self.timeout = timeout
         self.codepage = codepage
         self.cols = int(cols)
-        self.logger = logging.getLogger("DirectJetDriver")
+        self.logger = getLogger()
 
     def start(self):
         """ iniciar """

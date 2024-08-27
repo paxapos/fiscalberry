@@ -1,11 +1,12 @@
 # -*- coding: iso-8859-1 -*-
-from ConectorDriverComando import ConectorDriverComando
+from common.ConectorDriverComando import ConectorDriverComando
 import unicodedata
-import importlib
 import logging
 import string
 import types
 from array import array
+from common.Traductores.TraductorFiscalberry import  TraductorFiscalberry
+from common.Traductores.TraductorReceipt import TraductorReceipt
 
 
 class ValidationError(Exception):
@@ -20,7 +21,7 @@ class ComandoException(RuntimeError):
 class ComandoInterface:
     """Interfaz que deben cumplir las impresoras."""
 
-    DEFAULT_DRIVER = None   
+    DEFAULT_DRIVER = None
 
     def __init__(self, *args, **kwargs):
         self.model = kwargs.pop("modelo", None)
@@ -30,8 +31,7 @@ class ComandoInterface:
         self.conector = ConectorDriverComando(self, driver, **kwargs)
 
         # inicializo el traductor
-        traductorModule = importlib.import_module(self.traductorModule)
-        traductorClass = getattr(traductorModule, self.traductorModule[12:])
+        traductorClass = self.traductorModule
         self.traductor = traductorClass(self, *args)
 
     def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):

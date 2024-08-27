@@ -1,8 +1,7 @@
-import logging
-
 try:
     from kivy.logger import Logger
 except ImportError:
+    import logging
     Logger = logging.getLogger("Fiscalberry")
 
 

@@ -1,6 +1,9 @@
-# -*- coding: iso-8859-1 -*-
-import importlib
-from fiscalberry_logger import getLogger
+# coding=utf-8
+from common.fiscalberry_logger import getLogger
+from common.Drivers.FiscalberryDriver import FiscalberryDriver
+from common.Drivers.ReceiptDirectJetDriver import ReceiptDirectJetDriver
+from common.Drivers.ReceiptFileDriver import ReceiptFileDriver
+from common.Drivers.ReceiptUSBDriver import ReceiptUSBDriver
 
 class ConectorError(Exception):
     pass
@@ -16,9 +19,7 @@ class ConectorDriverComando:
         self.driver_name = driver
 
         # instanciar el driver dinamicamente segun el driver pasado como parametro
-        libraryName = "Drivers." + driver + "Driver"
-        driverModule = importlib.import_module(libraryName)
-        driverClass = getattr(driverModule, driver + "Driver")
+        driverClass = driver + "Driver"
         self.driver = driverClass(**kwargs)
 
     def sendCommand(self, *args):

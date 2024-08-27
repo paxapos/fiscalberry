@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-from ComandoInterface import ComandoInterface, ComandoException
-from Comandos.EscPConstants import *
 import datetime
 from math import ceil
 import json
 import base64
-
-from fiscalberry_logger import getLogger
+from common.ComandoInterface import ComandoInterface, ComandoException
+from common.Comandos.EscPConstants import *
+from common.fiscalberry_logger import getLogger
 
 logger = getLogger()
 
@@ -30,7 +29,7 @@ class PrinterException(Exception):
 class EscPComandos(ComandoInterface):
     # el traductor puede ser: TraductorFiscal o TraductorReceipt
     # path al modulo de traductor que este comando necesita
-    traductorModule = "Traductores.TraductorReceipt"
+    traductorModule = "TraductorReceipt"
 
     DEFAULT_DRIVER = "ReceipDirectJet"
 
@@ -51,14 +50,14 @@ class EscPComandos(ComandoInterface):
             ret = self.conector.sendCommand(comando, skipStatusErrors)
             return ret
         except PrinterException as e:
-            getLogger("EscPComandos").error("PrinterException: %s" % str(e))
+            getLogger().error("PrinterException: %s" % str(e))
             raise ComandoException("Error de la impresora: %s.\nComando enviado: %s" % (str(e),comando))
     def getStatus(self):
         printer = self.conector.driver
         printer.start()
         rta = printer.connected
         printer.end()
-        if rta: 
+        if rta:
             if hasattr(printer , "host"):
                 return f"Conectada en {printer.host}"
         else:

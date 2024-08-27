@@ -1,4 +1,4 @@
-from Traductores.TraductorInterface import TraductorInterface
+from common.Traductores.TraductorInterface import TraductorInterface
 
 
 class TraductorReceipt(TraductorInterface):

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from escpos import printer, escpos
-from DriverInterface import DriverInterface
-from fiscalberry_logger import getLogger
+from common.DriverInterface import DriverInterface
+from common.fiscalberry_logger import getLogger
 
 
 class ReceiptUSBDriver(printer.Usb, DriverInterface):
