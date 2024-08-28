@@ -45,14 +45,12 @@ def init_printer_traductor(printerName):
     del dictSectionConf['marca']
     # instanciar los comandos dinamicamente
     comandoClass = marca + "Comandos"
-    print("el cososososososos")
-    print(comandoClass)
-    print(dictSectionConf)
-    print("el cososososososos")
-    print("el cososososososos")
-    print("el cososososososos")
-    print("el cososososososos")
-    comando = comandoClass(**dictSectionConf)
+    if comandoClass == "EscPComandos":
+        comando = EscPComandos(**dictSectionConf)
+    elif comandoClass == "FiscalberryComandos":
+        comando = FiscalberryComandos(**dictSectionConf)
+    else:
+        raise TraductorException(f"Clase de comando desconocida: {comandoClass}")
     return comando.traductor
 
 def runTraductor(jsonTicket, queue):

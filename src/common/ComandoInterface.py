@@ -32,7 +32,14 @@ class ComandoInterface:
 
         # inicializo el traductor
         traductorClass = self.traductorModule
-        self.traductor = traductorClass(self, *args)
+
+        # inicializo el traductor
+        if traductorClass == "TraductorFiscalberry":
+            self.traductor = TraductorFiscalberry(self, *args)
+        elif traductorClass == "TraductorReceipt":
+            self.traductor = TraductorReceipt(self, *args)
+        else:
+            raise ValueError("Invalid traductorClass value")
 
     def _sendCommand(self, commandNumber, parameters, skipStatusErrors=False):
         raise Exception("NotImplementedException")
