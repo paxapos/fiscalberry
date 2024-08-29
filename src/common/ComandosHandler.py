@@ -54,28 +54,28 @@ def runTraductor(jsonTicket, queue):
     # instanciar el driver dinamicamente segun el driver pasado como parametro
     if driverName == "Win32Raw":
         # classprinter.Win32Raw(printer_name='', *args, **kwargs)[source]
-        driver = printer.Win32Raw(driverOps)
+        driver = printer.Win32Raw(**driverOps)
     elif driverName == "Usb":
         # classprinter.Usb(idVendor=None, idProduct=None, usb_args={}, timeout=0, in_ep=130, out_ep=1, *args, **kwargs)
-        driver = printer.Usb(driverOps)
+        driver = printer.Usb(**driverOps)
     elif driverName == "Network":
         # classprinter.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
-        driver = printer.Network(driverOps)
+        driver = printer.Network(**driverOps)
     elif driverName == "Serial":
         # classprinter.Serial(devfile='', baudrate=9600, bytesize=8, timeout=1, parity=None, stopbits=None, xonxoff=False, dsrdtr=True, *args, **kwargs)
-        driver = printer.Serial(driverOps)
+        driver = printer.Serial(**driverOps)
     elif driverName == "File":
         # (devfile='', auto_flush=True
         logger.debug(f" + ++ + + ++ ++ ++ ++ ++ File driver: {driverOps}")
         driver = printer.File(**driverOps)
     elif driverName == "Dummy":
-        driver = printer.Dummy(driverOps)
+        driver = printer.Dummy(**driverOps)
     elif driverName == "CupsPrinter":
         # CupsPrinter(printer_name='', *args, **kwargs)[source]
-        driver = printer.CupsPrinter(driverOps)
+        driver = printer.CupsPrinter(**driverOps)
     elif driverName == "LP":
         # classprinter.LP(printer_name='', *args, **kwargs)[source]
-        driver = printer.LP(driverOps)
+        driver = printer.LP(**driverOps)
     else:
         raise DriverError(f"Invalid driver: {driver}")
 
