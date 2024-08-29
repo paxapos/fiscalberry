@@ -66,7 +66,6 @@ def runTraductor(jsonTicket, queue):
         driver = printer.Serial(**driverOps)
     elif driverName == "File":
         # (devfile='', auto_flush=True
-        logger.debug(f" + ++ + + ++ ++ ++ ++ ++ File driver: {driverOps}")
         driver = printer.File(**driverOps)
     elif driverName == "Dummy":
         driver = printer.Dummy(**driverOps)

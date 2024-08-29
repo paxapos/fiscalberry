@@ -5,11 +5,11 @@ try:
 except ImportError:
     import logging
     logging.basicConfig(level=logging.DEBUG)
-    environment = os.getenv('ENVIRONMENT', 'development')
-    if environment != 'development':
-        logging.basicConfig(level=logging.WARNING)
-    else:  # development
+    environment = os.getenv('ENVIRONMENT', 'production')
+    if environment == 'development':
         logging.basicConfig(level=logging.DEBUG)
+    else:  
+        logging.basicConfig(level=logging.WARNING)
     Logger = logging.getLogger("** Fiscalberry ** ")
 
 
