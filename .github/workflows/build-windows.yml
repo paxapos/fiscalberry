@@ -23,6 +23,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyinstaller
 
+      - name: Install escpos all modules includes win32 printing module if windows SO
+        run: |
+          pip install 'python-escpos[all]''
+
+      - name: Install socketio client
+        run: |
+          pip install 'python-socketio[client]'
+
       - name: Install project dependencies
         run: |
           pip install -r requirements.cli.txt  # Instala las dependencias de tu proyecto

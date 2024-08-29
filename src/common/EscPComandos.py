@@ -3,9 +3,9 @@ import datetime
 from math import ceil
 import json
 import base64
-from common.ComandoInterface import ComandoInterface, ComandoException
-from common.Comandos.EscPConstants import *
+from common.EscPConstants import *
 from common.fiscalberry_logger import getLogger
+from escpos.escpos import EscposIO
 
 logger = getLogger()
 
@@ -26,34 +26,55 @@ class PrinterException(Exception):
     pass
 
 
-class EscPComandos(ComandoInterface):
-    # el traductor puede ser: TraductorFiscal o TraductorReceipt
-    # path al modulo de traductor que este comando necesita
-    traductorModule = "TraductorReceipt"
-
-    DEFAULT_DRIVER = "ReceipDirectJet"
+class EscPComandos():
 
     __preFillTrailer = None
+    
+    printer = None
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.total_cols = self.conector.driver.cols
+    def __init__(self, printer):
+        self.printer = printer
+        
+        self.total_cols = 40
         self.price_cols = 12 #12 espacios permiten hasta 9,999,999.99
         self.cant_cols = 6   #4 no admitiría decimales, 6 sería mejor
         self.desc_cols =  self.total_cols - self.cant_cols - self.price_cols
         self.desc_cols_ext = self.total_cols - self.price_cols
         self.signo = "$" # Agregar el signo $ opcionalmente o espacio.
 
+    def run(self, jsonTicket):
+        with EscposIO(self.printer, autocut=True,autoclose=True) as escpos:
+            actions = jsonTicket.keys()
+            rta = []
+            for action in actions:
+                fnAction = getattr(self, action)
+
+                if isinstance(jsonTicket[action], list):
+                    logger.debug("es instancia list")
+                    res = fnAction(escpos, *jsonTicket[action])
+                    rta.append({"action": action, "rta": res})
+
+                elif isinstance(jsonTicket[action], dict):
+                    logger.debug("es instancia dict")
+                    res = fnAction(escpos, **jsonTicket[action])
+                    rta.append({"action": action, "rta": res})
+                else:
+                    logger.debug("es instancia simple")
+                    res = fnAction(escpos, jsonTicket[action])
+                    rta.append({"action": action, "rta": res})
+
+            return rta
+
 
     def _sendCommand(self, comando, skipStatusErrors=False):
         try:
-            ret = self.conector.sendCommand(comando, skipStatusErrors)
+            ret = self.printer.sendCommand(comando, skipStatusErrors)
             return ret
         except PrinterException as e:
-            getLogger().error("PrinterException: %s" % str(e))
-            raise ComandoException("Error de la impresora: %s.\nComando enviado: %s" % (str(e),comando))
+            logger.error("Error de la impresora: %s.\nComando enviado: %s" % (str(e),comando))
+
     def getStatus(self):
-        printer = self.conector.driver
+        printer = self.printer
         printer.start()
         rta = printer.connected
         printer.end()
@@ -63,23 +84,11 @@ class EscPComandos(ComandoInterface):
         else:
             return False
 
-    def printTexto(self, texto):
-        printer = self.conector.driver
-        try:
-            printer.start()
-        except Exception as e:
-            return False
+    def printTexto(self, printer, texto):
         printer.text(texto)
-        printer.cut(PARTIAL_CUT) 
-        printer.end()
-        return True
 
-    def printMuestra(self):
-        printer = self.conector.driver 
-        try:
-            printer.start()
-        except Exception as e:
-            return False
+    def printMuestra(self, escpos: EscposIO):
+        printer = escpos.printer
         firstLetter = [FONT_B,FONT_A]
         secondLetter = [NORMAL, BOLD]
         iteration = 0
@@ -87,29 +96,21 @@ class EscPComandos(ComandoInterface):
             for i in range(1,3):
                 for second in secondLetter:
                     for first in firstLetter:
-                        printer.set(CENTER, first, second, i, j)
+                        printer.set(align='center', font='a')
                         printer.text("\n")
                         printer.text(f"{iteration} CENTER, {first}, {second}, {i}, {j}")
                         printer.text("\n")
                         iteration +=1
-        printer.cut(PARTIAL_CUT) 
-        printer.end()
+        
 
-    def print_mesa_mozo(self, setTrailer):
-        for key in setTrailer:
-            self.doble_alto_x_linea(key)
 
-    def openDrawer(self):
-        printer = self.conector.driver
-        try:
-            printer.start()
-        except Exception as e:
-            return False
-        printer.cashdraw(2)
-        printer.end()
+    def openDrawer(self, escpos: EscposIO):
+        escpos.printer.cashdraw(2)
 
-    def printPedido(self, **kwargs):
+    def printPedido(self, escpos: EscposIO, **kwargs):
         "imprimir pedido de compras"
+        
+        printer = escpos.printer
 
         encabezado = kwargs.get("encabezado", None)
         items = kwargs.get("items", [])
@@ -118,14 +119,7 @@ class EscPComandos(ComandoInterface):
             logger.error("No hay datos suficientes para imprimir")
             return False
 
-        printer = self.conector.driver
-
-        try:
-            printer.start()
-        except Exception as e:
-            return False
-        
-        printer.set(CENTER, FONT_A, NORMAL, 1, 1)
+        printer.set(font='a', height=1, align='center', normal_textsize=True)
 
         if "es_pedido" in encabezado:
             printer.text(u"Nuevo Pedido \n")
@@ -185,14 +179,14 @@ class EscPComandos(ComandoInterface):
 
         # dejar letra chica alineada izquierda
         printer.set(LEFT, FONT_A, NORMAL, 1, 1)
-        printer.end()
 
         return True
 
-    def __printExtras(self, kwargs):
+    def __printExtras(self, escpos: EscposIO, kwargs):
         "Imprimir QRs y Barcodes"
-        printer = self.conector.driver
-        printer.set(CENTER, FONT_A, NORMAL, 1, 1)
+        
+        printer = escpos.printer
+        printer.set(font='a', height=1, align='center')
 
         barcode = kwargs.get("barcode", None)
         if barcode:
@@ -200,24 +194,25 @@ class EscPComandos(ComandoInterface):
 
         qrcode = kwargs.get("qr", None)
         if qrcode:
-            printer.set(CENTER, FONT_A, NORMAL, 1, 1)
             printer.qr(qrcode, QR_ECLEVEL_H, 6, QR_MODEL_2 , False)
-            printer.text(u'\n')
+            printer.ln()
 
         qrcodeml = kwargs.get("qr-mercadopago", None)
         if qrcodeml:
-            printer.set(CENTER, FONT_A, NORMAL, 1, 1)
-            printer.text(u'ABONE SU CUENTA\n')
-            printer.text(u'ESCANEANDO EL QR\n')
-            printer.text(u'\\______/ \n')
-            printer.text(u' \\    /  \n')
-            printer.text(u'  \\  /   \n')
-            printer.text(u'   \\/    \n')
+            
+            escpos.writelines(u'ABONE SU CUENTA')
+            escpos.writelines(u'ESCANEANDO EL QR')
+            escpos.writelines(u'\\______/ ')
+            escpos.writelines(u' \\    /  ')
+            escpos.writelines(u'  \\  /   ')
+            escpos.writelines(u'   \\/    ')
             printer.qr(qrcodeml, QR_ECLEVEL_H, 5, QR_MODEL_2 , False)
-            printer.text(u'\n')
+            printer.ln()
     
-    def printFacturaElectronica(self, **kwargs):
+    def printFacturaElectronica(self, escpos: EscposIO, **kwargs):
         "Imprimir Factura Electronica"
+        
+        printer = escpos.printer
 
         # Secciones de la Factura
         encabezado = kwargs.get("encabezado", None)
@@ -236,12 +231,6 @@ class EscPComandos(ComandoInterface):
         tiposNC = ["NOTAS DE CREDITO A", "NOTAS DE CREDITO B", "NOTAS DE CREDITO C", "NOTAS DE CREDITO M",
                       "NOTAS DE CREDITO \"A\"" "NOTAS DE CREDITO \"B\"", "NOTAS DE CREDITO \"C\"", "NOTAS DE CREDITO \"M\"",
                       "003", "008", "013", "053"]
-        
-        printer = self.conector.driver
-        try:
-            printer.start()
-        except Exception as e:
-            return False
         
 
         # 1- DATOS DEL COMERCIO
@@ -266,7 +255,7 @@ class EscPComandos(ComandoInterface):
         printer.text(f"Inicio de actividades: {inicioActividades}\n")
         printer.text(f"{ tipoResponsabilidad }\n")        
 
-        printer.set(CENTER, FONT_A, NORMAL, 1, 1)
+        printer.set(font='a', height=1, align='center')
         printer.text("-" * self.total_cols + "\n")
 
         # 2- IDENTIFICACIÓN DEL COMPROBANTE
@@ -280,7 +269,7 @@ class EscPComandos(ComandoInterface):
         printer.set(CENTER, FONT_A, BOLD, 1, 1)
         printer.text(f"{ tipoComprobante } Nro. { nroComprobante }\n")
         printer.text(f"Fecha { fechaComprobante }\n")
-        printer.set(CENTER, FONT_A, NORMAL, 1, 1)
+        printer.set(font='a', height=1, align='center')
         printer.text("-" * self.total_cols + "\n")
 
         # 3- DATOS DEL CLIENTE
@@ -417,18 +406,18 @@ class EscPComandos(ComandoInterface):
             printer.text(u"Firma.......................................\n\n")
             printer.text(u"Aclaración..................................\n")
         else:
-            self._printPagoDetallado(pagos)
+            self._printPagoDetallado(printer, pagos)
 
         printer.set(LEFT, FONT_A, NORMAL, 1, 1)
         printer.text("-" * self.total_cols + "\n\n")
 
-        printer.set(CENTER, FONT_A, NORMAL, 1, 1)
+        printer.set(font='a', height=1, align='center')
         
         if self.__preFillTrailer:
-            self._setTrailer(self.__preFillTrailer)
+            self._setTrailer(printer, self.__preFillTrailer)
 
         if setTrailer:
-            self._setTrailer(setTrailer)
+            self._setTrailer(printer, setTrailer)
 
         # 8- AFIP
         # 8.1- Json Datos AFIP
@@ -464,7 +453,7 @@ class EscPComandos(ComandoInterface):
         qrcode["tipoCodAut"] = "E"
         qrcode["codAut"] = int(cae)  
 
-        printer.set(CENTER, FONT_A, NORMAL, 1, 1)
+        printer.set(font='a', height=1, align='center')
         printer.text("Comprobante Autorizado por AFIP")
         printer.text("\n")
 
@@ -476,7 +465,7 @@ class EscPComandos(ComandoInterface):
             data = "https://www.afip.gob.ar/fe/qr/?p=" + qrcode.decode().replace("\n", "")
             printer.qr(data, QR_ECLEVEL_H, 3, QR_MODEL_2 , False)
 
-        printer.set(CENTER, FONT_A, NORMAL, 1, 1)
+        printer.set(font='a', height=1, align='center')
         caeTxt = f"CAE: {cae}"
         caeVtoTxt = f" CAE VTO: {caeVto}"
         printer.text("\n")
@@ -490,102 +479,18 @@ class EscPComandos(ComandoInterface):
         printer.cut(PARTIAL_CUT)
 
         printer.set(LEFT, FONT_A, NORMAL, 1, 1)
-        printer.end()
 
         return True
 
-    def printRemitoCorto(self, **kwargs):
-        "Imprimir remito corto"
+    
 
-        encabezado = kwargs.get("encabezado", None)
-        items = kwargs.get("items", [])
-        addAdditional = kwargs.get("addAdditional", None)
-        setTrailer = kwargs.get("setTrailer", None)     
-
-        if encabezado is None or len(items) == 0:
-            logger.error("No hay datos suficientes para imprimir")
-            return False
-
-        printer = self.conector.driver          
-
-        try:
-            printer.start()
-        except Exception as e:
-            return False
-
-        printer.set(CENTER, FONT_A, NORMAL, 1, 1)
-        if "imprimir_fecha_remito" in encabezado:
-            fecha = datetime.datetime.strftime(datetime.datetime.now(), "%d/%m/%Y %H:%M")
-            printer.text(f"Fecha: {fecha} \n\n\n")
-        printer.text(u"Verifique su cuenta por favor\n")
-        printer.text(u"NO VÁLIDO COMO FACTURA\n\n")
-
-        if encabezado:
-            printer.set(CENTER, FONT_A, NORMAL, 1, 2)
-            if "nombre_cliente" in encabezado:
-                printer.text(f'\n{encabezado.get("nombre_cliente")}\n')
-                if "telefono" in encabezado:
-                    printer.text(f'\n{encabezado.get("telefono")}\n')
-                if "domicilio_cliente" in encabezado:
-                    printer.text(f'\n{encabezado.get("domicilio_cliente")}\n')
-                printer.text(u"\n")
-
-        tot_importe = 0.0
-        printer.set(LEFT, FONT_A, NORMAL, 1, 1)
-        for item in items:
-            ds = item.get('ds')[0:self.desc_cols-2]
-            item_cant = float(item.get('qty'))
-            total_producto = item_cant * float(item.get('importe'))
-            tot_importe += total_producto
-         
-            itemcanttxt = pad(floatToString(item_cant), self.cant_cols, " ", "l")
-            dstxt = pad(ds, self.desc_cols, " ", "l")
-            preciotxt = pad(f"{self.signo}{round(total_producto,2):,.2f}" , self.price_cols, " ", "r")
-            printer.text(itemcanttxt + dstxt + preciotxt + "\n")
-
-        printer.text("\n")
-
-        if addAdditional:
-            # imprimir subtotal
-            printer.set(RIGHT, FONT_A, NORMAL, 1, 1)
-            printer.text(f"SUBTOTAL: {self.signo}%.2f\n" % tot_importe)
-
-            # imprimir descuento
-            sAmount = float(addAdditional.get('amount', 0))
-            tot_importe = tot_importe - sAmount
-            printer.set(LEFT, FONT_A, NORMAL, 1, 1)
-            descText = pad(addAdditional.get('description'), self.desc_cols_ext, " ", "r") + pad(f"{self.signo}{sAmount:.2f}", self.price_cols ," ", "r")
-            printer.text(descText + "\n")
-
-        # imprimir total
-        printer.set(RIGHT, FONT_A, NORMAL, 1, 2)
-        printer.text(f"TOTAL: {self.signo}{tot_importe:.2f}\n")
-
-        printer.set(LEFT, FONT_A, NORMAL, 1, 1)
-        
-        if self.__preFillTrailer:
-            self._setTrailer(self.__preFillTrailer)
-
-        if setTrailer:
-            self._setTrailer(setTrailer)   
-
-        self.__printExtras(kwargs)
-
-        printer.cut(PARTIAL_CUT)
-
-        # volver a poner en modo ESC Bematech, temporal para testing
-        # printer._raw(chr(0x1D) + chr(0xF9) + chr(0x35) + "0")
-
-        # dejar letra chica alineada izquierda
-
-        printer.set(BOLD, FONT_A, BOLD, 1, 2)
-        printer.end()
-
-        return True
-
-    def printRemito(self, **kwargs):
+    def printRemito(self, escpos: EscposIO, **kwargs):
         "Imprimir remito"
-
+        
+        printer = escpos.printer
+        
+        logger.info("Imprimiendo Remito en printer %s" % printer)
+        
         encabezado = kwargs.get("encabezado", None)
         items = kwargs.get("items", [])
         pagos = kwargs.get("pagos", [])
@@ -596,42 +501,38 @@ class EscPComandos(ComandoInterface):
             logger.error("No hay datos suficientes para imprimir")
             return False
 
-        printer = self.conector.driver
-        try:
-            printer.start()
-        except Exception as e:
-            return False
-        
-        printer.set(CENTER, FONT_A, NORMAL, 1, 1)
+        printer.set(font='a', height=1, align='center')
 
         if encabezado and "imprimir_fecha_remito" in encabezado:
             fecha = datetime.datetime.strftime(datetime.datetime.now(), "%d/%m/%Y %H:%M")
-            printer.text(f"Fecha: {fecha} \n\n\n")
+            escpos.writelines(f"Fecha: {fecha}")
+            printer.ln(2)
 
-        printer.text(u"Verifique su cuenta por favor\n")
-        printer.text(u"NO VÁLIDO COMO FACTURA\n\n")
+        escpos.writelines("Verifique su cuenta por favor")
+        escpos.writelines("NO VÁLIDO COMO FACTURA")
+        printer.ln()
 
         if encabezado:
-            printer.set(CENTER, FONT_A, NORMAL, 1, 2)
-            if "nombre_cliente" in encabezado:
-                printer.text(f'\n{encabezado.get("nombre_cliente")}\n')
-                if "telefono" in encabezado:
-                    printer.text(f'\n{encabezado.get("telefono")}\n')
-                if "domicilio_cliente" in encabezado:
-                    printer.text(f'\n{encabezado.get("domicilio_cliente")}\n')
-                printer.text(u"\n")
+            printer.set(font='b', height=1, align='center', normal_textsize=True)
 
-        printer.set(LEFT, FONT_A, NORMAL, 1, 1)
+            if "nombre_cliente" in encabezado:
+                escpos.writelines(f'{encabezado.get("nombre_cliente")}')
+                if "telefono" in encabezado:
+                    escpos.writelines(f'{encabezado.get("telefono")}')
+                if "domicilio_cliente" in encabezado:
+                    escpos.writelines(f'{encabezado.get("domicilio_cliente")}')
+                printer.ln()
+
+        printer.set(font='a', height=1, align='left', bold=False, normal_textsize=True)
 
         cantHeader = pad( "CANT", self.cant_cols, " ", "l")
         dsCentrador = (" " * (self.price_cols - self.cant_cols))
         dsHeader = (dsCentrador + "DESCRIPCIÓN").center(self.desc_cols, " ")
         precioHeader = pad( "PRECIO", self.price_cols, " ", "r")
         
-        printer.text( f"{cantHeader}{dsHeader}{precioHeader}\n" )
-        printer.text("\n")
+        escpos.writelines( f"{cantHeader}{dsHeader}{precioHeader}")
+        printer.ln()
 
-        printer.set(LEFT, FONT_A, NORMAL, 1, 1)
 
         importeSubTotal = 0.0
 
@@ -640,20 +541,19 @@ class EscPComandos(ComandoInterface):
             importe = float(item.get('importe'))
             ds = item.get('ds')[0:self.desc_cols-2]
             total = importe * qty
-         
+
             itemCant = floatToString( qty )
             totalProducto = f"{round( qty * importe , 2 ):,.2f}"
 
-            printer.set(LEFT, FONT_A, NORMAL, 1, 1)
             cantTxt = pad(itemCant, self.cant_cols, " ", "l")
             dsTxt = pad(ds, self.desc_cols, " ", "l")
             totalTxt = pad(totalProducto, self.price_cols, " ", "r")
 
-            printer.text(f'{cantTxt}{dsTxt}{totalTxt}\n')            
+            escpos.writelines(f'{cantTxt}{dsTxt}{totalTxt}')            
             
             importeSubTotal += total
 
-        printer.text("\n")
+        printer.ln()
 
         importeTotal = importeSubTotal
 
@@ -669,46 +569,38 @@ class EscPComandos(ComandoInterface):
             dsDescuento = pad(descuentoDesc, self.desc_cols_ext - 1, " ", "l")
             importeDescuento = pad(f"{round(sAmount, 2):,.2f}",self.price_cols, " ", "r")
 
-            printer.set(LEFT, FONT_A, BOLD, 1, 1)
-            printer.text(f'{dsSubtotal}{self.signo}{importeSubTotal}\n')
-            printer.set(LEFT, FONT_A, NORMAL, 1, 1)
-            printer.text(f'{dsDescuento}{self.signo}{importeDescuento}\n\n')
+            escpos.writelines(f'{dsSubtotal}{self.signo}{importeSubTotal}')
+            escpos.writelines(f'{dsDescuento}{self.signo}{importeDescuento}' )
+            printer.ln()
 
         # Imprimir total
-        printer.set(LEFT, FONT_A, BOLD, 1, 2)
         dsTotal = pad("TOTAL:", self.desc_cols_ext - 1, " ", "l")
         importeTotal = pad(f"{round(importeTotal,2):,.2f}",self.price_cols, " ", "r")
 
-        printer.text(f'{dsTotal}{self.signo}{importeTotal}\n\n')
+        escpos.writelines(f'{dsTotal}{self.signo}{importeTotal}', bold=True, align='left', height=2, width=2)
+        printer.ln();
 
         # Imprimir pagos "Simple"
-        self._printPagoSimple(pagos)
+        self._printPagoSimple(escpos, pagos)
 
         # Imprimir pagos "Detallado" (uncomment)
         #self._printPagoDetallado(pagos)
 
-        printer.text("\n")
+        printer.ln()
 
-        self.__printExtras(kwargs)
+        self.__printExtras(escpos, kwargs)
 
-        printer.set(CENTER, FONT_A, BOLD, 2, 2)
-        
+
         if self.__preFillTrailer:
-            self._setTrailer(self.__preFillTrailer)
+            self._setTrailer(escpos, self.__preFillTrailer)
 
         if setTrailer:
-            self._setTrailer(setTrailer)   
-
-
-        printer.cut(PARTIAL_CUT)
-        printer.set(LEFT, FONT_A, NORMAL, 1, 1)
-        printer.end()
+            self._setTrailer(escpos, setTrailer)   
 
         return True
 
-    def _printPagoSimple(self, pagos):
-        printer = self.conector.driver
-
+    def _printPagoSimple(self, escpos: EscposIO, pagos):
+        printer = escpos.printer
         if len(pagos) > 0:
             printer.set(RIGHT, FONT_A, NORMAL, 1, 2)
         else:
@@ -721,15 +613,14 @@ class EscPComandos(ComandoInterface):
             dsTxt = pad(desc, self.desc_cols_ext - 1," ","l")
             importeTxt = pad(f"{importe:,.2f}",self.price_cols," ","r")
             
-            printer.text(f"{dsTxt}{self.signo}{importeTxt}\n")
+            escpos.writelines(f"{dsTxt}{self.signo}{importeTxt}")
         
         return True
 
-    def _printPagoDetallado(self, pagos):
-        printer = self.conector.driver
+    def _printPagoDetallado(self, escpos: EscposIO, pagos):
+        printer = escpos.printer
         if len(pagos) > 0:
-            printer.set(LEFT, FONT_A, BOLD, 1, 1)
-            printer.text("Recibimos:\n")
+            escpos.writelines("Recibimos:", bold=True)
         else: 
             return False
 
@@ -758,29 +649,24 @@ class EscPComandos(ComandoInterface):
     def setTrailer(self, setTrailer):
         self.__preFillTrailer = setTrailer
 
-    def _setTrailer(self, setTrailer):
-        #print(self.conector.driver)
-        printer = self.conector.driver
-
+    def _setTrailer(self, escpos: EscposIO, setTrailer):
+        #print(self.printer)
+        printer = escpos.printer
         for trailerLine in setTrailer:
             if trailerLine:
-                printer.text(trailerLine)
+                escpos.writelines(trailerLine, align='center', bold=True, height=2)
 
-            printer.text("\n")
+            printer.ln()
 
-    def printComanda(self, comanda, setHeader=None, setTrailer=None):
+    def printComanda(self, escpos: EscposIO, comanda, setHeader=None, setTrailer=None):
         """id,observacion, entradas{observacion, cant, nombre, sabores}, platos{observacion, cant, nombre, sabores}"""
 
-
-        printer = self.conector.driver
-        try:
-            printer.start()
-        except Exception as e:
-            return False
+        printer = escpos.printer
+            
         print("* * * * * * * * * ** * * * * * * * * * * * * * * * * * *")
         print(comanda)
 
-        printer.set(CENTER, FONT_A, NORMAL, 1, 1)
+        printer.set(font='a', height=1, align='center', normal_textsize=True)
 
         if setHeader:
             for headerLine in setHeader:
@@ -833,38 +719,26 @@ class EscPComandos(ComandoInterface):
 
         printer.set(CENTER, FONT_A, BOLD, 2, 2)
         if self.__preFillTrailer:
-            self._setTrailer(self.__preFillTrailer)
+            self._setTrailer(printer, self.__preFillTrailer)
 
         if setTrailer:
-            self._setTrailer(setTrailer)   
+            self._setTrailer(printer, setTrailer)   
 
-        printer.cut(PARTIAL_CUT)
         # volver a poner en modo ESC Bematech, temporal para testing
         # printer._raw(chr(0x1D)+chr(0xF9)+chr(0x35)+"0")
 
         # dejar letra chica alineada izquierda
-        printer.set(LEFT, FONT_A, NORMAL, 1, 2)
-        printer.end()
 
         return True
     
-    def printArqueo(self, **kwargs):
-        
+    def printArqueo(self, escpos: EscposIO, **kwargs):
+        printer = escpos.printer
         encabezado: dict = kwargs.get('encabezado', None)
 
         if encabezado is None:
             logger.error("No hay datos suficientes para imprimir")
             return False
 
-
-        printer = self.conector.driver 
-        
-        try:
-            printer.start()
-        except Exception as e:
-            return False
-
-        
         totalIngresosPorVenta = 0
         ingresosEfectivo = 0
         otrosIngresos = 0
@@ -888,7 +762,7 @@ class EscPComandos(ComandoInterface):
             printer.set(CENTER, FONT_A, NORMAL, 2, 1)
             printer.text(f"{encabezado.get('nombreComercio', '')}")
             printer.text("\n")
-            printer.set(CENTER, FONT_A, NORMAL, 1, 1)
+            printer.set(font='a', height=1, align='center', normal_textsize=True)
             printer.text("-" * self.total_cols + "\n")
             printer.set(LEFT, FONT_A, NORMAL, 1, 1)
             printer.text(f"{BOLD_ON}{UNDERLINED_ON}'Fecha de Cierre'{UNDERLINED_OFF}{BOLD_OFF} : {fechaArqueo}\n")
@@ -1073,7 +947,7 @@ class EscPComandos(ComandoInterface):
         ##########   FIRMA
 
         printer.text("\n" * 7)
-        printer.set(CENTER, FONT_A, NORMAL, 1, 1)
+        printer.set(font='a', height=1, align='center', normal_textsize=True)
         printer.text("_" * self.desc_cols + "\n")
         printer.text("Firma Responsable")
         printer.text("\n\n")
@@ -1083,7 +957,5 @@ class EscPComandos(ComandoInterface):
 
 
         printer.set(LEFT, FONT_A, NORMAL, 1, 1)
-        printer.cut(PARTIAL_CUT)
-        printer.end()
 
         return True

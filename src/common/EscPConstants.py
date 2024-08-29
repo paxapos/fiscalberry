@@ -2,16 +2,16 @@
 from escpos.constants import *
 
 #for printer.set()
-CENTER = "CENTER"
-LEFT = "LEFT"
-RIGHT = "RIGHT"
+CENTER = "center"
+LEFT = "left"
+RIGHT = "right"
 
-FONT_A = "A"
-FONT_B = "B"
+FONT_A = "a"
+FONT_B = "b"
 
-NORMAL = "NORMAL"
-BOLD = "B"
-UNDERLINED = "U"
+NORMAL = "normal"
+BOLD = "bold"
+UNDERLINED = "underline"
 BOLD_UNDERLINED = "BU"
 
 #for individual text formatting

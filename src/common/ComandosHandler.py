@@ -5,8 +5,11 @@ import threading
 from multiprocessing import Process, Queue, Pool
 from common.Configberry import Configberry
 from common.fiscalberry_logger import getLogger
-from common.Comandos.EscPComandos import EscPComandos
-from common.Comandos.FiscalberryComandos import FiscalberryComandos
+from common.EscPComandos import EscPComandos
+from escpos import printer
+from common.fiscalberry_logger import getLogger
+
+logger = getLogger()
 
 import sys
 if sys.platform == 'win32':
@@ -26,59 +29,102 @@ def set_interval(func, sec):
     t.start()
     return t
 
+class DriverError(Exception):
+    pass
 
-# es un diccionario como clave va el nombre de la impresora que funciona como cola
-# cada KEY es una printerName y contiene un a instancia de TraductorReceipt o TraductorFiscal dependiendo
-# si la impresora es fiscal o receipt
 
 class TraductorException(Exception):
     pass
 
-def init_printer_traductor(printerName):
+def runTraductor(jsonTicket, queue):
+    #extraigo el printerName del jsonTicket
+    printerName = jsonTicket.pop('printerName')
+
+
     config = Configberry()
     try:
         dictSectionConf = config.get_config_for_printer(printerName)
     except KeyError as e:
         raise TraductorException(f"En el archivo de configuracion no existe la impresora: '{printerName}'")
 
-    marca = dictSectionConf.get("marca")
-    del dictSectionConf['marca']
-    # instanciar los comandos dinamicamente
-    comandoClass = marca + "Comandos"
-    if comandoClass == "EscPComandos":
-        comando = EscPComandos(**dictSectionConf)
-    elif comandoClass == "FiscalberryComandos":
-        comando = FiscalberryComandos(**dictSectionConf)
+    driverName = dictSectionConf.pop("driver", "Dummy")
+        
+    driverOps = dictSectionConf
+    
+    # instanciar el driver dinamicamente segun el driver pasado como parametro
+    if driverName == "Win32Raw":
+        # classprinter.Win32Raw(printer_name='', *args, **kwargs)[source]
+        driver = printer.Win32Raw(driverOps)
+    elif driverName == "Usb":
+        # classprinter.Usb(idVendor=None, idProduct=None, usb_args={}, timeout=0, in_ep=130, out_ep=1, *args, **kwargs)
+        driver = printer.Usb(driverOps)
+    elif driverName == "Network":
+        # classprinter.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
+        driver = printer.Network(driverOps)
+    elif driverName == "Serial":
+        # classprinter.Serial(devfile='', baudrate=9600, bytesize=8, timeout=1, parity=None, stopbits=None, xonxoff=False, dsrdtr=True, *args, **kwargs)
+        driver = printer.Serial(driverOps)
+    elif driverName == "File":
+        # (devfile='', auto_flush=True
+        logger.debug(f" + ++ + + ++ ++ ++ ++ ++ File driver: {driverOps}")
+        driver = printer.File(**driverOps)
+    elif driverName == "Dummy":
+        driver = printer.Dummy(driverOps)
+    elif driverName == "CupsPrinter":
+        # CupsPrinter(printer_name='', *args, **kwargs)[source]
+        driver = printer.CupsPrinter(driverOps)
+    elif driverName == "LP":
+        # classprinter.LP(printer_name='', *args, **kwargs)[source]
+        driver = printer.LP(driverOps)
     else:
-        raise TraductorException(f"Clase de comando desconocida: {comandoClass}")
-    return comando.traductor
+        raise DriverError(f"Invalid driver: {driver}")
 
-def runTraductor(jsonTicket, queue):
-    printerName = jsonTicket['printerName']
-    traductor = init_printer_traductor(printerName)
+    
+    comando = EscPComandos(driver)
 
-    if traductor:
-        if traductor.comando.conector is not None:
-            queue.put(traductor.run(jsonTicket))
-        else:
-            strError = f"El Driver no esta inicializado para la impresora {printerName}"
-            queue.put(strError)
-            logging.error(strError)
+    queue.put(comando.run(jsonTicket))
+    
 
 
-class TraductoresHandler:
+class ComandosHandler:
     """Convierte un JSON a Comando Fiscal Para Cualquier tipo de Impresora fiscal"""
 
     traductores = {}
-    fbApp = None
-    webSocket = None
     config = Configberry()
+    
+    
+    def send_command(self, comando):
+        response = {}
+        logger.info(f"Request \n -> {comando}")
+        try:
+            if isinstance(comando, str):
+                jsonMes = json.loads(comando, strict=False)
+            else:
+                jsonMes = comando
+            response = self.__json_to_comando(jsonMes)
+        except TypeError as e:
+            errtxt = "Error parseando el JSON %s" % e
+            logger.exception(errtxt)
+            response["err"] = errtxt
+        except TraductorException as e:
+            errtxt = "Traductor Comandos: %s" % str(e)
+            logger.exception(errtxt)
+            response["err"] = errtxt
+        except KeyError as e:
+            errtxt = "El comando no es valido para ese tipo de impresora: %s" % e
+            logger.exception(errtxt)
+            response["err"] = errtxt
+        except Exception as e:
+            errtxt = repr(e) + "- " + str(e)
+            logger.exception(errtxt)
+            response["err"] = errtxt
 
-    def __init__(self, webSocket = None, fbApp = None):
-        self.webSocket = webSocket
-        self.fbApp = fbApp
+        logger.info("Response \n <- %s" % response)
+        return response
+            
 
-    def json_to_comando(self, jsonTicket): 
+
+    def __json_to_comando(self, jsonTicket): 
         """Leer y procesar una factura en formato JSON 
         ``jsonTicket`` factura a procesar
         """
@@ -87,13 +133,6 @@ class TraductoresHandler:
         rta = {"rta": ""}
 
         try:
-            # Interceptar la key 'uuid'
-            if 'uuid' in jsonTicket:
-                uuidFb = jsonTicket.pop("uuid")
-                if (self.fbApp.isSioServer):
-                    status = self.fbApp.socketio.sendCommand(command=jsonTicket,uuid=uuidFb)
-                    rta["rta"] = {"action":"sio:sendCommand", "rta": "Sent"} if status else {"action":"sio:sendCommand", "rta": "Failed"}                        
-                    return rta
 
             # seleccionar impresora
             # esto se debe ejecutar antes que cualquier otro comando
@@ -136,22 +175,6 @@ class TraductoresHandler:
             elif 'removerImpresora' in jsonTicket:
                 rta["rta"] =  self._removerImpresora(jsonTicket["removerImpresora"])
 
-            ### Comandos Socket.io Server
-            elif 'flushDisconnectedClients' in jsonTicket:
-                rta["rta"] = self.fbApp.socketio.flushDisconnectedClients()
-
-            elif 'listClients' in jsonTicket:
-                rta["rta"] = self.fbApp.socketio.listClients()
-
-            elif 'getClientConfig' in jsonTicket:
-                rta["rta"] = self.fbApp.socketio.getClientConfig(jsonTicket['getClientConfig'])
-            
-            elif 'disconnectClient' in jsonTicket:
-                rta["rta"] = self.fbApp.socketio.disconnectByUuid(jsonTicket['disconnectClient'])
-
-            elif 'disconnectAll' in jsonTicket:
-                rta["rta"] = self.fbApp.socketio.disconnectAll()
-
             else:
                 logging.error("No se pasó un comando válido")
                 raise TraductorException("No se pasó un comando válido")
@@ -168,17 +191,6 @@ class TraductoresHandler:
 
         return rta
 
-    def getWarnings(self):
-        """ Recolecta los warning que puedan ir arrojando las impresoraas
-            devuelve un listado de warnings
-        """
-        collect_warnings = {}
-        for trad in self.traductores:
-            if self.traductores[trad]:
-                warn = self.traductores[trad].comando.getWarnings()
-                if warn:
-                    collect_warnings[trad] = warn
-        return collect_warnings
 
 
     def _upgrade(self):
@@ -197,14 +209,7 @@ class TraductoresHandler:
         }
         return rta
 
-    def _restartService(self):
-        """ Reinicializa el WS server tornado y levanta la configuracion nuevamente """
-        self.fbApp.restart_service()
-        rta = {
-            "action": "restartService",
-            "rta": "servidor reiniciado"
-        }
-        return rta
+   
 
     def _rebootFiscalberry(self):
         "reinicia el servicio fiscalberry"
