@@ -9,7 +9,7 @@ from kivy.uix.image import Image
 from kivy.clock import Clock
 from dotenv import load_dotenv
 from kivy.logger import Logger
-import Configberry
+from common.Configberry import Configberry
 import os
 
 from fiscalberry_app.discover import send_discover
@@ -18,7 +18,7 @@ from fiscalberry_app.sio import start_socketio_client
 load_dotenv()
 
 
-configberry = Configberry.Configberry()
+configberry = Configberry()
 sio = None
 
 class LogWidget(ScrollView):

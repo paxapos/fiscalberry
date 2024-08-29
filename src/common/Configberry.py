@@ -1,6 +1,5 @@
 import configparser
 import os
-import shutil
 import uuid
 import platformdirs
 from common.fiscalberry_logger import getLogger
@@ -11,12 +10,21 @@ appname = 'Fiscalberry'
 class Configberry:
     config = configparser.ConfigParser()
 
+    _instance = None
+
+    def __new__(cls):
+        if not cls._instance:
+            cls._instance = super(Configberry, cls).__new__(cls)
+        return cls._instance
 
     def __init__(self):
-        self.logger = getLogger()
+        if not hasattr(self, 'initialized'):
+            self.initialized = True
+            # Inicializa aquí los atributos de la instancia
+            self.logger = getLogger()
 
-        self.config.read( self.getConfigFIle() )
-        self.__create_config_if_not_exists()
+            self.config.read( self.getConfigFIle() )
+            self.__create_config_if_not_exists()
 
     def getConfigFIle(self):
 
@@ -116,8 +124,10 @@ sio_password =
         '''
         printerName: string
         '''
-
-        if ":" in printerName:
+        
+        if isinstance(printerName, dict):
+            return printerName
+        elif ":" in printerName:
             # if printerName is an IP address, extract IP and PORT.
             # e.g.
             # printerName = "192.168.0.25:9100"
@@ -133,8 +143,7 @@ sio_password =
             # port is 6100
             host, port = printerName.split(":")
             ret = {
-                "marca": "EscP",
-                "driver": "ReceiptDirectJet",
+                "driver": "Network",
                 "host": host,
                 "port": port
             }
@@ -162,10 +171,8 @@ sio_password =
             host = printerName
             port = 9100
             ret = {
-            "marca": "EscP",
-            "driver": "ReceiptDirectJet",
+            "driver": "Network",
             "host": host,
-            "port": port
             }
             return ret
         else:

@@ -1,48 +1,12 @@
-import asyncio
-import json
 import socketio
 import sys
-
-
-from common.Traductores.TraductoresHandler import TraductoresHandler, TraductorException
+from common.ComandosHandler import ComandosHandler, TraductorException
 from common.fiscalberry_logger import getLogger
 
 sio = socketio.Client(reconnection=True, reconnection_attempts=0, reconnection_delay=2, logger=False, engineio_logger=False)
 
 
 logger = getLogger()
-
-
-def send_command(comando):
-    response = {}
-    logger.info(f"Request \n -> {comando}")
-    try:
-        if isinstance(comando, str):
-            jsonMes = json.loads(comando, strict=False)
-        else:
-            jsonMes = comando
-        traductor = TraductoresHandler()
-        response = traductor.json_to_comando(jsonMes)
-    except TypeError as e:
-        errtxt = "Error parseando el JSON %s" % e
-        logger.exception(errtxt)
-        response["err"] = errtxt
-    except TraductorException as e:
-        errtxt = "Traductor Comandos: %s" % str(e)
-        logger.exception(errtxt)
-        response["err"] = errtxt
-    except KeyError as e:
-        errtxt = "El comando no es valido para ese tipo de impresora: %s" % e
-        logger.exception(errtxt)
-        response["err"] = errtxt
-    except Exception as e:
-        errtxt = repr(e) + "- " + str(e)
-        logger.exception(errtxt)
-        response["err"] = errtxt
-
-    logger.info("Response \n <- %s" % response)
-    return response
-        
 
     
 def start(sockeiIoServer, uuid, namespaces = ["/paxaprinter"]):
@@ -68,8 +32,9 @@ def start(sockeiIoServer, uuid, namespaces = ["/paxaprinter"]):
 
     @sio.on('command', namespace='/paxaprinter')
     def handle_command(data):
-        print(f"message received with {data}")
-        return send_command(data)
+        logger.debug(f"message received with {data}")
+        comandoHandler = ComandosHandler()
+        return comandoHandler.send_command(data)
 
 
     try:
