@@ -1,5 +1,4 @@
 name: Build Linux Executable
-
 on:
   push:
     branches:
@@ -24,9 +23,9 @@ jobs:
           pip install pyinstaller
 
 
-
       - name: Install escpos all modules includes win32 printing module if windows SO
         run: |
+          sudo apt-get install libcups2-dev
           pip install 'python-escpos[all]'
 
       - name: Install socketio client
@@ -34,10 +33,9 @@ jobs:
           pip install 'python-socketio[client]'
 
 
-
-      - name: Install project dependencies
+      - name: Install socketio client      - name: Install project dependencies
         run: |
-          pip install -r requirements.cli.txt  # Instala las dependencias de tu proyecto
+
 
       - name: Build executable
         run: |
@@ -47,4 +45,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: fiscalberry
-          path: dist  # Cambia esto si tu ejecutable está en una ruta diferente
+
