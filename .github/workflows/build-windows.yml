@@ -25,7 +25,7 @@ jobs:
 
       - name: Install escpos all modules includes win32 printing module if windows SO
         run: |
-          pip install 'python-escpos[all]''
+          pip install 'python-escpos[all]'
 
       - name: Install socketio client
         run: |
@@ -33,11 +33,11 @@ jobs:
 
       - name: Install project dependencies
         run: |
-          pip install -r requirements.cli.txt  # Instala las dependencias de tu proyecto
+          pip install -r requirements.cli.txt
 
       - name: Build executable
         run: |
-          pyinstaller --onefile --console --name fiscalberry --distpath dist --icon ./src/common/assets/fiscalberry.ico src/cli.py
+          pyinstaller --onefile --add-data "./capabilities.json:escpos" --console --name fiscalberry --distpath dist --icon ./src/common/assets/fiscalberry.ico src/cli.py
 
       - name: Upload executable
         uses: actions/upload-artifact@v3
