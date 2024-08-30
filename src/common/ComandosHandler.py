@@ -77,7 +77,9 @@ def runTraductor(jsonTicket, queue):
         
         # get idProduct and idVendor from config as variables and extract them from driverOps
         idProduct = driverOps.pop('idProduct', None)
+        
         idVendor = driverOps.pop('idVendor', None)
+        
         if idProduct:
             logger.info(f"El idProduct es {idProduct}")
             idProduct = int(idProduct, 16)
@@ -85,6 +87,7 @@ def runTraductor(jsonTicket, queue):
         if idVendor:
             logger.info(f"El idVendor es {idVendor}")
             idVendor = int(idVendor, 16)
+        
         
         idVendorMInuscula = driverOps.pop('idvendor', None)
         logger.error(f"El idVendor vino en minuscula {idVendorMInuscula}")

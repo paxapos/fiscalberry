@@ -9,7 +9,8 @@ appname = 'Fiscalberry'
 
 class Configberry:
     config = configparser.ConfigParser()
-
+    config.optionxform=str
+    
     _instance = None
 
     def __new__(cls):
