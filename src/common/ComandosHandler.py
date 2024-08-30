@@ -3,6 +3,7 @@
 import json
 import threading
 from multiprocessing import Process, Queue, Pool
+from common.FiscalberryComandos import FiscalberryComandos
 from common.Configberry import Configberry
 from common.fiscalberry_logger import getLogger
 from common.EscPComandos import EscPComandos
@@ -48,10 +49,17 @@ def runTraductor(jsonTicket, queue):
         raise TraductorException(f"En el archivo de configuracion no existe la impresora: '{printerName}'")
 
     driverName = dictSectionConf.pop("driver", "Dummy")
-        
+
     driverOps = dictSectionConf
-    
-    # instanciar el driver dinamicamente segun el driver pasado como parametro
+
+    if driverName == "Fiscalberry":
+        # proxy pass to FiscalberryComandos
+        comando = FiscalberryComandos()
+        host = driverOps.get('host', 'localhost')
+        printerName = driverOps.get('printerName', printerName)
+        jsonTicket['printerName'] = printerName
+        return queue.put(comando.run(host, jsonTicket))
+
     if driverName == "Win32Raw":
         # classprinter.Win32Raw(printer_name='', *args, **kwargs)[source]
         driver = printer.Win32Raw(**driverOps)
