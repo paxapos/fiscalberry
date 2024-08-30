@@ -65,6 +65,19 @@ def runTraductor(jsonTicket, queue):
         driver = printer.Win32Raw(**driverOps)
     elif driverName == "Usb":
         # classprinter.Usb(idVendor=None, idProduct=None, usb_args={}, timeout=0, in_ep=130, out_ep=1, *args, **kwargs)
+        # convertir de string a int        
+        if 'out_ep' in driverOps:
+            driverOps['out_ep'] = int(driverOps['out_ep'], 16)
+        
+        if 'in_ep' in driverOps:
+            driverOps['in_ep'] = int(driverOps['in_ep'], 16)
+            
+        if 'idVendor' in driverOps:
+            driverOps['idVendor'] = int(driverOps['idVendor'], 16)
+            
+        if 'idProduct' in driverOps:
+            driverOps['idProduct'] = int(driverOps['idProduct'], 16)
+        
         driver = printer.Usb(**driverOps)
     elif driverName == "Network":
         # classprinter.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
