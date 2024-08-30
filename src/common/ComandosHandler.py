@@ -1,5 +1,6 @@
 # coding=utf-8
 
+import sys
 import json
 import threading
 from multiprocessing import Process, Queue, Pool
@@ -12,7 +13,6 @@ from common.fiscalberry_logger import getLogger
 
 logger = getLogger()
 
-import sys
 if sys.platform == 'win32':
     import multiprocessing.reduction    # make sockets pickable/inheritable
 
@@ -20,6 +20,7 @@ INTERVALO_IMPRESORA_WARNING = 30.0
 
 
 logging = getLogger()
+
 
 def set_interval(func, sec):
     def func_wrapper():
@@ -30,6 +31,7 @@ def set_interval(func, sec):
     t.start()
     return t
 
+
 class DriverError(Exception):
     pass
 
@@ -37,16 +39,17 @@ class DriverError(Exception):
 class TraductorException(Exception):
     pass
 
-def runTraductor(jsonTicket, queue):
-    #extraigo el printerName del jsonTicket
-    printerName = jsonTicket.pop('printerName')
 
+def runTraductor(jsonTicket, queue):
+    # extraigo el printerName del jsonTicket
+    printerName = jsonTicket.pop('printerName')
 
     config = Configberry()
     try:
         dictSectionConf = config.get_config_for_printer(printerName)
     except KeyError as e:
-        raise TraductorException(f"En el archivo de configuracion no existe la impresora: '{printerName}'")
+        raise TraductorException(
+            f"En el archivo de configuracion no existe la impresora: '{printerName}'")
 
     driverName = dictSectionConf.pop("driver", "Dummy")
 
@@ -65,19 +68,21 @@ def runTraductor(jsonTicket, queue):
         driver = printer.Win32Raw(**driverOps)
     elif driverName == "Usb":
         # classprinter.Usb(idVendor=None, idProduct=None, usb_args={}, timeout=0, in_ep=130, out_ep=1, *args, **kwargs)
-        # convertir de string a int        
+        # convertir de string a int
         if 'out_ep' in driverOps:
-            driverOps['out_ep'] = hex(int(driverOps['out_ep'], 16))
-        
+            driverOps['out_ep'] = int(driverOps['out_ep'], 16)
+
         if 'in_ep' in driverOps:
-            driverOps['in_ep'] = hex(int(driverOps['in_ep'], 16))
-            
+            driverOps['in_ep'] = int(driverOps['in_ep'], 16)
+
         if 'idVendor' in driverOps:
-            driverOps['idVendor'] = hex(int(driverOps['idVendor'], 16))
-            
+            logger.info("id vendor es %s", driverOps['idVendor'])
+            driverOps['idVendor'] = int(driverOps['idVendor'], 16)
+
         if 'idProduct' in driverOps:
-            driverOps['idProduct'] = hex(int(driverOps['idProduct'], 16))
-        
+            logger.info("id product es %s", driverOps['idProduct'])
+            driverOps['idProduct'] = int(driverOps['idProduct'], 16)
+
         logger.info("Los parametros a enviar driver USB son")
         logger.info(driverOps)
         driver = printer.Usb(**driverOps)
@@ -101,11 +106,9 @@ def runTraductor(jsonTicket, queue):
     else:
         raise DriverError(f"Invalid driver: {driver}")
 
-    
     comando = EscPComandos(driver)
 
     queue.put(comando.run(jsonTicket))
-    
 
 
 class ComandosHandler:
@@ -113,8 +116,7 @@ class ComandosHandler:
 
     traductores = {}
     config = Configberry()
-    
-    
+
     def send_command(self, comando):
         response = {}
         logger.info(f"Request \n -> {comando}")
@@ -143,15 +145,13 @@ class ComandosHandler:
 
         logger.info("Response \n <- %s" % response)
         return response
-            
 
-
-    def __json_to_comando(self, jsonTicket): 
+    def __json_to_comando(self, jsonTicket):
         """Leer y procesar una factura en formato JSON 
         ``jsonTicket`` factura a procesar
         """
         traductor = None
-        
+
         rta = {"rta": ""}
 
         try:
@@ -161,7 +161,7 @@ class ComandosHandler:
             if 'printerName' in jsonTicket:
                 # run multiprocessing
                 q = Queue()
-                p = Process(target=runTraductor, args=(jsonTicket,q))
+                p = Process(target=runTraductor, args=(jsonTicket, q))
                 p.daemon = True
                 p.start()
                 p.join()
@@ -183,19 +183,21 @@ class ComandosHandler:
                 rta["rta"] = self._upgrade()
 
             elif 'getPrinterInfo' in jsonTicket:
-                rta["rta"] =  self._getPrinterInfo(jsonTicket["getPrinterInfo"])
+                rta["rta"] = self._getPrinterInfo(jsonTicket["getPrinterInfo"])
 
             elif 'getAvailablePrinters' in jsonTicket:
                 rta["rta"] = self._getAvailablePrinters()
 
-            elif 'getActualConfig' in jsonTicket: #pasarle la contraseña porque muestra datos del servidor y la mostraría
-                rta["rta"] = self._getActualConfig(jsonTicket['getActualConfig'])
+            elif 'getActualConfig' in jsonTicket:  # pasarle la contraseña porque muestra datos del servidor y la mostraría
+                rta["rta"] = self._getActualConfig(
+                    jsonTicket['getActualConfig'])
 
             elif 'configure' in jsonTicket:
                 rta["rta"] = self._configure(**jsonTicket["configure"])
 
             elif 'removerImpresora' in jsonTicket:
-                rta["rta"] =  self._removerImpresora(jsonTicket["removerImpresora"])
+                rta["rta"] = self._removerImpresora(
+                    jsonTicket["removerImpresora"])
 
             else:
                 logging.error("No se pasó un comando válido")
@@ -213,8 +215,6 @@ class ComandosHandler:
 
         return rta
 
-
-
     def _upgrade(self):
         ret = self.fbApp.upgradeGitPull()
         rta = {
@@ -230,8 +230,6 @@ class ComandosHandler:
             "rta": self.config.get_config_for_printer(printerName)
         }
         return rta
-
-   
 
     def _rebootFiscalberry(self):
         "reinicia el servicio fiscalberry"
@@ -269,8 +267,6 @@ class ComandosHandler:
             "rta": "La impresora " + printerName + " fue removida con exito"
         }
 
-
-
     def _getAvailablePrinters(self):
 
         # la primer seccion corresponde a SERVER, el resto son las impresoras
@@ -304,7 +300,7 @@ class ComandosHandler:
             logging.warning("No hay caso, probe de reconectar pero no se pudo")
 
     def _getActualConfig(self, password):
-        rta = {"action":"getActualConfig", "rta":"Contraseña incorrecta"}
-        if password == self.config.config.get("SERVIDOR", 'sio_password',fallback="password"):
-            rta['rta']=self.config.get_actual_config()
+        rta = {"action": "getActualConfig", "rta": "Contraseña incorrecta"}
+        if password == self.config.config.get("SERVIDOR", 'sio_password', fallback="password"):
+            rta['rta'] = self.config.get_actual_config()
         return rta
