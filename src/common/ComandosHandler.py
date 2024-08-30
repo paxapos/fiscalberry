@@ -78,6 +78,8 @@ def runTraductor(jsonTicket, queue):
         if 'idProduct' in driverOps:
             driverOps['idProduct'] = int(driverOps['idProduct'], 16)
         
+        logger.info("Los parametros a enviar driver USB son")
+        logger.info(driverOps)
         driver = printer.Usb(**driverOps)
     elif driverName == "Network":
         # classprinter.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
