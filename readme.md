@@ -4,7 +4,8 @@
 Para enviar un JSON (mediante websocket), que fiscalberry lo reciba, lo transforme en un conjunto de comandos compatible con la impresora instalada, conecte con la impresora y responda al websocket con la respuesta que nos envió la impresora.
 
 Descarga la última versión socketio para windows
-[fiscalberry-win.zip](https://github.com/user-attachments/files/16803728/fiscalberry-win.zip)
+
+[fiscalberry-win.zip](https://github.com/user-attachments/files/16818395/fiscalberry-win.zip)
 
 
 # Como comenzar (solo developers del proyecto)
