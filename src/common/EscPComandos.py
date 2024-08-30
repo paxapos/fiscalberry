@@ -88,7 +88,7 @@ class EscPComandos():
         printer.text(texto)
 
 
-    def openDrawer(self, escpos: EscposIO):
+    def openDrawer(self, escpos: EscposIO, **kwargs):
         escpos.printer.cashdraw(2)
 
 
