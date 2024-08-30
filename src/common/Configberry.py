@@ -148,7 +148,7 @@ sio_password =
                 "port": port
             }
             return ret
-        elif "&" in printerName:
+        elif "=" in printerName:
             # if printerName is a string with parameters, extract them.
             # e.g.
             # printerName = "marca=EscP&driver=ReceiptDirectJet&host=192.168.0.25&port=9100"

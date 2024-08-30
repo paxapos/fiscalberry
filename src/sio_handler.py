@@ -38,7 +38,7 @@ def start(sockeiIoServer, uuid, namespaces = ["/paxaprinter"]):
 
 
     try:
-        sio.connect(sockeiIoServer, namespaces=namespaces, headers={"X_UUID":uuid}, transports=['websocket'])
+        sio.connect(sockeiIoServer, namespaces=namespaces, headers={"X_UUID":uuid})
         print("Iniciado SioClient en %s con uuid %s" % (sockeiIoServer, uuid))
         return sio.wait()
     except socketio.exceptions.ConnectionError as e:
