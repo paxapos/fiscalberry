@@ -60,7 +60,7 @@ class EscPComandos():
                     rta.append({"action": action, "rta": res})
                 else:
                     logger.debug("es instancia simple")
-                    res = fnAction(escpos, jsonTicket[action])
+                    res = fnAction(escpos)
                     rta.append({"action": action, "rta": res})
 
             return rta
