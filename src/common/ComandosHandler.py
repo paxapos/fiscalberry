@@ -68,24 +68,30 @@ def runTraductor(jsonTicket, queue):
         driver = printer.Win32Raw(**driverOps)
     elif driverName == "Usb":
         # classprinter.Usb(idVendor=None, idProduct=None, usb_args={}, timeout=0, in_ep=130, out_ep=1, *args, **kwargs)
-        # convertir de string a int
+        # convertir de string eJ: 0x82 a int
         if 'out_ep' in driverOps:
             driverOps['out_ep'] = int(driverOps['out_ep'], 16)
-
+            
         if 'in_ep' in driverOps:
             driverOps['in_ep'] = int(driverOps['in_ep'], 16)
-
-        if 'idVendor' in driverOps:
-            logger.info("id vendor es %s", driverOps['idVendor'])
-            driverOps['idVendor'] = int(driverOps['idVendor'], 16)
-
-        if 'idProduct' in driverOps:
-            logger.info("id product es %s", driverOps['idProduct'])
-            driverOps['idProduct'] = int(driverOps['idProduct'], 16)
+        
+        # get idProduct and idVendor from config as variables and extract them from driverOps
+        idProduct = driverOps.pop('idProduct', None)
+        idVendor = driverOps.pop('idVendor', None)
+        if idProduct:
+            logger.info(f"El idProduct es {idProduct}")
+            idProduct = int(idProduct, 16)
+        
+        if idVendor:
+            logger.info(f"El idVendor es {idVendor}")
+            idVendor = int(idVendor, 16)
+        
+        idVendorMInuscula = driverOps.pop('idvendor', None)
+        logger.error(f"El idVendor vino en minuscula {idVendorMInuscula}")
 
         logger.info("Los parametros a enviar driver USB son")
         logger.info(driverOps)
-        driver = printer.Usb(**driverOps)
+        driver = printer.Usb(idVendor, idProduct, **driverOps)
     elif driverName == "Network":
         # classprinter.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
         driver = printer.Network(**driverOps)
