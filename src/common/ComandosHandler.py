@@ -67,26 +67,17 @@ def runTraductor(jsonTicket, queue):
         # classprinter.Usb(idVendor=None, idProduct=None, usb_args={}, timeout=0, in_ep=130, out_ep=1, *args, **kwargs)
         # convertir de string a int        
         if 'out_ep' in driverOps:
-            driverOps['out_ep'] = hex(driverOps['out_ep'], 16)
+            driverOps['out_ep'] = hex(int(driverOps['out_ep'], 16))
         
         if 'in_ep' in driverOps:
-            driverOps['in_ep'] = hex(driverOps['in_ep'], 16)
+            driverOps['in_ep'] = hex(int(driverOps['in_ep'], 16))
             
         if 'idVendor' in driverOps:
-            driverOps['idVendor'] = hex(driverOps['idVendor'], 16)
+            driverOps['idVendor'] = hex(int(driverOps['idVendor'], 16))
             
         if 'idProduct' in driverOps:
-            driverOps['idProduct'] = hex(driverOps['idProduct'], 16)
-        printer("*-*-* ACHALAYYYY  -* **- -*-")
+            driverOps['idProduct'] = hex(int(driverOps['idProduct'], 16))
         
-        printer("*-*-* ACHALAYYYY  -* **- -*-")
-        printer("*-*-* ACHALAYYYY  -* **- -*-")
-        printer("*-*-* ACHALAYYYY  -* **- -*-")
-        
-        printer(driverOps)
-        printer("*-*-* ACHALAYYYY  -* **- -*-")
-        printer("*-*-* ACHALAYYYY  -* **- -*-")
-        printer("*-*-* ACHALAYYYY  -* **- -*-")
         logger.info("Los parametros a enviar driver USB son")
         logger.info(driverOps)
         driver = printer.Usb(**driverOps)
