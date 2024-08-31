@@ -198,7 +198,7 @@ class EscPComandos():
         
         printer = escpos.printer
         
-        self.__initPrinter(printer)
+        self.__initPrinter(self, printer)
 
         # Secciones de la Factura
         encabezado = kwargs.get("encabezado", None)
