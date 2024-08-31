@@ -5,7 +5,7 @@ import json
 import base64
 from common.fiscalberry_logger import getLogger
 from escpos.escpos import EscposIO
-from escpos.constants import QR_ECLEVEL_H
+from escpos.constants import QR_ECLEVEL_H,CD_KICK_2
 
 logger = getLogger()
 
@@ -89,13 +89,14 @@ class EscPComandos():
 
 
     def openDrawer(self, escpos: EscposIO, **kwargs):
-        escpos.printer.cashdraw(2)
+        escpos.printer.cashdraw(CD_KICK_2)
 
 
     def printPedido(self, escpos: EscposIO, **kwargs):
         "imprimir pedido de compras"
         
         printer = escpos.printer
+        self.__initPrinter(printer)
 
         encabezado = kwargs.get("encabezado", None)
         items = kwargs.get("items", [])
@@ -196,6 +197,8 @@ class EscPComandos():
         "Imprimir Factura Electronica"
         
         printer = escpos.printer
+        
+        self.__initPrinter(printer)
 
         # Secciones de la Factura
         encabezado = kwargs.get("encabezado", None)
@@ -467,7 +470,9 @@ class EscPComandos():
     def printRemito(self, escpos: EscposIO, **kwargs):
         "Imprimir remito"
         
+        
         printer = escpos.printer
+        self.__initPrinter(printer)
         
         logger.info("Imprimiendo Remito en printer %s" % printer)
         
@@ -643,8 +648,7 @@ class EscPComandos():
 
         printer = escpos.printer
             
-        print("* * * * * * * * * ** * * * * * * * * * * * * * * * * * *")
-        print(comanda)
+        self.__initPrinter(printer)
 
         printer.set(font='a', height=1, align='center', normal_textsize=True)
 
@@ -711,8 +715,16 @@ class EscPComandos():
 
         return True
     
+    def __initPrinter(printer):
+        # set all the params printer.set(align='left', font='a', bold=False, underline=?, width=?, height=?, density=?, invert=False, smooth=?, flip=?, normal_textsize=?, double_width=?, double_height=?, custom_size=?)
+        
+        printer.set(align='left', font='a', bold=False, underline=False, width=1, height=1, density=9, invert=False, smooth=False, flip=False, normal_textsize=True, double_width=False, double_height=False, custom_size=False)
+    
     def printArqueo(self, escpos: EscposIO, **kwargs):
         printer = escpos.printer
+        
+        self.__initPrinter(printer)
+
         encabezado: dict = kwargs.get('encabezado', None)
 
         if encabezado is None:
@@ -920,6 +932,8 @@ class EscPComandos():
             saldo = "FALTANTE"
         else:
             saldo = ""
+            
+        printer.set(invert=False)
 
         printer.text(pad(f"    Saldo {saldo}", self.desc_cols_ext , " ", "l") 
                     + "$" + pad(f"{abs(montoSaldo):,.2f}",self.price_cols - 1, " ", "r"))
