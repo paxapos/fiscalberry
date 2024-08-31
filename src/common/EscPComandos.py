@@ -198,7 +198,7 @@ class EscPComandos():
         
         printer = escpos.printer
         
-        self.__initPrinter(self, printer)
+        self.__initPrinter(printer)
 
         # Secciones de la Factura
         encabezado = kwargs.get("encabezado", None)
@@ -715,7 +715,7 @@ class EscPComandos():
 
         return True
     
-    def __initPrinter(printer):
+    def __initPrinter(self, printer):
         # set all the params printer.set(align='left', font='a', bold=False, underline=?, width=?, height=?, density=?, invert=False, smooth=?, flip=?, normal_textsize=?, double_width=?, double_height=?, custom_size=?)
         
         printer.set(align='left', font='a', bold=False, underline=False, width=1, height=1, density=9, invert=False, smooth=False, flip=False, normal_textsize=True, double_width=False, double_height=False, custom_size=False)
