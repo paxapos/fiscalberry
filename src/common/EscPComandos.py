@@ -366,14 +366,14 @@ class EscPComandos():
             printer.text(f'{dsSinIva}{self.signo}{importeSinIva}\n')
 
             for iva in ivas:
-                dsIva = pad(f"IVA {str(iva["alic_iva"])}%:", self.desc_cols_ext - 1, " ", "l")
+                dsIva = pad(f"IVA {iva["alic_iva"]}:", self.desc_cols_ext - 1, " ", "l")
                 importeIva = pad(f"{round(iva["importe"], 2):,.2f}",self.price_cols, " ", "r")
                 printer.set(font='a', height=1, align='left', normal_textsize=True)
 
                 printer.text(f'{dsIva}{self.signo}{importeIva}\n')
 
         # 7- TOTAL
-        printer.set(font='a', bold=True, height=1, width=2, align='left')
+        printer.set(font='a', bold=True, align='left', double_height=True, double_width=True)
         dsTotal =  pad("TOTAL:", self.desc_cols_ext - 1, " ", "l")
         importeTotal =  pad(f"{round(total,2):,.2f}",self.price_cols, " ", "r")
 
@@ -567,12 +567,14 @@ class EscPComandos():
 
         self.__printExtras(escpos, kwargs)
 
-
+        printer.set(double_height=True, double_width=True, align='center', bold=True)
         if self.__preFillTrailer:
             self._setTrailer(escpos, self.__preFillTrailer)
 
         if setTrailer:
             self._setTrailer(escpos, setTrailer)   
+        
+        printer.set(font='a', height=1, align='center', normal_textsize=True)
 
         return True
 
@@ -631,7 +633,7 @@ class EscPComandos():
         printer = escpos.printer
         for trailerLine in setTrailer:
             if trailerLine:
-                escpos.writelines(trailerLine, align='center', bold=True, height=2)
+                escpos.writelines(trailerLine, align='center', bold=True)
 
             printer.ln()
 

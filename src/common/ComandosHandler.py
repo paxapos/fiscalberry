@@ -3,13 +3,13 @@
 import sys
 import json
 import threading
-from multiprocessing import Process, Queue, Pool
 from common.FiscalberryComandos import FiscalberryComandos
 from common.Configberry import Configberry
 from common.fiscalberry_logger import getLogger
 from common.EscPComandos import EscPComandos
 from escpos import printer
 from common.fiscalberry_logger import getLogger
+from queue import Queue
 
 configberry = Configberry()
 
@@ -41,6 +41,22 @@ class DriverError(Exception):
 
 class TraductorException(Exception):
     pass
+
+
+# Cola de trabajos de impresión
+print_queue = Queue()
+
+def process_print_jobs():
+    while True:
+        jsonTicket, q = print_queue.get()
+        if jsonTicket is None:
+            break
+        runTraductor(jsonTicket, q)
+        print_queue.task_done()
+
+# Iniciar el hilo que procesa la cola de trabajos de impresión
+threading.Thread(target=process_print_jobs, daemon=True).start()
+
 
 
 def runTraductor(jsonTicket, queue):
@@ -113,7 +129,7 @@ def runTraductor(jsonTicket, queue):
 
     comando = EscPComandos(driver)
 
-    queue.put(comando.run(jsonTicket))
+    comando.run(jsonTicket)
 
 
 class ComandosHandler:
@@ -165,11 +181,9 @@ class ComandosHandler:
             if 'printerName' in jsonTicket:
                 # run multiprocessing
                 q = Queue()
-                p = Process(target=runTraductor, args=(jsonTicket, q))
-                p.daemon = True
-                p.start()
-                p.join()
-                if q.empty() == False:
+                print_queue.put((jsonTicket, q))
+                q.join()  # Esperar a que el trabajo de impresión se complete
+                if not q.empty():
                     rta["rta"] = q.get(timeout=1)
                 q.close()
 
