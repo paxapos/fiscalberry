@@ -372,7 +372,7 @@ class EscPComandos():
             dsSinIva = pad("Total sin IVA:", self.desc_cols_ext - 1, " ", "l")
             importeSinIva = pad(f"{round(totalNeto, 2):,.2f}",self.price_cols, " ", "r")
             printer.set(font='a', height=1, align='left', normal_textsize=True)
-
+    
             printer.text(f'{dsSinIva}{self.signo}{importeSinIva}\n')
 
             for iva in ivas:
