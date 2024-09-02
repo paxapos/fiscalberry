@@ -82,23 +82,14 @@ def runTraductor(jsonTicket, queue):
         
         # get idProduct and idVendor from config as variables and extract them from driverOps
         idProduct = driverOps.pop('idProduct', None)
-        
         idVendor = driverOps.pop('idVendor', None)
         
         if idProduct:
-            logger.info(f"El idProduct es {idProduct}")
             idProduct = int(idProduct, 16)
         
         if idVendor:
-            logger.info(f"El idVendor es {idVendor}")
             idVendor = int(idVendor, 16)
         
-        
-        idVendorMInuscula = driverOps.pop('idvendor', None)
-        logger.error(f"El idVendor vino en minuscula {idVendorMInuscula}")
-
-        logger.info("Los parametros a enviar driver USB son")
-        logger.info(driverOps)
         driver = printer.Usb(idVendor, idProduct, **driverOps)
     elif driverName == "Network":
         # classprinter.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]

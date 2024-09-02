@@ -50,16 +50,13 @@ class EscPComandos():
                 fnAction = getattr(self, action)
 
                 if isinstance(jsonTicket[action], list):
-                    logger.debug("es instancia list")
                     res = fnAction(escpos, *jsonTicket[action])
                     rta.append({"action": action, "rta": res})
 
                 elif isinstance(jsonTicket[action], dict):
-                    logger.debug("es instancia dict")
                     res = fnAction(escpos, **jsonTicket[action])
                     rta.append({"action": action, "rta": res})
                 else:
-                    logger.debug("es instancia simple")
                     res = fnAction(escpos)
                     rta.append({"action": action, "rta": res})
 
@@ -203,6 +200,7 @@ class EscPComandos():
         # Secciones de la Factura
         encabezado = kwargs.get("encabezado", None)
         items = kwargs.get("items", [])
+        ivas = kwargs.get("ivas", [])
         pagos = kwargs.get("pagos", [])
         addAdditional = kwargs.get("addAdditional", False)
         setTrailer = kwargs.get("setTrailer", False)
@@ -306,7 +304,6 @@ class EscPComandos():
         printer.set(font='a', height=1, align='left', normal_textsize=True)
 
         # 4.2- TABLA ITEMS
-        itemIvas = {}
         for item in items:
 
             if item.get('alic_iva'):
@@ -317,10 +314,6 @@ class EscPComandos():
             qty = float(item.get('qty'))
             importe = float(item.get('importe'))
             ds = item.get('ds')[0:self.desc_cols-2]
-
-            itemIvasTot = float(itemIvas.get(alicIva, 0) )
-            importeiva = (importe * (alicIva/100))/(1+alicIva/100)
-            itemIvas[alicIva] = itemIvasTot + ( importeiva * qty )
            
             itemCant = floatToString( qty )
             importeUnitario = floatToString( importe )
@@ -336,13 +329,11 @@ class EscPComandos():
                 cantTxt = pad(itemCant, self.cant_cols, " ", "l")
                 dsTxt = pad(ds, self.desc_cols, " ", "l")
                 totalTxt = pad(totalProducto, self.price_cols, " ", "r")
-
                 printer.text(f'{cantTxt}{dsTxt}{totalTxt}\n')
 
         printer.text("-" * self.total_cols + "\n")
 
         totalNeto = float( encabezado.get("importe_neto") )
-        tot_iva  = float( encabezado.get("importe_iva") ) # Descontinuado en favor de detalle por c/alícuota
         total    = float( encabezado.get("importe_total") )
 
         # 5- DESCUENTOS / RECARGOS
@@ -366,16 +357,17 @@ class EscPComandos():
             printer.text(f'{dsDescuento}{self.signo}{importeDescuento}\n\n')
 
         # 6- DETALLE IVAS (INSCRIPTO)
-        if tipoComprobante in tiposInscriptoString or tipoCmp in tiposInscriptoCod:
+        # si tiene el array de ivas tiene items, se detallan los IVAs
+        if ivas:
             dsSinIva = pad("Total sin IVA:", self.desc_cols_ext - 1, " ", "l")
             importeSinIva = pad(f"{round(totalNeto, 2):,.2f}",self.price_cols, " ", "r")
             printer.set(font='a', height=1, align='left', normal_textsize=True)
 
             printer.text(f'{dsSinIva}{self.signo}{importeSinIva}\n')
 
-            for nameiva, importeiva in itemIvas.items():
-                dsIva = pad(f"IVA {str(nameiva)}%:", self.desc_cols_ext - 1, " ", "l")
-                importeIva = pad(f"{round(importeiva * descuentoRatio, 2):,.2f}",self.price_cols, " ", "r")
+            for iva in ivas:
+                dsIva = pad(f"IVA {str(iva["alic_iva"])}%:", self.desc_cols_ext - 1, " ", "l")
+                importeIva = pad(f"{round(iva["importe"], 2):,.2f}",self.price_cols, " ", "r")
                 printer.set(font='a', height=1, align='left', normal_textsize=True)
 
                 printer.text(f'{dsIva}{self.signo}{importeIva}\n')
@@ -455,7 +447,7 @@ class EscPComandos():
 
         printer.set(font='a', height=1, align='center')
         caeTxt = f"CAE: {cae}"
-        caeVtoTxt = f" CAE VTO: {caeVto}"
+        caeVtoTxt = f"CAE VTO: {caeVto}"
         printer.text("\n")
         printer.text(f"{caeTxt}    {caeVtoTxt}")
         printer.text("\n")

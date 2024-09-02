@@ -38,7 +38,7 @@ comando = sys.argv[1]
 
 #si no se especifica la comandera, se envia a la comandera Dummy, si se especifica
 #se envia a la comandera especificada
-if len(sys.argv) > 2 and comandera != "":
+if len(sys.argv) > 2:
     comandera = sys.argv[2]
 else:
     comandera = 'Dummy'
