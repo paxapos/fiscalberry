@@ -3,6 +3,8 @@ import os
 import uuid
 import platformdirs
 from common.fiscalberry_logger import getLogger
+import logging
+
 
 appname = 'Fiscalberry'
 
@@ -19,6 +21,15 @@ class Configberry:
         return cls._instance
 
     def __init__(self):
+        self.logger = logging.getLogger("Configberry")
+        
+        # read config file and list all sections
+        self.logger.debug("Config Sections: %s" % self.sections())
+        # menos el primero que es el de SERVIDOR, mostrar el el resto en consola ya que son las impresoras
+        for s in self.sections()[1:]:
+            print("Impresora en Config: %s" % s)
+
+
         if not hasattr(self, 'initialized'):
             self.initialized = True
             # Inicializa aquí los atributos de la instancia

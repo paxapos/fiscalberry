@@ -11,6 +11,9 @@ from common.EscPComandos import EscPComandos
 from escpos import printer
 from common.fiscalberry_logger import getLogger
 
+configberry = Configberry()
+
+
 logger = getLogger()
 
 if sys.platform == 'win32':
@@ -44,12 +47,14 @@ def runTraductor(jsonTicket, queue):
     # extraigo el printerName del jsonTicket
     printerName = jsonTicket.pop('printerName')
 
-    config = Configberry()
     try:
-        dictSectionConf = config.get_config_for_printer(printerName)
+        dictSectionConf = configberry.get_config_for_printer(printerName)
     except KeyError as e:
-        raise TraductorException(
-            f"En el archivo de configuracion no existe la impresora: '{printerName}'")
+        logger.error(f"En el archivo de configuracion no existe la impresora: '{printerName}' :: {e}")
+        return
+    except Exception as e:
+        logger.error(f"Error al leer la configuracion de la impresora: '{printerName}' :: {e}")
+        return
 
     driverName = dictSectionConf.pop("driver", "Dummy")
 
@@ -124,7 +129,6 @@ class ComandosHandler:
     """Convierte un JSON a Comando Fiscal Para Cualquier tipo de Impresora fiscal"""
 
     traductores = {}
-    config = Configberry()
 
     def send_command(self, comando):
         response = {}
@@ -236,7 +240,7 @@ class ComandosHandler:
         rta = {
             "printerName": printerName,
             "action": "getPrinterInfo",
-            "rta": self.config.get_config_for_printer(printerName)
+            "rta": configberry.get_config_for_printer(printerName)
         }
         return rta
 
@@ -259,7 +263,7 @@ class ComandosHandler:
             self._removerImpresora(kwargs["nombre_anterior"])
             del propiedadesImpresora["nombre_anterior"]
         del propiedadesImpresora["printerName"]
-        self.config.writeSectionWithKwargs(printerName, propiedadesImpresora)
+        configberry.writeSectionWithKwargs(printerName, propiedadesImpresora)
 
         return {
             "action": "configure",
@@ -267,9 +271,9 @@ class ComandosHandler:
         }
 
     def _removerImpresora(self, printerName):
-        "elimina la sección del config.ini"
+        "elimina la sección del configberry.ini"
 
-        self.config.delete_printer_from_config(printerName)
+        configberry.delete_printer_from_config(printerName)
 
         return {
             "action": "removerImpresora",
@@ -281,7 +285,7 @@ class ComandosHandler:
         # la primer seccion corresponde a SERVER, el resto son las impresoras
         rta = {
             "action": "getAvailablePrinters",
-            "rta": self.config.sections()[1:]
+            "rta": configberry.sections()[1:]
         }
 
         return rta
@@ -310,6 +314,6 @@ class ComandosHandler:
 
     def _getActualConfig(self, password):
         rta = {"action": "getActualConfig", "rta": "Contraseña incorrecta"}
-        if password == self.config.config.get("SERVIDOR", 'sio_password', fallback="password"):
-            rta['rta'] = self.config.get_actual_config()
+        if password == configberry.configberry.get("SERVIDOR", 'sio_password', fallback="password"):
+            rta['rta'] = configberry.get_actual_config()
         return rta
