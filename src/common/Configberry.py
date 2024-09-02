@@ -21,14 +21,7 @@ class Configberry:
         return cls._instance
 
     def __init__(self):
-        self.logger = logging.getLogger("Configberry")
         
-        # read config file and list all sections
-        self.logger.debug("Config Sections: %s" % self.sections())
-        # menos el primero que es el de SERVIDOR, mostrar el el resto en consola ya que son las impresoras
-        for s in self.sections()[1:]:
-            print("Impresora en Config: %s" % s)
-
 
         if not hasattr(self, 'initialized'):
             self.initialized = True
@@ -111,6 +104,16 @@ class Configberry:
         return 1
 
     def __create_config_if_not_exists(self):
+        #show info only once
+        self.logger = logging.getLogger("Configberry")
+        
+        # read config file and list all sections
+        self.logger.debug("Config Sections: %s" % self.sections())
+        # menos el primero que es el de SERVIDOR, mostrar el el resto en consola ya que son las impresoras
+        for s in self.sections()[1:]:
+            print("Impresora en Config: %s" % s)
+
+
         
         print(f"User config files stored in {platformdirs.user_config_dir(appname)}")
 

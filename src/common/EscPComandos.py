@@ -35,6 +35,16 @@ class EscPComandos():
     def __init__(self, printer):
         self.printer = printer
         
+        # Obtener el número de columnas desde el perfil
+        if printer.profile:
+            print("--  - -- - - - - - - -")
+            print(printer.profile.profile_data)
+            line_width = printer.profile.profile_data['columns']
+            print(f"Número de caracteres por línea: {line_width}")
+        else:
+            print("El perfil no tiene definida la cantidad de columnas por línea.")
+            
+            
         self.total_cols = 40
         self.price_cols = 12 #12 espacios permiten hasta 9,999,999.99
         self.cant_cols = 6   #4 no admitiría decimales, 6 sería mejor
@@ -373,14 +383,19 @@ class EscPComandos():
                 printer.text(f'{dsIva}{self.signo}{importeIva}\n')
 
         # 7- TOTAL
-        printer.set(font='a', bold=True, align='left', double_height=True, double_width=True)
-        dsTotal =  pad("TOTAL:", self.desc_cols_ext - 1, " ", "l")
+        printer.set(font='a', bold=True, align='left', double_height=False, double_width=False)
+        # Imprime "TOTAL" alineado a la izquierda
+        printer.set(align='left')
+        printer.text("TOTAL:")
+
+        # Imprime el monto alineado a la derecha en la misma línea
+        printer.set(align='right')
         importeTotal =  pad(f"{round(total,2):,.2f}",self.price_cols, " ", "r")
+        printer.text(f'{self.signo}{importeTotal}\n\n')
 
-        printer.text(f'{dsTotal}{self.signo}{importeTotal}\n\n')
 
+        # NC si hay que firmar        
         printer.set(font='b', bold=False, width=1, height=1, align='left', normal_textsize=True)
-
 
         if tipoComprobante in tiposNC or tipoCmp in tiposNC:
             printer.text(u"Firma.......................................\n\n")
@@ -706,7 +721,7 @@ class EscPComandos():
         # printer._raw(chr(0x1D)+chr(0xF9)+chr(0x35)+"0")
 
         # dejar letra chica alineada izquierda
-
+        printer.buzzer(1, 1)
         return True
     
     def __initPrinter(self, printer):
