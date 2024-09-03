@@ -12,6 +12,7 @@ lib
 lib64
 fiscalberry
 output
+.buildozer
 
 #configuration file for fiscalberry
 config.ini
