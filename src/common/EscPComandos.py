@@ -380,7 +380,8 @@ class EscPComandos():
             for iva in ivas:
                 alicIva = iva["alic_iva"]
                 dsIva = pad(f"IVA {alicIva}:", self.desc_cols_ext - 1, " ", "l")
-                importeIva = pad(f"{round(iva["importe"], 2):,.2f}",self.price_cols, " ", "r")
+                importeIva = iva["importe"]
+                importeIva = pad(f"{round(importeIva, 2):,.2f}",self.price_cols, " ", "r")
                 printer.set(font='a', height=1, align='left', normal_textsize=True)
 
                 printer.text(f'{dsIva}{self.signo}{importeIva}\n')
