@@ -53,7 +53,7 @@ class EscPComandos():
         self.signo = "$" # Agregar el signo $ opcionalmente o espacio.
 
     def run(self, jsonTicket):
-        with EscposIO(self.printer, autocut=True,autoclose=True) as escpos:
+        with EscposIO(self.printer, autocut=False,autoclose=True) as escpos:
             actions = jsonTicket.keys()
             rta = []
             for action in actions:
@@ -170,6 +170,8 @@ class EscPComandos():
 
         # dejar letra chica alineada izquierda
         printer.set(font='a', height=1, align='left', normal_textsize=True)
+        
+        printer.cut()
 
         return True
 
@@ -468,8 +470,9 @@ class EscPComandos():
         printer.text("\n")
 
         printer.set(font='a', height=1, bold=True, align='center')
-        printer.text("Software PAXAPOS")
-
+        printer.text("\n** Software PAXAPOS **")
+        printer.cut()
+        
         return True
 
     
@@ -589,8 +592,12 @@ class EscPComandos():
         if setTrailer:
             self._setTrailer(escpos, setTrailer)   
         
-        printer.set(font='a', height=1, align='center', normal_textsize=True)
 
+        printer.set(font='a', height=1, bold=True, align='center', normal_textsize=True)
+        printer.text("\n** Software PAXAPOS **")
+        printer.cut()
+        
+        
         return True
 
     def _printPagoSimple(self, escpos: EscposIO, pagos):
@@ -721,7 +728,10 @@ class EscPComandos():
         # printer._raw(chr(0x1D)+chr(0xF9)+chr(0x35)+"0")
 
         # dejar letra chica alineada izquierda
+        printer.cut()
+        
         printer.buzzer(1, 1)
+        
         return True
     
     def __initPrinter(self, printer):
@@ -960,5 +970,6 @@ class EscPComandos():
 
 
         printer.set(font='a', height=1, align='left', normal_textsize=True)
-
+        
+        printer.cut()
         return True
