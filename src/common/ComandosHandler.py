@@ -185,7 +185,6 @@ class ComandosHandler:
                 q.join()  # Esperar a que el trabajo de impresión se complete
                 if not q.empty():
                     rta["rta"] = q.get(timeout=1)
-                q.close()
 
             # Acciones de comando genericos de Status y Control
             elif 'getStatus' in jsonTicket:

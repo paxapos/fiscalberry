@@ -35,16 +35,6 @@ class EscPComandos():
     def __init__(self, printer):
         self.printer = printer
         
-        # Obtener el número de columnas desde el perfil
-        if printer.profile:
-            print("--  - -- - - - - - - -")
-            print(printer.profile.profile_data)
-            line_width = printer.profile.profile_data['columns']
-            print(f"Número de caracteres por línea: {line_width}")
-        else:
-            print("El perfil no tiene definida la cantidad de columnas por línea.")
-            
-            
         self.total_cols = 40
         self.price_cols = 12 #12 espacios permiten hasta 9,999,999.99
         self.cant_cols = 6   #4 no admitiría decimales, 6 sería mejor
