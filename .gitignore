@@ -24,6 +24,8 @@ env/*
 ssl/*
 tmp/*
 .venv
+venv.kivy/
+.venv.android/
 
 # Distribution / packaging
 *.pyc

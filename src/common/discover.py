@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+import threading
 import requests
 import json
 from common.Configberry import Configberry
@@ -7,7 +7,13 @@ from common.fiscalberry_logger import getLogger
 
 configberry = Configberry()
 
+send_once = False
 def send_discover():
+
+    global send_once
+    
+    if send_once:
+        return None
 
     logger = getLogger()
     discoverUrl = False
@@ -42,4 +48,12 @@ def send_discover():
     else:
         logger.info("No hay sio_host configurado, no tengo el host donde hacer el discover")
 
+    send_once = True
+    
     return None
+
+
+def send_discover_in_thread():
+    thread = threading.Thread(target=send_discover)
+    thread.start()
+    return thread

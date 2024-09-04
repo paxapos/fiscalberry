@@ -1,9 +1,5 @@
 #:kivy 2.3.0
 
-MainLayout:
-    id: main_layout
-
-
 
 <MainLayout>:
     title: "Fiscalberry App Iupi!"
@@ -13,30 +9,48 @@ MainLayout:
         Rectangle:
             pos: self.pos
             size: self.size
-            source: 'assets/bg.jpg'
+            source: app.background_image
     
 
     BoxLayout:
         orientation: 'vertical'
         padding: 10
 
+        Image:
+            source: app.logo_image
+            size_hint_y: None
+            height: 96
+            allow_stretch: True
+            keep_ratio: True
+            color: 1, 1, 1, 1
+            margin_bottom: 10
+
         Label:
             id: title_label
-            text: "Fiscalberry App"
+            text: "Print Server"
             font_size: 32
             bold: True
             size_hint_y: None
             height: 64
             color: 0, 0, 128, 1
+            margin_bottom: 10
+
+
+        Label:
+            id: event_label
+            text: "Conectado!" if app.connected else "Desconectado"
+            color: (0, 128, 0, 1) if app.connected else (128, 0, 0, 1)
+            font_size: 48
 
 
         Label:
             id: host_label
             text: app.uuidSmall
-            font_size: 48
+            font_size: 16
             size_hint_y: None
             height: 40
             color: 128, 0, 0, 1
+            
 
         TextInput:
             id: host_input
@@ -46,25 +60,13 @@ MainLayout:
             height: 40
             on_text: app.store_new_host(self.text)
 
-
-        ConnectedImage:
-
-
-        Button:
-            text: "Conectar"
-            size_hint_y: None
-            height: 40
-            on_press: app.connect_to_server()
-            disabled: app.connected
-
-        Label:
-            id: event_label
-            text: "Escuchando eventos..."
-            color: 0, 0, 128, 1
-
+       
 
 <LogWidget>:
     height: 200
 
+
 <ConnectedImage>:
-    source: 'assets/connected.png' if app.is_connected() else 'assets/disconnected.png'
+    source: app.connected_image if app.connected else app.disconnected_image
+    height: 16
+    keep_ratio: True
