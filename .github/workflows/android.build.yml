@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       # Used to cache dependencies with a timeout
       - name: Get Date
@@ -21,12 +21,12 @@ jobs:
         shell: bash
 
       - name: Cache Buildozer global directory
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: .buildozer_global
           key: buildozer-global-${{ hashFiles('buildozer.spec') }}
 
-      - uses: actions/cache@v2
+      - uses: actions/cache@v4
         with:
           path: .buildozer
           key: ${{ runner.os }}-${{ steps.get-date.outputs.date }}-${{ hashFiles('buildozer.spec') }}
@@ -77,21 +77,26 @@ jobs:
             libssl-dev \
             automake
 
-      # Set up Java 17 required by Gradle
-      - name: Setup Java 17 required by Gradle
-        uses: actions/setup-java@v3
+            steps:
+      
+      # setup Java
+      - name: Setup Java 21 required by Gradle
+        uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'  # or 'zulu', 'liberica', etc.
-          java-version: '17'
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+          cache-dependency-path: | # optional
+            sub-project/*.gradle*
+            sub-project/**/gradle-wrapper.properties
+      - run: ./gradlew build --no-daemon
 
       # Set up Python
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10' #set your python version
-
-      # Install pip dependencies
-      - name: Install pip dependencies
+          python-version: '3.12' #set your python version
+          cache: 'pip' # caching pip dependencies
         run: |
           pip install --upgrade pip
           pip install buildozer cython==0.29.33
@@ -105,7 +110,7 @@ jobs:
 
       # Upload artifacts
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: package
           path: bin/*.apk
