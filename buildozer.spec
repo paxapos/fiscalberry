@@ -10,7 +10,7 @@ package.name = fiscalberry
 package.domain = fiscalberry.paxapos.com
 
 # (str) Source code where the main.py live
-source.dir = ./src
+source.dir = src
 
 # (list) Source files to include (let empty to include all the files)
 #source.include_exts = py,png,jpg,kv,atlas
@@ -97,10 +97,10 @@ android.presplash_color = purple
 # (list) Permissions
 # (See https://python-for-android.readthedocs.io/en/latest/buildoptions/#build-options-1 for all the supported syntaxes and properties)
 #android.permissions = android.permission.INTERNET, (name=android.permission.WRITE_EXTERNAL_STORAGE;maxSdkVersion=18)
-android.permissions = android.permission.INTERNET, android.permission.ACCESS_NETWORK_STATE, android.permission.WRITE_EXTERNAL_STORAGE, android.permission.READ_EXTERNAL_STORAGE, android.permission.FOREGROUND_SERVICE
+android.permissions = android.permission.INTERNET, android.permission.FOREGROUND_SERVICE
 
 # (list) features (adds uses-feature -tags to manifest)
-android.features = android.hardware.usb.host
+#android.features = android.hardware.usb.host
 
 # (int) Target Android API, should be as high as possible.
 android.api = 33
