@@ -84,9 +84,6 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
           cache: 'gradle'
-          cache-dependency-path: | # optional
-            sub-project/*.gradle*
-            sub-project/**/gradle-wrapper.properties
       - run: ./gradlew build --no-daemon
 
       # Set up Python
