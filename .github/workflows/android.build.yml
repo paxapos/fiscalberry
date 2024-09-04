@@ -89,12 +89,43 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11' #set your python version
+          python-version: '3.12' #set your python version
           cache: 'pip' # caching pip dependencies
       - run: |
           pip install --upgrade pip
-          pip install buildozer cython==0.29.33
-          pip install -r requirements.android.txt
+          pip install appdirs==1.4.4
+          pip install argcomplete==3.5.0
+          pip install bidict==0.23.1
+          pip install certifi==2024.8.30
+          pip install charset-normalizer==3.3.2
+          pip install h11==0.14.0
+          pip install idna==3.8
+          pip install importlib_resources==6.4.4
+          pip install pillow==10.4.0
+          pip install pypng==0.20220715.0
+          pip install python-barcode==0.15.1
+          pip install python-engineio==4.9.1
+          pip install python-escpos==3.1
+          pip install python-socketio==5.11.4
+          pip install PyYAML==6.0.2
+          pip install qrcode==7.4.2
+          pip install requests==2.32.3
+          pip install setuptools==74.1.1
+          pip install simple-websocket==1.0.0
+          pip install six==1.16.0
+          pip install typing_extensions==4.12.2
+          pip install urllib3==2.2.2
+          pip install websocket-client==1.8.0
+          pip install wsproto==1.2.0
+          pip install aiohttp==3.10.2
+          pip install argparse==1.4.0
+          pip install uuid==1.30
+          pip install python-dotenv==1.0.1
+          pip install platformdirs==4.2.2
+          pip install kivy==2.3.0
+          pip install cython==3.0.11
+          pip install buildozer==1.5.0
+
 
       # Build with Buildozer
       - name: Build with Buildozer

@@ -28,5 +28,5 @@ uuid==1.30
 python-dotenv==1.0.1
 platformdirs==4.2.2
 kivy==2.3.0
-Cython==0.29.33
+cython==3.0.11
 buildozer==1.5.0
