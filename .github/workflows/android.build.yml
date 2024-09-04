@@ -95,6 +95,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install buildozer cython==0.29.33
+          pip install -r requirements.android.txt
 
       # Build with Buildozer
       - name: Build with Buildozer
