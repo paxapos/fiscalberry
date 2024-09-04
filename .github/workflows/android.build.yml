@@ -11,80 +11,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
 
-      # Used to cache dependencies with a timeout
-      - name: Get Date
-        id: get-date
-        run: |
-          echo "date=$(date -u +'%Y%m%d')" >> $GITHUB_ENV
-        shell: bash
-
-      - name: Cache Buildozer global directory
-        uses: actions/cache@v4
-        with:
-          path: .buildozer_global
-          key: buildozer-global-${{ hashFiles('buildozer.spec') }}
-
-      - name: Cache Buildozer
-        uses: actions/cache@v4
-        with:
-          path: .buildozer
-          key: ${{ runner.os }}-${{ steps.get-date.outputs.date }}-${{ hashFiles('buildozer.spec') }}
-
-      # Install dependencies
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt-get install -y \
-            build-essential \
-            git \
-            libsdl2-dev \
-            libsdl2-image-dev \
-            libsdl2-mixer-dev \
-            libsdl2-ttf-dev \
-            libportmidi-dev \
-            libswscale-dev \
-            libavformat-dev \
-            libavcodec-dev \
-            libunwind-dev \
-            zlib1g-dev
-          sudo apt-get install -y \
-            libsqlite3-dev \
-            sqlite3 \
-            bzip2 \
-            libbz2-dev \
-            zlib1g-dev \
-            openssl \
-            libgdbm-dev \
-            libgdbm-compat-dev \
-            liblzma-dev \
-            libreadline-dev \
-            uuid-dev \
-            libgstreamer1.0 \
-            gstreamer1.0-plugins-base \
-            gstreamer1.0-plugins-good
-          sudo apt-get install -y \
-            zip \
-            unzip \
-            autoconf \
-            libtool \
-            pkg-config \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libtinfo5 \
-            cmake \
-            libffi-dev \
-            libssl-dev \
-            automake
-
-
-      - name: Setup Java 21 temurin required by Gradle
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-          check-latest: true
+      - uses: actions/checkout@v2
+    s
 
       # Set up Python
       - name: Set up Python
@@ -103,16 +32,14 @@ jobs:
           pip install buildozer==1.5.0
           pip install -r requirements.android.txt
 
+      - name: Build APK
+        uses: digreatbrian/buildozer-action@v1
+        with:
+          buildozer-cmd: buildozer -v android debug
+          work-dir: . # directory where your main.py file rest
 
-      # Build with Buildozer
-      - name: Build with Buildozer
-        id: buildozer
-        run: |
-          yes | buildozer android debug -v --log_level 2 
-
-      # Upload artifacts
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
         with:
           name: package
-          path: bin/*.apk
+          path: ./bin/*.apk
