@@ -17,7 +17,7 @@ jobs:
       - name: Get Date
         id: get-date
         run: |
-          echo "::set-output name=date::$(/bin/date -u "+%Y%m%d")"
+          echo "date=$(date -u +'%Y%m%d')" >> $GITHUB_ENV
         shell: bash
 
       - name: Cache Buildozer global directory
@@ -77,6 +77,10 @@ jobs:
             libssl-dev \
             automake
       
+      - name: List files for debugging
+        run: ls -R
+
+
       # setup Java
       - name: Setup Java 21 required by Gradle
         uses: actions/setup-java@v4
@@ -84,7 +88,7 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
           cache: 'gradle'
-      - run: ./gradlew build --no-daemon
+      - run: ./gradle build --no-daemon
 
       # Set up Python
       - name: Set up Python
