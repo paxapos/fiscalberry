@@ -76,8 +76,6 @@ jobs:
             libffi-dev \
             libssl-dev \
             automake
-
-            steps:
       
       # setup Java
       - name: Setup Java 21 required by Gradle
