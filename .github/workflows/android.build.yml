@@ -26,7 +26,8 @@ jobs:
           path: .buildozer_global
           key: buildozer-global-${{ hashFiles('buildozer.spec') }}
 
-      - uses: actions/cache@v4
+      - name: Cache Buildozer
+        uses: actions/cache@v4
         with:
           path: .buildozer
           key: ${{ runner.os }}-${{ steps.get-date.outputs.date }}-${{ hashFiles('buildozer.spec') }}
@@ -100,13 +101,14 @@ jobs:
           pip install kivy==2.3.0
           pip install cython==3.0.11
           pip install buildozer==1.5.0
+          pip install -r requirements.android.txt
 
 
       # Build with Buildozer
       - name: Build with Buildozer
         id: buildozer
         run: |
-          yes | buildozer android debug
+          yes | buildozer android debug -v
 
       # Upload artifacts
       - name: Upload APK artifact
