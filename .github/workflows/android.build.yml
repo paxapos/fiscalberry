@@ -76,10 +76,6 @@ jobs:
             libffi-dev \
             libssl-dev \
             automake
-      
-      - name: List files for debugging
-        run: ls -R
-
 
       # setup Java
       - name: Setup Java 21 required by Gradle
@@ -88,7 +84,10 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
           cache: 'gradle'
-      - run: ./gradle build --no-daemon
+
+      # Run Gradle build
+      - name: Run Gradle build
+        run: ./gradlew build --no-daemon
 
       # Set up Python
       - name: Set up Python
