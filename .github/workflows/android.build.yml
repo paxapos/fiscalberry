@@ -97,7 +97,7 @@ jobs:
         with:
           python-version: '3.12' #set your python version
           cache: 'pip' # caching pip dependencies
-        run: |
+      - run: |
           pip install --upgrade pip
           pip install buildozer cython==0.29.33
           pip install -r requirements.android.txt
