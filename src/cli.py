@@ -38,7 +38,7 @@ def main():
         uuid = configberry.config.get("SERVIDOR", "uuid")
         send_discover_in_thread()
         sio = FiscalberrySio(serverUrl, uuid)
-        sio.start()
+        sio.start_print_server()
         logger.warning("Termino ejecucion de server socketio?.. reconectando en 5s")
         time.sleep(5)
 

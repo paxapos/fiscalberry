@@ -25,6 +25,6 @@ if __name__ == "__main__":
 
     # Crear la aplicación Kivy
     app = FiscalberryApp()
-    
+
     # Ejecutar la aplicación Kivy
     app.run()

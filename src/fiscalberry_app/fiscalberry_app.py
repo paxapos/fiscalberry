@@ -110,7 +110,7 @@ class FiscalberryApp(App):
             self.connected = False
 
         
-        self.fiscalberry_sio.start_in_thread()
+        self.fiscalberry_sio.start_only_status_in_thread()
             
         return sio   
             
