@@ -125,8 +125,7 @@ class FiscalberryApp(App):
 
     def store_new_host(self, value):
         host = value
-        logger.info(f"FiscalberryApp: vino para guardar sio_host:: {
-                    host} antes estaba {self.sioServerUrl}")
+        logger.info(f"FiscalberryApp: vino para guardar sio_host:: {host} antes estaba {self.sioServerUrl}")
         if host != self.sioServerUrl:
             logger.info(f"FiscalberryApp: se guarda nuevo sio_host:: {host}")
             configberry.writeKeyForSection("SERVIDOR", "sio_host", host)
