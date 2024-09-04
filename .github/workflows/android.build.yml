@@ -77,17 +77,13 @@ jobs:
             libssl-dev \
             automake
 
-      # setup Java
-      - name: Setup Java 21 required by Gradle
+
+      - name: Setup Java 21 temurin required by Gradle
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
-          cache: 'gradle'
-
-      # Run Gradle build
-      - name: Run Gradle build
-        run: ./gradlew build --no-daemon
+          check-latest: true
 
       # Set up Python
       - name: Set up Python
