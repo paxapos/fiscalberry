@@ -37,14 +37,23 @@
 
 
         Label:
-            id: event_label
+            id: conectado_label
             text: "Conectado!" if app.connected else "Desconectado"
             color: (0, 128, 0, 1) if app.connected else (128, 0, 0, 1)
             font_size: 48
 
+        Button:
+            id: connect_button
+            text: "Conectar" if not app.connected else "Desconectar"
+            on_press: app.start_service() if not app.connected else app.stop_service()
+            size_hint_y: None
+            height: 64
+            background_color: (0, 128, 0, 1) if app.connected else (128, 0, 0, 1)
+            color: 1, 1, 1, 1
+
 
         Label:
-            id: host_label
+            id: uuid_label
             text: app.uuidSmall
             font_size: 16
             size_hint_y: None

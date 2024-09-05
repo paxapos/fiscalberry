@@ -6,20 +6,21 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.image import Image
 from kivy.clock import Clock
 from kivy.properties import StringProperty, BooleanProperty
-
-from dotenv import load_dotenv
+from jnius import autoclass
 from common.Configberry import Configberry
+from twisted.internet.protocol import Protocol, ClientFactory
+from twisted.internet import reactor
 
 # Importo el módulo que se encarga de la comunicación con el servidor
-from fiscalberry_sio import FiscalberrySio
-from common.discover import send_discover_in_thread
 from common.Configberry import Configberry
-
 from common.fiscalberry_logger import getLogger
+
 logger = getLogger()
-    
-    
-load_dotenv()
+
+SERVICE_NAME = u'{packagename}.Service{servicename}'.format(
+    packagename=u'com.paxapos.fiscalberry',
+    servicename=u'Fiscalberryservice'
+)
 
 
 configberry = Configberry()
@@ -66,8 +67,6 @@ class FiscalberryApp(App):
     disconnected_image = StringProperty(f"{assetpath}/assets/disconnected.png")
     connected_image = StringProperty(f"{assetpath}/assets/connected.png")
 
-    sioServerUrl = os.environ.get("SIO_SERVER_URL")
-
     connected: bool = BooleanProperty(False)
     
     fiscalberry_sio = None
@@ -76,44 +75,41 @@ class FiscalberryApp(App):
 
     def __init__(self, **kwargs):
         super(FiscalberryApp, self).__init__(**kwargs)
-        
-        self.sio = self.__socketio_client()
        
-
         # load APP config
         serverUrl = configberry.config.get("SERVIDOR", "sio_host", fallback="")
-        self.uuid = configberry.config.get("SERVIDOR", "uuid")
-        self.uuidSmall = self.uuid[:8]
-
         self.sioServerUrl = serverUrl if serverUrl else self.sioServerUrl
 
+        # Crear la fábrica del cliente y conectar al socket
+        factory = AppInterConFactory(self)
+        reactor.connectUNIX("/data/data/com.paxapos.fiscalberry/files/fiscalberry_socket", factory)
 
-    def __socketio_client(self):
-        configberry = Configberry()
+    def start_service(self, finishing=False):
+        service = autoclass(SERVICE_NAME)
+        mActivity = autoclass(u'org.kivy.android.PythonActivity').mActivity
+        argument = ''
+        if finishing:
+            argument = '{"stop_service": 1}'
+        service.start(mActivity, argument)
+        if finishing:
+            self.service = None
+        else:
+            self.service = service
 
-        logger.info("Preparando Fiscalberry Server")
+        self.connected = True
 
-        serverUrl = configberry.config.get("SERVIDOR", "sio_host", fallback="")
-        uuid = configberry.config.get("SERVIDOR", "uuid")
-        send_discover_in_thread()
-        self.fiscalberry_sio = FiscalberrySio(serverUrl, uuid)
-        
-        sio = self.fiscalberry_sio.sio
-        
-        @sio.on("connect", namespace='/paxaprinter')
-        def on_connect():
-            # change connected property
-            self.connected = True
-            
-        @sio.on('disconnect', namespace='/paxaprinter')
-        def on_disconnect():
-            self.connected = False
+    def stop_service(self):
+        service = autoclass(SERVICE_NAME)
+        mActivity = autoclass('org.kivy.android.PythonActivity').mActivity
+        service.stop(mActivity)
+        self.start_service(finishing=True)
+        self.connected = False
 
-        
-        self.fiscalberry_sio.start_only_status_in_thread()
-            
-        return sio   
-            
+    def start_fiscaberry_service():
+        service = autoclass('com.paxapos.fiscalberry.ServiceFiscalberryservice')
+        mActivity = autoclass('org.kivy.android.PythonActivity').mActivity
+        argument = ''
+        service.start(mActivity, argument)
         
     def build(self):
         self.root = MainLayout()
@@ -122,6 +118,7 @@ class FiscalberryApp(App):
 
     def add_log(self, text):
         self.log_widget.add_log(text)
+        
 
     def store_new_host(self, value):
         host = value
@@ -130,6 +127,10 @@ class FiscalberryApp(App):
             logger.info(f"FiscalberryApp: se guarda nuevo sio_host:: {host}")
             configberry.writeKeyForSection("SERVIDOR", "sio_host", host)
 
+
+    def on_resume(self):
+        if self.service:
+            self.start_service()
     
     def on_start(self):
         """
@@ -138,6 +139,7 @@ class FiscalberryApp(App):
         """
 
         # Iniciar con el ícono rojo por defecto
+        self.start_service()
         logger.info("FiscalberryApp: Iniciando la aplicación")
         
         
@@ -146,8 +148,7 @@ class FiscalberryApp(App):
         This function is executed when the application is closed.
         It is a Kivy function.
         """
-        if self.fiscalberry_sio:
-            self.fiscalberry_sio.stop()
-            logger.info("FiscalberryApp: Deteniendo la aplicación")
+        self.stop_service()
+        logger.info("FiscalberryApp: Deteniendo la aplicación")
     
     

@@ -7,7 +7,7 @@ title = Fiscalberry
 package.name = fiscalberry
 
 # (str) Package domain (needed for android/ios packaging)
-package.domain = fiscalberry.paxapos.com
+package.domain = com.paxapos
 
 # (str) Source code where the main.py live
 source.dir = src
@@ -37,7 +37,7 @@ version = 0.1
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy,python-escpos,python-socketio,simple-websocket,uuid,appdirs,python-dotenv,platformdirs, pillow, python-barcode, certifi, charset-normalizer, pypng, python-barcode, python-engineio, PyYAML, qrcode, requests, simple-websocket, setuptools, six, typing_extensions, urllib3, websocket-client, wsproto, aiohttp, argparse, uuid, appdirs, python-dotenv, argcomplete
+requirements = python3,kivy,python-escpos,python-socketio,simple-websocket,uuid,appdirs,python-dotenv,platformdirs, pillow, python-barcode, certifi, charset-normalizer, pypng, python-barcode, python-engineio, PyYAML, qrcode, requests, simple-websocket, setuptools, six, typing_extensions, urllib3, websocket-client, wsproto, aiohttp, argparse, uuid, appdirs, python-dotenv, argcomplete, pyjnius, twisted
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
@@ -47,7 +47,7 @@ requirements = python3,kivy,python-escpos,python-socketio,simple-websocket,uuid,
 presplash.filename = %(source.dir)s/fiscalberry_app/assets/fiscalberry.png
 
 # (str) Icon of the application
-#icon.filename = %(source.dir)s/fiscalberry_app/assets/fiscalberry.png
+icon.filename = %(source.dir)s/fiscalberry_app/assets/fiscalberry.png
 
 # (list) Supported orientations
 # Valid options are: landscape, portrait, portrait-reverse or landscape-reverse
@@ -55,7 +55,7 @@ orientation = portrait
 
 # (list) List of service to declare
 #services = NAME:ENTRYPOINT_TO_PY,NAME2:ENTRYPOINT2_TO_PY
-services = socketio_service:src/socketio_service.android.py
+services = fiscalberryservice:src/fiscalberryservice.android.py:foreground:sticky
 
 #
 # OSX Specific
@@ -97,7 +97,7 @@ android.presplash_color = purple
 # (list) Permissions
 # (See https://python-for-android.readthedocs.io/en/latest/buildoptions/#build-options-1 for all the supported syntaxes and properties)
 #android.permissions = android.permission.INTERNET, (name=android.permission.WRITE_EXTERNAL_STORAGE;maxSdkVersion=18)
-android.permissions = android.permission.INTERNET, android.permission.FOREGROUND_SERVICE
+android.permissions = INTERNET, FOREGROUND_SERVICE, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE, ACCESS_NETWORK_STATE
 
 # (list) features (adds uses-feature -tags to manifest)
 #android.features = android.hardware.usb.host
@@ -141,11 +141,11 @@ android.ndk_api = 21
 android.accept_sdk_license = True
 
 # (str) Android entry point, default is ok for Kivy-based app
-#android.entrypoint = org.kivy.android.PythonActivity
+android.entrypoint = org.kivy.android.PythonActivity
 
 # (str) Full name including package path of the Java class that implements Android Activity
 # use that parameter together with android.entrypoint to set custom Java class instead of PythonActivity
-#android.activity_class_name = org.kivy.android.PythonActivity
+android.activity_class_name = org.kivy.android.PythonActivity
 
 # (str) Extra xml to write directly inside the <manifest> element of AndroidManifest.xml
 # use that parameter to provide a filename from where to load your custom XML code
