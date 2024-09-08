@@ -37,7 +37,7 @@ jobs:
 
       - name: Build executable
         run: |
-          pyinstaller --onefile --add-data "./capabilities.json:escpos" --console --name fiscalberry-win --distpath dist --icon ./src/fiscalberry_app/assets/fiscalberry.ico src/cli.py
+          pyinstaller --onefile --add-data "./capabilities.json:escpos" --console --name fiscalberry-win --distpath dist --icon src/fiscalberry_app/assets/fiscalberry.ico src/cli.py
 
       - name: List dist directory (debugging)
         run: ls -la dist
