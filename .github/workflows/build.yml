@@ -43,7 +43,7 @@ jobs:
         run: ls -la src/fiscalberry_app/assets/
 
       - name: Build executable
-        run: pyinstaller fiscalberry.spec
+        run: pyinstaller fiscalberry-win.spec
 
       - name: List dist directory (debugging)
         run: ls -la dist
@@ -85,7 +85,7 @@ jobs:
           pip install -r requirements.cli.txt
 
       - name: Build executable
-        run: pyinstaller fiscalberry.spec --name fiscalberry-lin
+        run: pyinstaller fiscalberry-lin.spec
 
       - name: List dist directory (debugging)
         run: ls -la dist
