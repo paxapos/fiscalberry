@@ -4,6 +4,9 @@ on:
   release:
     types:
       - created
+  push:
+    branches:
+      - main
 
 jobs:
   build-windows:
@@ -38,11 +41,10 @@ jobs:
       - name: List files in assets src/common directory
         run: ls -la src/common/assets
 
-      
       - name: List files in assets src/fiscalberry_app directory
         run: ls -la src/fiscalberry_app/assets/
 
-      - name: Build executable
+      - name: Build windows executable
         run: pyinstaller fiscalberry-win.spec
 
       - name: List dist directory (debugging)
