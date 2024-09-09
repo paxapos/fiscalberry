@@ -1,10 +1,10 @@
+name: Build APK on main
+
+
 on:
   push:
     branches:
-      - main
-  pull_request:
-    branches:
-      - main
+      - socketio
 
 jobs:
   build:

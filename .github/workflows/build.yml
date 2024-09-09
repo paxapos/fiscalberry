@@ -1,4 +1,4 @@
-name: Build and Release
+name: Build Desktop Ejecutables - on Release
 
 on:
   release:
@@ -35,9 +35,15 @@ jobs:
         run: |
           pip install -r requirements.cli.txt
 
+      - name: List files in assets src/common directory
+        run: ls -la src/common/assets
+
+      
+      - name: List files in assets src/fiscalberry_app directory
+        run: ls -la src/fiscalberry_app/assets/
+
       - name: Build executable
-        run: |
-          pyinstaller --onefile --add-data "./capabilities.json:escpos" --console --name fiscalberry-win --distpath dist --icon src/fiscalberry_app/assets/fiscalberry.ico src/cli.py
+        run: pyinstaller fiscalberry.spec
 
       - name: List dist directory (debugging)
         run: ls -la dist
@@ -79,8 +85,7 @@ jobs:
           pip install -r requirements.cli.txt
 
       - name: Build executable
-        run: |
-          pyinstaller --onefile --add-data "./capabilities.json:escpos" --console --name fiscalberry-lin --distpath dist src/cli.py
+        run: pyinstaller fiscalberry.spec --name fiscalberry-lin
 
       - name: List dist directory (debugging)
         run: ls -la dist
