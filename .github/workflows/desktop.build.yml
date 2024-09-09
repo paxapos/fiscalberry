@@ -123,13 +123,16 @@ jobs:
           draft: false
           prerelease: false
 
+      - name: Set upload URL
+        run: echo "UPLOAD_URL=${{ steps.create_release.outputs.upload_url }}" >> $GITHUB_ENV
+
       - name: Upload Windows executable to release
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/fiscalberry-win/fiscalberry-win.exe
+          upload_url: ${{ env.UPLOAD_URL }}
+          asset_path: ./artifacts/fiscalberry-win.exe
           asset_name: fiscalberry-win.exe
           asset_content_type: application/octet-stream
 
@@ -138,7 +141,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/fiscalberry-lin/fiscalberry-lin
+          upload_url: ${{ env.UPLOAD_URL }}
+          asset_path: ./artifacts/fiscalberry-lin
           asset_name: fiscalberry-lin
           asset_content_type: application/octet-stream
