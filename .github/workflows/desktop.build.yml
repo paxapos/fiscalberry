@@ -1,9 +1,6 @@
 name: Build Desktop Ejecutables - on Release
 
-on:
-  push:
-    branches:
-      - main
+on: push
 
 jobs:
   build-windows:
@@ -115,8 +112,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v1.0.2
-          release_name: Release v1.0.2
+          tag_name: v1.0.3
+          release_name: Release v1.0.3
           draft: false
           prerelease: false
 
