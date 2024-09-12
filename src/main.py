@@ -2,14 +2,14 @@
 import os
 import logging
 
-from dotenv import load_dotenv
-load_dotenv()
+from common.Configberry import Configberry
 
-__version__ = "0.1.0"
+configberry = Configberry()
+
+environment = configberry.config.get("SERVIDOR", "environment", fallback="production")
 
 
 # Configuro logger según ambiente
-environment = os.getenv('ENVIRONMENT', 'production')
 if environment == 'development':
     print("* * * * * Modo de desarrollo * * * * *")
     logging.basicConfig(level=logging.DEBUG)
@@ -18,13 +18,27 @@ else:
     logging.basicConfig(level=logging.WARNING)
 
 
-from fiscalberry_app.fiscalberry_app import FiscalberryApp
+import sys
+
+
+__version__ = "0.1.0"
 
 
 if __name__ == "__main__":
+    
+    if len(sys.argv) > 1 and sys.argv[1] == "cli":
+        import cli as cli
 
-    # Crear la aplicación Kivy
-    app = FiscalberryApp()
+        cli.start()
+        
+    else:
+        from ui.fiscalberry_app import FiscalberryApp
 
-    # Ejecutar la aplicación Kivy
-    app.run()
+        # Llamar a la función que maneja la interfaz de usuario
+        start_ui()
+        # Crear la aplicación Kivy
+        app = FiscalberryApp()
+
+        # Ejecutar la aplicación Kivy
+        app.run()
+    

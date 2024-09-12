@@ -16,7 +16,7 @@ source.dir = src
 #source.include_exts = py,png,jpg,kv,atlas
 
 # (list) List of inclusions using pattern matching
-source.include_patterns = src/fiscalberry_app/assets/*
+source.include_patterns = src/assets/*
 
 # (list) Source files to exclude (let empty to not exclude anything)
 #source.exclude_exts = spec
@@ -44,10 +44,10 @@ requirements = python3,kivy,python-escpos,python-socketio,simple-websocket,uuid,
 # requirements.source.kivy = ../../kivy
 
 # (str) Presplash of the application
-presplash.filename = %(source.dir)s/fiscalberry_app/assets/fiscalberry.png
+presplash.filename = %(source.dir)s/assets/fiscalberry.png
 
 # (str) Icon of the application
-icon.filename = %(source.dir)s/fiscalberry_app/assets/fiscalberry.png
+icon.filename = %(source.dir)s/assets/fiscalberry.png
 
 # (list) Supported orientations
 # Valid options are: landscape, portrait, portrait-reverse or landscape-reverse

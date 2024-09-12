@@ -3,12 +3,13 @@ import time
 import os
 import logging
 
-from dotenv import load_dotenv
-load_dotenv()
+from common.Configberry import Configberry
 
+configberry = Configberry()
+
+environment = configberry.config.get("SERVIDOR", "environment", fallback="production")
 
 # configuro logger segun ambiente
-environment = os.getenv('ENVIRONMENT', 'production')
 if environment == 'development':
     print("* * * * * Modo de desarrollo * * * * *")
     logging.basicConfig(level=logging.DEBUG)
@@ -22,14 +23,12 @@ logger = getLogger()
 
 
 # importo el modulo que se encarga de la comunicacion con el servidor
-from fiscalberry_sio import FiscalberrySio
+from common.fiscalberry_sio import FiscalberrySio
 from common.discover import send_discover_in_thread
-from common.Configberry import Configberry
 
 
 
-def main():
-    configberry = Configberry()
+def start():
 
     while True:
         logger.info("Preparando Fiscalberry Server")
@@ -42,5 +41,6 @@ def main():
         logger.warning("Termino ejecucion de server socketio?.. reconectando en 5s")
         time.sleep(5)
 
+
 if __name__ == "__main__":
-    main()
+    start()

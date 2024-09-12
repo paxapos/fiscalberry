@@ -60,7 +60,7 @@ class MainLayout(BoxLayout):
 
 
 class FiscalberryApp(App):
-    assetpath = os.path.dirname(os.path.abspath(__file__))
+    assetpath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
     background_image = StringProperty(f"{assetpath}/assets/bg.jpg")
     logo_image = StringProperty(f"{assetpath}/assets/fiscalberry.png")
