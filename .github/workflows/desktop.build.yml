@@ -1,9 +1,6 @@
 name: Build Desktop Ejecutables - on Release
 
-on:
-  push:
-    branches:
-      - main
+on: push
 
 jobs:
   build-windows:

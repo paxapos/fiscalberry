@@ -11,7 +11,7 @@ import time
 
 
 # importo el modulo que se encarga de la comunicacion con el servidor
-from fiscalberry_sio import FiscalberrySio
+from common.fiscalberry_sio import FiscalberrySio
 from common.discover import send_discover_in_thread
 from common.Configberry import Configberry
 

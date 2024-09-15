@@ -18,7 +18,6 @@ setup(
         'uuid==1.30',
         'appdirs==1.4.4',
         'kivy==2.3.0',
-        'python-dotenv==1.0.1',
         'platformdirs==4.2.2',
     ],
     entry_points={

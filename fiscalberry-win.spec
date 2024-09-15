@@ -35,5 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['src/fiscalberry_app/assets/fiscalberry.ico'],
+    icon=['src/assets/fiscalberry.ico'],
 )
