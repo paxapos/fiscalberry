@@ -9,9 +9,8 @@ importlib_resources==6.4.4
 pillow==10.4.0
 pypng==0.20220715.0
 python-barcode==0.15.1
-python-engineio==4.9.1
-python-escpos==3.1
-python-socketio==5.11.4
+python-escpos[all]==3.1
+python-socketio[client]
 PyYAML==6.0.2
 qrcode==7.4.2
 requests==2.32.3

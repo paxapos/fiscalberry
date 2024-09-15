@@ -259,8 +259,8 @@ class EscPComandos():
         printer.text("-" * self.total_cols + "\n")
 
         # 3- DATOS DEL CLIENTE
-        if "nombre_cliente" in encabezado:
-            nombreCliente = f"A {encabezado.get('nombre_cliente')}"
+        if "nombre_cliente" in encabezado and encabezado.get('nombre_cliente'):
+            nombreCliente = f"A {encabezado.get('nombre_cliente', 'Consumidor Final')}"
             tipoRespCliente = encabezado.get('tipo_responsable_cliente', False)
             tipoDocCliente = encabezado.get('nombre_tipo_documento', False)
             documentoCliente = encabezado.get('documento_cliente', False)
@@ -320,6 +320,10 @@ class EscPComandos():
             itemCant = floatToString( qty )
             importeUnitario = floatToString( importe )
             totalProducto = f"{round( qty * importe , 2 ):,.2f}"
+            
+            # si la cantidad qty o el importe importe son 0, no se imprime
+            if qty == 0 or importe == 0:
+                continue
 
             if tipoComprobante in tiposInscriptoString or tipoCmp in tiposInscriptoCod:
                 printer.set(font='b', bold=True, align='left', normal_textsize=True)
@@ -377,15 +381,12 @@ class EscPComandos():
                 printer.text(f'{dsIva}{self.signo}{importeIva}\n')
 
         # 7- TOTAL
-        printer.set(font='a', bold=True, align='left', double_height=False, double_width=False)
-        # Imprime "TOTAL" alineado a la izquierda
-        printer.set(align='left')
-        printer.text("TOTAL:")
+        # Imprimir total
+        dsTotal = pad("TOTAL:", self.desc_cols_ext - 1, " ", "l")
+        importeTotal = pad(f"{round(importeTotal,2):,.2f}",self.price_cols, " ", "r")
+        escpos.writelines(f'{dsTotal}{self.signo}{importeTotal}', bold=True, align='left', height=2, width=2)
+        printer.ln();
 
-        # Imprime el monto alineado a la derecha en la misma línea
-        printer.set(align='right')
-        importeTotal =  pad(f"{round(total,2):,.2f}",self.price_cols, " ", "r")
-        printer.text(f'{self.signo}{importeTotal}\n\n')
 
 
         # NC si hay que firmar        
@@ -677,12 +678,12 @@ class EscPComandos():
 
         def print_plato(plato):
             "Imprimir platos"
-            printer.set(font='a', bold=True, height=1, width=2, align='left')
+            printer.set(font='a', bold=True, height=2, width=2, align='left', double_height=True)
 
             printer.text(f"{plato['cant']}) {plato['nombre']}")
 
             if 'sabores' in plato:
-                printer.text(f"({', '.join(plato['sabores'])})")
+                printer.text(f"[{', '.join(plato['sabores'])}]s")
 
             printer.text("\n")
 
@@ -703,7 +704,7 @@ class EscPComandos():
             printer.text("\n\n")
 
         if 'platos' in comanda:
-            printer.set(font='a', height=1, bold=True, align='center')
+            printer.set(font='a', height=2, bold=True, align='center')
             printer.text(u"----- PRINCIPAL -----\n")
             for plato in comanda['platos']:
                 print_plato(plato)
