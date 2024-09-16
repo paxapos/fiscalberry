@@ -324,10 +324,6 @@ class EscPComandos():
             importeUnitario = floatToString( importe )
             totalProducto = f"{round( qty * importe , 2 ):,.2f}"
             
-            # si la cantidad qty o el importe importe son 0, no se imprime
-            if qty == 0 or importe == 0:
-                continue
-
             if tipoComprobante in tiposInscriptoString or tipoCmp in tiposInscriptoCod:
                 printer.set(font='b', bold=True, align='left', normal_textsize=True)
                 printer.text(f"{itemCant} x {importeUnitario} ({floatToString(alicIva)})\n")

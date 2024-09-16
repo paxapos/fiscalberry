@@ -29,13 +29,14 @@ from common.discover import send_discover_in_thread
 
 
 def start():
+    logger.info("Iniciando Fiscalberry Server")
+
+    serverUrl = configberry.config.get("SERVIDOR", "sio_host", fallback="")
+    uuid = configberry.config.get("SERVIDOR", "uuid")
+    send_discover_in_thread()
 
     while True:
-        logger.info("Preparando Fiscalberry Server")
 
-        serverUrl = configberry.config.get("SERVIDOR", "sio_host", fallback="")
-        uuid = configberry.config.get("SERVIDOR", "uuid")
-        send_discover_in_thread()
         sio = FiscalberrySio(serverUrl, uuid)
         sio.start_print_server()
         logger.warning("Termino ejecucion de server socketio?.. reconectando en 5s")

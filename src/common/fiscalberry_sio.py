@@ -34,26 +34,26 @@ class FiscalberrySio():
     stop_event = threading.Event()
     
     def __init__(self, sockeiIoServer, uuid, namespaces = ["/paxaprinter"]) -> None:
-        self.sio = socketio.Client(reconnection=True, reconnection_attempts=0, reconnection_delay=2, reconnection_delay_max=15, logger=sioLogger, engineio_logger=sioLogger)
+        self.sio = socketio.Client(reconnection=True, reconnection_attempts=0, reconnection_delay=2, reconnection_delay_max=15, logger=sioLogger, engineio_logger=False)
         
         self.sockeiIoServer = sockeiIoServer
         self.uuid = uuid
         self.namespaces = namespaces
 
-        @self.sio.on("connect", namespace='/paxaprinter')
-        def handleConnect(**kwargs):
-            def handleJoin(*args, **kwargs):
-                print(f"Joined!!!!!!!! OKK {args} {kwargs}")
-
+        @self.sio.event(namespace='/paxaprinter')
+        def connect():
             logger.info(f"connection established with sid {self.sio.sid}")
-            self.sio.emit("join", data=uuid, namespace='/paxaprinter', callback=handleJoin)
 
 
+        @self.sio.event(namespace='/paxaprinter')
+        def connect_error(err):
+            logger.error(f"Connection failed due to: {err}")
 
-        @self.sio.on('disconnect', namespace='*')
-        def handleDisconnect():
+        @self.sio.event(namespace='/paxaprinter')
+        def disconnect():
             logger.info("Disconnected from server")
             sys.exit(0)
+
 
     def start_only_status(self):
         self.__run()
@@ -67,7 +67,7 @@ class FiscalberrySio():
     def __run(self):
         try:
             logger.info("FiscalberrySio: ******************************* CONECTANDO *******************************")
-            self.sio.connect(self.sockeiIoServer, namespaces=self.namespaces, headers={"X_UUID":self.uuid})
+            self.sio.connect(self.sockeiIoServer, namespaces=self.namespaces, headers={"x-uuid":self.uuid})
             logger.info("Iniciado SioClient en %s con uuid %s" % (self.sockeiIoServer, self.uuid))
             self.sio.wait()
 
