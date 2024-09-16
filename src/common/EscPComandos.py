@@ -439,7 +439,7 @@ class EscPComandos():
         }
 
         # Opcionales si vienen en el JSON
-        if ( tipoDocRec and documentoCliente ): :
+        if ( tipoDocRec and documentoCliente ):
             qrcode["tipoDocRec"] = int(tipoDocRec)
             qrcode["nroDocRec"]  = int(documentoCliente)
 
