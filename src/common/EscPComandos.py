@@ -383,7 +383,7 @@ class EscPComandos():
         # 7- TOTAL
         # Imprimir total
         dsTotal = pad("TOTAL:", self.desc_cols_ext - 1, " ", "l")
-        importeTotal = pad(f"{round(importeTotal,2):,.2f}",self.price_cols, " ", "r")
+        importeTotal = pad(f"{round(total,2):,.2f}",self.price_cols, " ", "r")
         escpos.writelines(f'{dsTotal}{self.signo}{importeTotal}', bold=True, align='left', height=2, width=2)
         printer.ln();
 
