@@ -258,6 +258,9 @@ class EscPComandos():
         printer.set(font='a', height=1, align='center')
         printer.text("-" * self.total_cols + "\n")
 
+        tipoDocRec = False
+        documentoCliente = False
+        
         # 3- DATOS DEL CLIENTE
         if "nombre_cliente" in encabezado and encabezado.get('nombre_cliente'):
             nombreCliente = f"A {encabezado.get('nombre_cliente', 'Consumidor Final')}"
@@ -436,7 +439,7 @@ class EscPComandos():
         }
 
         # Opcionales si vienen en el JSON
-        if ( encabezado.get('documento_cliente') ) :
+        if ( tipoDocRec and documentoCliente ): :
             qrcode["tipoDocRec"] = int(tipoDocRec)
             qrcode["nroDocRec"]  = int(documentoCliente)
 
