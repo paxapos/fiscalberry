@@ -9,3 +9,4 @@ uuid==1.30
 appdirs==1.4.4
 platformdirs==4.2.2
 kivy==2.3.0
+pika

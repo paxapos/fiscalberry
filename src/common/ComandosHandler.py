@@ -139,12 +139,22 @@ class ComandosHandler:
 
     def send_command(self, comando):
         response = {}
-        logger.info(f"Request \n -> {comando}")
+        logger.info(f"Tipo de dato de comando: {type(comando)}")
         try:
             if isinstance(comando, str):
+                logger.info("es un string??")
                 jsonMes = json.loads(comando, strict=False)
-            else:
+            #si es un diccionario o json, no hacer nada
+            elif isinstance(comando, dict):
+                logger.info("es un diccionario??")
                 jsonMes = comando
+            #si es del typo class bytes, convertir a string y luego a json
+            elif isinstance(comando, bytes):
+                logger.info("es un bytes??")
+                jsonMes = json.loads(comando.decode("utf-8"), strict=False)
+            else:
+                raise TypeError("Tipo de dato no soportado")
+            
             response = self.__json_to_comando(jsonMes)
         except TypeError as e:
             errtxt = "Error parseando el JSON %s" % e
@@ -159,7 +169,7 @@ class ComandosHandler:
             logger.exception(errtxt)
             response["err"] = errtxt
         except Exception as e:
-            errtxt = repr(e) + "- " + str(e)
+            errtxt = "Error desconocido: " + repr(e) + "- " + str(e)
             logger.exception(errtxt)
             response["err"] = errtxt
 
@@ -173,7 +183,6 @@ class ComandosHandler:
         traductor = None
 
         rta = {"rta": ""}
-
         try:
 
             # seleccionar impresora
@@ -215,9 +224,7 @@ class ComandosHandler:
             elif 'removerImpresora' in jsonTicket:
                 rta["rta"] = self._removerImpresora(
                     jsonTicket["removerImpresora"])
-
             else:
-                logging.error("No se pasó un comando válido")
                 raise TraductorException("No se pasó un comando válido")
 
             # cerrar el driver

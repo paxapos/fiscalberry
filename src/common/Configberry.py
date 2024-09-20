@@ -39,7 +39,7 @@ class Configberry:
 
         CONFIG_FILE_NAME = os.path.join(configDirPath, 'config.ini')
 
-        self.logger.debug("Config file path: %s" % CONFIG_FILE_NAME)
+        print("Config file path: %s" % CONFIG_FILE_NAME)
 
         return CONFIG_FILE_NAME
 

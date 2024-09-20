@@ -30,3 +30,4 @@ cython==3.0.11
 buildozer==1.5.0
 pyjnius==1.6.1
 twisted==24.7.0
+pika

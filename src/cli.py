@@ -23,25 +23,31 @@ logger = getLogger()
 
 
 # importo el modulo que se encarga de la comunicacion con el servidor
-from common.fiscalberry_sio import FiscalberrySio
+from common.rabbit_mq_consumer import RabbitMQConsumer
 from common.discover import send_discover_in_thread
+import asyncio
 
 
 
 def start():
     logger.info("Iniciando Fiscalberry Server")
 
-    serverUrl = configberry.config.get("SERVIDOR", "sio_host", fallback="")
     uuid = configberry.config.get("SERVIDOR", "uuid")
-    send_discover_in_thread()
+    host = configberry.config.get("RabbitMq", "host", fallback="localhost")
+    port = configberry.config.get("RabbitMq", "port", fallback="5672")
+    user = configberry.config.get("RabbitMq", "user", fallback="guest")
+    password = configberry.config.get("RabbitMq", "password", fallback="guest")
+    #send_discover_in_thread()
 
     while True:
 
-        sio = FiscalberrySio(serverUrl, uuid)
-        sio.start_print_server()
+        sio = RabbitMQConsumer(host, port, user, password, uuid)
+        # Inside the while loop
+        sio.start()
         logger.warning("Termino ejecucion de server socketio?.. reconectando en 5s")
         time.sleep(5)
 
 
 if __name__ == "__main__":
     start()
+    
