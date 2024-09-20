@@ -2,8 +2,6 @@ import configparser
 import os
 import uuid
 import platformdirs
-from common.fiscalberry_logger import getLogger
-import logging
 
 
 appname = 'Fiscalberry'
@@ -26,7 +24,6 @@ class Configberry:
         if not hasattr(self, 'initialized'):
             self.initialized = True
             # Inicializa aquí los atributos de la instancia
-            self.logger = getLogger()
 
             self.config.read( self.getConfigFIle() )
             self.__create_config_if_not_exists()
@@ -65,9 +62,7 @@ class Configberry:
         for s in self.sections()[1:]:
             if self.config.has_option(s, 'mac'):
                 mymac = self.config.get(s, 'mac')
-                self.logger.debug("mymac %s y la otra es mac %s" % (mymac, mac))
                 if mymac == mac:
-                    self.logger.debug("encontre la mac %s" % mac)
                     return (s, self.get_config_for_printer(s))
         return False
 
@@ -104,11 +99,7 @@ class Configberry:
         return 1
 
     def __create_config_if_not_exists(self):
-        #show info only once
-        self.logger = logging.getLogger("Configberry")
         
-        # read config file and list all sections
-        self.logger.debug("Config Sections: %s" % self.sections())
         # menos el primero que es el de SERVIDOR, mostrar el el resto en consola ya que son las impresoras
         for s in self.sections()[1:]:
             print("Impresora en Config: %s" % s)

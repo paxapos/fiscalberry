@@ -80,12 +80,6 @@ class FiscalberrySio():
 
 
     def start_print_server(self):
-        @self.sio.on('command', namespace='/paxaprinter')
-        def handle_command(data):
-            logger.debug(f"message received with {data}")
-            comandoHandler = ComandosHandler()
-            return comandoHandler.send_command(data)
-        
         self.__run()
         
 

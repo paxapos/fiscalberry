@@ -36,6 +36,8 @@ class RabbitMQConsumer:
 
     def start(self):
         
+        
+        print(f"Connecting to RabbitMQ server: {self.host}:{self.port} con user {self.user}")
         connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.host, port=self.port, credentials=pika.PlainCredentials(self.user, self.password)))
         channel = connection.channel()
         
