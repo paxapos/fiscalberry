@@ -20,7 +20,7 @@ def startRabbit():
 
 
     uuid = configberry.config.get("SERVIDOR", "uuid")
-    host = configberry.config.get("RabbitMq", "host", fallback="localhost")
+    host = configberry.config.get("RabbitMq", "host", fallback="www.paxapos.com")
     port = configberry.config.get("RabbitMq", "port", fallback="5672")
     user = configberry.config.get("RabbitMq", "user", fallback="guest")
     password = configberry.config.get("RabbitMq", "password", fallback="guest")
@@ -63,8 +63,6 @@ def start_services():
 
 
 if __name__ == "__main__":
-
-    
     try:
         start_services()
     except Exception as e:

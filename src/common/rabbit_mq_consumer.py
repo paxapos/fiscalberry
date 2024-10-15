@@ -36,7 +36,6 @@ class RabbitMQConsumer:
 
     def start(self):
         
-        
         print(f"Connecting to RabbitMQ server: {self.host}:{self.port} con user {self.user}")
         connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.host, port=self.port, credentials=pika.PlainCredentials(self.user, self.password)))
         channel = connection.channel()
@@ -47,10 +46,19 @@ class RabbitMQConsumer:
         channel.queue_bind(exchange=self.STREAM_NAME, queue=queue_name, routing_key=self.client_uuid)
 
         def callback(ch, method, properties, body):
-            comandoHandler = ComandosHandler()
-            comandoHandler.send_command(body)
+            try:
+                comandoHandler = ComandosHandler()
+                comandoHandler.send_command(body)
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+            except TraductorException as e:
+                self.logger.error(f"TraductorException Error al procesar mensaje: {e}")
+                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+            except Exception as e:
+                self.logger.error(f"Error al procesar mensaje: {e}")
+                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+            
 
-        channel.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
+        channel.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=False)
         print(f"Waiting for messages in queue: {queue_name}")
         channel.start_consuming()
 
