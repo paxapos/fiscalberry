@@ -12,6 +12,8 @@ class Configberry:
     config.optionxform=str
     
     _instance = None
+    
+    configFilePath = None
 
     def __new__(cls):
         if not cls._instance:
@@ -27,6 +29,8 @@ class Configberry:
 
             self.config.read( self.getConfigFIle() )
             self.__create_config_if_not_exists()
+            
+            self.configFilePath = self.getConfigFIle()
 
     def getConfigFIle(self):
 
@@ -35,8 +39,6 @@ class Configberry:
             os.makedirs(configDirPath)
 
         CONFIG_FILE_NAME = os.path.join(configDirPath, 'config.ini')
-
-        print("Config file path: %s" % CONFIG_FILE_NAME)
 
         return CONFIG_FILE_NAME
 
@@ -104,12 +106,10 @@ class Configberry:
         for s in self.sections()[1:]:
             print("Impresora en Config: %s" % s)
 
-
-        
-        print(f"User config files stored in {platformdirs.user_config_dir(appname)}")
-
         CONFIG_FILE_NAME = self.getConfigFIle()
+
         if not os.path.isfile(CONFIG_FILE_NAME):
+            print(f"NUEVO User config files creado en {CONFIG_FILE_NAME}")
 
             curpath = os.path.dirname(os.path.realpath(__file__))
 
@@ -125,6 +125,8 @@ sio_password =
                 configfile.write(defaultConfig)
                 configfile.close()
 
+        else:
+            print(f"User Config existente en {CONFIG_FILE_NAME}")
 
     def get_config_for_printer(self, printerName):
         '''
