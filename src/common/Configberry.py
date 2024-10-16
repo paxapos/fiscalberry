@@ -115,7 +115,7 @@ class Configberry:
             for param in kwargs:
                 self.config.set(section, param, kwargs[param])
 
-            temp_config_file = self.getConfigFIle() + '.tmp'
+            temp_config_file = self.configFilePath + '.tmp'
 
             self.config.read(self.configFilePath)
             return True

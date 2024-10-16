@@ -80,8 +80,6 @@ class FiscalberrySio():
 
             '''
 
-            print("la data de este dict es:")
-            print(data)
             rabbitMq = data.get('RabbitMq', None)
             if not rabbitMq:
                 logger.error("No se recibio la data esperada")
@@ -107,7 +105,7 @@ class FiscalberrySio():
                 self.configberry.set("RabbitMq", data['RabbitMq'])
             
             if not self.stop_event.is_set():
-                self.startRabbit(host, port, user, password, queue)
+                self.startRabbit(host, port, user, password, self.uuid)
 
     def startRabbit(self, host, port, user, password, queue):
         
