@@ -5,6 +5,8 @@ import sys
 from common.ComandosHandler import ComandosHandler, TraductorException
 from common.fiscalberry_logger import getLogger
 import os
+from common.Configberry import Configberry
+
 
 # Configuro logger según ambiente
 environment = os.getenv('ENVIRONMENT', 'production')
@@ -39,6 +41,9 @@ class FiscalberrySio():
         self.sockeiIoServer = sockeiIoServer
         self.uuid = uuid
         self.namespaces = namespaces
+        
+        self.configberry = Configberry()
+
 
         @self.sio.event(namespace='/paxaprinter')
         def connect():
@@ -52,8 +57,73 @@ class FiscalberrySio():
         @self.sio.event(namespace='/paxaprinter')
         def disconnect():
             logger.info("Disconnected from server")
-            sys.exit(0)
+            
+        @self.sio.event(namespace='/paxaprinter')
+        def error(err):
+            logger.error(f"Error recibido: {err}")
+            
+            
+        @self.sio.event(namespace='/paxaprinter')
+        def start_rabbit(data: dict):
+            ''' viene este json 
+            
+                export interface HiDto {
+                    'RabbitMq': {
+                        'host': string,
+                        'port': string,
+                        'user': string,
+                        'password': string,
+                        'vhost': string,
+                        'queue': string,
+                    }
+                }
 
+            '''
+
+            print("la data de este dict es:")
+            print(data)
+            rabbitMq = data.get('RabbitMq', None)
+            if not rabbitMq:
+                logger.error("No se recibio la data esperada")
+                return
+            
+            
+            host = rabbitMq['host']
+            port = rabbitMq['port']
+            user = rabbitMq['user']
+            password = rabbitMq['password']
+            vhost = rabbitMq['vhost']
+            queue = rabbitMq['queue']
+
+            currHost = self.configberry.get("RabbitMq", "host")
+            currPort = self.configberry.get("RabbitMq", "port")
+            currUser = self.configberry.get("RabbitMq", "user")
+            currPass = self.configberry.get("RabbitMq", "password")
+            currVhost = self.configberry.get("RabbitMq", "vhost")
+            currQueue = self.configberry.get("RabbitMq", "queue")
+            
+            # si hay cambios guardar
+            if currHost != host or currPort != port or currUser != user or currPass != password or currVhost != vhost or currQueue != queue:
+                self.configberry.set("RabbitMq", data['RabbitMq'])
+            
+            if not self.stop_event.is_set():
+                self.startRabbit(host, port, user, password, queue)
+
+    def startRabbit(self, host, port, user, password, queue):
+        
+        def doStart(host, port, user, password, queue):
+            from common.rabbit_mq_consumer import RabbitMQConsumer
+            
+            rb = RabbitMQConsumer(host, port, user, password, queue)
+            # Inside the while loop
+            rb.start()
+            logger.warning("Termino ejecucion de server socketio?.. reconectando en 5s")
+
+
+        rabbit_thread = threading.Thread(target=doStart, args=(host, port, user, password, queue))
+        
+        rabbit_thread.start()
+        rabbit_thread.join()
 
     def start_only_status(self):
         self.__run()

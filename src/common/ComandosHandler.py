@@ -274,7 +274,7 @@ class ComandosHandler:
             self._removerImpresora(kwargs["nombre_anterior"])
             del propiedadesImpresora["nombre_anterior"]
         del propiedadesImpresora["printerName"]
-        configberry.writeSectionWithKwargs(printerName, propiedadesImpresora)
+        configberry.set(printerName, propiedadesImpresora)
 
         return {
             "action": "configure",
@@ -284,7 +284,7 @@ class ComandosHandler:
     def _removerImpresora(self, printerName):
         "elimina la sección del configberry.ini"
 
-        configberry.delete_printer_from_config(printerName)
+        configberry.delete_section(printerName)
 
         return {
             "action": "removerImpresora",

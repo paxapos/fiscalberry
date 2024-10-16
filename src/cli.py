@@ -8,34 +8,18 @@ logger = getLogger()
 
 
 from common.Configberry import Configberry
-configberry = Configberry()
 
 
 # importo el modulo que se encarga de la comunicacion con el servidor
 from common.discover import send_discover_in_thread
 
-
-def startRabbit():
-    from common.rabbit_mq_consumer import RabbitMQConsumer
+cantRetries = 0
 
 
-    uuid = configberry.config.get("SERVIDOR", "uuid")
-    host = configberry.config.get("RabbitMq", "host", fallback="www.paxapos.com")
-    port = configberry.config.get("RabbitMq", "port", fallback="5672")
-    user = configberry.config.get("RabbitMq", "user", fallback="guest")
-    password = configberry.config.get("RabbitMq", "password", fallback="guest")
-    
-    rb = RabbitMQConsumer(host, port, user, password, uuid)
-    # Inside the while loop
-    rb.start()
-    logger.warning("Termino ejecucion de server socketio?.. reconectando en 5s")
-
-
-def startSocketio():
+def startSocketio(sio_host, uuid):
     from common.fiscalberry_sio import FiscalberrySio
-    serverUrl = configberry.config.get("SERVIDOR", "sio_host", fallback="")
-    uuid = configberry.config.get("SERVIDOR", "uuid")
-    sio = FiscalberrySio(serverUrl, uuid)
+    
+    sio = FiscalberrySio(sio_host, uuid)
     sio.start_print_server()
     logger.warning("Termino ejecucion de server socketio?.. reconectando en 5s")
     
@@ -46,20 +30,37 @@ def discover():
     
 
 def start_services():
+    global cantRetries
+    
+    configberry = Configberry()
+
+
+    uuidval = configberry.get("SERVIDOR", "uuid", fallback="")
+    if not uuidval:
+        if cantRetries > 5:
+            logger.error("No Esta configurado el uuid en el archivo de configuracion, MAX RETRIES")
+            os._exit(1)
+            
+        logger.warning("Faltan parametros para conectar a SocketIO.. reconectando en 5s")
+        time.sleep(5)
+        start_services()
+        return
+    
+    
     logger.info("Iniciando Fiscalberry Server")
 
     # iniciar en 3 threads distintos los servicios
     discover_thread = threading.Thread(target=discover)
-    socketio_thread = threading.Thread(target=startSocketio)
-    rabbit_thread = threading.Thread(target=startRabbit)
+    
+    
+    sio_host = configberry.get("SERVIDOR", "sio_host")
+    socketio_thread = threading.Thread(target=startSocketio, args=(sio_host, uuidval))
+    
 
     discover_thread.start()
     socketio_thread.start()
-    rabbit_thread.start()
-
     discover_thread.join()
     socketio_thread.join()
-    rabbit_thread.join()
 
 
 if __name__ == "__main__":

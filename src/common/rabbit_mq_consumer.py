@@ -13,15 +13,15 @@ class RabbitMQConsumer:
     # 5GB
     STREAM_RETENTION = 5000000000
     
-    def __init__(self, host, port, user, password, uuid):
+    def __init__(self, host, port, user, password, queue, vhost="/"):
         self.host = host
         self.port = port
         self.user = user
+        self.vhost = vhost
         self.password = password
         self.connection = None
         self.channel = None
-        
-        self.client_uuid = uuid
+        self.queue = queue
         
         # Configuro logger según ambiente
         environment = os.getenv('ENVIRONMENT', 'production')
@@ -37,13 +37,13 @@ class RabbitMQConsumer:
     def start(self):
         
         print(f"Connecting to RabbitMQ server: {self.host}:{self.port} con user {self.user}")
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.host, port=self.port, credentials=pika.PlainCredentials(self.user, self.password)))
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.host, port=self.port, virtual_host=self.vhost, credentials=pika.PlainCredentials(self.user, self.password)))
         channel = connection.channel()
         
         #channel.exchange_declare(exchange=self.STREAM_NAME, exchange_type='direct')
-        queue_name = self.client_uuid
+        queue_name = self.queue
         channel.queue_declare(queue=queue_name)
-        channel.queue_bind(exchange=self.STREAM_NAME, queue=queue_name, routing_key=self.client_uuid)
+        channel.queue_bind(exchange=self.STREAM_NAME, queue=queue_name, routing_key=self.queue)
 
         def callback(ch, method, properties, body):
             try:

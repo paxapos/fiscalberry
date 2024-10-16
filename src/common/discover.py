@@ -11,6 +11,12 @@ def send_discover():
 
     logger = getLogger()
     discoverUrl = False
+    
+    uuidval = configberry.config.get("SERVIDOR", "uuid", fallback="")
+    
+    if not uuidval:
+        logger.error("No se ha configurado el uuid en el archivo de configuracion")
+        return None
 
     senddata = {
         "uuid":  configberry.config.get("SERVIDOR", "uuid"),

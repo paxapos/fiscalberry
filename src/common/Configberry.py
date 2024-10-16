@@ -2,6 +2,7 @@ import configparser
 import os
 import uuid
 import platformdirs
+import platform
 
 
 appname = 'Fiscalberry'
@@ -21,16 +22,14 @@ class Configberry:
         return cls._instance
 
     def __init__(self):
-        
 
         if not hasattr(self, 'initialized'):
             self.initialized = True
             # Inicializa aquí los atributos de la instancia
-
-            self.config.read( self.getConfigFIle() )
-            self.__create_config_if_not_exists()
             
             self.configFilePath = self.getConfigFIle()
+            self.__create_config_if_not_exists(self.configFilePath)
+            
 
     def getConfigFIle(self):
 
@@ -52,11 +51,9 @@ class Configberry:
         return jsondata
 
     def items(self):
-        self.config.read( self.getConfigFIle() )
         return self.config.items()
 
     def sections(self):
-        self.config.read( self.getConfigFIle() )
         return self.config.sections()
 
     def findByMac(self, mac):
@@ -67,66 +64,139 @@ class Configberry:
                 if mymac == mac:
                     return (s, self.get_config_for_printer(s))
         return False
+    
+    def validateIniFile(self, filepath):
+        '''
+        Valida que el archivo de configuracion sea valido
+        '''
+        try:
+            self.config.read(filepath)
+            return True
+        except Exception as e:
+            print(f"Error reading config file: {e}")
+            return False
+        
 
     def writeKeyForSection(self, section, key, value):
-        self.config = configparser.RawConfigParser()
-        self.config.read( self.getConfigFIle() )
-
-        if not self.config.has_section(section):
-            self.config.add_section(section)
-
+        self.config.read(self.configFilePath)
         self.config.set(section, key, value)
-
-        with open(self.getConfigFIle(), 'w') as configfile:
+        with open(self.configFilePath, 'w') as configfile:
             self.config.write(configfile)
             configfile.close()
-
+        self.config.read(self.configFilePath)
         return 1
 
 
-    def writeSectionWithKwargs(self, section, kwargs):
-        self.config = configparser.RawConfigParser()
-        self.config.read( self.getConfigFIle() )
-
-        if not self.config.has_section(section):
-            self.config.add_section(section)
-
-        for param in kwargs:
-            self.config.set(section, param, kwargs[param])
-
-        with open(self.getConfigFIle(), 'w') as configfile:
-            self.config.write(configfile)
-            configfile.close()
-
-        return 1
-
-    def __create_config_if_not_exists(self):
+    def set(self, section: str, kwargs: dict):
+        """
+        Sets the configuration parameters for a given section and saves the changes to the configuration file.
+        A backup of the original configuration file is created before making any changes.
+        Args:
+            section (str): The section of the configuration file to update.
+            kwargs (dict): A dictionary of key-value pairs to set in the specified section.
+        Returns:
+            int: Returns Bool, True si se guardo ok, False si fallo
+        """
+        self.config.read(self.configFilePath)
         
+        #guardar backup del archivo
+        with open(self.configFilePath, 'r') as file:
+            data = file.read()
+            with open(self.configFilePath + ".bak", 'w') as backup:
+                backup.write(data)
+                backup.close()
+            file.close()
+        
+        #intentar guardar las keys pasadas para el section dado
+        try:
+            if not self.config.has_section(section):
+                self.config.add_section(section)
+
+            for param in kwargs:
+                self.config.set(section, param, kwargs[param])
+
+            temp_config_file = self.getConfigFIle() + '.tmp'
+
+            self.config.read(self.configFilePath)
+            return True
+
+        except Exception as e:
+            # reemplazar por backup si fallo
+            if os.path.exists(self.configFilePath + ".bak"):
+                os.replace(self.configFilePath + ".bak", self.configFilePath)
+            print(f"Error writing config file: {e}")
+            return False
+
+    def storeConfig(self):
+        # Guardar backup del archivo
+        with open(self.configFilePath, 'r') as file:
+            data = file.read()
+            with open(self.configFilePath + ".bak", 'w') as backup:
+                backup.write(data)
+                backup.close()
+            file.close()
+
+        try:
+            # Guardar en el archivo
+            with open(self.configFilePath, 'w') as configfile:
+                self.config.write(configfile)
+                configfile.close()
+        except Exception as e:
+            # Restaurar desde el backup en caso de error
+            if os.path.exists(self.configFilePath + ".bak"):
+                os.replace(self.configFilePath + ".bak", self.configFilePath)
+            
+            print(f"Error writing config file: {e}")
+        
+        self.config.read(self.configFilePath)
+                
+        print("resetado el config file quedo asi:")
+        print(self.get_actual_config())
+        
+
+
+
+    def resetConfigFile(self):
+        myUuid = str(uuid.uuid4())
+        self.set("SERVIDOR", {
+            "uuid": myUuid,
+            "platform": f"{os.name} {platform.system()} {platform.release()} {platform.machine()}",
+            "sio_host": "https://www.paxapos.com",
+            "sio_password": ""
+            })
+        
+        self.storeConfig()
+
+
+    def __create_config_if_not_exists(self, configFile):
+
+        if not os.path.isfile(configFile):
+            print(f"NUEVO User config files creado en {configFile}")
+
+            with open(configFile, 'w') as configfile:
+                configfile.write(defaultConfig)
+                configfile.close()
+        else:
+            print(f"User Config existente en {configFile}")
+        
+        self.config.read(configFile)
+        
+        try:
+            uuidVal = self.get("SERVIDOR", "uuid", fallback=None)
+            if not uuidVal:
+                raise Exception("UUID not found")
+        except configparser.NoSectionError as e:
+            print(f"Section SERVIDOR no encontrado, reseteando {configFile}")
+            self.resetConfigFile()
+        except Exception as e:
+            print(f"Config UUID no encontrado, reseteando {configFile}")
+            self.resetConfigFile()
+            
         # menos el primero que es el de SERVIDOR, mostrar el el resto en consola ya que son las impresoras
         for s in self.sections()[1:]:
             print("Impresora en Config: %s" % s)
-
-        CONFIG_FILE_NAME = self.getConfigFIle()
-
-        if not os.path.isfile(CONFIG_FILE_NAME):
-            print(f"NUEVO User config files creado en {CONFIG_FILE_NAME}")
-
-            curpath = os.path.dirname(os.path.realpath(__file__))
-
-            myUuid = str(uuid.uuid4())
-
-            defaultConfig = f'''
-[SERVIDOR]
-uuid = {myUuid}
-sio_host = https://www.paxapos.com
-sio_password =
-'''
-            with open(CONFIG_FILE_NAME, 'w') as configfile:
-                configfile.write(defaultConfig)
-                configfile.close()
-
-        else:
-            print(f"User Config existente en {CONFIG_FILE_NAME}")
+        
+          
 
     def get_config_for_printer(self, printerName):
         '''
@@ -193,18 +263,22 @@ sio_password =
 
         return dictConf
 
-    def delete_printer_from_config(self, printerName):
-        self.config = configparser.RawConfigParser()
+    def delete_section(self, section):
         
-        CONFIG_FILE_NAME = self.getConfigFIle()
+        self.config.read(self.configFilePath)
 
-        self.config.read(CONFIG_FILE_NAME)
+        if self.config.has_section(section):
+            self.config.remove_section(section)
 
-        if self.config.has_section(printerName):
-            self.config.remove_section(printerName)
-
-        with open(CONFIG_FILE_NAME, 'w') as configfile:
+        with open(self.configFilePath, 'w') as configfile:
             self.config.write(configfile)
             configfile.close()
 
+        self.config.read(self.configFilePath)
+
         return 1
+    
+    def get(self, section, key, fallback=None):
+        self.config.read( self.configFilePath )
+        return self.config.get(section, key, fallback=fallback)
+    
