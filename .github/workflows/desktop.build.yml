@@ -45,6 +45,9 @@ jobs:
         with:
           python-version: '3.12.4'
 
+      - name: Install libcups2-dev
+        run: sudo apt-get install libcups2-dev
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
