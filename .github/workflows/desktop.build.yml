@@ -69,13 +69,49 @@ jobs:
           name: fiscalberry-lin
           path: dist/fiscalberry-lin
 
-  gather-artifacts:
+  build-raspberry-pi:
     runs-on: ubuntu-latest
-    needs: [build-windows, build-linux]
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker image for ARM
+        run: |
+          docker buildx build --platform linux/arm/v7 -t fiscalberry-arm --load .
+
+      - name: Run Docker container
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace fiscalberry-arm /bin/bash -c "
+          sudo apt-get update &&
+          sudo apt-get install -y libcups2-dev &&
+          python3 -m pip install --upgrade pip &&
+          pip3 install pyinstaller &&
+          pip3 install -r requirements.cli.txt &&
+          pyinstaller fiscalberry-pi.spec &&
+          ls -la dist"
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: fiscalberry-pi
+          path: dist/fiscalberry-pi
+
+  gather-artifacts:
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-linux, build-raspberry-pi]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
@@ -87,6 +123,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: fiscalberry-lin
+          path: ./artifacts
+
+      - name: Download Raspberry Pi artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: fiscalberry-pi
           path: ./artifacts
 
       - name: List artifacts directory (debugging)
@@ -125,3 +167,15 @@ jobs:
           asset_path: ./artifacts/fiscalberry-lin
           asset_name: fiscalberry-lin
           asset_content_type: application/octet-stream
+
+      - name: Upload Raspberry Pi executable to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ env.UPLOAD_URL }}
+          asset_path: ./artifacts/fiscalberry-pi
+          asset_name: fiscalberry-pi
+          asset_content_type: application/octet-stream
+
+          
