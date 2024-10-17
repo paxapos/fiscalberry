@@ -3,6 +3,42 @@ name: Build Desktop Ejecutables - on Release
 on: push
 
 jobs:
+  build-raspberry-pi:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker image for ARM
+        run: |
+          docker buildx build --platform linux/arm/v7 -t fiscalberry-arm --load Dockerfile.build
+
+      - name: Run Docker container
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace fiscalberry-arm /bin/bash -c "
+          sudo apt-get update &&
+          sudo apt-get install -y libcups2-dev &&
+          python3 -m pip install --upgrade pip &&
+          pip3 install pyinstaller &&
+          pip3 install -r requirements.cli.txt &&
+          pyinstaller fiscalberry-pi.spec &&
+          ls -la dist"
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: fiscalberry-pi
+          path: dist/fiscalberry-pi
+
   build-windows:
     runs-on: windows-latest
 
@@ -68,42 +104,6 @@ jobs:
         with:
           name: fiscalberry-lin
           path: dist/fiscalberry-lin
-
-  build-raspberry-pi:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-        with:
-          platforms: arm
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Build Docker image for ARM
-        run: |
-          docker buildx build --platform linux/arm/v7 -t fiscalberry-arm --load .
-
-      - name: Run Docker container
-        run: |
-          docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace fiscalberry-arm /bin/bash -c "
-          sudo apt-get update &&
-          sudo apt-get install -y libcups2-dev &&
-          python3 -m pip install --upgrade pip &&
-          pip3 install pyinstaller &&
-          pip3 install -r requirements.cli.txt &&
-          pyinstaller fiscalberry-pi.spec &&
-          ls -la dist"
-
-      - name: Upload executable
-        uses: actions/upload-artifact@v4
-        with:
-          name: fiscalberry-pi
-          path: dist/fiscalberry-pi
 
   gather-artifacts:
     runs-on: ubuntu-latest
