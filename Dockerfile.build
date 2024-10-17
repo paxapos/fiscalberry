@@ -13,7 +13,7 @@ RUN apt-get update && \
     python3 -m pip install --upgrade pip && \
     pip3 install pyinstaller && \
     pip3 install -r requirements.cli.txt && \
-    pyinstaller fiscalberry-lin && \
+    pyinstaller fiscalberry-lin.spec && \
     ls -la dist
 
 # luego buildear la imagen esta
