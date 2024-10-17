@@ -22,16 +22,6 @@ jobs:
         run: |
           docker buildx build --platform linux/arm/v7 -t fiscalberry-arm --load -f Dockerfile.build .
 
-      - name: Run Docker container
-        run: |
-          docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace fiscalberry-arm /bin/bash -c "
-          sudo apt-get update &&
-          sudo apt-get install -y libcups2-dev &&
-          python3 -m pip install --upgrade pip &&
-          pip3 install pyinstaller &&
-          pip3 install -r requirements.cli.txt &&
-          pyinstaller fiscalberry-pi.spec &&
-          ls -la dist"
 
       - name: Upload executable
         uses: actions/upload-artifact@v4

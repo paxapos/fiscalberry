@@ -4,11 +4,17 @@ WORKDIR /usr/src/app
 EXPOSE 12000
 
 
-COPY requirements.txt ./
+COPY requirements.cli.txt ./
 COPY . .
 RUN ls
 
-
+RUN apt-get update && \
+    apt-get install -y libcups2-dev && \
+    python3 -m pip install --upgrade pip && \
+    pip3 install pyinstaller && \
+    pip3 install -r requirements.cli.txt && \
+    pyinstaller fiscalberry-lin && \
+    ls -la dist
 
 # luego buildear la imagen esta
 # docker build -t fiscalberry2 . 
