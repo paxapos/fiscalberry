@@ -20,7 +20,7 @@ jobs:
 
       - name: Build Docker image for ARM
         run: |
-          docker buildx build --platform linux/arm/v7 -t fiscalberry-arm --load -f Dockerfile.build
+          docker buildx build --platform linux/arm/v7 -t fiscalberry-arm --load -f Dockerfile.build .
 
       - name: Run Docker container
         run: |
