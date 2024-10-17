@@ -13,14 +13,14 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
         with:
-          platforms: arm
+          platforms: arm64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
       - name: Build Docker image for ARM
         run: |
-          docker buildx build --platform linux/arm/v7 -t fiscalberry-arm --load -f Dockerfile.build .
+          docker buildx build --platform linux/arm64 -t fiscalberry-arm --load -f Dockerfile.build .
 
       - name: Run Docker container
         run: |
