@@ -685,6 +685,8 @@ class EscPComandos():
                 printer.text("\n")
                 printer.set(font='b', bold=False, height=2, width=2, align='left', double_height=False, double_width=False)
                 printer.text(f"   OBS: {plato['observacion']}\n")
+                
+            printer.text("\n")
 
         if 'observacion' in comanda:
             printer.set(font='a', bold=True, height=2, width=2, align='center', double_height=True, double_width=True)
@@ -693,14 +695,14 @@ class EscPComandos():
             printer.text("\n\n")
 
         if 'entradas' in comanda:
-            printer.set(font='a', bold=True, height=2, width=2, align='left', double_height=True, double_width=True)
+            printer.set(font='a', bold=True, height=2, width=2, align='center', double_height=True, double_width=True)
             printer.text(u"** ** ENTRADA ** **\n\n")
             for entrada in comanda['entradas']:
                 print_plato(entrada)
             printer.text("\n\n")
 
         if 'platos' in comanda:
-            printer.set(font='a', bold=True, height=2, width=2, align='left', double_height=True, double_width=True)
+            printer.set(font='a', bold=True, height=2, width=2, align='center', double_height=True, double_width=True)
             printer.text(u"----- PRINCIPAL -----\n\n")
             for plato in comanda['platos']:
                 print_plato(plato)
