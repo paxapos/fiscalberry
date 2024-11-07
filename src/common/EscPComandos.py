@@ -558,10 +558,7 @@ class EscPComandos():
             printer.ln()
 
         # Imprimir total
-        dsTotal = pad("TOTAL:", self.desc_cols_ext - 1, " ", "l")
-        importeTotal = pad(f"{round(importeTotal,2):,.2f}",self.price_cols, " ", "r")
-
-        escpos.writelines(f'{dsTotal}{self.signo}{importeTotal}', bold=True, align='left', height=2, width=2)
+        escpos.writelines(f'TOTAL: {self.signo}{round(importeTotal,2):,.2f}', bold=True, align='center', height=2, width=2, double_height=True, double_width=True)
         printer.ln();
 
         # Imprimir pagos "Simple"
