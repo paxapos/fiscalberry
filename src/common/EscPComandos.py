@@ -655,12 +655,12 @@ class EscPComandos():
             
         self.__initPrinter(printer)
 
-        printer.set(font='a', height=1, align='center', normal_textsize=True)
+        printer.set(font='a', height=1, width=1, align='center', normal_textsize=True)
 
         if setHeader:
             for headerLine in setHeader:
-                printer.text(headerLine)
-                printer.text("\n\n")
+                printer.textln(headerLine)
+            printer.text("\n\n")
 
         if "id" in comanda:
             printer.text(f"Comanda #{comanda['id']}\n")
@@ -674,12 +674,13 @@ class EscPComandos():
 
         def print_plato(plato):
             "Imprimir platos"
-            printer.set(font='a', bold=True, height=2, width=2, align='left', double_height=True, double_width=True)
+            printer.set(font='a', bold=False, height=2, width=2, align='left', double_height=True, double_width=False)
 
             printer.text(f"{plato['cant']}) {plato['nombre']}")
 
             if 'sabores' in plato:
-                printer.text(f"[{', '.join(plato['sabores'])}]s")
+                for sabor in plato['sabores']:
+                    printer.text(f"   - {sabor}\n")
 
             printer.text("\n")
 
