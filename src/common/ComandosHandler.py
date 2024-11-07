@@ -51,7 +51,12 @@ def process_print_jobs():
         jsonTicket, q = print_queue.get()
         if jsonTicket is None:
             break
-        runTraductor(jsonTicket, q)
+        
+        try:
+            runTraductor(jsonTicket, q)
+        except Exception as e:
+            logging.error(f"Error al procesar el trabajo de impresión: {e}")
+            
         print_queue.task_done()
 
 # Iniciar el hilo que procesa la cola de trabajos de impresión
@@ -128,7 +133,10 @@ def runTraductor(jsonTicket, queue):
         raise DriverError(f"Invalid driver: {driver}")
 
     comando = EscPComandos(driver)
-
+    logging.info(f"Imprimiendo en: {printerName}")
+    logging.info(f"Driver: {driverName}")
+    logging.info(f"DriverOps: {driverOps}")
+    logging.info(f"Comando:\n%s" % jsonTicket) 
     comando.run(jsonTicket)
 
 
@@ -139,18 +147,15 @@ class ComandosHandler:
 
     def send_command(self, comando):
         response = {}
-        logger.info(f"Tipo de dato de comando: {type(comando)}")
+                
         try:
             if isinstance(comando, str):
-                logger.info("es un string??")
                 jsonMes = json.loads(comando, strict=False)
             #si es un diccionario o json, no hacer nada
             elif isinstance(comando, dict):
-                logger.info("es un diccionario??")
                 jsonMes = comando
             #si es del typo class bytes, convertir a string y luego a json
             elif isinstance(comando, bytes):
-                logger.info("es un bytes??")
                 jsonMes = json.loads(comando.decode("utf-8"), strict=False)
             else:
                 raise TypeError("Tipo de dato no soportado")
@@ -173,7 +178,7 @@ class ComandosHandler:
             logger.exception(errtxt)
             response["err"] = errtxt
 
-        logger.info("Response \n <- %s" % response)
+        logger.info("Command Response \n <- %s" % response)
         return response
 
     def __json_to_comando(self, jsonTicket):
@@ -188,6 +193,8 @@ class ComandosHandler:
             # seleccionar impresora
             # esto se debe ejecutar antes que cualquier otro comando
             if 'printerName' in jsonTicket:
+                logger.info("Imprimiendo en: \"%s\"" % jsonTicket.get('printerName'))
+
                 # run multiprocessing
                 q = Queue()
                 print_queue.put((jsonTicket, q))

@@ -17,11 +17,15 @@ else:
     logging.basicConfig(level=logging.WARNING)
 
 
+logging.getLogger("pika").setLevel(logging.WARNING)
+
+
 try:
     from kivy.logger import Logger
 except ImportError:
     import logging
     Logger = logging.getLogger("** Fiscalberry ** ")
+    
 
 
 def getLogger():

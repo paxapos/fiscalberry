@@ -98,9 +98,6 @@ class EscPComandos():
         encabezado = kwargs.get("encabezado", None)
         items = kwargs.get("items", [])
 
-        if encabezado is None or len(items) == 0:
-            logger.error("No hay datos suficientes para imprimir")
-            return False
 
         printer.set(font='a', height=1, align='center', normal_textsize=True)
 
@@ -208,7 +205,7 @@ class EscPComandos():
         setTrailer = kwargs.get("setTrailer", False)
 
         if encabezado is None or len(items) == 0:
-            logger.error("No hay datos suficientes para imprimir")
+            logger.error("No hay datos en el encabezado para imprimir factura electronica")
             return False
 
             
@@ -485,7 +482,7 @@ class EscPComandos():
         setTrailer = kwargs.get("setTrailer", None)
 
         if encabezado is None or len(items) == 0:
-            logger.error("No hay datos suficientes para imprimir")
+            logger.error("No hay datos en el encabezado  para imprimir remito")
             return False
 
         printer.set(font='a', height=1, align='center')
@@ -677,7 +674,7 @@ class EscPComandos():
 
         def print_plato(plato):
             "Imprimir platos"
-            printer.set(font='a', bold=True, height=2, width=2, align='left', double_height=True)
+            printer.set(font='a', bold=True, height=2, width=2, align='left', double_height=True, double_width=True)
 
             printer.text(f"{plato['cant']}) {plato['nombre']}")
 
@@ -690,26 +687,26 @@ class EscPComandos():
                 printer.text(f"   OBS: {plato['observacion']}\n")
 
         if 'observacion' in comanda:
-            printer.set(font='a', height=1, bold=True, align='center')
+            printer.set(font='a', bold=True, height=2, width=2, align='center', double_height=True, double_width=True)
             printer.text(u"OBSERVACIÓN\n")
             printer.text(comanda['observacion'])
             printer.text("\n\n")
 
         if 'entradas' in comanda:
-            printer.set(font='a', height=1, bold=True, align='center')
+            printer.set(font='a', bold=True, height=2, width=2, align='left', double_height=True, double_width=True)
             printer.text(u"** ENTRADA **\n")
             for entrada in comanda['entradas']:
                 print_plato(entrada)
             printer.text("\n\n")
 
         if 'platos' in comanda:
-            printer.set(font='a', height=2, bold=True, align='center')
+            printer.set(font='a', bold=True, height=2, width=2, align='left', double_height=True, double_width=True)
             printer.text(u"----- PRINCIPAL -----\n")
             for plato in comanda['platos']:
                 print_plato(plato)
             printer.text("\n\n")
 
-        printer.set(font='a', height=2, width=2, align='center', bold=True)
+        printer.set(font='a', bold=True, height=2, width=2, align='left', double_height=True, double_width=True)
         if self.__preFillTrailer:
             self._setTrailer(escpos, self.__preFillTrailer)
 
@@ -739,7 +736,7 @@ class EscPComandos():
         encabezado: dict = kwargs.get('encabezado', None)
 
         if encabezado is None:
-            logger.error("No hay datos suficientes para imprimir")
+            logger.error("No hay datos suficientes para imprimir: Encabezado es obligatorio")
             return False
 
         totalIngresosPorVenta = 0
