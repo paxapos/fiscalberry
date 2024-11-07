@@ -679,12 +679,14 @@ class EscPComandos():
             printer.text(f"{plato['cant']}) {plato['nombre']}")
 
             if 'sabores' in plato:
+                printer.text("\n")
                 for sabor in plato['sabores']:
                     printer.text(f"   - {sabor}\n")
-
-            printer.text("\n")
+                printer.text("\n")
 
             if 'observacion' in plato:
+                printer.text("\n")
+                printer.set(font='b', bold=False, height=2, width=2, align='left', double_height=False, double_width=False)
                 printer.text(f"   OBS: {plato['observacion']}\n")
 
         if 'observacion' in comanda:
@@ -695,14 +697,14 @@ class EscPComandos():
 
         if 'entradas' in comanda:
             printer.set(font='a', bold=True, height=2, width=2, align='left', double_height=True, double_width=True)
-            printer.text(u"** ENTRADA **\n")
+            printer.text(u"** ** ENTRADA ** **\n\n")
             for entrada in comanda['entradas']:
                 print_plato(entrada)
             printer.text("\n\n")
 
         if 'platos' in comanda:
             printer.set(font='a', bold=True, height=2, width=2, align='left', double_height=True, double_width=True)
-            printer.text(u"----- PRINCIPAL -----\n")
+            printer.text(u"----- PRINCIPAL -----\n\n")
             for plato in comanda['platos']:
                 print_plato(plato)
             printer.text("\n\n")
