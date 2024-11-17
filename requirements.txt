@@ -31,4 +31,4 @@ buildozer==1.5.0
 pyjnius==1.6.1
 twisted==24.7.0
 pika
-win32print; sys_platform == 'win32'
+pywin32; sys_platform == 'win32'

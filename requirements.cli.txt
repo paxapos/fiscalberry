@@ -7,4 +7,4 @@ uuid==1.30
 appdirs==1.4.4
 platformdirs==4.2.2
 pika
-win32print; sys_platform == 'win32'
+pywin32; sys_platform == 'win32'
