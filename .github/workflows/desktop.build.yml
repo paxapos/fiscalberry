@@ -1,9 +1,6 @@
 name: Build Desktop Ejecutables - on Release
 
-on:
-  push:
-    tags:
-      - 'v*.*.*'  # Ejecutar solo cuando un tag con el formato de versión es pushado.
+on: push
 
 jobs:
   build-raspberry-pi:
