@@ -5,8 +5,13 @@ Para enviar un JSON (mediante websocket), que fiscalberry lo reciba, lo transfor
 
 Descarga la última versión socketio para windows
 
-[fiscalberry-win]([https://github.com/user-attachments/files/16818395/fiscalberry-win.zip](https://github.com/paxapos/fiscalberry/releases/download/v1.0.13/fiscalberry-win.exe))
+[fiscalberry-win]([https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-win.exe))
 
+Para Linux
+[fiscalberry-lin]([https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-lin))
+
+Para Raspberry pi
+[fiscalberry-lin]([https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-pi))
 
 # Como comenzar (solo developers del proyecto)
 

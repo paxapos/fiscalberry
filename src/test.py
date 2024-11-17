@@ -1,6 +1,7 @@
 
 from common.ComandosHandler import ComandosHandler
 import sys
+from common.printer_detector import listar_impresoras
 
 '''
 si ejecuto el script sin argumentos que me de un listado de opciones y ayuda de uso
@@ -16,6 +17,12 @@ las opciones son
 y el segundo parametro es el nombre de la impresora a la que se le envia el comando, es opcional
 si no se especifica se envia a la impresora Dummy
 '''
+
+
+
+# Ejemplo de uso
+impresoras = listar_impresoras()
+print("Impresoras instaladas:", impresoras)
 
 class ComandosEnum:
     REMITO1 = "remito1"
@@ -78,7 +85,6 @@ if comando == "all":
     for comando in comandosDisponibles:
         comandoHandler.send_command(comandosDisponibles.get(comando))
     sys.exit()
-    
     
     
 # si comando existe en el listado de comandos disponibles, envio el comando a

@@ -92,6 +92,9 @@ def runTraductor(jsonTicket, queue):
     if driverName == "Win32Raw":
         # classprinter.Win32Raw(printer_name='', *args, **kwargs)[source]
         driver = printer.Win32Raw(**driverOps)
+        if not driver.is_usable():
+            raise DriverError(f"Driver {driverName} not usable")
+            
     elif driverName == "Usb":
         # classprinter.Usb(idVendor=None, idProduct=None, usb_args={}, timeout=0, in_ep=130, out_ep=1, *args, **kwargs)
         # convertir de string eJ: 0x82 a int
@@ -112,23 +115,37 @@ def runTraductor(jsonTicket, queue):
             idVendor = int(idVendor, 16)
         
         driver = printer.Usb(idVendor, idProduct, **driverOps)
+        if not driver.is_usable():
+            raise DriverError(f"Driver {driverName} not usable")
     elif driverName == "Network":
         # classprinter.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
         driver = printer.Network(**driverOps)
+        if not driver.is_usable():
+            raise DriverError(f"Driver {driverName} not usable")
     elif driverName == "Serial":
         # classprinter.Serial(devfile='', baudrate=9600, bytesize=8, timeout=1, parity=None, stopbits=None, xonxoff=False, dsrdtr=True, *args, **kwargs)
         driver = printer.Serial(**driverOps)
+        if not driver.is_usable():
+            raise DriverError(f"Driver {driverName} not usable")
     elif driverName == "File":
         # (devfile='', auto_flush=True
         driver = printer.File(**driverOps)
+        if not driver.is_usable():
+            raise DriverError(f"Driver {driverName} not usable")
     elif driverName == "Dummy":
         driver = printer.Dummy(**driverOps)
+        if not driver.is_usable():
+            raise DriverError(f"Driver {driverName} not usable")
     elif driverName == "CupsPrinter":
         # CupsPrinter(printer_name='', *args, **kwargs)[source]
         driver = printer.CupsPrinter(**driverOps)
+        if not driver.is_usable():
+            raise DriverError(f"Driver {driverName} not usable")
     elif driverName == "LP":
         # classprinter.LP(printer_name='', *args, **kwargs)[source]
         driver = printer.LP(**driverOps)
+        if not driver.is_usable():
+            raise DriverError(f"Driver {driverName} not usable")
     else:
         raise DriverError(f"Invalid driver: {driver}")
 

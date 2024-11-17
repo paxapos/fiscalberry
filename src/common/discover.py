@@ -3,7 +3,7 @@ import requests
 import json
 from common.Configberry import Configberry
 from common.fiscalberry_logger import getLogger 
-
+from common.printer_detector import listar_impresoras
 
 configberry = Configberry()
 
@@ -18,9 +18,11 @@ def send_discover():
         logger.error("No se ha configurado el uuid en el archivo de configuracion")
         return None
 
+    data = configberry.getJSON()
+    data["installed_printers"] = listar_impresoras()
     senddata = {
         "uuid":  configberry.config.get("SERVIDOR", "uuid"),
-        "raw_data": json.dumps(configberry.getJSON())
+        "raw_data": json.dumps(data)
     }
 
     ### Enviar al Discover
