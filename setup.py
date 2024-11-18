@@ -13,7 +13,7 @@ setup(
         'websocket-client==1.8.0',
         'simple-websocket==1.0.0',
         'requests==2.32.3',
-        'aiohttp==3.10.2',
+        'aiohttp==3.10.11',
         'argparse==1.4.0',
         'uuid==1.30',
         'appdirs==1.4.4',
