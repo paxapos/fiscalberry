@@ -119,6 +119,8 @@ def runTraductor(jsonTicket, queue):
             raise DriverError(f"Driver {driverName} not usable")
     elif driverName == "Network":
         # classprinter.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
+        if 'port' in driverOps:
+            driverOps['port'] = int(driverOps['port'])
         driver = printer.Network(**driverOps)
         if not driver.is_usable():
             raise DriverError(f"Driver {driverName} not usable")
