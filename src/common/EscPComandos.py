@@ -361,10 +361,17 @@ class EscPComandos():
         # 6- DETALLE IVAS (INSCRIPTO)
         # si tiene el array de ivas tiene items, se detallan los IVAs
         if ivas:
-            dsSinIva = pad("Total sin IVA:", self.desc_cols_ext - 1, " ", "l")
+            dsTotal = pad("SUBTOTAL:", self.desc_cols_ext - 1, " ", "l")
+            importeTotal = pad(f"{round(total,2):,.2f}",self.price_cols, " ", "r")
+            escpos.writelines(f'{dsTotal}{self.signo}{importeTotal}', bold=True, align='left', height=2, width=2)
+            printer.ln();
+
+            printer.text(f'{dsSinIva}{self.signo}{importeSinIva}\n')
+
+            dsSinIva = pad("Neto sin IVA:", self.desc_cols_ext - 1, " ", "l")
             importeSinIva = pad(f"{round(totalNeto, 2):,.2f}",self.price_cols, " ", "r")
             printer.set(font='a', height=1, align='left', normal_textsize=True)
-    
+
             printer.text(f'{dsSinIva}{self.signo}{importeSinIva}\n')
 
             for iva in ivas:
@@ -378,14 +385,12 @@ class EscPComandos():
 
         # 7- TOTAL
         # Imprimir total
-        dsTotal = pad("TOTAL:", self.desc_cols_ext - 1, " ", "l")
-        importeTotal = pad(f"{round(total,2):,.2f}",self.price_cols, " ", "r")
-        escpos.writelines(f'{dsTotal}{self.signo}{importeTotal}', bold=True, align='left', height=2, width=2)
+        escpos.writelines(f'TOTAL: {self.signo}{round(importeTotal,2):,.2f}', bold=True, align='center', height=2, width=2, double_height=True, double_width=True)
         printer.ln();
 
 
 
-        # NC si hay que firmar        
+        # NC si hay que firmar
         printer.set(font='b', bold=False, width=1, height=1, align='left', normal_textsize=True)
 
         if tipoComprobante in tiposNC or tipoCmp in tiposNC:
@@ -398,7 +403,7 @@ class EscPComandos():
         printer.text("-" * self.total_cols + "\n\n")
 
         printer.set(font='a', height=1, align='center')
-        
+
         if self.__preFillTrailer:
             self._setTrailer(escpos, self.__preFillTrailer)
 
