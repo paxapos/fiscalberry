@@ -366,8 +366,6 @@ class EscPComandos():
             escpos.writelines(f'{dsTotal}{self.signo}{importeTotal}', bold=True, align='left', height=2, width=2)
             printer.ln();
 
-            printer.text(f'{dsSinIva}{self.signo}{importeSinIva}\n')
-
             dsSinIva = pad("Neto sin IVA:", self.desc_cols_ext - 1, " ", "l")
             importeSinIva = pad(f"{round(totalNeto, 2):,.2f}",self.price_cols, " ", "r")
             printer.set(font='a', height=1, align='left', normal_textsize=True)

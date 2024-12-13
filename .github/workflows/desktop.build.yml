@@ -1,6 +1,9 @@
-name: Build Desktop Ejecutables - on Release
+name: Build Desktop Ejecutables - on New Version
 
-on: push
+on:
+  push:
+    tags:
+      - 'v*.*.*'
 
 jobs:
   build-raspberry-pi:

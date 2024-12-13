@@ -53,8 +53,11 @@ class RabbitMQConsumer:
             except TraductorException as e:
                 self.logger.error(f"TraductorException Error al procesar mensaje: {e}")
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+                self.logger.error(traceback.format_exc())
+
             except Exception as e:
                 self.logger.error(f"Error al procesar mensaje: {e}")
+                self.logger.error(traceback.format_exc())
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
             
 

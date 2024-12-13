@@ -4,11 +4,13 @@ Wants=network-online.target
 After=network.target network-online.target
 
 [Service]
+User=root
+Group=root
 Restart=always
 RestartSec=5
 Type=simple
 ExecStart=/usr/bin/fiscalberry
-StandardOutput=syslog
+StandardOutput=syslogsudo systemctl restart fiscalberry.service
 StandardError=syslog
 SyslogIdentifier=fiscalberry
 
