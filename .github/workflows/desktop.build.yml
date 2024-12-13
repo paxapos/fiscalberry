@@ -2,7 +2,7 @@ name: Build Desktop Ejecutables - on New Version
 
 on:
   push:
-    tags:
+    branches:
       - 'v*.*.*'
 
 jobs:
