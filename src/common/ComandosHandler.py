@@ -56,7 +56,8 @@ def process_print_jobs():
             runTraductor(jsonTicket, q)
         except Exception as e:
             logging.error(f"Error al procesar el trabajo de impresión: {e}")
-            
+            logging.error(traceback.format_exc())
+
         print_queue.task_done()
 
 # Iniciar el hilo que procesa la cola de trabajos de impresión
