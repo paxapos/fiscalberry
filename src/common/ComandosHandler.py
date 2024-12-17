@@ -10,6 +10,7 @@ from common.EscPComandos import EscPComandos
 from escpos import printer
 from common.fiscalberry_logger import getLogger
 from queue import Queue
+import traceback
 
 configberry = Configberry()
 

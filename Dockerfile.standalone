@@ -1,0 +1,16 @@
+FROM debian:bookworm-slim
+
+# Instalar dependencias necesarias
+RUN apt-get update && apt-get install -y python3 libstdc++6 cups-client
+
+RUN apt-get update && apt-get install -y wget
+RUN wget https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-lin -O /usr/local/bin/fiscalberry-lin
+
+RUN chmod +x /usr/local/bin/fiscalberry-lin
+
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+CMD ["/usr/local/bin/fiscalberry-lin"]
+
+
+# rememter to create volume for config file in /root/.config/Fiscalberry/config.ini
+# echo docker run -d --name fiscalberry --privileged --volume=/home/$USER/.config/Fiscalberry:/root/.config/Fiscalberry --restart=always fiscalberry-standalone
