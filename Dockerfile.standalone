@@ -4,7 +4,8 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y python3 libstdc++6 cups-client
 
 RUN apt-get update && apt-get install -y wget
-RUN wget https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-lin -O /usr/local/bin/fiscalberry-lin
+
+RUN wget https://github.com/paxapos/fiscalberry/releases/download/v1.0.20/fiscalberry-lin -O /usr/local/bin/fiscalberry-lin
 
 RUN chmod +x /usr/local/bin/fiscalberry-lin
 

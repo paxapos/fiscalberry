@@ -376,14 +376,14 @@ class EscPComandos():
                 alicIva = iva["alic_iva"]
                 dsIva = pad(f"IVA {alicIva}:", self.desc_cols_ext - 1, " ", "l")
                 importeIva = iva["importe"]
-                importeIva = pad(f"{round(importeIva, 2):,.2f}",self.price_cols, " ", "r")
+                importeIva = pad(f"{round(float(importeIva), 2):,.2f}",self.price_cols, " ", "r")
                 printer.set(font='a', height=1, align='left', normal_textsize=True)
 
                 printer.text(f'{dsIva}{self.signo}{importeIva}\n')
 
         # 7- TOTAL
         # Imprimir total
-        escpos.writelines(f'TOTAL: {self.signo}{round(importeTotal,2):,.2f}', bold=True, align='center', height=2, width=2, double_height=True, double_width=True)
+        escpos.writelines(f'TOTAL: {self.signo}{round(total,2):,.2f}', bold=True, align='center', height=2, width=2, double_height=True, double_width=True)
         printer.ln();
 
 
