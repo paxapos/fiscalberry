@@ -1,0 +1,13 @@
+python-escpos[all]==3.1
+python-socketio[client]==5.11.4
+websocket-client==1.8.0
+simple-websocket==1.0.0
+requests==2.32.3
+aiohttp==3.10.2
+argparse==1.4.0
+uuid==1.30
+appdirs==1.4.4
+platformdirs==4.2.2
+kivy==2.3.0
+pika
+pywin32; sys_platform == 'win32'

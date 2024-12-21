@@ -6,6 +6,13 @@ __pycache__/
 .pyc
 *.log
 *.swp
+py3env
+bin
+lib
+lib64
+fiscalberry
+output
+.buildozer
 
 #configuration file for fiscalberry
 config.ini
@@ -13,12 +20,13 @@ bemafix.py
 fiscaltest.py
 tornado.*
 comanderatest.py
-test.py
 test_scripts/*
 env/*
 ssl/*
 tmp/*
-
+.venv
+venv.kivy/
+.venv.android/
 
 # Distribution / packaging
 *.pyc
@@ -43,7 +51,6 @@ var/
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
-*.spec
 
 # Installer logs
 pip-log.txt
@@ -105,3 +112,12 @@ ENV/
 
 
 .vscode/
+fiscalberry3env
+pyvenv.cfg
+
+
+kivy_venv
+fiscalberry3env
+pyManjaroEnv
+bin
+build

@@ -1,0 +1,1 @@
+# archivo init del modulo common
