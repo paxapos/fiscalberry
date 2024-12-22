@@ -47,18 +47,21 @@ class EscPComandos():
             actions = jsonTicket.keys()
             rta = []
             for action in actions:
-                fnAction = getattr(self, action)
+                fnAction = getattr(self, action, None)
 
-                if isinstance(jsonTicket[action], list):
-                    res = fnAction(escpos, *jsonTicket[action])
-                    rta.append({"action": action, "rta": res})
+                if fnAction:
+                    params = jsonTicket[action]
 
-                elif isinstance(jsonTicket[action], dict):
-                    res = fnAction(escpos, **jsonTicket[action])
+                    if isinstance(params, list):
+                        res = fnAction(escpos, *params)
+                    elif isinstance(params, dict):
+                        res = fnAction(escpos, **params)
+                    else:
+                        res = fnAction(escpos, params)
+
                     rta.append({"action": action, "rta": res})
                 else:
-                    res = fnAction(escpos)
-                    rta.append({"action": action, "rta": res})
+                    rta.append({"action": action, "rta": "Function not found"})
 
             return rta
 
@@ -81,8 +84,16 @@ class EscPComandos():
         else:
             return False
 
-    def printTexto(self, printer, texto):
-        printer.text(texto)
+    def printTexto(self, escpos: EscposIO, texto=None, **kwargs):
+        printer = escpos.printer
+        self.__initPrinter(printer)
+
+        if texto:
+            printer.text(texto)
+        elif 'texto' in kwargs:
+            printer.text(kwargs['texto'])
+        else:
+            raise ValueError("No text provided to print")
 
 
     def openDrawer(self, escpos: EscposIO, **kwargs):
