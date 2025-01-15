@@ -10,7 +10,7 @@ Restart=always
 RestartSec=5
 Type=simple
 ExecStart=/usr/bin/fiscalberry
-StandardOutput=syslogsudo systemctl restart fiscalberry.service
+StandardOutput=syslog
 StandardError=syslog
 SyslogIdentifier=fiscalberry
 
