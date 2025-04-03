@@ -152,19 +152,17 @@ def runTraductor(jsonTicket, queue):
         raise DriverError(f"Invalid driver: {driver}")
     
     try:
-        driver = getattr(printer, driverName)
+        driver_class = getattr(printer, driverName)
+        if not callable(driver_class):
+            raise DriverError(f"Driver {driverName} is not callable")
     except AttributeError:
         raise DriverError(f"Driver {driverName} not found in printer module")
     except Exception as e:
         raise DriverError(f"Error loading driver {driverName}: {e}")
 
-
-    if not driver.is_usable():
-            raise DriverError(f"Driver {driverName} not usable")
-    
     try:
         # crear el driver
-        driver = driver(**driverOps)
+        driver = driver_class(**driverOps)
     except Exception as e:
         raise DriverError(f"Error creating driver {driverName}: {e}")
 
