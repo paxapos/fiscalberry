@@ -101,7 +101,6 @@ def runTraductor(jsonTicket, queue):
         if not driver.is_usable():
             raise DriverError(f"Driver {driverName} not usable")
 
-
     elif driverName == "Usb".lower():
         
         # printer.Usb(idVendor=None, idProduct=None, usb_args={}, timeout=0, in_ep=130, out_ep=1, *args, **kwargs)
