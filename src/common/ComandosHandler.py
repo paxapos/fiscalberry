@@ -95,7 +95,7 @@ def runTraductor(jsonTicket, queue):
 
     if driverName == "Win32Raw".lower():
         # printer.Win32Raw(printer_name='', *args, **kwargs)[source]
-        diverName = "Win32Raw"
+        driverName = "Win32Raw"
         driver = printer.Win32Raw
 
         if not driver.is_usable():
@@ -105,7 +105,7 @@ def runTraductor(jsonTicket, queue):
     elif driverName == "Usb".lower():
         
         # printer.Usb(idVendor=None, idProduct=None, usb_args={}, timeout=0, in_ep=130, out_ep=1, *args, **kwargs)
-        diverName = "Usb"
+        driverName = "Usb"
 
         # convertir de string eJ: 0x82 a int
         if 'out_ep' in driverOps:
@@ -122,11 +122,11 @@ def runTraductor(jsonTicket, queue):
         # printer.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
         if 'port' in driverOps:
             driverOps['port'] = int(driverOps['port'])
-        diverName = "Network"
+        driverName = "Network"
 
     elif driverName == "Serial".lower():
         # printer.Serial(devfile='', baudrate=9600, bytesize=8, timeout=1, parity=None, stopbits=None, xonxoff=False, dsrdtr=True, *args, **kwargs)
-        diverName = "Serial"
+        driverName = "Serial"
 
     elif driverName == "File".lower():
         # (devfile='', auto_flush=True
