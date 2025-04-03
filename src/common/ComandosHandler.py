@@ -80,10 +80,12 @@ def runTraductor(jsonTicket, queue):
         return
 
     driverName = dictSectionConf.pop("driver", "Dummy")
+    # convertir a lowercase
+    driverName = driverName.lower()
 
     driverOps = dictSectionConf
 
-    if driverName == "Fiscalberry":
+    if driverName == "Fiscalberry".lower():
         # proxy pass to FiscalberryComandos
         comando = FiscalberryComandos()
         host = driverOps.get('host', 'localhost')
@@ -91,67 +93,80 @@ def runTraductor(jsonTicket, queue):
         jsonTicket['printerName'] = printerName
         return queue.put(comando.run(host, jsonTicket))
 
-    if driverName == "Win32Raw":
-        # classprinter.Win32Raw(printer_name='', *args, **kwargs)[source]
-        driver = printer.Win32Raw(**driverOps)
+    if driverName == "Win32Raw".lower():
+        # printer.Win32Raw(printer_name='', *args, **kwargs)[source]
+        diverName = "Win32Raw"
+        driver = printer.Win32Raw
+
         if not driver.is_usable():
             raise DriverError(f"Driver {driverName} not usable")
-            
-    elif driverName == "Usb":
-        # classprinter.Usb(idVendor=None, idProduct=None, usb_args={}, timeout=0, in_ep=130, out_ep=1, *args, **kwargs)
+
+
+    elif driverName == "Usb".lower():
+        
+        # printer.Usb(idVendor=None, idProduct=None, usb_args={}, timeout=0, in_ep=130, out_ep=1, *args, **kwargs)
+        diverName = "Usb"
+
         # convertir de string eJ: 0x82 a int
         if 'out_ep' in driverOps:
             driverOps['out_ep'] = int(driverOps['out_ep'], 16)
-            
+
         if 'in_ep' in driverOps:
             driverOps['in_ep'] = int(driverOps['in_ep'], 16)
-        
-        # get idProduct and idVendor from config as variables and extract them from driverOps
-        idProduct = driverOps.pop('idProduct', None)
-        idVendor = driverOps.pop('idVendor', None)
-        
-        if idProduct:
-            idProduct = int(idProduct, 16)
-        
-        if idVendor:
-            idVendor = int(idVendor, 16)
-        
-        driver = printer.Usb(idVendor, idProduct, **driverOps)
-        if not driver.is_usable():
-            raise DriverError(f"Driver {driverName} not usable")
-    elif driverName == "Network":
-        # classprinter.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
+
+        driverOps['idProduct'] = int(driverOps['idProduct'], 16)
+        driverOps['idVendor'] = int(driverOps['idVendor'], 16)
+
+
+    elif driverName == "Network".lower():
+        # printer.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
         if 'port' in driverOps:
             driverOps['port'] = int(driverOps['port'])
-        driver = printer.Network(**driverOps)
-        if not driver.is_usable():
-            raise DriverError(f"Driver {driverName} not usable")
-    elif driverName == "Serial":
-        # classprinter.Serial(devfile='', baudrate=9600, bytesize=8, timeout=1, parity=None, stopbits=None, xonxoff=False, dsrdtr=True, *args, **kwargs)
-        driver = printer.Serial(**driverOps)
-        if not driver.is_usable():
-            raise DriverError(f"Driver {driverName} not usable")
-    elif driverName == "File":
+        diverName = "Network"
+
+    elif driverName == "Serial".lower():
+        # printer.Serial(devfile='', baudrate=9600, bytesize=8, timeout=1, parity=None, stopbits=None, xonxoff=False, dsrdtr=True, *args, **kwargs)
+        diverName = "Serial"
+
+    elif driverName == "File".lower():
         # (devfile='', auto_flush=True
-        driver = printer.File(**driverOps)
-        if not driver.is_usable():
-            raise DriverError(f"Driver {driverName} not usable")
-    elif driverName == "Dummy":
-        driver = printer.Dummy(**driverOps)
-        if not driver.is_usable():
-            raise DriverError(f"Driver {driverName} not usable")
-    elif driverName == "CupsPrinter":
-        # CupsPrinter(printer_name='', *args, **kwargs)[source]
-        driver = printer.CupsPrinter(**driverOps)
-        if not driver.is_usable():
-            raise DriverError(f"Driver {driverName} not usable")
-    elif driverName == "LP":
-        # classprinter.LP(printer_name='', *args, **kwargs)[source]
-        driver = printer.LP(**driverOps)
-        if not driver.is_usable():
-            raise DriverError(f"Driver {driverName} not usable")
+        # printer.File(devfile='', auto_flush=True, *args, **kwargs)[source]
+        driverName = "File"
+
+    elif driverName == "Dummy".lower():
+        # printer.Dummy(*args, **kwargs)[source]
+        driverName = "Dummy"
+
+
+    elif driverName == "Cups".lower():
+        # printer.CupsPrinter(printer_name='', *args, **kwargs)[source]
+        driverName = "CupsPrinter"
+
+
+    elif driverName == "LP".lower():
+        # printer.LP(printer_name='', *args, **kwargs)[source]
+        driverName = "LP"
+
+
     else:
         raise DriverError(f"Invalid driver: {driver}")
+    
+    try:
+        driver = getattr(printer, driverName)
+    except AttributeError:
+        raise DriverError(f"Driver {driverName} not found in printer module")
+    except Exception as e:
+        raise DriverError(f"Error loading driver {driverName}: {e}")
+
+
+    if not driver.is_usable():
+            raise DriverError(f"Driver {driverName} not usable")
+    
+    try:
+        # crear el driver
+        driver = driver(**driverOps)
+    except Exception as e:
+        raise DriverError(f"Error creating driver {driverName}: {e}")
 
     comando = EscPComandos(driver)
     logging.info(f"Imprimiendo en: {printerName}")
@@ -159,6 +174,7 @@ def runTraductor(jsonTicket, queue):
     logging.info(f"DriverOps: {driverOps}")
     logging.info(f"Comando:\n%s" % jsonTicket) 
     comando.run(jsonTicket)
+    
 
 
 class ComandosHandler:

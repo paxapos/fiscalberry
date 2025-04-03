@@ -94,7 +94,21 @@ class EscPComandos():
             printer.text(kwargs['texto'])
         else:
             raise ValueError("No text provided to print")
+        
+    
+    def printBytes(self, escpos: EscposIO, bytes=None, **kwargs):
+        """ Imprimir bytes crudos en la impresora """
+        
+        printer = escpos.printer
+        self.__initPrinter(printer)
 
+        if bytes:
+            printer._raw(bytes)
+        elif 'bytes' in kwargs:
+            printer._raw(kwargs['bytes'])
+        else:
+            raise ValueError("No bytes provided to print")
+        
 
     def openDrawer(self, escpos: EscposIO, **kwargs):
         escpos.printer.cashdraw(CD_KICK_2)
