@@ -509,10 +509,6 @@ class EscPComandos():
         addAdditional = kwargs.get("addAdditional", None)
         setTrailer = kwargs.get("setTrailer", None)
 
-        if encabezado is None or len(items) == 0:
-            logger.error("No hay datos en el encabezado  para imprimir remito")
-            return False
-
         printer.set(font='a', height=1, align='center')
 
         if encabezado and "imprimir_fecha_remito" in encabezado:
