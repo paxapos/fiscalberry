@@ -1,154 +1,138 @@
-import os
 from kivy.app import App
-from kivy.uix.label import Label
-from kivy.uix.scrollview import ScrollView
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.image import Image
-from kivy.clock import Clock
+from kivy.uix.screenmanager import ScreenManager
+from ui.main_screen import MainScreen
+from ui.login_screen import LoginScreen
+from ui.adopt_screen import AdoptScreen
+from kivy.clock import Clock, mainthread
+import threading
+from common.fiscalberry_sio import FiscalberrySio
+import queue
+
+from kivy.lang import Builder
 from kivy.properties import StringProperty, BooleanProperty
-from jnius import autoclass
-from common.Configberry import Configberry
-from twisted.internet.protocol import Protocol, ClientFactory
-from twisted.internet import reactor
-
-# Importo el módulo que se encarga de la comunicación con el servidor
-from common.Configberry import Configberry
-from common.fiscalberry_logger import getLogger
-
-logger = getLogger()
-
-SERVICE_NAME = u'{packagename}.Service{servicename}'.format(
-    packagename=u'com.paxapos.fiscalberry',
-    servicename=u'Fiscalberryservice'
-)
-
-
-configberry = Configberry()
-sio = None
-
-class LogWidget(ScrollView):
-    
-    logs = []
-    
-    
-    def __init__(self, **kwargs):
-        super(LogWidget, self).__init__(**kwargs)        
-
-        self.background_color = (1, 0.75, 0.8, 1)  # Set pink background color
-
-    def add_log(self, log):     
-        self.logs.append(log)
-        self.update_logs()
-        
-    def update_logs(self):
-        self.clear_widgets()
-        for log in self.logs:
-            self.add_widget(Label(text=log, size_hint_y=None, height=40))
-
-
-class ConnectedImage(Image):
-    source = "assets/disconnected.png"
-    
-
-
-class MainLayout(BoxLayout):
-
-    def __init__(self, **kwargs):
-        super(MainLayout, self).__init__(**kwargs)
-        self.log_widget = LogWidget(size_hint=(1, 0.5))
-        self.add_widget(self.log_widget)
-
+from ui.log_screen import LogScreen
 
 class FiscalberryApp(App):
-    assetpath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    assetpath = "ui"
     
     background_image = StringProperty(f"{assetpath}/assets/bg.jpg")
     logo_image = StringProperty(f"{assetpath}/assets/fiscalberry.png")
     disconnected_image = StringProperty(f"{assetpath}/assets/disconnected.png")
     connected_image = StringProperty(f"{assetpath}/assets/connected.png")
-
+    
     connected: bool = BooleanProperty(False)
     
-    fiscalberry_sio = None
+    status_message = StringProperty("Esperando conexión...")
     
-    sio = None
-
+    message_queue = None
+    sio = None  # Inicializar la variable sio aquí
+    
     def __init__(self, **kwargs):
-        super(FiscalberryApp, self).__init__(**kwargs)
-       
-        # load APP config
-        serverUrl = configberry.config.get("SERVIDOR", "sio_host", fallback="")
-        self.sioServerUrl = serverUrl if serverUrl else self.sioServerUrl
-
-        # Crear la fábrica del cliente y conectar al socket
-        factory = AppInterConFactory(self)
-        reactor.connectUNIX("/data/data/com.paxapos.fiscalberry/files/fiscalberry_socket", factory)
-
-    def start_service(self, finishing=False):
-        service = autoclass(SERVICE_NAME)
-        mActivity = autoclass(u'org.kivy.android.PythonActivity').mActivity
-        argument = ''
-        if finishing:
-            argument = '{"stop_service": 1}'
-        service.start(mActivity, argument)
-        if finishing:
-            self.service = None
+        super().__init__(**kwargs)
+        self.sio = None  # Inicializar la variable sio aquí
+        self.message_queue = queue.Queue()  # Inicializar la variable message_queue aquí
+    
+    @mainthread  # Decorar el método
+    def _on_config_change(self, data):
+        """
+        Callback que se llama cuando hay un cambio en la configuración.
+        hay que renderizar las pantallas de nuevo para que se vean los cambios.
+        """
+        print("Configuración cambiada, actualizando pantallas.")
+        print("vino data loca")
+        print(data)
+        tenant = data.get("Paxaprinter", {}).get("tenant")
+        
+            
+        # Usar el ScreenManager existente (self.root)
+        sm = self.root
+        if sm: # Verificar que self.root ya existe
+            if tenant:
+                # Si hay un tenant, ir a la pantalla principal
+                if sm.has_screen("main"):
+                    sm.current = "main"
+                else:
+                    print("Advertencia: No se encontró la pantalla 'main'.")
+            else:
+                # Si no hay tenant, ir a la pantalla de adopción
+                if sm.has_screen("adopt"):
+                    sm.current = "adopt"
+                else:
+                    print("Advertencia: No se encontró la pantalla 'adopt'.")
         else:
-            self.service = service
-
-        self.connected = True
-
-    def stop_service(self):
-        service = autoclass(SERVICE_NAME)
-        mActivity = autoclass('org.kivy.android.PythonActivity').mActivity
-        service.stop(mActivity)
-        self.start_service(finishing=True)
-        self.connected = False
-
-    def start_fiscaberry_service():
-        service = autoclass('com.paxapos.fiscalberry.ServiceFiscalberryservice')
-        mActivity = autoclass('org.kivy.android.PythonActivity').mActivity
-        argument = ''
-        service.start(mActivity, argument)
+            print("Error: self.root (ScreenManager) aún no está disponible.")
         
+
+    
     def build(self):
-        self.root = MainLayout()
-        self.log_widget = self.root.log_widget
-        return self.root
+        self.title = "Servidor de Impresión"
+        self.icon = "ui/assets/fiscalberry.png"  # Ruta al icono personalizado
 
-    def add_log(self, text):
-        self.log_widget.add_log(text)
+
+        # Cargar el archivo KV
+        Builder.load_file("ui/kv/main.kv")
         
-
-    def store_new_host(self, value):
-        host = value
-        logger.info(f"FiscalberryApp: vino para guardar sio_host:: {host} antes estaba {self.sioServerUrl}")
-        if host != self.sioServerUrl:
-            logger.info(f"FiscalberryApp: se guarda nuevo sio_host:: {host}")
-            configberry.writeKeyForSection("SERVIDOR", "sio_host", host)
-
-
-    def on_resume(self):
-        if self.service:
-            self.start_service()
-    
-    def on_start(self):
-        """
-        This function is executed when the application starts.
-        It is a Kivy function.
-        """
-
-        # Iniciar con el ícono rojo por defecto
-        self.start_service()
-        logger.info("FiscalberryApp: Iniciando la aplicación")
+        sm = ScreenManager()
+        #login_screen = LoginScreen(name="login")
+        #sm.add_widget(login_screen)
+        sm.add_widget(AdoptScreen(name="adopt"))
+        sm.add_widget(MainScreen(name="main"))
         
         
-    def on_stop(self):
-        """
-        This function is executed when the application is closed.
-        It is a Kivy function.
-        """
-        self.stop_service()
-        logger.info("FiscalberryApp: Deteniendo la aplicación")
+        # Agregar la pantalla de logs
+        log_screen = LogScreen(name="logs")
+        sm.add_widget(log_screen)
+        
+        
+        # Leer host/uuid de tu configuración
+        from common.Configberry import Configberry
+        cfg = Configberry()
+        host = cfg.get("SERVIDOR","sio_host")
+        uuid = cfg.get("SERVIDOR","uuid","")
+        
+        cfg.add_listener(self._on_config_change)
+
+
+        # Iniciar Socket.IO en segundo plano
+        self.sio = FiscalberrySio(host, uuid, on_message=self._on_sio_msg)
+        t = threading.Thread(target=self.sio.start, daemon=True)
+        t.start()
+
+        # Cada 0.5s procesamos la cola de mensajes
+        Clock.schedule_interval(self._process_sio_queue, 0.5)
+
+
+
+        # Verificar si ya existe un token JWT guardado
+        configberry = Configberry()
+        tenant = configberry.get("Paxaprinter", "tenant", fallback=None)
+        if tenant:
+            # Si hay un token, ir directamente a la pantalla principal
+            sm.current = "main"
+        else:
+            # Si no hay token, mostrar la pantalla de login
+            sm.current = "adopt"
+
+        return sm
     
-    
+
+    def _on_sio_msg(self, msg: str):
+        """Callback que FiscalberrySio llamará por cada mensaje recibido."""
+        # ponemos el mensaje en una cola interna
+        self.sio.message_queue.put(msg)
+
+    def _process_sio_queue(self, dt):
+        """Saca todos los mensajes que haya y actualiza la pantalla principal."""
+        while not self.sio.message_queue.empty():
+            msg = self.sio.message_queue.get()
+            # si quisieras también disparar un log:
+            from common.fiscalberry_logger import getLogger
+            getLogger().info(f"UI: {msg}")
+            # Actualizar la propiedad que use tu MainScreen
+            self.status_message = msg
+            # Marcar conectado cuando recibimos el primer mensaje
+            self.connected = True
+
+if __name__ == "__main__":
+    FiscalberryApp().run()

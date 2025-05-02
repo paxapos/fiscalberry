@@ -20,7 +20,8 @@ def startSocketio(sio_host, uuid):
     from common.fiscalberry_sio import FiscalberrySio
     
     sio = FiscalberrySio(sio_host, uuid)
-    sio.start_print_server()
+    t = sio.start()
+    t.join()  # bloquea hasta que ese hilo termine
     logger.warning("Termino ejecucion de server socketio?.. reconectando en 5s")
     
 

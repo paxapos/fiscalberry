@@ -1,165 +1,128 @@
-import time
 import threading
 import socketio
-import sys
+import queue
+import os
+import time
 from common.ComandosHandler import ComandosHandler, TraductorException
 from common.fiscalberry_logger import getLogger
-import os
 from common.Configberry import Configberry
+from common.rabbitmq.process_handler import RabbitMQProcessHandler
 
-
-# Configuro logger según ambiente
 environment = os.getenv('ENVIRONMENT', 'production')
-if environment == 'development':
-    sioLogger = True
-else:
-    sioLogger = False
-    
-
+sioLogger = True if environment == 'development' else False
 logger = getLogger()
 
+class FiscalberrySio:
+    _instance = None
+    _lock = threading.Lock()
 
+    def __new__(cls, *a, **k):
+        with cls._lock:
+            if not cls._instance:
+                cls._instance = super().__new__(cls)
+                cls._instance._initialized = False
+            return cls._instance
 
-
-class FiscalberrySio():
-    
-    sio = None
-    sockeiIoServer = None
-    uuid = None
-    namespaces = None
-    
-    thread = None
-    
-    
-    
-    # Crear un evento de parada
-    stop_event = threading.Event()
-    
-    def __init__(self, sockeiIoServer, uuid, namespaces = ["/paxaprinter"]) -> None:
-        self.sio = socketio.Client(reconnection=True, reconnection_attempts=0, reconnection_delay=2, reconnection_delay_max=15, logger=sioLogger, engineio_logger=False)
-        
-        self.sockeiIoServer = sockeiIoServer
+    def __init__(self, server_url: str, uuid: str, namespaces='/paxaprinter', on_message=None):
+        if self._initialized:
+            return
+        self.server_url = server_url
         self.uuid = uuid
         self.namespaces = namespaces
-        
-        self.configberry = Configberry()
+        self.on_message = on_message
+        self.sio = socketio.Client(
+            reconnection=True,
+            reconnection_attempts=0,
+            reconnection_delay=2,
+            reconnection_delay_max=15,
+            logger=sioLogger,
+            engineio_logger=False,
+        )
+        self.stop_event = threading.Event()
+        self.thread = None
+        self.config = Configberry()
+        self.message_queue = queue.Queue()
+        self.rabbit_handler = RabbitMQProcessHandler()
+        self._register_events()
+        self._initialized = True
 
+    def _register_events(self):
+        ns = self.namespaces
 
-        @self.sio.event(namespace='/paxaprinter')
+        @self.sio.event(namespace=ns)
         def connect():
-            logger.info(f"connection established with sid {self.sio.sid}")
+            logger.info(f"SIO connect, SID={self.sio.sid}")
 
-
-        @self.sio.event(namespace='/paxaprinter')
+        @self.sio.event(namespace=ns)
         def connect_error(err):
-            logger.error(f"Connection failed due to: {err}")
+            logger.error(f"SIO connect error: {err}")
 
-        @self.sio.event(namespace='/paxaprinter')
+        @self.sio.event(namespace=ns)
         def disconnect():
-            logger.info("Disconnected from server")
-            
-        @self.sio.event(namespace='/paxaprinter')
+            logger.info("SIO disconnect")
+
+        @self.sio.event(namespace=ns)
         def error(err):
-            logger.error(f"Error recibido: {err}")
-            
-            
-        @self.sio.event(namespace='/paxaprinter')
-        def start_rabbit(data: dict):
-            ''' viene este json 
-            
-                export interface HiDto {
-                    'RabbitMq': {
-                        'host': string,
-                        'port': string,
-                        'user': string,
-                        'password': string,
-                        'vhost': string,
-                        'queue': string,
-                    }
-                }
+            logger.error(f"SIO error: {err}")
 
-            '''
+        @self.sio.event(namespace=ns)
+        def start_sio():
+            logger.info("SIO start_sio")
 
-            rabbitMq = data.get('RabbitMq', None)
-            if not rabbitMq:
-                logger.error("No se recibio la data esperada")
-                return
+        @self.sio.event(namespace=ns)
+        def adopt(data):
+            """ eliminar  de configberry la info de  la seccion paxaprinter"""
+            logger.info(f"SIO adopt: {data}")
+            try:
+                # Detener servicio de RabbitMQ
+                self.rabbit_handler.stop()
+                if self.config.delete_section("Paxaprinter"):
+                    logger.info("RabbitMQ service stopped and Paxaprinter section removed")
+            except Exception as e:
+                logger.error(f"adopt: {e}")
             
-            
-            host = rabbitMq['host']
-            port = rabbitMq['port']
-            user = rabbitMq['user']
-            password = rabbitMq['password']
-            vhost = rabbitMq['vhost']
-            queue = rabbitMq['queue']
 
-            currHost = self.configberry.get("RabbitMq", "host")
-            currPort = self.configberry.get("RabbitMq", "port")
-            currUser = self.configberry.get("RabbitMq", "user")
-            currPass = self.configberry.get("RabbitMq", "password")
-            currVhost = self.configberry.get("RabbitMq", "vhost")
-            currQueue = self.configberry.get("RabbitMq", "queue")
-            
-            # si hay cambios guardar
-            if currHost != host or currPort != port or currUser != user or currPass != password or currVhost != vhost or currQueue != queue:
-                self.configberry.set("RabbitMq", data['RabbitMq'])
-            
-            if not self.stop_event.is_set():
-                self.startRabbit(host, port, user, password, self.uuid)
+        @self.sio.event(namespace=ns)
+        def message(data):
+            logger.info(f"SIO message: {data}")
+            if self.on_message:
+                try:
+                    self.on_message(data)
+                except Exception as e:
+                    logger.error(f"on_message callback: {e}")
 
-    def startRabbit(self, host, port, user, password, queue):
-        
-        def doStart(host, port, user, password, queue):
-            from common.rabbit_mq_consumer import RabbitMQConsumer
-            
-            rb = RabbitMQConsumer(host, port, user, password, queue)
-            # Inside the while loop
-            rb.start()
-            logger.warning("Termino ejecucion de server socketio?.. reconectando en 5s")
+        @self.sio.event(namespace=ns)
+        def start_rabbit(cfg: dict):
+            logger.info("start_rabbit: RabbitMQ")
+            # config + restart, pasamos la cola para tail -f
+            self.rabbit_handler.configure_and_restart(cfg, self.message_queue)
 
-
-        rabbit_thread = threading.Thread(target=doStart, args=(host, port, user, password, queue))
-        
-        rabbit_thread.start()
-        rabbit_thread.join()
-
-    def start_only_status(self):
-        self.__run()
-        
-        
-    def start_only_status_in_thread(self) -> threading.Thread:
-        self.thread = threading.Thread(target=self.start_only_status)
-        self.thread.start()
-        return self.thread
-        
-    def __run(self):
+    def _run(self):
         try:
-            logger.info("FiscalberrySio: ******************************* CONECTANDO *******************************")
-            self.sio.connect(self.sockeiIoServer, namespaces=self.namespaces, headers={"x-uuid":self.uuid})
-            logger.info("Iniciado SioClient en %s con uuid %s" % (self.sockeiIoServer, self.uuid))
+            logger.info(f"SIO: {self.server_url}")
+            self.sio.connect(self.server_url, namespaces=self.namespaces, headers={'x-uuid': self.uuid})
             self.sio.wait()
-
-        except socketio.exceptions.ConnectionError as e:
-            logger.error(f"socketio Connection error: {e}")
-            self.sio.disconnect()
         except Exception as e:
-            self.sio.disconnect()
-            logger.error(f"An unexpected error occurred: {e}")
+            logger.error(f"SIO: {e}")
+        finally:
+            logger.info("SIO")
 
-
-    def start_print_server(self):
-        self.__run()
-        
-
-    def start_in_thread(self) -> threading.Thread:
-        self.thread = threading.Thread(target=self.start_print_server)
+    def start(self) -> threading.Thread:
+        if self.thread and self.thread.is_alive():
+            return self.thread
+        self.stop_event.clear()
+        self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
         return self.thread
-    
-    def stop(self):
+
+    def stop(self, timeout=None):
+        logger.info("SIO 중지 요청")
         self.stop_event.set()
-        self.sio.disconnect()
-        self.thread.join()
-        logger.info("FiscalberrySio: stopped")
-
-
+        try:
+            self.sio.disconnect()
+        except Exception:
+            pass
+        self.rabbit_handler.stop()             # detenemos RabbitMQ también
+        if self.thread:
+            self.thread.join(timeout)
+            logger.info("SIO 스레드 종료 완료")

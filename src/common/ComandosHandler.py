@@ -278,6 +278,9 @@ class ComandosHandler:
             if traductor and traductor.comando:
                 traductor.comando.close()
             logging.error(format(e))
+            
+            raise TraductorException(
+                "Error en el comando %s" % e)
 
         return rta
 

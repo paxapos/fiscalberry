@@ -1,0 +1,213 @@
+ScreenManager:
+    LoginScreen:
+        name: "login"
+    MainScreen:
+        name: "main"
+
+<AdoptScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 20
+        spacing: 15
+        canvas.before:
+            Color:
+                rgba: 0.9, 0.9, 1, 1  # Fondo celeste casi blanco
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        Image:
+            source: app.logo_image
+            size_hint_y: None
+            height: 96
+            allow_stretch: True
+            keep_ratio: True
+            color: 1, 1, 1, 1
+            margin_bottom: 10
+        AsyncImage:
+            source: root.qrCodeLink
+            size_hint_y: None
+            height: 96
+            allow_stretch: True
+            keep_ratio: True
+            color: 1, 1, 1, 1
+            margin_bottom: 10
+        Button:
+            text: "Hace click aquí para vincular el dispositivo"
+            size_hint_y: None
+            height: 40
+            background_color: 0.8, 0.5, 0.2, 1  # Naranja suave
+            color: 1, 1, 1, 1
+            on_press: import webbrowser; webbrowser.open(root.adoptarLink)
+
+<LoginScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 20
+        spacing: 15
+        canvas.before:
+            Color:
+                rgba: 0.9, 0.9, 1, 1  # Fondo celeste casi blanco
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        Image:
+            source: app.logo_image
+            size_hint_y: None
+            height: 96
+            allow_stretch: True
+            keep_ratio: True
+            color: 1, 1, 1, 1
+            margin_bottom: 10
+
+
+        Label:
+            text: "Iniciar Sesión"
+            font_size: 24
+            color: 0.1, 0.2, 0.5, 1  # Azul oscuro
+
+        Label:
+            text: "Utilice su usuario y contraseña para acceder al sistema."
+            size_hint_y: None
+            height: 30
+            halign: "center"
+            valign: "middle"
+            text_size: self.size
+            color: 0.5, 0.5, 0.5, 1  # Gris tenue
+
+        Label:
+            text: root.errorMsg
+            color: 0.8, 0.2, 0.2, 1  # Rojo estándar para errores
+            font_size: 16
+            size_hint_y: None
+            height: 30
+            halign: "center"
+            valign: "middle"
+            text_size: self.size
+
+        TextInput:
+            id: username
+            hint_text: "Usuario"
+            multiline: False
+            size_hint_y: None
+            height: 50
+            background_color: 1, 1, 1, 1
+            foreground_color: 0, 0, 0, 1
+            padding: [10, 10]
+            on_text_validate: password.focus = True  # Al presionar Enter, enfocar el siguiente input
+        TextInput:
+            id: password
+            hint_text: "Contraseña"
+            password: True
+            multiline: False
+            size_hint_y: None
+            height: 50
+            background_color: 1, 1, 1, 1
+            foreground_color: 0, 0, 0, 1
+            padding: [10, 10]
+            on_text_validate: root.login(username.text, password.text)  # Al presionar Enter, ejecutar login
+        Button:
+            text: "Login"
+            size_hint_y: None
+            height: 50
+            background_color: 0.1, 0.2, 0.5, 1  # Azul oscuro
+            color: 1, 1, 1, 1
+            on_press: root.login(username.text, password.text)
+
+<MainScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 20
+        spacing: 15
+        canvas.before:
+            Color:
+                rgba: 0.9, 0.9, 1, 1  # Fondo celeste casi blanco
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        Image:
+            source: app.logo_image
+            size_hint_y: None
+            height: 96
+            allow_stretch: True
+            keep_ratio: True
+            color: 1, 1, 1, 1
+            margin_bottom: 10
+        Label:
+            text: "Servidor de Impresión Iniciado" if app.service_running else "Servidor de Impresión Detenido"
+            font_size: 24
+            color: (0.2, 0.8, 0.2, 1) if app.service_running else (0.8, 0.2, 0.2, 1)  # Verde si iniciado, rojo si detenido
+        Button:
+            text: "Detener Servicio" if app.service_running else "Iniciar Servicio"
+            size_hint_y: None
+            height: 50
+            background_color: (0.8, 0.2, 0.2, 1) if app.service_running else (0.2, 0.8, 0.2, 1)  # Rojo si corriendo, verde si detenido
+            color: 1, 1, 1, 1
+            on_press: root.toggle_service()
+       
+               
+        Button:
+            text: "Ver Logs"
+            size_hint_y: None
+            height: 50
+            on_press: app.root.current = "logs"
+        Button:
+            text: "Cerrar Sesión"
+            size_hint_y: None
+            height: 50
+            background_color: 0.5, 0.5, 0.5, 1  # Gris
+            color: 1, 1, 1, 1
+            on_press: root.logout()
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint_y: None
+            height: 20
+            spacing: 10
+            Label:
+                text: f"UUID: {app.uuid}"
+                font_size: 12
+                color: 0.5, 0.5, 0.5, 1  # Gris tenue
+                halign: "left"
+                valign: "middle"
+                size_hint_x: 0.5
+            Label:
+                text: f"Host: {app.host}"
+                font_size: 12
+                color: 0.5, 0.5, 0.5, 1  # Gris tenue
+                halign: "right"
+                valign: "middle"
+                size_hint_x: 0.5
+
+<LogScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 10
+        spacing: 10
+
+        Label:
+            text: "Logs del Servicio"
+            font_size: 24
+            size_hint_y: None
+            height: 50
+
+        ScrollView:
+            id: scroll_view  # Agregar un ID para acceder desde Python
+            size_hint: (1, 1)
+            TextInput:
+                id: log_output
+                text: root.logs
+                readonly: True
+                font_size: 14
+                background_color: 0, 0, 0, 1  # Fondo negro
+                foreground_color: 1, 1, 1, 1  # Texto blanco
+                size_hint_y: None
+                height: self.minimum_height
+                multiline: True
+
+        Button:
+            text: "Volver"
+            size_hint_y: None
+            height: 50
+            on_press: app.root.current = "main"

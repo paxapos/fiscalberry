@@ -11,10 +11,11 @@ appname = 'Fiscalberry'
 class Configberry:
     config = configparser.ConfigParser()
     config.optionxform=str
-    
     _instance = None
     
     configFilePath = None
+    
+    _listeners = []
 
     def __new__(cls):
         if not cls._instance:
@@ -29,7 +30,8 @@ class Configberry:
             
             self.configFilePath = self.getConfigFIle()
             self.__create_config_if_not_exists(self.configFilePath)
-            
+            self._listeners = []
+
 
     def getConfigFIle(self):
 
@@ -84,6 +86,7 @@ class Configberry:
             self.config.write(configfile)
             configfile.close()
         self.config.read(self.configFilePath)
+        self.notify_listeners()
         return 1
 
 
@@ -113,11 +116,16 @@ class Configberry:
                 self.config.add_section(section)
 
             for param in kwargs:
-                self.config.set(section, param, kwargs[param])
+                self.config.set(section, param, str(kwargs[param]))
 
-            temp_config_file = self.configFilePath + '.tmp'
-
+            # *** FALTA ESTA PARTE ***
+            with open(self.configFilePath, 'w') as configfile:
+                self.config.write(configfile)
+                configfile.close()
             self.config.read(self.configFilePath)
+            
+            self.notify_listeners()
+            
             return True
 
         except Exception as e:
@@ -152,6 +160,7 @@ class Configberry:
                 
         print("resetado el config file quedo asi:")
         print(self.get_actual_config())
+        self.notify_listeners()
         
 
 
@@ -195,6 +204,8 @@ class Configberry:
         # menos el primero que es el de SERVIDOR, mostrar el el resto en consola ya que son las impresoras
         for s in self.sections()[1:]:
             print("Impresora en Config: %s" % s)
+            
+        self.notify_listeners()
         
           
 
@@ -267,18 +278,32 @@ class Configberry:
         
         self.config.read(self.configFilePath)
 
-        if self.config.has_section(section):
+        if section in self.config.sections():
             self.config.remove_section(section)
-
-        with open(self.configFilePath, 'w') as configfile:
-            self.config.write(configfile)
-            configfile.close()
-
-        self.config.read(self.configFilePath)
-
-        return 1
+            with open(self.configFilePath, 'w') as configfile:
+                self.config.write(configfile)
+            self.config.read(self.configFilePath)
+            self.notify_listeners()
+            return 1
+        else:
+            print(f"Section {section} does not exist.")
+            return 0
     
     def get(self, section, key, fallback=None):
         self.config.read( self.configFilePath )
         return self.config.get(section, key, fallback=fallback)
     
+    
+    def add_listener(self, callback):
+        """callback(section: str, values: dict)"""
+        self._listeners.append(callback)
+
+    def remove_listener(self, callback):
+        self._listeners.remove(callback)
+
+    def notify_listeners(self ):
+        for callback in self._listeners:
+            try:
+                callback(self.getJSON())
+            except Exception as e:
+                print(f"Error notifying listener: {e}")
