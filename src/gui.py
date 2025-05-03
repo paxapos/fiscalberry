@@ -5,46 +5,8 @@ from kivy.properties import BooleanProperty,StringProperty
 from common.Configberry import Configberry
 from common.token_manager import get_token
 from common.fiscalberry_logger import getLogger
+from common.service_controller import ServiceController
 logger = getLogger()
-
-class ServiceController:
-    """Controla el inicio y detención del servicio."""
-    def __init__(self):
-        self.process = None
-        
-    def is_service_running(self):
-        """Verifica si el servicio ya está en ejecución."""
-        if self.process and self.process.poll() is None:
-            return True  # El proceso está en ejecución
-        return False
-    
-    def toggle_service(self):
-        """Alterna el estado del servicio."""
-        if self.is_service_running():
-            self.stop_service()
-        else:
-            self.start_service()
-
-    def start_service(self):
-        """Inicia el servicio en un subproceso."""
-        if self.is_service_running():
-            logger.info("El servicio ya está en ejecución.")
-            return
-
-        try:
-            self.process = subprocess.Popen(["python3", "cli.py"])
-            logger.info("Servicio iniciado.")
-        except Exception as e:
-            logger.error(f"Error al iniciar el servicio cli.py: {e}")
-
-
-    def stop_service(self):
-        """Detiene el servicio si está en ejecución."""
-        if self.process:
-            self.process.terminate()
-            self.process.wait()
-            self.process = None
-            logger.info("Servicio detenido.")
 
 service_controller = ServiceController()
 
@@ -66,13 +28,13 @@ class FiscalberryAppWithService(FiscalberryApp):
 
     def on_start_service(self):
         """Llamado desde la GUI para iniciar el servicio."""
-        Thread(target=service_controller.start_service).start()
+        Thread(target=service_controller.start).start()
         self.service_running = True  # Actualizar el estado del servicio
 
 
     def on_stop_service(self):
         """Llamado desde la GUI para detener el servicio."""
-        service_controller.stop_service()
+        service_controller.stop()
         self.service_running = False  # Actualizar el estado del servicio
 
     def build(self):

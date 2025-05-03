@@ -127,6 +127,19 @@ ScreenManager:
                 pos: self.pos
                 size: self.size
 
+        # Header with connection status icon at top-right
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint_y: None
+            height: 32
+            # Empty widget expands to left
+            Widget:
+            Image:
+                # Muestra la imagen conectada o desconectada según app.connected
+                source: root.connected_image if app.connected else root.disconnected_image
+                size_hint: None, None
+                size: 32, 32
+
         Image:
             source: app.logo_image
             size_hint_y: None
@@ -146,8 +159,6 @@ ScreenManager:
             background_color: (0.8, 0.2, 0.2, 1) if app.service_running else (0.2, 0.8, 0.2, 1)  # Rojo si corriendo, verde si detenido
             color: 1, 1, 1, 1
             on_press: root.toggle_service()
-       
-               
         Button:
             text: "Ver Logs"
             size_hint_y: None

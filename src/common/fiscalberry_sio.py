@@ -35,7 +35,7 @@ class FiscalberrySio:
             reconnection_attempts=0,
             reconnection_delay=2,
             reconnection_delay_max=15,
-            logger=sioLogger,
+            logger=True,
             engineio_logger=False,
         )
         self.stop_event = threading.Event()

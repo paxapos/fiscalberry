@@ -52,6 +52,5 @@ def send_discover():
 
 
 def send_discover_in_thread():
-    thread = threading.Thread(target=send_discover)
-    thread.start()
+    thread = threading.Thread(target=send_discover, daemon=True)
     return thread

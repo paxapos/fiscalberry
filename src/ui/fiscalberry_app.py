@@ -11,6 +11,7 @@ import queue
 from kivy.lang import Builder
 from kivy.properties import StringProperty, BooleanProperty
 from ui.log_screen import LogScreen
+from common.service_controller import ServiceController
 
 class FiscalberryApp(App):
     
@@ -30,7 +31,7 @@ class FiscalberryApp(App):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.sio = None  # Inicializar la variable sio aquí
+        self.serviceController = None  # Inicializar la variable sio aquí
         self.message_queue = queue.Queue()  # Inicializar la variable message_queue aquí
     
     @mainthread  # Decorar el método
@@ -39,9 +40,6 @@ class FiscalberryApp(App):
         Callback que se llama cuando hay un cambio en la configuración.
         hay que renderizar las pantallas de nuevo para que se vean los cambios.
         """
-        print("Configuración cambiada, actualizando pantallas.")
-        print("vino data loca")
-        print(data)
         tenant = data.get("Paxaprinter", {}).get("tenant")
         
             
@@ -94,15 +92,6 @@ class FiscalberryApp(App):
         cfg.add_listener(self._on_config_change)
 
 
-        # Iniciar Socket.IO en segundo plano
-        self.sio = FiscalberrySio(host, uuid, on_message=self._on_sio_msg)
-        t = threading.Thread(target=self.sio.start, daemon=True)
-        t.start()
-
-        # Cada 0.5s procesamos la cola de mensajes
-        Clock.schedule_interval(self._process_sio_queue, 0.5)
-
-
 
         # Verificar si ya existe un token JWT guardado
         configberry = Configberry()
@@ -116,23 +105,6 @@ class FiscalberryApp(App):
 
         return sm
     
-
-    def _on_sio_msg(self, msg: str):
-        """Callback que FiscalberrySio llamará por cada mensaje recibido."""
-        # ponemos el mensaje en una cola interna
-        self.sio.message_queue.put(msg)
-
-    def _process_sio_queue(self, dt):
-        """Saca todos los mensajes que haya y actualiza la pantalla principal."""
-        while not self.sio.message_queue.empty():
-            msg = self.sio.message_queue.get()
-            # si quisieras también disparar un log:
-            from common.fiscalberry_logger import getLogger
-            getLogger().info(f"UI: {msg}")
-            # Actualizar la propiedad que use tu MainScreen
-            self.status_message = msg
-            # Marcar conectado cuando recibimos el primer mensaje
-            self.connected = True
 
 if __name__ == "__main__":
     FiscalberryApp().run()
