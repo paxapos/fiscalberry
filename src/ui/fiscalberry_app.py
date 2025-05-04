@@ -5,15 +5,22 @@ from ui.login_screen import LoginScreen
 from ui.adopt_screen import AdoptScreen
 from kivy.clock import Clock, mainthread
 import threading
-from common.fiscalberry_sio import FiscalberrySio
 import queue
-
+from common.Configberry import Configberry
+from common.service_controller import ServiceController
 from kivy.lang import Builder
 from kivy.properties import StringProperty, BooleanProperty
 from ui.log_screen import LogScreen
-from common.service_controller import ServiceController
+from threading import Thread
+import time
+import sys
+
 
 class FiscalberryApp(App):
+    uuid = StringProperty("")
+    host = StringProperty("")
+    tenant = StringProperty("")
+    siteName = StringProperty("")
     
     assetpath = "ui"
     
@@ -22,17 +29,45 @@ class FiscalberryApp(App):
     disconnected_image = StringProperty(f"{assetpath}/assets/disconnected.png")
     connected_image = StringProperty(f"{assetpath}/assets/connected.png")
     
-    connected: bool = BooleanProperty(False)
+    sioConnected: bool = BooleanProperty(False)
+    rabbitMqConnected: bool = BooleanProperty(False)
     
     status_message = StringProperty("Esperando conexión...")
     
-    message_queue = None
-    sio = None  # Inicializar la variable sio aquí
-    
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.serviceController = None  # Inicializar la variable sio aquí
         self.message_queue = queue.Queue()  # Inicializar la variable message_queue aquí
+        
+        self._service_controller = ServiceController()
+        self._configberry = Configberry()
+
+        self.uuid = self._configberry.get("SERVIDOR", "uuid", fallback="")
+        self.host = self._configberry.get("SERVIDOR", "sio_host", fallback="")
+        self.tenant = self._configberry.get("Paxaprinter", "tenant", fallback="")
+        self.siteName = self._configberry.get("Paxaprinter", "site_name", fallback="")
+        
+        
+        # Programar la verificación del estado de SocketIO cada 2 segundos
+        Clock.schedule_interval(self._check_sio_status, 2)
+        Clock.schedule_interval(self._check_rabbit_status, 2)
+
+    def _check_sio_status(self, dt):
+        """Verifica el estado de la conexión SocketIO y actualiza la propiedad."""
+        self.sioConnected = self._service_controller.isSocketIORunning()
+        # Opcionalmente, puedes actualizar el status_message aquí también si lo deseas
+        # if self.sioConnected:
+        #     self.status_message = "Conectado a SocketIO"
+        # else:
+        #     self.status_message = "Esperando conexión SocketIO..."
+            
+    def _check_rabbit_status(self, dt):
+        """Verifica el estado de la conexión RabbitMQ y actualiza la propiedad."""
+        self.rabbitMqConnected = self._service_controller.isRabbitRunning()
+        # Opcionalmente, puedes actualizar el status_message aquí también si lo deseas
+        # if self.rabbitMqConnected:
+        #     self.status_message = "Conectado a RabbitMQ"
+        # else:
+        #     self.status_message = "Esperando conexión RabbitMQ..."
     
     @mainthread  # Decorar el método
     def _on_config_change(self, data):
@@ -40,13 +75,16 @@ class FiscalberryApp(App):
         Callback que se llama cuando hay un cambio en la configuración.
         hay que renderizar las pantallas de nuevo para que se vean los cambios.
         """
-        tenant = data.get("Paxaprinter", {}).get("tenant")
+        print(f"Configuración cambiada: {data}")  # Usar el dato recibido
+
+        new_tenant = data.get("Paxaprinter", {}).get("tenant", "")
+        self.tenant = new_tenant
         
             
         # Usar el ScreenManager existente (self.root)
         sm = self.root
         if sm: # Verificar que self.root ya existe
-            if tenant:
+            if new_tenant:
                 # Si hay un tenant, ir a la pantalla principal
                 if sm.has_screen("main"):
                     sm.current = "main"
@@ -56,55 +94,75 @@ class FiscalberryApp(App):
                 # Si no hay tenant, ir a la pantalla de adopción
                 if sm.has_screen("adopt"):
                     sm.current = "adopt"
+                    self.on_stop_service() # Detener servicio si se des-adopta
+
                 else:
                     print("Advertencia: No se encontró la pantalla 'adopt'.")
         else:
             print("Error: self.root (ScreenManager) aún no está disponible.")
         
 
+    def on_toggle_service(self):
+        """Llamado desde la GUI para alternar el estado del servicio."""
+        if self._service_controller.is_service_running():
+            # Si el servicio está corriendo, detenerlo
+            self.on_stop_service()
+        else:
+            # Si el servicio no está corriendo, iniciarlo
+            self.on_start_service()
+        
+
+    def on_start_service(self):
+        """Llamado desde la GUI para iniciar el servicio."""
+        Thread(target=self._service_controller.start, daemon=True).start()
+
+
+    def on_stop_service(self):
+        """Llamado desde la GUI para detener el servicio."""
+        self._service_controller.stop()
     
+    
+    def on_stop(self):
+        # Este método se llama al cerrar la aplicación
+        print("Cerrando aplicación, deteniendo servicios...")
+        self.on_stop_service()
+        print("Servicios detenidos...")
+        # Espera un pequeño tiempo para que los threads terminen (si es necesario)
+        time.sleep(2)
+        sys.exit(0)
+        
+        
     def build(self):
         self.title = "Servidor de Impresión"
         self.icon = "ui/assets/fiscalberry.png"  # Ruta al icono personalizado
+        
+        # escuchar cambios en configberry
+        self._configberry.add_listener(self._on_config_change)
 
+        self.on_start_service()
 
         # Cargar el archivo KV
         Builder.load_file("ui/kv/main.kv")
-        
+
         sm = ScreenManager()
         #login_screen = LoginScreen(name="login")
         #sm.add_widget(login_screen)
         sm.add_widget(AdoptScreen(name="adopt"))
         sm.add_widget(MainScreen(name="main"))
-        
-        
+
         # Agregar la pantalla de logs
         log_screen = LogScreen(name="logs")
         sm.add_widget(log_screen)
-        
-        
-        # Leer host/uuid de tu configuración
-        from common.Configberry import Configberry
-        cfg = Configberry()
-        host = cfg.get("SERVIDOR","sio_host")
-        uuid = cfg.get("SERVIDOR","uuid","")
-        
-        cfg.add_listener(self._on_config_change)
 
-
-
-        # Verificar si ya existe un token JWT guardado
-        configberry = Configberry()
-        tenant = configberry.get("Paxaprinter", "tenant", fallback=None)
-        if tenant:
-            # Si hay un token, ir directamente a la pantalla principal
+        # Verificar ya tiene tenant o debe ser adoptado
+        if self.tenant:
+            # Si hay un tenant, ir directamente a la pantalla principal
             sm.current = "main"
         else:
-            # Si no hay token, mostrar la pantalla de login
+            # Si no hay token, mostrar la pantalla de adoptar
             sm.current = "adopt"
 
         return sm
-    
 
 if __name__ == "__main__":
     FiscalberryApp().run()

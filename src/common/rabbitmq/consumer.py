@@ -45,7 +45,7 @@ class RabbitMQConsumer:
     
     def connect(self):
         """Conecta al servidor RabbitMQ."""
-        print(f"Connecting to RabbitMQ server: {self.host}:{self.port}")
+        self.logger.info(f"Connecting to RabbitMQ server: {self.host}:{self.port}")
 
         self.connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.host, port=self.port, virtual_host=self.vhost, credentials=pika.PlainCredentials(self.user, self.password)))
 
@@ -79,7 +79,7 @@ class RabbitMQConsumer:
             
 
         self.channel.basic_consume(queue=self.queue, on_message_callback=callback, auto_ack=False)
-        print(f"Waiting for messages in queue: {self.queue}")
+        self.logger.info(f"Waiting for messages in queue: {self.queue}")
         self.channel.start_consuming()
 
     def stop(self):

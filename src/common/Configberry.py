@@ -81,6 +81,10 @@ class Configberry:
 
     def writeKeyForSection(self, section, key, value):
         self.config.read(self.configFilePath)
+        oldval = self.config.get(section, key, value)
+        if oldval == value:
+            return 0
+
         self.config.set(section, key, value)
         with open(self.configFilePath, 'w') as configfile:
             self.config.write(configfile)
@@ -88,6 +92,16 @@ class Configberry:
         self.config.read(self.configFilePath)
         self.notify_listeners()
         return 1
+
+    def saveBackup(self):
+        # Guardar backup del archivo
+        with open(self.configFilePath, 'r') as file:
+            data = file.read()
+            with open(self.configFilePath + ".bak", 'w') as backup:
+                backup.write(data)
+                backup.close()
+            file.close()
+       
 
 
     def set(self, section: str, kwargs: dict):
@@ -101,50 +115,106 @@ class Configberry:
             int: Returns Bool, True si se guardo ok, False si fallo
         """
         self.config.read(self.configFilePath)
+        changes_made = False
         
-        #guardar backup del archivo
-        with open(self.configFilePath, 'r') as file:
-            data = file.read()
-            with open(self.configFilePath + ".bak", 'w') as backup:
-                backup.write(data)
-                backup.close()
-            file.close()
-        
-        #intentar guardar las keys pasadas para el section dado
+        # Intentar guardar las keys pasadas para la sección dada
         try:
             if not self.config.has_section(section):
                 self.config.add_section(section)
+                # Si la sección no existía, definitivamente haremos cambios si hay kwargs
+                if kwargs:
+                    changes_made = True 
 
-            for param in kwargs:
-                self.config.set(section, param, str(kwargs[param]))
+            for key, value in kwargs.items():
+                current_value_str = self.config.get(section, key, fallback=None)
+                
+                if value is None:
+                    # Si la clave existe, la eliminamos y marcamos que hubo cambios
+                    if current_value_str is not None:
+                        self.config.remove_option(section, key)
+                        changes_made = True
+                else:
+                    # Convertir el nuevo valor a string para comparación y almacenamiento
+                    if isinstance(value, list):
+                        new_value_str = ','.join(value)
+                    elif isinstance(value, dict):
+                        import json
+                        new_value_str = json.dumps(value)
+                    elif not isinstance(value, str):
+                        new_value_str = str(value)
+                    else:
+                        new_value_str = value
 
-            # *** FALTA ESTA PARTE ***
-            with open(self.configFilePath, 'w') as configfile:
-                self.config.write(configfile)
-                configfile.close()
-            self.config.read(self.configFilePath)
-            
-            self.notify_listeners()
-            
+                    # Si el valor es diferente al actual (o si no existía), lo establecemos y marcamos cambio
+                    if current_value_str != new_value_str:
+                        self.config.set(section, key, new_value_str)
+                        changes_made = True
+
+            # Solo guardar si se realizaron cambios
+            if changes_made:
+                # Guardar backup del archivo ANTES de escribir
+                self.saveBackup()
+                try:
+                    with open(self.configFilePath, 'w') as configfile:
+                        self.config.write(configfile)
+                    
+                    # Recargar la configuración después de escribir
+                    self.config.read(self.configFilePath) 
+                    
+                    # Verificar si se guardó correctamente (opcional, pero bueno para robustez)
+                    # for key, value in kwargs.items():
+                    #     saved_value = self.config.get(section, key, fallback=None)
+                    #     # Re-convertir el valor esperado a string para comparar
+                    #     if value is None:
+                    #         expected_value_str = None
+                    #     elif isinstance(value, list): expected_value_str = ','.join(value)
+                    #     elif isinstance(value, dict): import json; expected_value_str = json.dumps(value)
+                    #     elif not isinstance(value, str): expected_value_str = str(value)
+                    #     else: expected_value_str = value
+                        
+                    #     if saved_value != expected_value_str:
+                    #          raise Exception(f"Verification failed for key '{key}' in section '{section}'. Expected '{expected_value_str}', got '{saved_value}'.")
+
+                    # Si todo salió bien, eliminar el backup
+                    if os.path.exists(self.configFilePath + ".bak"):
+                        os.remove(self.configFilePath + ".bak")
+                    
+                    self.notify_listeners() # Notificar solo si hubo cambios guardados
+                    
+                except Exception as write_error:
+                     # Reemplazar por backup si falló la escritura o verificación
+                    print(f"Error during config write/verification: {write_error}")
+                    if os.path.exists(self.configFilePath + ".bak"):
+                        try:
+                            os.replace(self.configFilePath + ".bak", self.configFilePath)
+                            print("Restored config from backup.")
+                            # Recargar la configuración desde el backup restaurado
+                            self.config.read(self.configFilePath) 
+                        except Exception as restore_error:
+                             print(f"FATAL: Could not restore backup: {restore_error}")
+                    return False # Indicar fallo
+
+            # Si llegamos aquí, o no hubo cambios o se guardaron correctamente
             return True
 
+        except configparser.Error as e: # Capturar errores específicos de configparser también
+            print(f"ConfigParser error: {e}")
+            # No intentar restaurar backup aquí si el error fue antes de saveBackup()
+            return False
         except Exception as e:
-            # reemplazar por backup si fallo
-            if os.path.exists(self.configFilePath + ".bak"):
-                os.replace(self.configFilePath + ".bak", self.configFilePath)
-            print(f"Error writing config file: {e}")
+            # Capturar otros errores generales que puedan ocurrir antes de intentar guardar
+            print(f"Unexpected error in set method: {e}")
+            # No intentar restaurar backup aquí si el error fue antes de saveBackup()
             return False
 
     def storeConfig(self):
-        # Guardar backup del archivo
-        with open(self.configFilePath, 'r') as file:
-            data = file.read()
-            with open(self.configFilePath + ".bak", 'w') as backup:
-                backup.write(data)
-                backup.close()
-            file.close()
-
+        print(f"Reinicializando config file: {self.configFilePath}")
+        self.config.read(self.configFilePath)
+        
         try:
+            # Guardar backup del archivo
+            self.saveBackup()
+
             # Guardar en el archivo
             with open(self.configFilePath, 'w') as configfile:
                 self.config.write(configfile)
@@ -158,8 +228,6 @@ class Configberry:
         
         self.config.read(self.configFilePath)
                 
-        print("resetado el config file quedo asi:")
-        print(self.get_actual_config())
         self.notify_listeners()
         
 
@@ -284,10 +352,10 @@ class Configberry:
                 self.config.write(configfile)
             self.config.read(self.configFilePath)
             self.notify_listeners()
-            return 1
+            return True
         else:
             print(f"Section {section} does not exist.")
-            return 0
+            return False
     
     def get(self, section, key, fallback=None):
         self.config.read( self.configFilePath )

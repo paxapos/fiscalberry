@@ -1,61 +1,62 @@
 import os
 import logging
 import tempfile
-
+from logging.handlers import RotatingFileHandler
 from common.Configberry import Configberry
 
+# Cargar configuración del ambiente
 configberry = Configberry()
-
 environment = configberry.config.get("SERVIDOR", "environment", fallback="production")
 
-# Define la ruta del archivo de log en la carpeta temporal multiplataforma
-LOG_OUTPUT_FILEPATH = os.path.join(tempfile.gettempdir(), "cli.log")
+# Ruta del archivo de log (rotativo)
+LOG_OUTPUT_FILEPATH = os.path.join(tempfile.gettempdir(), "fiscalberry.log")
 
+# Crea el logger base
+logger = logging.getLogger("Fiscalberry")
+logger.setLevel(logging.DEBUG)  # Capturamos de DEBUG hacia arriba internamente
 
-# configuro logger segun ambiente
-if environment == 'development':
+# Formato de log
+log_format = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
+# RotatingFileHandler: máximo 5MB por archivo, con 3 backups
+file_handler = RotatingFileHandler(LOG_OUTPUT_FILEPATH, maxBytes=5*1024*1024, backupCount=3)
+file_handler.setFormatter(log_format)
+
+# En desarrollo mostramos más información en consola
+if environment.lower() == "development":
+    console_level = logging.DEBUG
     print("* * * * * Modo de desarrollo * * * * *")
-    logging.basicConfig(
-        level=logging.DEBUG,
-        filename=LOG_OUTPUT_FILEPATH,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        )
 else:
+    console_level = logging.WARNING
     print("@ @ @ @ @ Modo de producción @ @ @ @ @")
-    logging.basicConfig(
-        level=logging.WARNING,
-        filename=LOG_OUTPUT_FILEPATH,
-        format="%(asctime)s - %(levelname)s - %(message)s"
-        )
 
+# StreamHandler para la consola
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(log_format)
+console_handler.setLevel(console_level)
 
+# Evitar agregar manejadores duplicados en caso de recarga
+if not logger.handlers:
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+# Reducir el ruido de librerías de terceros, por ejemplo "pika"
 logging.getLogger("pika").setLevel(logging.WARNING)
 
+# Intenta usar el logger de Kivy si está disponible
 
-try:
-    from kivy.logger import Logger
-except ImportError:
-    import logging
-    Logger = logging.getLogger("** Fiscalberry ** ")
-    
+Logger = logger
 
 def getLogFilePath():
     """Devuelve la ruta del archivo de log."""
-    
-    # Verifica si el archivo de log existe, si no lo crea
+    # Crea el archivo si no existe
     if not os.path.exists(LOG_OUTPUT_FILEPATH):
-        with open(LOG_OUTPUT_FILEPATH, "w") as f:
-            pass
-
-    # Verifica si el archivo de log es escribible
+        open(LOG_OUTPUT_FILEPATH, "w").close()
+    # Verifica permisos de escritura
     if not os.access(LOG_OUTPUT_FILEPATH, os.W_OK):
         Logger.error(f"El archivo de log {LOG_OUTPUT_FILEPATH} no es escribible.")
         exit(1)
-
     return LOG_OUTPUT_FILEPATH
 
-
-
 def getLogger():
-    
     return Logger

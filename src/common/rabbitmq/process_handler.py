@@ -49,6 +49,8 @@ class RabbitMQProcessHandler:
         )
         self._thread.start()
         logger.info("RabbitMQ thread iniciado.")
+        self._thread.join()  # No bloqueante, solo para iniciar el hilo
+        logger.info("RabbitMQ thread en ejecución.")
         
         
 
@@ -73,12 +75,21 @@ class RabbitMQProcessHandler:
                 time.sleep(5)
         logger.info("Salida del bucle de RabbitMQProcessHandler.")
 
-    def stop(self, timeout: float = None):
+    def stop(self, timeout: float = 1):
         """Detiene el hilo y espera su finalización."""
-        self._stop_event.set()
-        if self._thread:
+        if self._thread and self._thread.is_alive():
+            logger.info("Deteniendo RabbitMQConsumer...")
+            self._stop_event.set()
             self._thread.join(timeout)
-            logger.info("RabbitMQ thread detenido.")
+            if self._thread.is_alive():
+                logger.warning("RabbitMQConsumer no se detuvo a tiempo.")
+            else:
+                logger.info("RabbitMQConsumer detenido correctamente.")
+        else:
+            logger.warning("No hay hilo de RabbitMQConsumer en ejecución.")
+        self._thread = None
+        self._stop_event.clear()
+        logger.info("RabbitMQProcessHandler detenido.")
 
     def configure_and_restart(self, data: dict, message_queue):
         """
@@ -123,3 +134,5 @@ class RabbitMQProcessHandler:
         if self._thread and self._thread.is_alive():
             self.stop(timeout=5)
         self.start(message_queue)
+        
+    
