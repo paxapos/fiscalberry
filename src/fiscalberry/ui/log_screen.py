@@ -1,7 +1,7 @@
 from kivy.uix.screenmanager import Screen
 from kivy.properties import StringProperty
 from kivy.clock import Clock
-from common.fiscalberry_logger import getLogFilePath
+from fiscalberry.common.fiscalberry_logger import getLogFilePath
 import platform
 import os
 import subprocess

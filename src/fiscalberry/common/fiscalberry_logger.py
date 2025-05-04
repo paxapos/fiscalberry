@@ -2,7 +2,7 @@ import os
 import logging
 import tempfile
 from logging.handlers import RotatingFileHandler
-from common.Configberry import Configberry
+from fiscalberry.common.Configberry import Configberry
 
 # Cargar configuración del ambiente
 configberry = Configberry()

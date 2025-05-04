@@ -1,28 +1,83 @@
-name: Build APK on main
+name: Build Android APK
 
 
 on:
   push:
-    branches:
-      - socketio
-
+    tags: # Trigger on tags like v*.*.*
+      - 'v*.*.*'
 jobs:
-  build:
+  build-android:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: actions/checkout@v2
-
-      - name: Build APK
-        uses: digreatbrian/buildozer-action@v1
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
-          buildozer-cmd: buildozer -v android debug
-          work-dir: . # directory where your main.py file rest
-          python-version: '3.10'
+          distribution: 'temurin' # O 'zulu', 'adopt', etc.
+          java-version: '17'
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+      - name: Set up Python 3.11 # O la versión que prefieras/necesites
+        uses: actions/setup-python@v5
         with:
-          name: package
-          path: ./bin/*.apk
+          python-version: '3.11'
+
+      - name: Get pip cache dir
+        id: pip-cache
+        run: |
+          echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pip-cache.outputs.dir }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }} # Cambia si tus requisitos están en buildozer.spec
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Cache Buildozer global directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }} # Key based on buildozer.spec changes
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
+
+      - name: Install Buildozer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+          git \
+          zip \
+          unzip \
+          build-essential \
+          python3-pip \
+          python3-dev \
+          libffi-dev \
+          libssl-dev \
+          libncurses5-dev \
+          zlib1g-dev \
+          libsqlite3-dev \
+          libbz2-dev \
+          autoconf \
+          cython3 \
+          ccache # Recommended by Buildozer for faster C builds
+
+      - name: Install Buildozer and dependencies from spec
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          python -m pip install buildozer cython # Install buildozer and cython
+          # Consider installing python requirements here if needed before buildozer runs
+          # python -m pip install -r requirements.txt # If you have one
+
+      - name: Build APK with Buildozer
+        run: |
+          buildozer -v android debug # Change to 'release' for release builds
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fiscalberry-android-apk-${{ github.ref_name }} # More descriptive name
+          path: bin/*.apk # Path where Buildozer places the APK

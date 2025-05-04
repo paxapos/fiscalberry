@@ -1,9 +1,9 @@
 import threading
 import requests
 import json
-from common.Configberry import Configberry
-from common.fiscalberry_logger import getLogger 
-from common.printer_detector import listar_impresoras
+from fiscalberry.common.Configberry import Configberry
+from fiscalberry.common.fiscalberry_logger import getLogger 
+from fiscalberry.common.printer_detector import listar_impresoras
 
 configberry = Configberry()
 

@@ -1,7 +1,7 @@
 from kivy.uix.screenmanager import Screen
 from kivy.app import App  # Import the App class
 import os
-from common.token_manager import delete_token
+from fiscalberry.common.token_manager import delete_token
 from kivy.properties import StringProperty
 from os.path import join, dirname
 

@@ -1,8 +1,8 @@
 import threading, os, pika
 import queue
 
-from common.ComandosHandler import ComandosHandler, TraductorException
-from common.fiscalberry_logger import getLogger
+from fiscalberry.common.ComandosHandler import ComandosHandler, TraductorException
+from fiscalberry.common.fiscalberry_logger import getLogger
 from typing import Optional
 
 

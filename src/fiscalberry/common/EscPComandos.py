@@ -3,7 +3,7 @@ import datetime
 from math import ceil
 import json
 import base64
-from common.fiscalberry_logger import getLogger
+from fiscalberry.common.fiscalberry_logger import getLogger
 from escpos.escpos import EscposIO
 from escpos.constants import QR_ECLEVEL_H,CD_KICK_2
 

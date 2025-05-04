@@ -16,7 +16,7 @@ else:
 def do_login(username, password):
     """Autentica al usuario contra el backend y guarda el token JWT."""
     
-    from common.Configberry import Configberry
+    from fiscalberry.common.Configberry import Configberry
 
     cfg = Configberry()
     host = cfg.get("SERVIDOR","sio_host")

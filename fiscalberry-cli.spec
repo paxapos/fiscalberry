@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['src/cli.py'],
+    ['src/fiscalberry/cli.py'],
     pathex=[],
     binaries=[],
     datas=[('./capabilities.json', 'escpos')],
@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='fiscalberry-lin',
+    name='fiscalberry-cli',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

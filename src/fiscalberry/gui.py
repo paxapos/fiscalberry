@@ -1,4 +1,4 @@
-from ui.fiscalberry_app import FiscalberryApp
+from fiscalberry.ui.fiscalberry_app import FiscalberryApp
 
 
 def main():

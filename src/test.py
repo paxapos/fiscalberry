@@ -1,7 +1,7 @@
 
-from common.ComandosHandler import ComandosHandler
+from fiscalberry.common.ComandosHandler import ComandosHandler
 import sys
-from common.printer_detector import listar_impresoras
+from fiscalberry.common.printer_detector import listar_impresoras
 
 '''
 si ejecuto el script sin argumentos que me de un listado de opciones y ayuda de uso

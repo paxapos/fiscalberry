@@ -1,19 +1,20 @@
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager
-from ui.main_screen import MainScreen
-from ui.login_screen import LoginScreen
-from ui.adopt_screen import AdoptScreen
+from fiscalberry.ui.main_screen import MainScreen
+from fiscalberry.ui.login_screen import LoginScreen
+from fiscalberry.ui.adopt_screen import AdoptScreen
 from kivy.clock import Clock, mainthread
 import threading
 import queue
-from common.Configberry import Configberry
-from common.service_controller import ServiceController
+from fiscalberry.common.Configberry import Configberry
+from fiscalberry.common.service_controller import ServiceController
 from kivy.lang import Builder
 from kivy.properties import StringProperty, BooleanProperty
-from ui.log_screen import LogScreen
+from fiscalberry.ui.log_screen import LogScreen
 from threading import Thread
 import time
 import sys
+import os
 
 
 class FiscalberryApp(App):
@@ -21,13 +22,14 @@ class FiscalberryApp(App):
     host = StringProperty("")
     tenant = StringProperty("")
     siteName = StringProperty("")
+    siteAlias = StringProperty("")
     
-    assetpath = "ui"
+    assetpath = os.path.join(os.path.dirname(__file__), "assets")
     
-    background_image = StringProperty(f"{assetpath}/assets/bg.jpg")
-    logo_image = StringProperty(f"{assetpath}/assets/fiscalberry.png")
-    disconnected_image = StringProperty(f"{assetpath}/assets/disconnected.png")
-    connected_image = StringProperty(f"{assetpath}/assets/connected.png")
+    background_image = StringProperty(os.path.join(assetpath, "bg.jpg"))
+    logo_image = StringProperty(os.path.join(assetpath, "fiscalberry.png"))
+    disconnected_image = StringProperty(os.path.join(assetpath, "disconnected.png"))
+    connected_image = StringProperty(os.path.join(assetpath, "connected.png"))
     
     sioConnected: bool = BooleanProperty(False)
     rabbitMqConnected: bool = BooleanProperty(False)
@@ -41,15 +43,21 @@ class FiscalberryApp(App):
         self._service_controller = ServiceController()
         self._configberry = Configberry()
 
-        self.uuid = self._configberry.get("SERVIDOR", "uuid", fallback="")
-        self.host = self._configberry.get("SERVIDOR", "sio_host", fallback="")
-        self.tenant = self._configberry.get("Paxaprinter", "tenant", fallback="")
-        self.siteName = self._configberry.get("Paxaprinter", "site_name", fallback="")
-        
+        self.updatePropertiesWithConfig()
         
         # Programar la verificación del estado de SocketIO cada 2 segundos
         Clock.schedule_interval(self._check_sio_status, 2)
         Clock.schedule_interval(self._check_rabbit_status, 2)
+        
+    def updatePropertiesWithConfig(self):
+        """
+        Actualiza las propiedades de la aplicación con los valores de configuración.
+        """
+        self.uuid = self._configberry.get("SERVIDOR", "uuid", fallback="")
+        self.host = self._configberry.get("SERVIDOR", "sio_host", fallback="")
+        self.tenant = self._configberry.get("Paxaprinter", "tenant", fallback="")
+        self.siteName = self._configberry.get("Paxaprinter", "site_name", fallback="")
+        self.siteAlias = self._configberry.get("Paxaprinter", "alias", fallback="")
 
     def _check_sio_status(self, dt):
         """Verifica el estado de la conexión SocketIO y actualiza la propiedad."""
@@ -75,16 +83,15 @@ class FiscalberryApp(App):
         Callback que se llama cuando hay un cambio en la configuración.
         hay que renderizar las pantallas de nuevo para que se vean los cambios.
         """
-        print(f"Configuración cambiada: {data}")  # Usar el dato recibido
 
-        new_tenant = data.get("Paxaprinter", {}).get("tenant", "")
-        self.tenant = new_tenant
+        self.updatePropertiesWithConfig()
         
-            
+        
+
         # Usar el ScreenManager existente (self.root)
         sm = self.root
         if sm: # Verificar que self.root ya existe
-            if new_tenant:
+            if self.tenant:
                 # Si hay un tenant, ir a la pantalla principal
                 if sm.has_screen("main"):
                     sm.current = "main"
@@ -134,7 +141,8 @@ class FiscalberryApp(App):
         
     def build(self):
         self.title = "Servidor de Impresión"
-        self.icon = "ui/assets/fiscalberry.png"  # Ruta al icono personalizado
+        
+        self.icon = os.path.join(os.path.dirname(__file__), "assets", "fiscalberry.png")
         
         # escuchar cambios en configberry
         self._configberry.add_listener(self._on_config_change)
@@ -142,7 +150,8 @@ class FiscalberryApp(App):
         self.on_start_service()
 
         # Cargar el archivo KV
-        Builder.load_file("ui/kv/main.kv")
+        kv_path = os.path.join(os.path.dirname(__file__), "kv", "main.kv")
+        Builder.load_file(kv_path)
 
         sm = ScreenManager()
         #login_screen = LoginScreen(name="login")

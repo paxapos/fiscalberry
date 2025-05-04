@@ -1,29 +1,27 @@
-from setuptools import setup
+import os
+from setuptools import setup, find_packages
+
+def load_requirements(filename):
+    with open(filename, "r") as req_file:
+        return [line.strip() for line in req_file
+                if line.strip() and not line.startswith("#")]
+
+requirements_file = os.path.join(os.path.dirname(__file__), "requirements.kivy.txt")
+requirements = load_requirements(requirements_file)
 
 setup(
     name='fiscalberry',
-    version='0.0.1',
+    version='2.0.0',
     description='Proyecto con interfaz Kivy y consola',
     author='Ale Vilar',
     author_email='alevilar@gmail.com',
-    packages=['fiscalberry'],
-    install_requires=[
-        'python-escpos==3.1',
-        'python-socketio==5.11.3',
-        'websocket-client==1.8.0',
-        'simple-websocket==1.0.0',
-        'requests==2.32.3',
-        'aiohttp==3.10.2',
-        'argparse==1.4.0',
-        'uuid==1.30',
-        'appdirs==1.4.4',
-        'kivy==2.3.0',
-        'platformdirs==4.2.2',
-    ],
+    package_dir={'': 'src'},  # Le decimos que los paquetes están en "src"
+    packages=find_packages(where='src'),  # Esto encontrará "fiscalberry"
+    install_requires=requirements,
     entry_points={
         'console_scripts': [
-        'mi_programa_consola=src.cli.cli:main',
-        'mi_programa_kivy=src.kivy.main:main',
-    ],
+            'fiscalberry_cli=fiscalberry.cli:main',
+            'fiscalberry_gui=fiscalberry.gui:main',
+        ],
     },
 )

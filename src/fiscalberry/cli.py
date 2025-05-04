@@ -3,9 +3,9 @@ import time
 import os, asyncio
 import threading
 
-from common.fiscalberry_logger import getLogger
+from fiscalberry.common.fiscalberry_logger import getLogger
 logger = getLogger()
-from common.service_controller import ServiceController
+from fiscalberry.common.service_controller import ServiceController
 
 
 

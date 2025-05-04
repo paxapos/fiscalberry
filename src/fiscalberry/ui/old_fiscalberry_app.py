@@ -7,13 +7,12 @@ from kivy.uix.image import Image
 from kivy.clock import Clock
 from kivy.properties import StringProperty, BooleanProperty
 from jnius import autoclass
-from common.Configberry import Configberry
+from fiscalberry.common.Configberry import Configberry
 from twisted.internet.protocol import Protocol, ClientFactory
 from twisted.internet import reactor
 
 # Importo el módulo que se encarga de la comunicación con el servidor
-from common.Configberry import Configberry
-from common.fiscalberry_logger import getLogger
+from fiscalberry.common.fiscalberry_logger import getLogger
 
 logger = getLogger()
 

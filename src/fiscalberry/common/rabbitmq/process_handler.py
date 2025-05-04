@@ -2,8 +2,8 @@ import threading
 
 import time
 import logging
-from common.Configberry import Configberry
-from common.rabbitmq.consumer import RabbitMQConsumer
+from fiscalberry.common.Configberry import Configberry
+from fiscalberry.common.rabbitmq.consumer import RabbitMQConsumer
 
 logger = logging.getLogger(__name__)
 

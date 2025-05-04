@@ -1,44 +1,10 @@
-#!/usr/bin/env python3
+# src/main.py
+import runpy
 import os
-import logging
 
-from common.Configberry import Configberry
+# Set the current working directory to the script's directory
+# This helps ensure relative paths within your app work correctly
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-configberry = Configberry()
-
-environment = configberry.config.get("SERVIDOR", "environment", fallback="production")
-
-
-# Configuro logger según ambiente
-if environment == 'development':
-    print("* * * * * Modo de desarrollo * * * * *")
-    logging.basicConfig(level=logging.DEBUG)
-else:
-    print("@ @ @ @ @ Modo de producción @ @ @ @ @")
-    logging.basicConfig(level=logging.WARNING)
-
-
-import sys
-
-
-__version__ = "0.1.0"
-
-
-if __name__ == "__main__":
-    
-    if len(sys.argv) > 1 and sys.argv[1] == "cli":
-        import cli as cli
-
-        cli.start()
-        
-    else:
-        from ui.fiscalberry_app import FiscalberryApp
-
-        # Llamar a la función que maneja la interfaz de usuario
-        start_ui()
-        # Crear la aplicación Kivy
-        app = FiscalberryApp()
-
-        # Ejecutar la aplicación Kivy
-        app.run()
-    
+# Run your actual main script
+runpy.run_module('fiscalberry.gui', run_name='__main__')

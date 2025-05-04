@@ -1,13 +1,13 @@
 
 import subprocess
-from common.fiscalberry_logger import getLogger
+from fiscalberry.common.fiscalberry_logger import getLogger
 import os
-from common.fiscalberry_sio import FiscalberrySio
-from common.discover import send_discover_in_thread
-from common.Configberry import Configberry
+from fiscalberry.common.fiscalberry_sio import FiscalberrySio
+from fiscalberry.common.discover import send_discover_in_thread
+from fiscalberry.common.Configberry import Configberry
 import time
 import threading
-from common.fiscalberry_logger import getLogger
+from fiscalberry.common.fiscalberry_logger import getLogger
 logger = getLogger()
 
 class ServiceController:

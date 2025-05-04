@@ -3,12 +3,12 @@
 import sys
 import json
 import threading
-from common.FiscalberryComandos import FiscalberryComandos
-from common.Configberry import Configberry
-from common.fiscalberry_logger import getLogger
-from common.EscPComandos import EscPComandos
+from fiscalberry.common.FiscalberryComandos import FiscalberryComandos
+from fiscalberry.common.Configberry import Configberry
+from fiscalberry.common.fiscalberry_logger import getLogger
+from fiscalberry.common.EscPComandos import EscPComandos
 from escpos import printer
-from common.fiscalberry_logger import getLogger
+from fiscalberry.common.fiscalberry_logger import getLogger
 from queue import Queue
 import traceback
 

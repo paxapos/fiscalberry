@@ -246,29 +246,56 @@ class Configberry:
 
 
     def __create_config_if_not_exists(self, configFile):
-
+        needs_reset = False
         if not os.path.isfile(configFile):
-            print(f"NUEVO User config files creado en {configFile}")
-
-            with open(configFile, 'w') as configfile:
-                configfile.write(defaultConfig)
-                configfile.close()
+            print(f"NUEVO User config file será creado en {configFile}")
+            # Create an empty file first, resetConfigFile will populate it
+            try:
+                open(configFile, 'w').close()
+                needs_reset = True # New file always needs initial config
+            except OSError as e:
+                print(f"Error creating config file {configFile}: {e}")
+                # Handle error appropriately, maybe raise exception or exit
+                return 
         else:
             print(f"User Config existente en {configFile}")
-        
-        self.config.read(configFile)
-        
+
+        # Always read the config file, even if just created (it will be empty)
         try:
-            uuidVal = self.get("SERVIDOR", "uuid", fallback=None)
-            if not uuidVal:
-                raise Exception("UUID not found")
-        except configparser.NoSectionError as e:
-            print(f"Section SERVIDOR no encontrado, reseteando {configFile}")
-            self.resetConfigFile()
-        except Exception as e:
-            print(f"Config UUID no encontrado, reseteando {configFile}")
-            self.resetConfigFile()
-            
+            read_ok = self.config.read(configFile)
+            if not read_ok: # Check if read was successful (file might be empty or malformed)
+                 print(f"Config file {configFile} could not be read properly.")
+                 # Decide if reset is needed even if file exists but is unreadable
+                 # needs_reset = True # Optional: uncomment to reset unreadable files
+        except configparser.Error as e:
+             print(f"Error parsing config file {configFile}: {e}")
+             needs_reset = True # Reset if parsing fails
+
+        # Check for essential section/key only if not already marked for reset
+        if not needs_reset:
+            try:
+                # Use configparser directly to check existence before get
+                if not self.config.has_section("SERVIDOR") or not self.config.has_option("SERVIDOR", "uuid"):
+                     print(f"Section SERVIDOR o UUID no encontrado en {configFile}")
+                     needs_reset = True
+                else:
+                    # Optionally check if uuid value is valid/not empty
+                    uuidVal = self.config.get("SERVIDOR", "uuid", fallback=None)
+                    if not uuidVal:
+                         print(f"Config UUID está vacío en {configFile}")
+                         needs_reset = True
+            except configparser.Error as e: # Catch potential errors during check
+                 print(f"Error checking config structure: {e}")
+                 needs_reset = True
+
+        # Perform reset if needed
+        if needs_reset:
+            print(f"Reseteando configuración en {configFile}")
+            self.resetConfigFile() # This method should handle writing the config
+        
+        # Reload config after potential reset to ensure it's current
+        self.config.read(configFile)
+
         # menos el primero que es el de SERVIDOR, mostrar el el resto en consola ya que son las impresoras
         for s in self.sections()[1:]:
             print("Impresora en Config: %s" % s)

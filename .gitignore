@@ -10,7 +10,6 @@ py3env
 bin
 lib
 lib64
-fiscalberry
 output
 .buildozer
 

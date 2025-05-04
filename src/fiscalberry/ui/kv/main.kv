@@ -153,11 +153,15 @@ ScreenManager:
         Label:
             text: "Conectado a la nube" if app.sioConnected else "Desconectado de la nube (compruebe internet)"
             font_size: 24
-            color: (0.2, 0.8, 0.2, 1) if app.sioConnected else (0.8, 0.2, 0.2, 1)  # Verde si iniciado, rojo si detenido
+            color: (0.2, 0.8, 0.2, 1) if app.sioConnected else (0.8, 0.2, 0.2, 1)  # Verde si iniciado, rojo si detenido        
         Label:
             text: f"Conectado con: '{app.siteName}'" if app.rabbitMqConnected else f"No conectado a '{app.siteName}'"
             font_size: 24
             color: (0.2, 0.8, 0.2, 1) if app.rabbitMqConnected else (0.8, 0.2, 0.2, 1)  # Verde si iniciado, rojo si detenido
+        Label:
+            text: app.siteAlias
+            font_size: 12
+            color: 0.5, 0.5, 0.5, 1  # Gris tenue
         Button:
             text: "Ver Logs"
             size_hint_y: None

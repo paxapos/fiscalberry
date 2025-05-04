@@ -4,9 +4,9 @@ import json
 from kivy.uix.screenmanager import Screen
 from kivy.app import App
 import tempfile
-from common.token_manager import save_token, do_login
-from common.Configberry import Configberry
-from common.fiscalberry_logger import getLogger
+from fiscalberry.common.token_manager import save_token, do_login
+from fiscalberry.common.Configberry import Configberry
+from fiscalberry.common.fiscalberry_logger import getLogger
 from kivy.properties import StringProperty
 
 logger = getLogger()

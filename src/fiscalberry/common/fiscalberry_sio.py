@@ -3,10 +3,10 @@ import socketio
 import queue
 import os
 import time
-from common.ComandosHandler import ComandosHandler, TraductorException
-from common.fiscalberry_logger import getLogger
-from common.Configberry import Configberry
-from common.rabbitmq.process_handler import RabbitMQProcessHandler
+from fiscalberry.common.ComandosHandler import ComandosHandler, TraductorException
+from fiscalberry.common.fiscalberry_logger import getLogger
+from fiscalberry.common.Configberry import Configberry
+from fiscalberry.common.rabbitmq.process_handler import RabbitMQProcessHandler
 
 
 environment = os.getenv('ENVIRONMENT', 'production')

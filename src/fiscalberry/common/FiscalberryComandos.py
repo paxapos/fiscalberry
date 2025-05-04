@@ -1,6 +1,6 @@
 import requests
 import json
-from common.fiscalberry_logger import getLogger
+from fiscalberry.common.fiscalberry_logger import getLogger
 
 class PrinterException(Exception):
 	pass
