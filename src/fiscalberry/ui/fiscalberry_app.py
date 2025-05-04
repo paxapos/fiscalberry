@@ -15,14 +15,18 @@ from threading import Thread
 import time
 import sys
 import os
+from pkg_resources import get_distribution
 
 
 class FiscalberryApp(App):
+    name = StringProperty("Servidor de Impresión")
     uuid = StringProperty("")
     host = StringProperty("")
     tenant = StringProperty("")
     siteName = StringProperty("")
     siteAlias = StringProperty("")
+    version = StringProperty( get_distribution("fiscalberry").version )
+
     
     assetpath = os.path.join(os.path.dirname(__file__), "assets")
     

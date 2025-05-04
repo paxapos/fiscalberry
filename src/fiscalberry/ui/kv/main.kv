@@ -117,78 +117,185 @@ ScreenManager:
             color: 1, 1, 1, 1
             on_press: root.login(username.text, password.text)
 
+# Define a reusable Separator widget
+<Separator@Widget>:
+    canvas:
+        Color:
+            rgba: 0.8, 0.8, 0.8, 1 # Light gray color for separator
+        Rectangle:
+            pos: self.x, self.center_y - dp(0.5) # Center the line vertically
+            size: self.width, dp(1) # Make it 1dp thick
+
 <MainScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: 20
-        spacing: 15
+        padding: dp(20)
+        spacing: dp(15)
         canvas.before:
             Color:
-                rgba: 0.9, 0.9, 1, 1  # Fondo celeste casi blanco
+                rgba: 0.95, 0.95, 1, 1 # Slightly lighter blue background
             Rectangle:
                 pos: self.pos
                 size: self.size
 
-        # Header with connection status icon at top-right
+        # Header: Logo, Title, Overall Status Icon
         BoxLayout:
             orientation: 'horizontal'
             size_hint_y: None
-            height: 32
-            # Empty widget expands to left
-            Widget:
+            height: dp(48) # Fixed height for the header
+            spacing: dp(10)
             Image:
-                # Muestra la imagen conectada o desconectada según app.connected
+                source: app.logo_image
+                size_hint: None, None # Use explicit size
+                size: dp(48), dp(48)
+                allow_stretch: True
+                keep_ratio: True
+            Label:
+                text: app.name # Consider using app.name if available
+                font_size: '20sp'
+                halign: 'center'
+                valign: 'middle'
+                color: 0.1, 0.2, 0.5, 1 # Dark blue text
+                size_hint_x: 1 # Allow label to expand horizontally
+            Image:
+                # Show overall status based on cloud connection primarily
                 source: root.connected_image if app.sioConnected else root.disconnected_image
-                size_hint: None, None
-                size: 32, 32
+                size_hint: None, None # Use explicit size
+                size: dp(32), dp(32)
 
-        Image:
-            source: app.logo_image
-            size_hint_y: None
-            height: 96
-            allow_stretch: True
-            keep_ratio: True
-            color: 1, 1, 1, 1
-            margin_bottom: 10
-        Label:
-            text: "Conectado a la nube" if app.sioConnected else "Desconectado de la nube (compruebe internet)"
-            font_size: 24
-            color: (0.2, 0.8, 0.2, 1) if app.sioConnected else (0.8, 0.2, 0.2, 1)  # Verde si iniciado, rojo si detenido        
-        Label:
-            text: f"Conectado con: '{app.siteName}'" if app.rabbitMqConnected else f"No conectado a '{app.siteName}'"
-            font_size: 24
-            color: (0.2, 0.8, 0.2, 1) if app.rabbitMqConnected else (0.8, 0.2, 0.2, 1)  # Verde si iniciado, rojo si detenido
-        Label:
-            text: app.siteAlias
-            font_size: 12
-            color: 0.5, 0.5, 0.5, 1  # Gris tenue
+        Separator:
+            height: dp(1) # Use the defined Separator
+
+        # Status Information Area
+        BoxLayout:
+            orientation: 'vertical'
+            size_hint_y: None # Size based on content
+            height: self.minimum_height # Calculate height automatically
+            spacing: dp(10)
+
+            Label:
+                text: "Estado de Conexión"
+                font_size: '18sp'
+                color: 0.1, 0.2, 0.5, 1
+                size_hint_y: None
+                height: self.texture_size[1] # Fit height to text
+
+            # Cloud Status (SocketIO)
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: dp(24) # Fixed height for status line
+                spacing: dp(5)
+                Image:
+                    source: root.connected_image if app.sioConnected else root.disconnected_image
+                    size_hint: None, None
+                    size: dp(24), dp(24)
+                Label:
+                    # Display text and color based on connection status
+                    text: "Nube (Sync): " + ("Conectado" if app.sioConnected else "Desconectado")
+                    color: (0.2, 0.8, 0.2, 1) if app.sioConnected else (0.8, 0.2, 0.2, 1) # Green/Red
+                    halign: 'left'
+                    valign: 'middle'
+                    text_size: self.width, None # Enable text wrapping if needed
+                    size_hint_x: 1
+
+            # Queue Status (RabbitMQ)
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: dp(24) # Fixed height for status line
+                spacing: dp(5)
+                Image:
+                    # Assumes root has appropriate images for connection status
+                    source: root.connected_image if app.rabbitMqConnected else root.disconnected_image
+                    size_hint: None, None
+                    size: dp(24), dp(24)
+                Label:
+                    # Display text and color based on connection status
+                    text: "Cola Local (Cmds): " + ("Conectado" if app.rabbitMqConnected else "Desconectado")
+                    color: (0.2, 0.8, 0.2, 1) if app.rabbitMqConnected else (0.8, 0.2, 0.2, 1) # Green/Red
+                    halign: 'left'
+                    valign: 'middle'
+                    text_size: self.width, None # Enable text wrapping
+                    size_hint_x: 1
+
+        Separator:
+            height: dp(1)
+
+        # Site Information Area
+        BoxLayout:
+            orientation: 'vertical'
+            size_hint_y: None # Size based on content
+            height: self.minimum_height # Calculate height automatically
+            spacing: dp(5)
+
+            Label:
+                text: "Información del Sitio"
+                font_size: '18sp'
+                color: 0.1, 0.2, 0.5, 1
+                size_hint_y: None
+                height: self.texture_size[1]
+
+            Label:
+                text: f"Comercio: {app.siteName}"
+                font_size: '14sp'
+                color: 0.3, 0.3, 0.3, 1 # Dark gray text
+                halign: 'left'
+                valign: 'middle'
+                text_size: self.width, None # Enable wrapping
+                size_hint_y: None
+                height: self.texture_size[1] # Fit height to text
+
+            Label:
+                text: f"Dispositivo: {app.siteAlias}"
+                font_size: '14sp'
+                color: 0.3, 0.3, 0.3, 1
+                halign: 'left'
+                valign: 'middle'
+                text_size: self.width, None
+                size_hint_y: None
+                height: self.texture_size[1]
+
+        # Spacer widget to push subsequent elements to the bottom
+        Widget:
+
+        # Action Button
         Button:
-            text: "Ver Logs"
-            size_hint_y: None
-            height: 50
-            on_press: app.root.current = "logs"
-       
-       
+            text: "Ver Logs del Servicio"
+            size_hint_y: None # Fixed height
+            height: dp(50)
+            background_color: 0.1, 0.2, 0.5, 1 # Consistent button blue
+            color: 1, 1, 1, 1 # White text
+            on_press: app.root.current = "logs" # Navigate to LogScreen
+
+        # Footer Information (UUID, Version, Host)
         BoxLayout:
             orientation: 'horizontal'
             size_hint_y: None
-            height: 20
-            spacing: 10
+            height: dp(20) # Compact footer height
+            spacing: dp(10)
             Label:
-                text: f"UUID: {app.uuid}"
-                font_size: 12
-                color: 0.5, 0.5, 0.5, 1  # Gris tenue
+                text: f"UUID: {app.uuid[:8]}"
+                font_size: '10sp' # Smaller font for footer details
+                color: 0.5, 0.5, 0.5, 1 # Gray text
                 halign: "left"
                 valign: "middle"
-                size_hint_x: 0.5
+                size_hint_x: 0.4 # Allocate space
+            Label:
+                text: f"v{app.version}"
+                font_size: '10sp'
+                color: 0.5, 0.5, 0.5, 1
+                halign: "center"
+                valign: "middle"
+                size_hint_x: 0.2
             Label:
                 text: f"Host: {app.host}"
-                font_size: 12
-                color: 0.5, 0.5, 0.5, 1  # Gris tenue
+                font_size: '10sp'
+                color: 0.5, 0.5, 0.5, 1
                 halign: "right"
                 valign: "middle"
-                size_hint_x: 0.5
-
+                size_hint_x: 0.4
+            
 <LogScreen>:
     BoxLayout:
         orientation: 'vertical'

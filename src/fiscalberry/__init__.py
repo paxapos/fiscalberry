@@ -5,4 +5,4 @@
 Fiscalberry Server Package
 """
 
-__version__ = "2.0.0"  # Example version, update as needed
+__version__ = "2.0.1"  # Example version, update as needed
