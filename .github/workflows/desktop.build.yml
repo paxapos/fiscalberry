@@ -9,9 +9,9 @@ jobs:
   build-desktop:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-22.04, windows-latest, macos-latest]
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             os_name: linux
             asset_suffix_cli: lin-x64
             asset_suffix_gui: gui-lin-x64
@@ -36,6 +36,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -94,7 +95,7 @@ jobs:
           path: artifacts/
 
   build-raspberry-pi-cli:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -130,7 +131,7 @@ jobs:
           path: artifacts/fiscalberry-cli-pi-arm64
 
   create-release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: [build-desktop, build-raspberry-pi-cli] # Wait for all builds
     permissions:
       contents: write # Needed to create release and upload assets
