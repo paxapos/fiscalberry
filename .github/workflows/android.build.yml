@@ -72,8 +72,12 @@ jobs:
         run: |
           export ACLOCAL_PATH="${ACLOCAL_PATH}:/usr/share/aclocal"
           export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
+          rm -rf ~/.buildozer
+          rm -rf ./.buildozer
+
           buildozer android clean
-          buildozer -v android debug
+          buildozer -v android release
+          
     
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

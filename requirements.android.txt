@@ -8,4 +8,4 @@ appdirs==1.4.4
 platformdirs==4.2.2
 pika
 pywin32; sys_platform == 'win32'
-kivy
+kivy[base]
