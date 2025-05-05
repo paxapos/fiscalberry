@@ -9,7 +9,7 @@ jobs:
   build-desktop:
     strategy:
       matrix:
-        os: [ubuntu-22.04, windows-latest, macos-latest]
+        os: [ubuntu-22.04, windows-latest]
         include:
           - os: ubuntu-22.04
             os_name: linux
@@ -25,13 +25,7 @@ jobs:
             artifact_path_cli: dist/fiscalberry-cli.exe
             artifact_path_gui: dist/fiscalberry-gui.exe
             python_platform: win32
-          - os: macos-latest
-            os_name: macos
-            asset_suffix_cli: mac-x64
-            asset_suffix_gui: mac-x64.app
-            artifact_path_cli: dist/fiscalberry-cli
-            artifact_path_gui: dist/fiscalberry-gui.app
-            python_platform: darwin
+         
 
     runs-on: ${{ matrix.os }}
 
