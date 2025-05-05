@@ -72,7 +72,7 @@ jobs:
             xvfb-run --auto-servernum pyinstaller fiscalberry-gui.spec
           else
             echo "Running PyInstaller directly on $RUNNER_OS..."
-            pyinstaller fiscalberry-gui.spec
+            KIVY_NO_WINDOW=1 pyinstaller fiscalberry-gui.spec
           fi
 
       - name: List dist directory contents (after build) # Keep this for debugging if needed

@@ -15,6 +15,18 @@ Para Raspberry pi
 
 # Como comenzar (solo developers del proyecto)
 
+fiscalberry se puede instalar para usar con UI o solo consola (por ejemplo para ser ejecutado en una raspberry sin UI)
+
+la forma mas simple es descargar el proyecto
+y ejecutar asi:
+pip install -e .
+y luego podras ejecutar fiscalberry_gui o fiscalberry_cli como un comando mas
+
+si lo queres  instalar en prod seria sin el -e
+pip install .
+
+la otra opcion mas para DEVs seria crear un virtual environment:
+
 clonar repo
 crear enviroment (1 para kivy y otro para modo cli, consola)
 python3 -m venv .venv.kivy
