@@ -50,7 +50,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libcups2-dev \
-            # Add Kivy dependencies
             libsdl2-dev \
             libsdl2_image-dev \
             libsdl2_mixer-dev \
