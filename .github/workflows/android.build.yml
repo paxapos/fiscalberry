@@ -62,8 +62,11 @@ jobs:
           libsqlite3-dev \
           libbz2-dev \
           autoconf \
+          automake \
+          libtool \
           cython3 \
           ccache # Recommended by Buildozer for faster C builds
+
 
       - name: Install Buildozer and dependencies from spec
         run: |
