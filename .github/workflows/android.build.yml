@@ -45,42 +45,37 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildozer-
 
-      - name: Install Buildozer dependencies
+      - name: Install Buildozer system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-          git \
-          zip \
-          unzip \
-          build-essential \
-          python3-pip \
-          python3-dev \
-          libffi-dev \
-          libssl-dev \
-          libncurses5-dev \
-          zlib1g-dev \
-          libsqlite3-dev \
-          libbz2-dev \
-          autoconf \
-          automake \
-          libtool \
-          cython3 \
-          ccache # Recommended by Buildozer for faster C builds
+          git zip unzip build-essential python3-pip python3-dev \
+          libffi-dev libssl-dev libncurses5-dev zlib1g-dev libsqlite3-dev libbz2-dev \
+          autoconf automake libtool pkg-config \ # Ensure pkg-config is installed
+          cython3 ccache
 
-
-      - name: Install Buildozer and dependencies from spec
+      - name: Install Python build tools and Cython
         run: |
           python -m pip install --upgrade pip wheel setuptools
-          python -m pip install buildozer cython # Install buildozer and cython
-          # Consider installing python requirements here if needed before buildozer runs
-          # python -m pip install -r requirements.txt # If you have one
+          python -m pip install cython
 
-      - name: Build APK with Buildozer
+      - name: Install Buildozer
         run: |
-          buildozer -v android debug # Change to 'release' for release builds
+          python -m pip install buildozer
+          python -m pip install -r requirements.kivy.txt
 
+
+   
+      - name: Build APK with Buildozer
+        # Set ACLOCAL_PATH and PKG_CONFIG_PATH explicitly before running buildozer
+        # This helps autotools find necessary macro and package config files
+        run: |
+          export ACLOCAL_PATH="${ACLOCAL_PATH}:/usr/share/aclocal"
+          export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
+          buildozer -v android debug # Change to 'release' for release builds
+    
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fiscalberry-android-apk-${{ github.ref_name }} # More descriptive name
-          path: bin/*.apk # Path where Buildozer places the APK
+          name: fiscalberry-android-apk-${{ github.ref_name }}
+          path: bin/*.apk

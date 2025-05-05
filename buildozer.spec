@@ -42,7 +42,7 @@ version.filename = %(source.dir)s/fiscalberry/__init__.py
 # Comma-separated list of recipes or pure-Python packages.
 # IMPORTANT: Verify each requirement. Check if python-for-android recipes exist for non-pure-Python libs.
 # Remove unnecessary dependencies (like pika if not used on mobile, pywin32, argparse).
-requirements = hostpython3,python3,kivy==2.3.0,python-escpos,python-socketio[client],requests,aiohttp,pillow,python-barcode[images],qrcode[pil],uuid,appdirs,platformdirs,pyjnius
+requirements = hostpython3,python3,kivy==2.3.0,python-escpos,python-socketio[client],requests,aiohttp,pillow,python-barcode[images],qrcode[pil],appdirs,platformdirs,pyjnius
 
 # (str) Presplash of the application
 presplash.filename = %(source.dir)s/fiscalberry/ui/assets/fiscalberry.png

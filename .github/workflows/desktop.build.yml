@@ -27,11 +27,11 @@ jobs:
             python_platform: win32
           - os: macos-latest
             os_name: macos
-            asset_suffix_cli: mac-x64 # Adjust if building universal/arm64
-            asset_suffix_gui: gui-mac-x64 # Adjust if building universal/arm64
+            asset_suffix_cli: mac-x64
+            asset_suffix_gui: mac-x64.app
             artifact_path_cli: dist/fiscalberry-cli
-            artifact_path_gui: dist/fiscalberry-gui
-            python_platform: darwin # sys.platform value for macOS
+            artifact_path_gui: dist/fiscalberry-gui.app
+            python_platform: darwin
 
     runs-on: ${{ matrix.os }}
 
@@ -86,18 +86,7 @@ jobs:
       - name: Rename GUI artifact
         shell: bash # Use bash for consistent mv/move commands
         run: |
-          mv ${{ matrix.artifact_path_gui }} artifacts/fiscalberry-gui-${{ matrix.asset_suffix_gui }}
-
-      # --- Build GUI ---
-      - name: Install GUI dependencies (includes Kivy)
-        run: pip install -r requirements.kivy.txt # This should include CLI deps too
-
-      - name: Build GUI executable (${{ matrix.os_name }})
-        run: pyinstaller fiscalberry-gui.spec
-
-      - name: Rename GUI artifact
-        shell: bash # Use bash for consistent mv/move commands
-        run: |
+          mkdir -p artifacts
           mv ${{ matrix.artifact_path_gui }} artifacts/fiscalberry-gui-${{ matrix.asset_suffix_gui }}
 
       - name: Upload executables artifact (${{ matrix.os_name }})
@@ -134,7 +123,7 @@ jobs:
       - name: Rename Pi CLI artifact
         run: |
            mkdir -p artifacts
-           mv dist/fiscalberry-pi artifacts/fiscalberry-cli-pi-arm64
+           mv dist/fiscalberry-cli artifacts/fiscalberry-cli-pi-arm64
 
       - name: Upload Pi CLI executable artifact
         uses: actions/upload-artifact@v4
