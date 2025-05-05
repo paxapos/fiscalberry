@@ -17,7 +17,7 @@ source.dir = src
 source.main_py = fiscalberry/gui.py
 
 # (list) Source files extensions to include
-source.include_exts = py,png,jpg,kv,atlas,json,pem,crt # Add other extensions if needed (e.g., fonts, sounds)
+source.include_exts = py,png,jpg,kv,atlas,json,svg,pem,crt,ico # Add other extensions if needed (e.g., fonts, sounds)
 
 # (list) List of inclusions using pattern matching (relative to source.dir)
 # Include assets and the capabilities.json at the root of src
@@ -41,8 +41,9 @@ version.filename = %(source.dir)s/fiscalberry/__init__.py
 # (list) Application requirements
 # Comma-separated list of recipes or pure-Python packages.
 # IMPORTANT: Verify each requirement. Check if python-for-android recipes exist for non-pure-Python libs.
-# Remove unnecessary dependencies (like pika if not used on mobile, pywin32, argparse).
-requirements = hostpython3,python3,kivy==2.3.0,python-escpos,python-socketio[client],requests,aiohttp,pillow,python-barcode[images],qrcode[pil],appdirs,platformdirs,pyjnius
+# Remove unnecessary dependencies (like pika if not used on mobile, pywin32,).
+requirements = hostpython3,python3,kivy[base],python-escpos[image,qrcode,usb,serial],python-socketio[client],requests,platformdirs,pyjnius
+
 
 # (str) Presplash of the application
 presplash.filename = %(source.dir)s/fiscalberry/ui/assets/fiscalberry.png
@@ -82,13 +83,13 @@ android.permissions = INTERNET, FOREGROUND_SERVICE, ACCESS_NETWORK_STATE
 # android.features = android.hardware.usb.host
 
 # (int) Target Android API, should be as high as possible.
-android.api = 33
+android.api = 35
 
 # (int) Minimum API your APK / AAB will support.
-android.minapi = 21
+android.minapi = 28
 
 # (int) Android NDK API to use. Should usually match android.minapi.
-android.ndk_api = 21
+android.ndk_api = 28
 
 # (bool) Automatically accept SDK license agreements. Useful for CI.
 android.accept_sdk_license = True
@@ -103,6 +104,7 @@ android.accept_sdk_license = True
 # android.service_class_name = org.kivy.android.PythonService
 
 # (list) The Android archs to build for
+# android.archs = arm64-v8a
 android.archs = arm64-v8a, armeabi-v7a
 
 # (bool) enables Android auto backup feature (Android API >=23)
@@ -110,9 +112,11 @@ android.allow_backup = True
 
 # (str) The format used to package the app for release mode (aab or apk). aab is recommended for Play Store.
 android.release_artifact = apk
+android.release = false
 
 # (str) The format used to package the app for debug mode (apk).
-# android.debug_artifact = apk
+android.debug_artifact = apk
+android.debug = true
 
 #
 # Python for android (p4a) specific

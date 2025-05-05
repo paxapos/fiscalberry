@@ -4,7 +4,10 @@ name: Build Android APK
 on:
   push:
     tags: # Trigger on tags like v*.*.*
-      - 'v*.*.*'
+      - 'NEVER-MATCH-v*.*.*'
+  workflow_dispatch: # Allows manual triggering if needed
+
+
 jobs:
   build-android:
     runs-on: ubuntu-latest
