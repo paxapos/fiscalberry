@@ -77,6 +77,12 @@ jobs:
 
           buildozer -v android release
 
+      # ---  step for debugging ---
+      - name: List bin directory contents (after build)
+        if: always() # Run even if previous steps fail, to aid debugging
+        run: |
+          echo "Listing contents of ./bin directory:"
+          ls -lR ./bin || echo "Bin directory not found or empty."
     
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

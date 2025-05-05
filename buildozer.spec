@@ -109,7 +109,7 @@ android.archs = arm64-v8a, armeabi-v7a
 android.allow_backup = True
 
 # (str) The format used to package the app for release mode (aab or apk). aab is recommended for Play Store.
-android.release_artifact = aab
+android.release_artifact = apk
 
 # (str) The format used to package the app for debug mode (apk).
 # android.debug_artifact = apk
