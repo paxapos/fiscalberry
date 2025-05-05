@@ -122,7 +122,7 @@ jobs:
       - name: Rename Pi CLI artifact
         run: |
            mkdir -p artifacts
-           mv dist/fiscalberry-cli artifacts/fiscalberry-cli-pi-arm64
+           sudo mv dist/fiscalberry-cli artifacts/fiscalberry-cli-pi-arm64
 
       - name: Upload Pi CLI executable artifact
         uses: actions/upload-artifact@v4
