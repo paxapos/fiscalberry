@@ -48,7 +48,18 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libcups2-dev # Add other Kivy deps if needed (e.g., libsdl2-dev libgstreamer1.0-dev)
+          sudo apt-get install -y \
+            libcups2-dev \
+            # Add Kivy dependencies
+            libsdl2-dev \
+            libsdl2_image-dev \
+            libsdl2_mixer-dev \
+            libsdl2_ttf-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            libmtdev-dev \
+            # Add xvfb
+            xvfb
 
       # Add steps for macOS dependencies if needed (e.g., using brew)
       # - name: Install macOS dependencies (if applicable)
@@ -59,18 +70,23 @@ jobs:
       - name: Install PyInstaller
         run: python -m pip install --upgrade pip pyinstaller
 
-      # --- Build CLI ---
-      - name: Install CLI dependencies
-        run: pip install -r requirements.cli.txt
+      # --- Build GUI ---
+      - name: Install GUI dependencies (includes Kivy)
+        run: pip install -r requirements.kivy.txt # This should include CLI deps too
 
-      - name: Build CLI executable (${{ matrix.os_name }})
-        run: pyinstaller fiscalberry-cli.spec
+      - name: Build GUI executable (${{ matrix.os_name }})
+        # Wrap pyinstaller command with xvfb-run for Linux builds
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            xvfb-run --auto-servernum pyinstaller fiscalberry-gui.spec
+          else
+            pyinstaller fiscalberry-gui.spec
+          fi
 
-      - name: Rename CLI artifact
+      - name: Rename GUI artifact
         shell: bash # Use bash for consistent mv/move commands
         run: |
-          mkdir -p artifacts
-          mv ${{ matrix.artifact_path_cli }} artifacts/fiscalberry-cli-${{ matrix.asset_suffix_cli }}
+          mv ${{ matrix.artifact_path_gui }} artifacts/fiscalberry-gui-${{ matrix.asset_suffix_gui }}
 
       # --- Build GUI ---
       - name: Install GUI dependencies (includes Kivy)
@@ -112,7 +128,7 @@ jobs:
         run: |
           docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace fiscalberry-arm /bin/bash -c "
           pip install -r requirements.cli.txt &&
-          pyinstaller fiscalberry-pi.spec &&
+          pyinstaller fiscalberry-cli.spec &&
           ls -la dist"
 
       - name: Rename Pi CLI artifact
