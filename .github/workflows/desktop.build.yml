@@ -72,7 +72,11 @@ jobs:
             xvfb-run --auto-servernum pyinstaller fiscalberry-gui.spec
           else
             echo "Running PyInstaller directly on $RUNNER_OS..."
-            KIVY_NO_WINDOW=1 pyinstaller fiscalberry-gui.spec
+            # Set environment variables to prevent Kivy from trying to initialize graphics
+            export KIVY_NO_WINDOW=1
+            export KIVY_GL_BACKEND=mock
+            export KIVY_GRAPHICS=mock
+            pyinstaller fiscalberry-gui.spec
           fi
 
       - name: List dist directory contents (after build) # Keep this for debugging if needed
