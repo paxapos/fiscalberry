@@ -51,7 +51,7 @@ jobs:
           sudo apt-get install -y \
           git zip unzip build-essential python3-pip python3-dev \
           libffi-dev libssl-dev libncurses5-dev zlib1g-dev libsqlite3-dev libbz2-dev \
-          autoconf automake libtool pkg-config \ # Ensure pkg-config is installed
+          autoconf automake libtool pkg-config \
           cython3 ccache
 
       - name: Install Python build tools and Cython
