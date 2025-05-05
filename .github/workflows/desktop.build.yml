@@ -61,20 +61,39 @@ jobs:
       - name: Install GUI dependencies (includes Kivy)
         run: pip install -r requirements.kivy.txt # This should include CLI deps too
 
+        
       - name: Build GUI executable (${{ matrix.os_name }})
+        # Specify bash shell explicitly for cross-platform compatibility of the script
+        shell: bash
         # Wrap pyinstaller command with xvfb-run for Linux builds
         run: |
           if [ "$RUNNER_OS" == "Linux" ]; then
+            echo "Running PyInstaller with xvfb-run on Linux..."
             xvfb-run --auto-servernum pyinstaller fiscalberry-gui.spec
           else
+            echo "Running PyInstaller directly on $RUNNER_OS..."
             pyinstaller fiscalberry-gui.spec
           fi
+
+      - name: List dist directory contents (after build) # Keep this for debugging if needed
+        if: always()
+        shell: bash # Also use bash here for consistency
+        run: |
+          echo "Listing contents of ./dist directory:"
+          ls -lR ./dist || echo "Dist directory not found or empty."
 
       - name: Rename GUI artifact
         shell: bash # Use bash for consistent mv/move commands
         run: |
           mkdir -p artifacts
-          mv ${{ matrix.artifact_path_gui }} artifacts/fiscalberry-gui-${{ matrix.asset_suffix_gui }}
+          # Ensure the source path exists before moving
+          if [ -e "${{ matrix.artifact_path_gui }}" ]; then
+            echo "Moving ${{ matrix.artifact_path_gui }} to artifacts/fiscalberry-gui-${{ matrix.asset_suffix_gui }}"
+            mv ${{ matrix.artifact_path_gui }} artifacts/fiscalberry-gui-${{ matrix.asset_suffix_gui }}
+          else
+            echo "ERROR: Source file ${{ matrix.artifact_path_gui }} not found!"
+            # Optionally fail the step: exit 1
+          fi
 
       - name: Upload executables artifact (${{ matrix.os_name }})
         uses: actions/upload-artifact@v4
