@@ -75,9 +75,8 @@ jobs:
           rm -rf ~/.buildozer
           rm -rf ./.buildozer
 
-          buildozer android clean
           buildozer -v android release
-          
+
     
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
