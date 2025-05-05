@@ -58,7 +58,6 @@ jobs:
             libgstreamer1.0-dev \
             libgstreamer-plugins-base1.0-dev \
             libmtdev-dev \
-            # Add xvfb
             xvfb
 
       # Add steps for macOS dependencies if needed (e.g., using brew)
