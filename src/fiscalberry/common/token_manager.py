@@ -1,17 +1,17 @@
 import os
 import requests
 import json
+import platformdirs
 
-FILENAME = "jwt_token.json"
-if os.name == 'nt':  # Windows
-    TOKEN_FILE = os.path.join(os.getenv('APPDATA', tempfile.gettempdir()), FILENAME)
-elif os.name == 'posix':  # Linux, macOS, or Android
-    if "ANDROID_STORAGE" in os.environ:  # Android
-        TOKEN_FILE = os.path.join(os.getenv('TMPDIR', "/data/local/tmp"), FILENAME)
-    else:  # Linux or macOS
-        TOKEN_FILE = os.path.join(os.getenv('XDG_CONFIG_HOME', os.path.expanduser("~/.config")), FILENAME)
-else:
-    TOKEN_FILE = os.path.join(tempfile.gettempdir(), FILENAME)
+# Define your app name and author for proper directory structure
+APP_NAME = "fiscalberry"
+APP_AUTHOR = "fiscalberry"
+
+# Use platformdirs to get the correct config directory
+TOKEN_FILE = os.path.join(platformdirs.user_config_dir(APP_NAME, APP_AUTHOR), "fiscalberry_jwt_token.json")
+
+# Ensure the directory exists
+os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
 
 def do_login(username, password):
     """Autentica al usuario contra el backend y guarda el token JWT."""
