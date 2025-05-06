@@ -144,7 +144,7 @@ jobs:
           # This is faster than setting up QEMU and Docker
           run: |
             apt-get update
-            apt-get install -y python3-pip python3-dev
+            apt-get install -y python3-pip python3-dev libcups2-dev
             pip3 install .
             pip3 install pyinstaller
             pyinstaller fiscalberry-cli.spec
