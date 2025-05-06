@@ -4,5 +4,6 @@
 """
 Fiscalberry Server Package
 """
+from fiscalberry.version import VERSION
 
-__version__ = "2.0.1"  # Example version, update as needed
+__version__ = VERSION 

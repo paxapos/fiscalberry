@@ -59,7 +59,7 @@ jobs:
 
       # --- Build GUI ---
       - name: Install GUI dependencies (includes Kivy)
-        run: pip install -r requirements.kivy.txt # This should include CLI deps too
+        run: pip install .
 
         
       - name: Build GUI executable (${{ matrix.os_name }})
@@ -92,8 +92,8 @@ jobs:
           mkdir -p artifacts
           # Ensure the source path exists before moving
           if [ -e "${{ matrix.artifact_path_gui }}" ]; then
-            echo "Moving ${{ matrix.artifact_path_gui }} to artifacts/fiscalberry-gui-${{ matrix.asset_suffix_gui }}"
-            mv ${{ matrix.artifact_path_gui }} artifacts/fiscalberry-gui-${{ matrix.asset_suffix_gui }}
+            echo "Moving ${{ matrix.artifact_path_gui }} to artifacts/fiscalberry-${{ matrix.asset_suffix_gui }}"
+            mv ${{ matrix.artifact_path_gui }} artifacts/fiscalberry-${{ matrix.asset_suffix_gui }}
           else
             echo "ERROR: Source file ${{ matrix.artifact_path_gui }} not found!"
             # Optionally fail the step: exit 1

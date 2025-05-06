@@ -26,7 +26,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
@@ -36,4 +36,6 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=['src/fiscalberry/ui/assets/fiscalberry.ico'],
+    version='file_version_info.txt',  # Add a version file (see below)
+    uac_admin=False,  # Don't request admin privileges unless necessary
 )

@@ -15,8 +15,9 @@ from threading import Thread
 import time
 import sys
 import os
-from pkg_resources import get_distribution
 
+
+from fiscalberry.version import VERSION
 
 class FiscalberryApp(App):
     name = StringProperty("Servidor de Impresión")
@@ -25,7 +26,7 @@ class FiscalberryApp(App):
     tenant = StringProperty("")
     siteName = StringProperty("")
     siteAlias = StringProperty("")
-    version = StringProperty( get_distribution("fiscalberry").version )
+    version = StringProperty( VERSION )
 
     
     assetpath = os.path.join(os.path.dirname(__file__), "assets")

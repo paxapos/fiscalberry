@@ -6,8 +6,6 @@ def load_requirements(filename):
         return [line.strip() for line in req_file
                 if line.strip() and not line.startswith("#")]
 
-requirements_file = os.path.join(os.path.dirname(__file__), "requirements.kivy.txt")
-requirements = load_requirements(requirements_file)
 
 setup(
     name='fiscalberry',
@@ -17,7 +15,11 @@ setup(
     author_email='alevilar@gmail.com',
     package_dir={'': 'src'},  # Le decimos que los paquetes están en "src"
     packages=find_packages(where='src'),  # Esto encontrará "fiscalberry"
-    install_requires=requirements,
+    install_requires=load_requirements("requirements.txt"),  # Asume que load_requirements está fijo para tomar un nombre de archivo
+    extras_require={
+        'cli': load_requirements("requirements.cli.txt"),  # Assumes load_requirements is fixed to take a filename
+        'gui': load_requirements("requirements.kivy.txt"),  # Assumes load_requirements is fixed to take a filename
+    },
     entry_points={
         'console_scripts': [
             'fiscalberry_cli=fiscalberry.cli:main',
