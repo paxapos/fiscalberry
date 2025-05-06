@@ -5,9 +5,14 @@ on:
     tags: # Trigger on tags like v*.*.*
       - 'v*.*.*'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true  # Cancel previous runs if new commits are pushed
+
 jobs:
   build-desktop:
     strategy:
+      fail-fast: false   # Continue with other jobs if one fails
       matrix:
         os: [ubuntu-22.04, windows-latest]
         include:
@@ -54,12 +59,23 @@ jobs:
       #   run: |
       #     brew install sdl2 # Example
 
+      - name: Cache PyInstaller
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/pyinstaller
+            ~/AppData/Local/pip/Cache  # Windows cache
+          key: ${{ runner.os }}-pyinstaller-${{ hashFiles('fiscalberry-gui.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-pyinstaller-
+
       - name: Install PyInstaller
         run: python -m pip install --upgrade pip pyinstaller
 
       # --- Build GUI ---
       - name: Install GUI dependencies (includes Kivy)
-        run: pip install .
+        run: pip install .[gui]
 
         
       - name: Build GUI executable (${{ matrix.os_name }})
@@ -105,35 +121,38 @@ jobs:
           name: fiscalberry-executables-${{ matrix.os_name }}
           path: artifacts/
 
+      - name: Create release if all builds succeed
+        if: success() && matrix.os == 'ubuntu-22.04'  # Only create release once
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/fiscalberry-${{ matrix.asset_suffix_gui }}
+          draft: false
+          prerelease: false
+
   build-raspberry-pi-cli:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+      - name: Build Pi CLI executable
+        uses: uraimo/run-on-arch-action@v2
         with:
-          platforms: arm64
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Build Docker image for ARM
-        run: |
-          docker buildx build --platform linux/arm64 -t fiscalberry-arm --load -f Dockerfile.build .
-
-      - name: Run Docker container to build Pi CLI
-        run: |
-          docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace fiscalberry-arm /bin/bash -c "
-          pip install -r requirements.cli.txt &&
-          pyinstaller fiscalberry-cli.spec &&
-          ls -la dist"
+          arch: aarch64
+          distro: ubuntu22.04
+          # This is faster than setting up QEMU and Docker
+          run: |
+            apt-get update
+            apt-get install -y python3-pip python3-dev
+            pip3 install .
+            pip3 install pyinstaller
+            pyinstaller fiscalberry-cli.spec
 
       - name: Rename Pi CLI artifact
         run: |
-           mkdir -p artifacts
-           sudo mv dist/fiscalberry-cli artifacts/fiscalberry-cli-pi-arm64
+          mkdir -p artifacts
+          sudo mv dist/fiscalberry-cli artifacts/fiscalberry-cli-pi-arm64
 
       - name: Upload Pi CLI executable artifact
         uses: actions/upload-artifact@v4
@@ -182,14 +201,12 @@ jobs:
       - name: Upload all assets to release
         shell: bash
         run: |
-          # Loop through all downloaded artifact directories (one per job/matrix entry)
           for artifact_dir in ./artifacts/fiscalberry-executables-*; do
-            # Loop through each file in the artifact directory
-            find "$artifact_dir" -type f -print0 | while IFS= read -r -d $'\0' file; do
-              asset_name=$(basename "$file")
-              echo "Uploading $asset_name from $file"
-              gh release upload "${{ github.ref_name }}" "$file" --clobber -R "${{ github.repository }}"
-            done
+            files=$(find "$artifact_dir" -type f | tr '\n' ' ')
+            if [ -n "$files" ]; then
+              echo "Uploading files from $artifact_dir"
+              gh release upload "${{ github.ref_name }}" $files --clobber -R "${{ github.repository }}"
+            fi
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
