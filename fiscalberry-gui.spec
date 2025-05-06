@@ -5,7 +5,10 @@ a = Analysis(
     ['src/fiscalberry/gui.py'],
     pathex=[],
     binaries=[],
-    datas=[('./capabilities.json', 'escpos')],
+    datas=[
+        ('./capabilities.json', 'escpos'),
+        ('src/fiscalberry/ui/kv', 'fiscalberry/ui/kv')
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
