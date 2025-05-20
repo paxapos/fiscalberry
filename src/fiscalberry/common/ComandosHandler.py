@@ -44,25 +44,42 @@ class TraductorException(Exception):
     pass
 
 
-# Cola de trabajos de impresión
-print_queue = Queue()
+# Cola de trabajos de impresión con un tamaño máximo
+print_queue = Queue(maxsize=100)  # Limitar a 100 trabajos encolados
+
+# Añadir un mecanismo de informes periódicos sobre la cola
+def report_queue_status():
+    qsize = print_queue.qsize()
+    if qsize > 10:  # Solo informar si hay muchos trabajos
+        logging.warning(f"Print queue size: {qsize} jobs waiting")
+    threading.Timer(60.0, report_queue_status).start()  # Programar próximo informe
+
+# Iniciar el informe periódico
+report_queue_status()
 
 def process_print_jobs():
     while True:
-        jsonTicket, q = print_queue.get()
-        if jsonTicket is None:
+        job_data = print_queue.get()
+        if job_data is None:
             break
         
+        jsonTicket, q = job_data
+        
         try:
-            runTraductor(jsonTicket, q)
+            result = runTraductor(jsonTicket, q)
+            # Poner el resultado en la cola para informar al consumidor
+            q.put({"success": True, "result": result})
         except Exception as e:
             logging.error(f"Error al procesar el trabajo de impresión: {e}")
             logging.error(traceback.format_exc())
+            # Informar del error
+            q.put({"success": False, "error": str(e)})
 
         print_queue.task_done()
 
 # Iniciar el hilo que procesa la cola de trabajos de impresión
 threading.Thread(target=process_print_jobs, daemon=True).start()
+
 
 
 
@@ -74,10 +91,11 @@ def runTraductor(jsonTicket, queue):
         dictSectionConf = configberry.get_config_for_printer(printerName)
     except KeyError as e:
         logger.error(f"En el archivo de configuracion no existe la impresora: '{printerName}' :: {e}")
-        return
+        return {"error": f"Impresora no encontrada: {printerName}"}
     except Exception as e:
         logger.error(f"Error al leer la configuracion de la impresora: '{printerName}' :: {e}")
-        return
+        return {"error": f"Error de configuración: {str(e)}"}
+
 
     driverName = dictSectionConf.pop("driver", "Dummy")
     # convertir a lowercase
@@ -171,8 +189,14 @@ def runTraductor(jsonTicket, queue):
     logging.info(f"Driver: {driverName}")
     logging.info(f"DriverOps: {driverOps}")
     logging.info(f"Comando:\n%s" % jsonTicket) 
-    comando.run(jsonTicket)
-    
+
+    try:
+        result = comando.run(jsonTicket)
+        return {"message": "Impresión exitosa", "result": result}
+    except Exception as e:
+        logging.error(f"Error durante la impresión: {e}")
+        raise e
+
 
 
 class ComandosHandler:
@@ -225,7 +249,7 @@ class ComandosHandler:
         rta = {"rta": ""}
         try:
 
-            # seleccionar impresora
+            # si no se pasa el nombre de la impresora, se toma la primera# seleccionar impresora
             # esto se debe ejecutar antes que cualquier otro comando
             if 'printerName' in jsonTicket:
                 logger.info("Imprimiendo en: \"%s\"" % jsonTicket.get('printerName'))
@@ -233,9 +257,19 @@ class ComandosHandler:
                 # run multiprocessing
                 q = Queue()
                 print_queue.put((jsonTicket, q))
-                q.join()  # Esperar a que el trabajo de impresión se complete
-                if not q.empty():
-                    rta["rta"] = q.get(timeout=1)
+                
+                # Esperar a que el trabajo de impresión se complete con timeout
+                try:
+                    result = q.get(timeout=30)  # Añade un timeout razonable
+                    if isinstance(result, dict) and result.get("success") == False:
+                        rta["err"] = result.get("error", "Error desconocido en la impresión")
+                    else:
+                        rta["rta"] = result
+                except Exception as e:
+                    logger.error(f"Error esperando resultado de impresión: {e}")
+                    rta["err"] = f"Timeout o error en la impresión: {str(e)}"
+
+            
 
             # Acciones de comando genericos de Status y Control
             elif 'getStatus' in jsonTicket:

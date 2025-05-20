@@ -9,6 +9,55 @@ from escpos.constants import QR_ECLEVEL_H,CD_KICK_2
 
 logger = getLogger()
 
+
+
+# Add this new helper function for safe date parsing
+def safe_parse_date(date_str, default_format=None, return_current_on_error=True):
+    """
+    Safely parse a date string with multiple format attempts.
+
+    Args:
+        date_str (str): The date string to parse
+        default_format (str, optional): Format to try first
+        return_current_on_error (bool): Return current datetime if parsing fails
+
+    Returns:
+        datetime.datetime: The parsed datetime object or current datetime on error
+    """
+    if not date_str:
+        logger.warning(f"Empty date string provided")
+        return datetime.datetime.now() if return_current_on_error else None
+
+    # List of formats to try (add more as needed)
+    formats = []
+    if default_format:
+        formats.append(default_format)
+
+    # Add common formats
+    formats.extend([
+        '%d-%m-%Y %H:%M',
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%d %H:%M',
+        '%d/%m/%Y %H:%M',
+        '%d/%m/%y %H:%M',
+        '%Y-%m-%d',
+        '%d/%m/%Y',
+        '%d/%m/%y',
+        '%d-%m-%Y',
+        '%d-%m-%y',
+    ])
+
+    for fmt in formats:
+        try:
+            return datetime.datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+
+    logger.error(f"Failed to parse date: '{date_str}'. Using current date instead.")
+    return datetime.datetime.now() if return_current_on_error else None
+
+
+
 def floatToString(inputValue):
     if ( not isinstance(inputValue, float) ):
         inputValue = float(inputValue)

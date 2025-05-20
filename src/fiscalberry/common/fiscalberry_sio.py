@@ -95,6 +95,12 @@ class FiscalberrySio:
                     logger.error(f"on_message callback: {e}")
 
         @self.sio.event(namespace=ns)
+        def command(cfg: dict):
+            logger.info(f"Vino evento command {cfg}")
+
+            
+
+        @self.sio.event(namespace=ns)
         def start_rabbit(cfg: dict):
             logger.info(f"start_rabbit: RabbitMQ {cfg}")
 

@@ -39,7 +39,9 @@ class RabbitMQProcessHandler:
         port = self.config.get("RabbitMq", "port")
         user = self.config.get("RabbitMq", "user")
         password = self.config.get("RabbitMq", "password")
-        queue_name = self.config.get("RabbitMq", "queue")
+        
+        # TODO deberia usarse esto: queue_name = self.config.get("RabbitMq", "queue")
+        queue_name = self.config.get("SERVIDOR", "uuid")
         
         self._stop_event.clear()
         self._thread = threading.Thread(
