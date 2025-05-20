@@ -18,6 +18,7 @@ class Configberry:
     _listeners = []
 
     def __new__(cls):
+
         if not cls._instance:
             cls._instance = super(Configberry, cls).__new__(cls)
         return cls._instance
@@ -32,7 +33,6 @@ class Configberry:
             self.__create_config_if_not_exists(self.configFilePath)
             self._listeners = []
             
-            print(f"Configberry: Config file path: {self.configFilePath}")
 
 
     def getConfigFIle(self):
