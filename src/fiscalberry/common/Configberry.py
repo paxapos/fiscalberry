@@ -31,6 +31,8 @@ class Configberry:
             self.configFilePath = self.getConfigFIle()
             self.__create_config_if_not_exists(self.configFilePath)
             self._listeners = []
+            
+            print(f"Configberry: Config file path: {self.configFilePath}")
 
 
     def getConfigFIle(self):

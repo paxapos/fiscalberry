@@ -1,5 +1,4 @@
 
-import subprocess
 from fiscalberry.common.fiscalberry_logger import getLogger
 import os
 from fiscalberry.common.fiscalberry_sio import FiscalberrySio
