@@ -25,7 +25,7 @@ file_handler.setFormatter(log_format)
 # En desarrollo mostramos más información en consola
 if environment.lower() == "development":
     console_level = logging.DEBUG
-    print("* * * * * Modo de desarrollo * * * * *")
+    print("* * * * * Modo de desarrollo - muestra mas logs * * * * *")
 else:
     console_level = logging.WARNING
     print("@ @ @ @ @ Modo de producción @ @ @ @ @")
