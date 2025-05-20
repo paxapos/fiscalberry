@@ -58,9 +58,10 @@ class RabbitMQConsumer:
         )
         self.connection = pika.BlockingConnection(params)
         self.channel = self.connection.channel()
-        
+        self.logger.info(f"Blockin channel creado")
         # Manejo del exchange
         try:
+            self.logger.info(f"Probando si existe exchange")
             # Verificar si el exchange existe sin intentar modificarlo
             self.channel.exchange_declare(
                 exchange=self.STREAM_NAME,
@@ -68,6 +69,7 @@ class RabbitMQConsumer:
             )
             self.logger.info(f"Exchange {self.STREAM_NAME} ya existe")
         except pika.exceptions.ChannelClosedByBroker:
+            self.logger.info(f"bloquin contection magic pufff")
             # Si el exchange no existe, reconectamos y lo creamos
             self.connection = pika.BlockingConnection(params)
             self.channel = self.connection.channel()
@@ -79,6 +81,8 @@ class RabbitMQConsumer:
             )
             self.logger.info(f"Exchange {self.STREAM_NAME} creado como direct")
         
+        self.logger.info(f"Conectado con RabbitMQ, ahora ... Conectando a cola: {self.queue}")
+
         # Manejo de la cola - verificar primero si existe
         try:
             # Verificar si la cola existe sin intentar modificarla
