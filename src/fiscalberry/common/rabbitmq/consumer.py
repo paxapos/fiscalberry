@@ -154,7 +154,7 @@ class RabbitMQConsumer:
                     self.logger.error(f"Error in command handler: {result['err']}")
                     # Si es un error recuperable, podríamos reintentar o poner en una cola de espera
                     # Por ahora, consideramos que es un error y no reconocemos el mensaje
-                    ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+                    ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                     return
                     
                 self.logger.info(f"Command handler result: {result}")
@@ -164,12 +164,12 @@ class RabbitMQConsumer:
 
             except TraductorException as e:
                 self.logger.error(f"TraductorException Error: {e}")
-                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                 self.logger.error(traceback.format_exc())
             except Exception as e:
                 self.logger.error(f"Error processing message: {e}")
                 self.logger.error(traceback.format_exc())
-                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                 
                 
                 

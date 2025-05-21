@@ -42,8 +42,6 @@ class RabbitMQProcessHandler:
         
         # TODO deberia usarse esto: queue_name = self.config.get("RabbitMq", "queue")
         queue_name = self.config.get("SERVIDOR", "uuid")
-        print("EL QUQUQUQUUQUQUQ QUEUE_NAME ES: ", queue_name)
-        logger.info("EL QUQUQUQUUQUQUQ QUEUE_NAME ES: ", queue_name)
         self._stop_event.clear()
         self._thread = threading.Thread(
             target=self._run_consumer,
@@ -52,8 +50,8 @@ class RabbitMQProcessHandler:
         )
         self._thread.start()
         logger.info("RabbitMQ thread iniciado.")
-        self._thread.join()  # No bloqueante, solo para iniciar el hilo
-        logger.info("RabbitMQ thread en ejecución.")
+        #self._thread.join()  # No bloqueante, solo para iniciar el hilo
+        #logger.info("RabbitMQ thread en ejecución.")
         
         
 

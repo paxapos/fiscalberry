@@ -1,6 +1,8 @@
-
 from fiscalberry.common.fiscalberry_logger import getLogger
+import sys
 import os
+import signal
+import socketio
 from fiscalberry.common.fiscalberry_sio import FiscalberrySio
 from fiscalberry.common.discover import send_discover_in_thread
 from fiscalberry.common.Configberry import Configberry
@@ -21,8 +23,18 @@ class ServiceController:
     """
     
     sio: FiscalberrySio = None
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(ServiceController, cls).__new__(cls)
+        return cls._instance
     
     def __init__(self):
+        if hasattr(self, 'initialized'):
+            return
+            
+        self.initialized = True
         self.socketio_thread = None
         self.discover_thread = None
         self.configberry = Configberry()
@@ -32,18 +44,50 @@ class ServiceController:
         sio_host = self.configberry.get("SERVIDOR", "sio_host")
         if not sio_host:
             logger.error("sio_host no configurado. Abortando.")
-            # raise RuntimeError("sio_host configuration missing.")
-            os._exit(1) # O manejar el error
+            os._exit(1)
 
         # --- Bucle de chequeo inicial de UUID ---
         uuidval = self.configberry.get("SERVIDOR", "uuid", fallback="")
         if not uuidval:
             logger.error(f"UUID NO encontrado en config file: {uuidval}")
-            # raise RuntimeError("sio_host configuration missing.")
-            os._exit(1) # O manejar el error
+            os._exit(1)
 
         self.sio = FiscalberrySio(sio_host, uuidval)
+        
+        # Configurar manejo de señales
+        self._setup_signal_handlers()
 
+    def _setup_signal_handlers(self):
+        """Configura los manejadores de señales para detener limpiamente."""
+        # Guardar las referencias a los manejadores originales
+        self._original_sigint_handler = signal.getsignal(signal.SIGINT)
+        self._original_sigterm_handler = signal.getsignal(signal.SIGTERM)
+        
+        # Registrar nuestros manejadores
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+        
+    def _signal_handler(self, sig, frame):
+        """Manejador de señales para cierre graceful."""
+        logger.info(f"Recibida señal {signal.Signals(sig).name}. Deteniendo servicios...")
+        
+        # Solicitar detención limpia
+        self.stop()
+        
+        # Dar un pequeño tiempo para que la limpieza se inicie
+        time.sleep(1)
+        
+        # Si después de un tiempo razonable no ha terminado, salir
+        # Pero no utilizar os._exit() que es demasiado abrupto
+        if self.is_service_running():
+            logger.warning("Forzando salida después de tiempo de espera...")
+            
+            # Restaurar handlers originales antes de volver a enviar la señal
+            signal.signal(signal.SIGINT, self._original_sigint_handler)
+            signal.signal(signal.SIGTERM, self._original_sigterm_handler)
+            
+            # Lanzar la señal original para terminar
+            os.kill(os.getpid(), sig)
 
     def is_service_running(self):
         """Verifica si el servicio ya está en ejecución."""
@@ -64,7 +108,6 @@ class ServiceController:
         """
         return self.sio.isRabbitMQRunning()
     
-
     def toggle_service(self):
         """Alterna el estado del servicio."""
         if self.is_service_running():
@@ -73,7 +116,6 @@ class ServiceController:
         else:
             logger.info("Iniciando el servicio...")
             return self.start()
-
 
     def _run_sio_instance(self):
         """Ejecuta una instancia/conexión de FiscalberrySio y ESPERA a que termine."""
@@ -84,53 +126,54 @@ class ServiceController:
 
             # ¡IMPORTANTE! Esperar a que el hilo interno de SIO termine.
             if sio_internal_thread and isinstance(sio_internal_thread, threading.Thread):
-                sio_internal_thread.join() # Bloquea aquí hasta que _run finalice
-                logger.info("FiscalberrySio internal thread finished.")
+                # Usar join con timeout para poder verificar periódicamente si hay una solicitud de stop
+                while sio_internal_thread.is_alive() and not self._stop_event.is_set():
+                    sio_internal_thread.join(timeout=1.0)
+                
+                if self._stop_event.is_set() and sio_internal_thread.is_alive():
+                    logger.info("Stop event detected during SIO internal thread join")
+                else:
+                    logger.info("FiscalberrySio internal thread finished.")
             else:
-                # Esto puede pasar si self.start() no inició un nuevo hilo (quizás ya estaba corriendo)
-                # O si la lógica de start() cambió. Añadir manejo si es necesario.
                 logger.warning("self.start() did not return a running thread to wait for.")
 
         except socketio.exceptions.ConnectionError as e:
-            logger.error(f"SIO Connection Error in instance thread: {e}", exc_info=False) # No mostrar traceback completo para errores de conexión comunes
+            logger.error(f"SIO Connection Error in instance thread: {e}", exc_info=False)
         except Exception as e:
             logger.error(f"Unhandled Exception in SIO instance thread: {e}", exc_info=True)
         finally:
-            # Este log ahora indica que _run_sio_instance (y el join interno) ha terminado
             logger.info("Exiting _run_sio_instance.")
-
 
     def start(self):
         """Inicia y mantiene vivo el proceso de conexión SIO."""
         logger.info("Iniciando Fiscalberry SIO Service Loop")
         self._stop_event.clear()
         self.initial_retries = 0
-        
-        
 
         if self._stop_event.is_set():
             logger.info("Stop requested during initial UUID check.")
             return # Salir si se pidió detener
 
-
-         # Enviar el discover al servidor la pruimera vez
+        # Enviar el discover al servidor la primera vez
         self.discover_thread = send_discover_in_thread()
         self.discover_thread.start()
-        
 
         # --- Bucle principal de reconexión ---
         while not self._stop_event.is_set():
-            
             # Creamos un hilo que ejecutará _run_sio_instance
-            # _run_sio_instance internamente llama a sio.start() que es bloqueante
             self.socketio_thread = threading.Thread(
                 target=self._run_sio_instance,
                 daemon=True # Daemon para que no bloquee la salida si el principal muere
             )
             logger.info("* * * * * SocketIO thread start.")
             self.socketio_thread.start()
-            self.socketio_thread.join() # Espera a que _run_sio_instance termine
-            logger.info("* * * * * SocketIO thread finished.")
+            
+            # En lugar de un join simple que puede bloquear indefinidamente,
+            # usamos un join con timeout para verificar periódicamente el estado
+            while self.socketio_thread.is_alive() and not self._stop_event.is_set():
+                self.socketio_thread.join(timeout=1.0)
+            
+            logger.info("* * * * * SocketIO thread finished or stop requested.")
 
             # Si el hilo terminó, verificamos si fue por una señal de stop
             if self._stop_event.is_set():
@@ -151,25 +194,32 @@ class ServiceController:
         self.sio.stop()
         
         if self.socketio_thread and self.socketio_thread.is_alive():
-            self.socketio_thread.join(timeout=5)
+            # Dar tiempo para que termine limpiamente
+            for _ in range(5):  # Esperar hasta 5 segundos en incrementos de 1 segundo
+                if not self.socketio_thread.is_alive():
+                    break
+                time.sleep(1)
+                    
             if self.socketio_thread.is_alive():
-                logger.warning("SIO thread did not stop within the timeout period of 5 seconds.")
+                logger.warning("SIO thread did not stop within the timeout period.")
         else:
             logger.info("SIO thread already stopped or not started.")
+                
         # Detener el hilo de discover si está activo
         if self.discover_thread and self.discover_thread.is_alive():
             logger.info("Stopping discover thread...")
-            self.discover_thread.join(timeout=5)
+            self.discover_thread.join(timeout=2)
             if self.discover_thread.is_alive():
-                logger.warning("Discover thread did not stop within the timeout period of 5 seconds.")
+                logger.warning("Discover thread did not stop within the timeout period.")
         else:
             logger.info("Discover thread already stopped or not started.")
-            
+                
         logger.info("SIO services stopped.")
         
-    
-                
-        return True
-
+        # Añadir esta línea para forzar la salida después de la limpieza
+        sys.exit(0)  # Terminar el proceso con código 0 (éxito)
         
+        return True  # Esta línea ya no se ejecutará, pero la dejamos por compatibilidad
+
+
 
