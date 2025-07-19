@@ -1,4 +1,9 @@
 name: Build Desktop & Pi Ejecutables - on New Version
+# 
+# Este workflow construye ejecutables para múltiples plataformas:
+# - CLI: Linux x64, Windows x64, Raspberry Pi ARM64
+# - GUI: Solo Windows x64 (Kivy es más complejo en Linux)
+#
 
 on:
   push:
@@ -18,18 +23,18 @@ jobs:
         include:
           - os: ubuntu-22.04
             os_name: linux
-            asset_suffix_cli: lin-x64
-            asset_suffix_gui: gui-lin-x64
+            asset_suffix_cli: cli-lin-x64
             artifact_path_cli: dist/fiscalberry-cli
-            artifact_path_gui: dist/fiscalberry-gui
             python_platform: linux
+            build_gui: false
           - os: windows-latest
             os_name: windows
-            asset_suffix_cli: win-x64.exe
+            asset_suffix_cli: cli-win-x64.exe
             asset_suffix_gui: gui-win-x64.exe
             artifact_path_cli: dist/fiscalberry-cli.exe
             artifact_path_gui: dist/fiscalberry-gui.exe
             python_platform: win32
+            build_gui: true
          
 
     runs-on: ${{ matrix.os }}
@@ -73,46 +78,63 @@ jobs:
       - name: Install PyInstaller
         run: python -m pip install --upgrade pip pyinstaller
 
-      # --- Build GUI ---
-      - name: Install GUI dependencies (includes Kivy)
-        run: pip install .[gui]
+      # --- Build CLI for all platforms ---
+      - name: Install CLI dependencies
+        run: pip install -r requirements.cli.txt
 
-        
-      - name: Build GUI executable (${{ matrix.os_name }})
-        # Specify bash shell explicitly for cross-platform compatibility of the script
+      - name: Build CLI executable (${{ matrix.os_name }})
         shell: bash
-        # Wrap pyinstaller command with xvfb-run for Linux builds
         run: |
-          if [ "$RUNNER_OS" == "Linux" ]; then
-            echo "Running PyInstaller with xvfb-run on Linux..."
-            xvfb-run --auto-servernum pyinstaller fiscalberry-gui.spec
-          else
-            echo "Running PyInstaller directly on $RUNNER_OS..."
-            # Set environment variables to prevent Kivy from trying to initialize graphics
-            export KIVY_NO_WINDOW=1
-            export KIVY_GL_BACKEND=mock
-            export KIVY_GRAPHICS=mock
-            pyinstaller fiscalberry-gui.spec
-          fi
+          echo "Building CLI executable for ${{ matrix.os_name }}..."
+          pyinstaller fiscalberry-cli.spec
 
-      - name: List dist directory contents (after build) # Keep this for debugging if needed
+      # --- Build GUI (only for Windows) ---
+      - name: Install GUI dependencies (Windows only)
+        if: matrix.build_gui == true
+        run: pip install -r requirements.kivy.txt
+
+      - name: Build GUI executable (Windows only)
+        if: matrix.build_gui == true
+        shell: bash
+        run: |
+          echo "Building GUI executable for Windows..."
+          # Set environment variables to prevent Kivy from trying to initialize graphics
+          export KIVY_NO_WINDOW=1
+          export KIVY_GL_BACKEND=mock
+          export KIVY_GRAPHICS=mock
+          pyinstaller fiscalberry-gui.spec
+
+      - name: List dist directory contents (after build)
         if: always()
-        shell: bash # Also use bash here for consistency
+        shell: bash
         run: |
           echo "Listing contents of ./dist directory:"
           ls -lR ./dist || echo "Dist directory not found or empty."
 
-      - name: Rename GUI artifact
-        shell: bash # Use bash for consistent mv/move commands
+      - name: Rename CLI artifact
+        shell: bash
         run: |
           mkdir -p artifacts
-          # Ensure the source path exists before moving
+          # Ensure the CLI source path exists before moving
+          if [ -e "${{ matrix.artifact_path_cli }}" ]; then
+            echo "Moving ${{ matrix.artifact_path_cli }} to artifacts/fiscalberry-${{ matrix.asset_suffix_cli }}"
+            mv ${{ matrix.artifact_path_cli }} artifacts/fiscalberry-${{ matrix.asset_suffix_cli }}
+          else
+            echo "ERROR: CLI source file ${{ matrix.artifact_path_cli }} not found!"
+            exit 1
+          fi
+
+      - name: Rename GUI artifact (Windows only)
+        if: matrix.build_gui == true
+        shell: bash
+        run: |
+          # Ensure the GUI source path exists before moving
           if [ -e "${{ matrix.artifact_path_gui }}" ]; then
             echo "Moving ${{ matrix.artifact_path_gui }} to artifacts/fiscalberry-${{ matrix.asset_suffix_gui }}"
             mv ${{ matrix.artifact_path_gui }} artifacts/fiscalberry-${{ matrix.asset_suffix_gui }}
           else
-            echo "ERROR: Source file ${{ matrix.artifact_path_gui }} not found!"
-            # Optionally fail the step: exit 1
+            echo "ERROR: GUI source file ${{ matrix.artifact_path_gui }} not found!"
+            exit 1
           fi
 
       - name: Upload executables artifact (${{ matrix.os_name }})
@@ -120,15 +142,6 @@ jobs:
         with:
           name: fiscalberry-executables-${{ matrix.os_name }}
           path: artifacts/
-
-      - name: Create release if all builds succeed
-        if: success() && matrix.os == 'ubuntu-22.04'  # Only create release once
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            artifacts/fiscalberry-${{ matrix.asset_suffix_gui }}
-          draft: false
-          prerelease: false
 
   build-raspberry-pi-cli:
     runs-on: ubuntu-22.04
@@ -141,11 +154,11 @@ jobs:
         with:
           arch: aarch64
           distro: ubuntu22.04
-          # This is faster than setting up QEMU and Docker
           run: |
             apt-get update
             apt-get install -y python3-pip python3-dev libcups2-dev
-            pip3 install .
+            # Install CLI dependencies only
+            pip3 install -r requirements.cli.txt
             pip3 install pyinstaller
             pyinstaller fiscalberry-cli.spec
 
