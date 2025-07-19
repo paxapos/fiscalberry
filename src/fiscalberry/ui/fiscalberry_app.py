@@ -15,6 +15,7 @@ from threading import Thread
 import time
 import sys
 import os
+import signal
 
 
 from fiscalberry.version import VERSION
@@ -135,10 +136,12 @@ class FiscalberryApp(App):
         # Evitar múltiples llamadas
         if self._stopping:
             return
-        self._stopping = True
         
-        # Usar _stop_services_only() para evitar que Kivy se cierre automáticamente
+        print("Deteniendo servicios desde la GUI...")
+        
+        # Solo detener los servicios, no forzar salida de la aplicación
         self._service_controller._stop_services_only()
+        print("Servicios detenidos desde la GUI")
     
     
     def on_stop(self):
@@ -153,11 +156,38 @@ class FiscalberryApp(App):
         self._service_controller._stop_services_only()
         print("Servicios detenidos...")
         
-        # Usar Clock.schedule_once para forzar la salida después de la limpieza
+        # Usar múltiples estrategias para forzar la salida
         Clock.schedule_once(self._force_exit, 0.1)
     
     def _force_exit(self, dt):
         """Método auxiliar para forzar la salida después de la limpieza."""
+        import signal
+        import threading
+        
+        print("Forzando salida de la aplicación...")
+        
+        # Estrategia 1: Detener el Clock de Kivy
+        try:
+            Clock.stop()
+        except:
+            pass
+        
+        # Estrategia 2: Terminar threads activos
+        try:
+            for thread in threading.enumerate():
+                if thread != threading.current_thread() and thread.is_alive():
+                    if hasattr(thread, '_stop'):
+                        thread._stop()
+        except:
+            pass
+        
+        # Estrategia 3: Usar signal para terminar el proceso
+        try:
+            os.kill(os.getpid(), signal.SIGTERM)
+        except:
+            pass
+        
+        # Estrategia 4: Exit forzado como último recurso
         os._exit(0)
         
         

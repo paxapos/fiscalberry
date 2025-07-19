@@ -1,1 +1,22 @@
-kivy[base]==2.3.1
+# Fiscalberry GUI (Kivy) Dependencies
+# Última actualización: 2025-07-19
+# Usa las últimas versiones estables de todas las dependencias
+
+# GUI Framework
+kivy[base]
+
+# Core dependencies (from CLI)
+python-escpos[all]
+python-socketio[client]
+requests
+aiohttp
+
+# Utility libraries
+appdirs
+platformdirs
+
+# Message broker
+pika
+
+# Windows-specific dependencies
+pywin32; sys_platform == 'win32'
