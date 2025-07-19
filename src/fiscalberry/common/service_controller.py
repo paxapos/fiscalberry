@@ -71,23 +71,12 @@ class ServiceController:
         """Manejador de señales para cierre graceful."""
         logger.info(f"Recibida señal {signal.Signals(sig).name}. Deteniendo servicios...")
         
-        # Solicitar detención limpia
-        self.stop()
+        # Solicitar detención limpia (sin sys.exit)
+        self._stop_services_only()
         
-        # Dar un pequeño tiempo para que la limpieza se inicie
-        time.sleep(1)
-        
-        # Si después de un tiempo razonable no ha terminado, salir
-        # Pero no utilizar os._exit() que es demasiado abrupto
-        if self.is_service_running():
-            logger.warning("Forzando salida después de tiempo de espera...")
-            
-            # Restaurar handlers originales antes de volver a enviar la señal
-            signal.signal(signal.SIGINT, self._original_sigint_handler)
-            signal.signal(signal.SIGTERM, self._original_sigterm_handler)
-            
-            # Lanzar la señal original para terminar
-            os.kill(os.getpid(), sig)
+        # Terminar inmediatamente después de la limpieza
+        logger.info("Terminando aplicación...")
+        os._exit(0)  # Terminar de forma inmediata y definitiva
 
     def is_service_running(self):
         """Verifica si el servicio ya está en ejecución."""
@@ -186,8 +175,100 @@ class ServiceController:
 
         logger.info("Fiscalberry SIO Service Loop finished.")
 
+    def _is_gui_mode(self):
+        """Detecta si la aplicación está ejecutándose en modo GUI."""
+        try:
+            # Intentar importar kivy para verificar si está disponible
+            import kivy
+            from kivy.app import App
+            # Si hay una app de Kivy ejecutándose, estamos en modo GUI
+            return App.get_running_app() is not None
+        except ImportError:
+            # Si no se puede importar Kivy, definitivamente es CLI
+            return False
+        except:
+            # Si hay cualquier otro error, asumir CLI
+            return False
+
     def stop(self):
         """Detiene el bucle de servicios y la instancia SIO."""
+        # Detectar automáticamente si estamos en modo GUI o CLI
+        if self._is_gui_mode():
+            return self.stop_for_gui()
+        else:
+            return self.stop_for_cli()
+
+    def stop_for_cli(self):
+        """Detiene el bucle de servicios específicamente para modo CLI."""
+        logger.info("# # # Requesting SIO services stop (CLI mode)...")
+        self._stop_event.set()
+        
+        self.sio.stop()
+        
+        if self.socketio_thread and self.socketio_thread.is_alive():
+            # Dar tiempo para que termine limpiamente
+            for _ in range(5):  # Esperar hasta 5 segundos en incrementos de 1 segundo
+                if not self.socketio_thread.is_alive():
+                    break
+                time.sleep(1)
+                    
+            if self.socketio_thread.is_alive():
+                logger.warning("SIO thread did not stop within the timeout period.")
+        else:
+            logger.info("SIO thread already stopped or not started.")
+                
+        # Detener el hilo de discover si está activo
+        if self.discover_thread and self.discover_thread.is_alive():
+            logger.info("Stopping discover thread...")
+            self.discover_thread.join(timeout=2)
+            if self.discover_thread.is_alive():
+                logger.warning("Discover thread did not stop within the timeout period.")
+        else:
+            logger.info("Discover thread already stopped or not started.")
+                
+        logger.info("SIO services stopped (CLI mode).")
+        
+        # Para CLI usamos sys.exit(0)
+        sys.exit(0)
+        
+        return True  # Esta línea ya no se ejecutará, pero la dejamos por compatibilidad
+
+    def stop_for_gui(self):
+        """Detiene el bucle de servicios específicamente para modo GUI."""
+        logger.info("# # # Requesting SIO services stop (GUI mode)...")
+        self._stop_event.set()
+        
+        self.sio.stop()
+        
+        if self.socketio_thread and self.socketio_thread.is_alive():
+            # Dar tiempo para que termine limpiamente
+            for _ in range(5):  # Esperar hasta 5 segundos en incrementos de 1 segundo
+                if not self.socketio_thread.is_alive():
+                    break
+                time.sleep(1)
+                    
+            if self.socketio_thread.is_alive():
+                logger.warning("SIO thread did not stop within the timeout period.")
+        else:
+            logger.info("SIO thread already stopped or not started.")
+                
+        # Detener el hilo de discover si está activo
+        if self.discover_thread and self.discover_thread.is_alive():
+            logger.info("Stopping discover thread...")
+            self.discover_thread.join(timeout=2)
+            if self.discover_thread.is_alive():
+                logger.warning("Discover thread did not stop within the timeout period.")
+        else:
+            logger.info("Discover thread already stopped or not started.")
+                
+        logger.info("SIO services stopped (GUI mode).")
+        
+        # Para GUI NO intentar cerrar Kivy desde aquí - evitar recursión
+        # La aplicación GUI debe manejar su propio cierre desde on_stop()
+        return True
+
+    def _stop_services_only(self):
+        """Detiene solo los servicios sin llamar a sys.exit() - para uso interno."""
         logger.info("# # # Requesting SIO services stop...")
         self._stop_event.set()
         
@@ -216,10 +297,7 @@ class ServiceController:
                 
         logger.info("SIO services stopped.")
         
-        # Añadir esta línea para forzar la salida después de la limpieza
-        sys.exit(0)  # Terminar el proceso con código 0 (éxito)
-        
-        return True  # Esta línea ya no se ejecutará, pero la dejamos por compatibilidad
+        return True
 
 
 

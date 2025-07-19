@@ -47,6 +47,7 @@ class FiscalberryApp(App):
         
         self._service_controller = ServiceController()
         self._configberry = Configberry()
+        self._stopping = False  # Bandera para evitar múltiples llamadas de cierre
 
         self.updatePropertiesWithConfig()
         
@@ -131,17 +132,33 @@ class FiscalberryApp(App):
 
     def on_stop_service(self):
         """Llamado desde la GUI para detener el servicio."""
-        self._service_controller.stop()
+        # Evitar múltiples llamadas
+        if self._stopping:
+            return
+        self._stopping = True
+        
+        # Usar _stop_services_only() para evitar que Kivy se cierre automáticamente
+        self._service_controller._stop_services_only()
     
     
     def on_stop(self):
         # Este método se llama al cerrar la aplicación
+        if self._stopping:
+            return
+        
         print("Cerrando aplicación, deteniendo servicios...")
-        self.on_stop_service()
+        self._stopping = True
+        
+        # Solo detener los servicios, no llamar a app.stop() para evitar recursión
+        self._service_controller._stop_services_only()
         print("Servicios detenidos...")
-        # Espera un pequeño tiempo para que los threads terminen (si es necesario)
-        time.sleep(2)
-        sys.exit(0)
+        
+        # Usar Clock.schedule_once para forzar la salida después de la limpieza
+        Clock.schedule_once(self._force_exit, 0.1)
+    
+    def _force_exit(self, dt):
+        """Método auxiliar para forzar la salida después de la limpieza."""
+        os._exit(0)
         
         
     def build(self):

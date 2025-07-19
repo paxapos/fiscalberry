@@ -47,14 +47,17 @@ class RabbitMQConsumer:
         """Conecta al servidor RabbitMQ."""
         self.logger.info(f"Connecting to RabbitMQ server: {self.host}:{self.port}")
 
-        # Use connection parameters with heartbeat and blocked_connection_timeout
+        # Use connection parameters with shorter timeouts for faster failure detection
         params = pika.ConnectionParameters(
             host=self.host, 
             port=self.port, 
             virtual_host=self.vhost, 
             credentials=pika.PlainCredentials(self.user, self.password),
             heartbeat=600,
-            blocked_connection_timeout=300
+            blocked_connection_timeout=300,
+            socket_timeout=10,  # Timeout más corto para detectar errores de red rápidamente
+            connection_attempts=1,  # Solo un intento, el retry lo maneja process_handler
+            retry_delay=1  # Delay corto entre intentos
         )
         self.connection = pika.BlockingConnection(params)
         self.channel = self.connection.channel()

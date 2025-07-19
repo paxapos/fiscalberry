@@ -2,74 +2,6 @@ import threading
 import socket
 import time
 import logging
-from fiscalberry.common.Configberry import Configberry
-from fiscalberry.common.rabbitmq.consumer import RabbitMQConsumer
-import pika.exceptions
-
-logger = logging.getLogger(__name__)
-
-class RabbitMQProcessHandler:
-    """Administra el hilo de RabbitMQConsumer: arranque, paro y reintentos."""
-
-    _instance = None
-    _lock = threading.Lock()
-
-    def __new__(cls, *args, **kwargs):
-        with cls._lock:
-            if not cls._instance:
-                cls._instance = super().__new__(cls)
-                cls._instance._initialized = False
-            return cls._instance
-
-    def __init__(self):
-        if self._initialized:
-            return
-        self._thread = None
-        self._stop_event = threading.Event()
-        self.config = Configberry()
-        self._initialized = True
-
-    def start(self, message_queue):
-        """Arranca el consumidor en un hilo daemon (no bloqueante)."""
-        if self._thread and self._thread.is_alive():
-            logger.warning("RabbitMQ thread ya en ejecución.")
-            return
-
-        host = self.config.get("RabbitMq", "host")
-        port = self.config.get("RabbitMq", "port")
-        user = self.config.get("RabbitMq", "user")
-        password = self.config.get("RabbitMq", "password")
-        
-        # TODO deberia usarse esto: queue_name = self.config.get("RabbitMq", "queue")
-        queue_name = self.config.get("SERVIDOR", "uuid")
-        self._stop_event.clear()
-        self._thread = threading.Thread(
-            target=self._run_consumer,
-            args=(host, port, user, password, queue_name, message_queue),
-            daemon=True
-        )
-        self._thread.start()
-        logger.info("RabbitMQ thread iniciado.")
-
-    def _check_network_connectivity(self, host, port, timeout=5):
-        """Verifica la conectividad de red básica antes de intentar conectar con RabbitMQ."""
-        try:
-            # Primero verificar resolución DNS
-            socket.getaddrinfo(host, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
-            
-            # Luego verificar si el puerto está abierto
-            with socket.create_connection((host, port), timeout=timeout):
-                return True
-        except socket.gaierror as e:
-            logger.error(f"Error de resolución DNS para {host}: {e}")
-            return False
-        except (socket.timeout, ConnectionRefusedError, OSError) as e:
-            logger.error(f"No se puede conectar a {host}:{port} - {e}")
-            return False
-        except Exception as e:
-            logger.error(f"Error inesperado verificando conectividad: {e}")
-            return False
-
     def _run_consumer(self, host, port, user, password, queue_name, message_queue):
         """Loop de conexión/reconexión al servidor RabbitMQ con backoff exponencial."""
         retry_count = 0
@@ -79,13 +11,6 @@ class RabbitMQProcessHandler:
         
         while not self._stop_event.is_set():
             try:
-                # Verificar conectividad básica antes de intentar conexión RabbitMQ
-                if not self._check_network_connectivity(host, int(port)):
-                    retry_count += 1
-                    logger.warning(f"Conectividad de red falló para {host}:{port}")
-                    self._handle_retry(retry_count, max_retries_before_backoff, base_delay, max_delay)
-                    continue
-                
                 consumer = RabbitMQConsumer(
                     host=host,
                     port=port,
@@ -152,7 +77,80 @@ class RabbitMQProcessHandler:
         for _ in range(int(delay)):
             if self._stop_event.is_set():
                 break
-            time.sleep(1)
+            time.sleep(1)mon.Configberry import Configberry
+from fiscalberry.common.rabbitmq.consumer import RabbitMQConsumer
+import pika.exceptions
+
+logger = logging.getLogger(__name__)
+
+class RabbitMQProcessHandler:
+    """Administra el hilo de RabbitMQConsumer: arranque, paro y reintentos."""
+
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls, *args, **kwargs):
+        with cls._lock:
+            if not cls._instance:
+                cls._instance = super().__new__(cls)
+                cls._instance._initialized = False
+            return cls._instance
+
+    def __init__(self):
+        if self._initialized:
+            return
+        self._thread = None
+        self._stop_event = threading.Event()
+        self.config = Configberry()
+        self._initialized = True
+
+
+    def start(self, message_queue):
+        """Arranca el consumidor en un hilo daemon (no bloqueante)."""
+        if self._thread and self._thread.is_alive():
+            logger.warning("RabbitMQ thread ya en ejecución.")
+            return
+
+        host = self.config.get("RabbitMq", "host")
+        port = self.config.get("RabbitMq", "port")
+        user = self.config.get("RabbitMq", "user")
+        password = self.config.get("RabbitMq", "password")
+        
+        # TODO deberia usarse esto: queue_name = self.config.get("RabbitMq", "queue")
+        queue_name = self.config.get("SERVIDOR", "uuid")
+        self._stop_event.clear()
+        self._thread = threading.Thread(
+            target=self._run_consumer,
+            args=(host, port, user, password, queue_name, message_queue),
+            daemon=True
+        )
+        self._thread.start()
+        logger.info("RabbitMQ thread iniciado.")
+        #self._thread.join()  # No bloqueante, solo para iniciar el hilo
+        #logger.info("RabbitMQ thread en ejecución.")
+        
+        
+
+    def _run_consumer(self, host, port, user, password, queue_name, message_queue):
+        """Loop de conexión/reconexión al servidor RabbitMQ."""
+        while not self._stop_event.is_set():
+            try:
+                consumer = RabbitMQConsumer(
+                    host=host,
+                    port=port,
+                    user=user,
+                    password=password,
+                    queue_name=queue_name,
+                    message_queue=message_queue
+                )
+                consumer.start()
+                # consumer.start() sólo retorna al desconectarse o error.
+            except Exception as ex:
+                logger.error(f"Error en RabbitMQConsumer: {ex}", exc_info=True)
+            if not self._stop_event.is_set():
+                logger.warning("RabbitMQConsumer detenido; reintentando en 5 s...")
+                time.sleep(5)
+        logger.info("Salida del bucle de RabbitMQProcessHandler.")
 
     def stop(self, timeout: float = 1):
         """Detiene el hilo y espera su finalización."""
@@ -174,43 +172,12 @@ class RabbitMQProcessHandler:
         """
         Recibe el JSON, actualiza Configberry si cambia y reinicia el hilo.
         data debe traer keys 'RabbitMq' y 'Paxaprinter' como en tu interfaz HiDto.
-        
-        LÓGICA: Para cada campo, si tiene contenido en config.ini, usar ese valor.
-        Solo usar valores de SocketIO para completar campos vacíos en config.
         """
         rabbit_cfg = data.get('RabbitMq', {})
-        
-        def get_config_or_message_value(config_key, message_key, default_value=""):
-            """
-            Obtiene valor del config.ini si existe y no está vacío, sino del mensaje SocketIO.
-            Prioridad: config.ini -> mensaje SocketIO -> valor por defecto
-            """
-            config_value = self.config.get("RabbitMq", config_key, fallback="")
-            if config_value and str(config_value).strip():
-                logger.info(f"{config_key}: usando config.ini -> {config_value}")
-                return config_value
-            else:
-                message_value = rabbit_cfg.get(message_key, default_value)
-                logger.info(f"{config_key}: config.ini vacío, usando SocketIO -> {message_value}")
-                return message_value
-        
-        logger.info("=== Configuración RabbitMQ - Prioridad config.ini ===")
-        
-        # Aplicar la lógica a todos los parámetros
-        host = get_config_or_message_value("host", "host")
-        port_str = get_config_or_message_value("port", "port", "5672")
-        user = get_config_or_message_value("user", "user", "guest")
-        pwd = get_config_or_message_value("password", "password", "guest")
-        vhost = get_config_or_message_value("vhost", "vhost", "/")
-        queue = get_config_or_message_value("queue", "queue", "")
-        
-        # Convertir puerto a entero
-        try:
-            port = int(port_str)
-        except (ValueError, TypeError):
-            logger.warning(f"Puerto inválido '{port_str}', usando 5672 por defecto")
-            port = 5672
-        
+        # valida campos...
+        host = rabbit_cfg.get('host'); port = int(rabbit_cfg.get('port', 0))
+        user = rabbit_cfg.get('user'); pwd = rabbit_cfg.get('password')
+        vhost = rabbit_cfg.get('vhost'); queue = rabbit_cfg.get('queue')
         # compara con lo actual
         curr = {
             "host": self.config.get("RabbitMq", "host"),
@@ -221,13 +188,9 @@ class RabbitMQProcessHandler:
             "queue": self.config.get("RabbitMq", "queue"),
         }
         new = {"host": host, "port": port, "user": user, "password": pwd, "vhost": vhost, "queue": queue}
-        
-        # Verificar si hay cambios en la configuración
         if curr != new:
             self.config.set("RabbitMq", new)
-            logger.info("Configuración de RabbitMQ actualizada en disk con valores prioritarios del config.ini")
-        else:
-            logger.info("Configuración de RabbitMQ sin cambios")
+            logger.info("Configuración de RabbitMQ actualizada en disk.")
             
         # compara con lo actual de Paxaprinter
         pax_cfg = data.get('Paxaprinter', {})
@@ -248,3 +211,5 @@ class RabbitMQProcessHandler:
         if self._thread and self._thread.is_alive():
             self.stop(timeout=5)
         self.start(message_queue)
+        
+    
