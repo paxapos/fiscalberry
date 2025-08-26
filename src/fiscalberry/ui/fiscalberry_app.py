@@ -55,6 +55,9 @@ class FiscalberryApp(App):
         # Programar la verificación del estado de SocketIO cada 2 segundos
         Clock.schedule_interval(self._check_sio_status, 2)
         Clock.schedule_interval(self._check_rabbit_status, 2)
+
+        # Configurar manejadores de señales para Windows
+        self._setup_signal_handlers()
         
     def updatePropertiesWithConfig(self):
         """
@@ -138,57 +141,94 @@ class FiscalberryApp(App):
             return
         
         print("Deteniendo servicios desde la GUI...")
-        
-        # Solo detener los servicios, no forzar salida de la aplicación
-        self._service_controller._stop_services_only()
-        print("Servicios detenidos desde la GUI")
+
+        try:
+            # Usar el método específico para GUI que no causa problemas de cierre
+            if hasattr(self._service_controller, 'stop_for_gui'):
+                self._service_controller.stop_for_gui()
+            else:
+                # Fallback al método más seguro
+                self._service_controller._stop_services_only()
+            print("Servicios detenidos desde la GUI")
+        except Exception as e:
+            print(f"Error al detener servicios desde GUI: {e}")
     
     
     def on_stop(self):
-        # Este método se llama al cerrar la aplicación
+        """Este método se llama al cerrar la aplicación."""
         if self._stopping:
             return
-        
-        print("Cerrando aplicación, deteniendo servicios...")
+
+        print("Cerrando aplicación inmediatamente...")
         self._stopping = True
-        
-        # Solo detener los servicios, no llamar a app.stop() para evitar recursión
-        self._service_controller._stop_services_only()
-        print("Servicios detenidos...")
-        
-        # Usar múltiples estrategias para forzar la salida
-        Clock.schedule_once(self._force_exit, 0.1)
+
+        # NO esperar a los servicios - cerrar inmediatamente
+        try:
+            # Detener los schedulers de Kivy inmediatamente
+            Clock.unschedule(self._check_sio_status)
+            Clock.unschedule(self._check_rabbit_status)
+        except:
+            pass
+
+        # Forzar cierre inmediato sin esperar servicios
+        print("Forzando cierre inmediato...")
+        Clock.schedule_once(self._immediate_force_exit, 0.1)
+        return False  # No dejar que Kivy maneje el cierre
     
-    def _force_exit(self, dt):
-        """Método auxiliar para forzar la salida después de la limpieza."""
-        import signal
-        import threading
-        
-        print("Forzando salida de la aplicación...")
-        
-        # Estrategia 1: Detener el Clock de Kivy
+    def _immediate_force_exit(self, dt):
+        """Forzar salida inmediata sin esperar servicios."""
         try:
-            Clock.stop()
+            # Intentar parar servicios rápidamente en background
+            def stop_services_background():
+                try:
+                    self._service_controller._stop_event.set()
+                    if hasattr(self._service_controller, 'sio') and self._service_controller.sio:
+                        self._service_controller.sio.stop()
+                except:
+                    pass
+
+            # Ejecutar en background sin bloquear
+            thread = threading.Thread(target=stop_services_background, daemon=True)
+            thread.start()
         except:
             pass
-        
-        # Estrategia 2: Terminar threads activos
+
+        # Salir inmediatamente
         try:
-            for thread in threading.enumerate():
-                if thread != threading.current_thread() and thread.is_alive():
-                    if hasattr(thread, '_stop'):
-                        thread._stop()
+            print("Terminando proceso...")
+            os._exit(0)
         except:
             pass
-        
-        # Estrategia 3: Usar signal para terminar el proceso
+    
+    def _setup_signal_handlers(self):
+        """Configurar manejadores de señales para cierre limpio."""
         try:
-            os.kill(os.getpid(), signal.SIGTERM)
-        except:
-            pass
-        
-        # Estrategia 4: Exit forzado como último recurso
-        os._exit(0)
+            def signal_handler(signum, frame):
+                print(f"Señal {signum} recibida, saliendo inmediatamente...")
+                os._exit(0)
+
+            # Registrar manejadores para las señales comunes
+            signal.signal(signal.SIGINT, signal_handler)
+            if hasattr(signal, 'SIGTERM'):
+                signal.signal(signal.SIGTERM, signal_handler)
+            if hasattr(signal, 'SIGBREAK'):  # Windows
+                signal.signal(signal.SIGBREAK, signal_handler)
+
+        except Exception as e:
+            print(f"Error configurando manejadores de señales: {e}")
+    
+    def _on_window_close(self, *args):
+        """Maneja el cierre de la ventana de forma inmediata"""
+        print("Ventana cerrada por el usuario, saliendo...")
+        self._immediate_force_exit()
+        return True
+
+    def _immediate_force_exit_standalone(self):
+        """Sale inmediatamente sin esperar procesos"""
+        try:
+            os._exit(0)  # Salida inmediata sin cleanup
+        except Exception:
+            sys.exit(1)
         
         
     def build(self):
@@ -214,6 +254,13 @@ class FiscalberryApp(App):
         # Agregar la pantalla de logs
         log_screen = LogScreen(name="logs")
         sm.add_widget(log_screen)
+
+        # Configurar el cierre de ventana para Windows
+        try:
+            from kivy.core.window import Window
+            Window.bind(on_request_close=self._on_window_close)
+        except:
+            pass
 
         # Verificar ya tiene tenant o debe ser adoptado
         if self.tenant:
