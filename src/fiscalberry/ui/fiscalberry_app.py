@@ -220,7 +220,7 @@ class FiscalberryApp(App):
     def _on_window_close(self, *args):
         """Maneja el cierre de la ventana de forma inmediata"""
         print("Ventana cerrada por el usuario, saliendo...")
-        self._immediate_force_exit()
+        self._immediate_force_exit_standalone()
         return True
 
     def _immediate_force_exit_standalone(self):
