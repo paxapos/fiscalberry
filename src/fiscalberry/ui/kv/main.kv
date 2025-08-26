@@ -9,38 +9,112 @@ ScreenManager:
 <AdoptScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: 20
-        spacing: 15
+        padding: dp(25)
+        spacing: dp(15)
         canvas.before:
             Color:
-                rgba: 0.9, 0.9, 1, 1  # Fondo celeste casi blanco
+                rgba: 0.95, 0.95, 1, 1  # Fondo celeste claro
             Rectangle:
                 pos: self.pos
                 size: self.size
 
+        # Logo de Fiscalberry
         Image:
             source: app.logo_image
             size_hint_y: None
-            height: 96
+            height: dp(80)
             allow_stretch: True
             keep_ratio: True
-            color: 1, 1, 1, 1
-            margin_bottom: 10
+            
+        # Título de bienvenida
+        Label:
+            text: "¡Bienvenido a Fiscalberry!"
+            font_size: '24sp'
+            bold: True
+            color: 0.1, 0.2, 0.5, 1
+            size_hint_y: None
+            height: dp(40)
+            halign: 'center'
+            
+        # Subtítulo explicativo
+        Label:
+            text: "Necesitas vincular este dispositivo con tu comercio"
+            font_size: '16sp'
+            color: 0.3, 0.3, 0.3, 1
+            size_hint_y: None
+            height: dp(30)
+            halign: 'center'
+            
+        # Separador
+        Widget:
+            size_hint_y: None
+            height: dp(10)
+            
+        # Instrucciones del QR
+        Label:
+            text: "Opción 1: Escanea este código QR con tu celular"
+            font_size: '14sp'
+            bold: True
+            color: 0.2, 0.2, 0.2, 1
+            size_hint_y: None
+            height: dp(25)
+            halign: 'center'
+            
+        # Código QR
         AsyncImage:
             source: root.qrCodeLink
             size_hint_y: None
-            height: 96
+            height: dp(120)
             allow_stretch: True
             keep_ratio: True
-            color: 1, 1, 1, 1
-            margin_bottom: 10
-        Button:
-            text: "Hace click aquí para vincular el dispositivo"
+            
+        # Texto explicativo del QR
+        Label:
+            text: "Al escanear el QR se abrirá una página web donde podrás\nvincular este dispositivo con tu comercio de forma segura"
+            font_size: '12sp'
+            color: 0.4, 0.4, 0.4, 1
             size_hint_y: None
-            height: 40
-            background_color: 0.8, 0.5, 0.2, 1  # Naranja suave
+            height: dp(35)
+            halign: 'center'
+            text_size: self.width, None
+            
+        # Separador
+        Widget:
+            size_hint_y: None
+            height: dp(15)
+            
+        # Instrucciones del botón
+        Label:
+            text: "Opción 2: Usa el navegador de este equipo"
+            font_size: '14sp'
+            bold: True
+            color: 0.2, 0.2, 0.2, 1
+            size_hint_y: None
+            height: dp(25)
+            halign: 'center'
+            
+        # Botón mejorado
+        Button:
+            text: "Abrir página de vinculación en el navegador"
+            size_hint_y: None
+            height: dp(50)
+            background_color: 0.2, 0.4, 0.8, 1  # Azul
             color: 1, 1, 1, 1
+            font_size: '14sp'
             on_press: import webbrowser; webbrowser.open(root.adoptarLink)
+            
+        # Texto explicativo del botón
+        Label:
+            text: "Se abrirá tu navegador web con la página de vinculación.\nInicia sesión en Paxapos para completar el proceso."
+            font_size: '12sp'
+            color: 0.4, 0.4, 0.4, 1
+            size_hint_y: None
+            height: dp(35)
+            halign: 'center'
+            text_size: self.width, None
+            
+        # Espaciador flexible
+        Widget:
 
 <LoginScreen>:
     BoxLayout:

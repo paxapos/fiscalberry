@@ -240,7 +240,7 @@ class Configberry:
         self.set("SERVIDOR", {
             "uuid": myUuid,
             "platform": f"{os.name} {platform.system()} {platform.release()} {platform.machine()}",
-            "sio_host": "https://www.paxapos.com",
+            "sio_host": "https://beta.paxapos.com",
             "sio_password": ""
             })
         
