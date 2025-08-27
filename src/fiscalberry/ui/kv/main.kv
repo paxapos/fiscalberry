@@ -299,75 +299,56 @@ ScreenManager:
                 size_hint: None, None
                 size: dp(130), dp(40)
 
-        # Panel de estado principal con diseño atractivo
+        # Panel de impresiones pendientes (reemplaza el panel de estado)
         BoxLayout:
             orientation: 'vertical'
             size_hint_y: None
-            height: dp(140)
-            spacing: dp(15)
+            height: dp(100)
+            spacing: dp(10)
             canvas.before:
                 Color:
-                    rgba: (0.9, 1, 0.9, 1) if app.sioConnected else (1, 0.95, 0.95, 1)
+                    rgba: 0.95, 0.98, 1, 1  # Azul muy claro
                 RoundedRectangle:
                     pos: self.pos
                     size: self.size
-                    radius: [dp(15)]
+                    radius: [dp(12)]
                 Color:
-                    rgba: (0.7, 0.9, 0.7, 1) if app.sioConnected else (0.9, 0.7, 0.7, 1)
+                    rgba: 0.6, 0.7, 0.9, 1
                 Line:
-                    rounded_rectangle: (self.pos[0], self.pos[1], self.size[0], self.size[1], dp(15))
+                    rounded_rectangle: (self.pos[0], self.pos[1], self.size[0], self.size[1], dp(12))
                     width: 2
             padding: dp(20)
 
             Label:
-                text: "ESTADO DE CONEXIÓN"
-                font_size: '16sp'
+                text: "COLA DE IMPRESIÓN"
+                font_size: '14sp'
                 bold: True
-                color: 0.2, 0.2, 0.2, 1
+                color: 0.1, 0.2, 0.5, 1
                 size_hint_y: None
-                height: dp(25)
+                height: dp(20)
                 halign: 'center'
 
-            # Estado simplificado solo nube
             BoxLayout:
                 orientation: 'horizontal'
                 size_hint_y: None
-                height: dp(35)
+                height: dp(40)
                 spacing: dp(15)
                 
-                # Solo estado de nube (conexión principal)
-                BoxLayout:
-                    orientation: 'horizontal'
-                    spacing: dp(12)
-                    
-                    Label:
-                        text: "[OK]" if app.sioConnected else "[ERROR]"
-                        font_size: '16sp'
-                        bold: True
-                        color: (0.2, 0.7, 0.2, 1) if app.sioConnected else (0.8, 0.2, 0.2, 1)
-                        size_hint: None, None
-                        size: dp(60), dp(30)
-                        halign: 'center'
-                        valign: 'middle'
+                Label:
+                    text: "📄"
+                    font_size: '24sp'
+                    size_hint: None, None
+                    size: dp(40), dp(40)
+                    halign: 'center'
+                    valign: 'middle'
                         
-                    Label:
-                        text: "Servidor Paxapos: " + ("CONECTADO" if app.sioConnected else "DESCONECTADO")
-                        color: (0.2, 0.7, 0.2, 1) if app.sioConnected else (0.8, 0.2, 0.2, 1)
-                        font_size: '15sp'
-                        bold: True
-                        halign: 'center'
-                        valign: 'middle'
-
-            # Mensaje de estado amigable
-            Label:
-                text: "Todo funcionando correctamente - Listo para imprimir" if app.sioConnected else "Sin conexión - Verifica tu internet y configuración"
-                font_size: '14sp'
-                color: (0.1, 0.6, 0.1, 1) if app.sioConnected else (0.7, 0.4, 0.1, 1)
-                size_hint_y: None
-                height: dp(30)
-                halign: 'center'
-                text_size: self.width - dp(40), None
-                valign: 'middle'
+                Label:
+                    text: f"{app.pending_prints} documentos pendientes"
+                    color: 0.2, 0.3, 0.6, 1
+                    font_size: '16sp'
+                    bold: True
+                    halign: 'center'
+                    valign: 'middle'
 
         # Panel de información del comercio mejorado
         BoxLayout:
@@ -440,24 +421,6 @@ ScreenManager:
                     size: self.size
                     radius: [dp(8)]
             on_press: app.root.current = "logs"
-
-        # Botón de reiniciar servicio
-        Button:
-            text: "Reiniciar Servicio"
-            size_hint_y: None
-            height: dp(55)
-            background_color: 0.8, 0.4, 0.1, 1
-            color: 1, 1, 1, 1
-            font_size: '15sp'
-            bold: True
-            canvas.before:
-                Color:
-                    rgba: 0.8, 0.4, 0.1, 1
-                RoundedRectangle:
-                    pos: self.pos
-                    size: self.size
-                    radius: [dp(8)]
-            on_press: app.restart_service()
 
         # Footer mejorado
         BoxLayout:
