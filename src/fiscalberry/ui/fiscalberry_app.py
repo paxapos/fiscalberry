@@ -153,6 +153,31 @@ class FiscalberryApp(App):
         except Exception as e:
             print(f"Error al detener servicios desde GUI: {e}")
     
+    def restart_service(self):
+        """Reiniciar el servicio completamente."""
+        print("Reiniciando servicio...")
+        
+        def do_restart():
+            try:
+                # Primero detener el servicio
+                if hasattr(self._service_controller, 'stop_for_gui'):
+                    self._service_controller.stop_for_gui()
+                else:
+                    self._service_controller._stop_services_only()
+                
+                # Esperar un momento para que se detengan completamente
+                time.sleep(2)
+                
+                # Luego iniciarlo de nuevo
+                self._service_controller.start()
+                print("Servicio reiniciado correctamente")
+                
+            except Exception as e:
+                print(f"Error al reiniciar servicio: {e}")
+        
+        # Ejecutar en un hilo separado para no bloquear la UI
+        Thread(target=do_restart, daemon=True).start()
+    
     
     def on_stop(self):
         """Este método se llama al cerrar la aplicación."""
