@@ -299,57 +299,6 @@ ScreenManager:
                 size_hint: None, None
                 size: dp(130), dp(40)
 
-        # Panel de impresiones pendientes (reemplaza el panel de estado)
-        BoxLayout:
-            orientation: 'vertical'
-            size_hint_y: None
-            height: dp(100)
-            spacing: dp(10)
-            canvas.before:
-                Color:
-                    rgba: 0.95, 0.98, 1, 1  # Azul muy claro
-                RoundedRectangle:
-                    pos: self.pos
-                    size: self.size
-                    radius: [dp(12)]
-                Color:
-                    rgba: 0.6, 0.7, 0.9, 1
-                Line:
-                    rounded_rectangle: (self.pos[0], self.pos[1], self.size[0], self.size[1], dp(12))
-                    width: 2
-            padding: dp(20)
-
-            Label:
-                text: "COLA DE IMPRESIÓN"
-                font_size: '14sp'
-                bold: True
-                color: 0.1, 0.2, 0.5, 1
-                size_hint_y: None
-                height: dp(20)
-                halign: 'center'
-
-            BoxLayout:
-                orientation: 'horizontal'
-                size_hint_y: None
-                height: dp(40)
-                spacing: dp(15)
-                
-                Label:
-                    text: "📄"
-                    font_size: '24sp'
-                    size_hint: None, None
-                    size: dp(40), dp(40)
-                    halign: 'center'
-                    valign: 'middle'
-                        
-                Label:
-                    text: f"{app.pending_prints} documentos pendientes"
-                    color: 0.2, 0.3, 0.6, 1
-                    font_size: '16sp'
-                    bold: True
-                    halign: 'center'
-                    valign: 'middle'
-
         # Panel de información del comercio mejorado
         BoxLayout:
             orientation: 'vertical'

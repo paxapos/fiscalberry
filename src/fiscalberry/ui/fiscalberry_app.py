@@ -40,9 +40,6 @@ class FiscalberryApp(App):
     sioConnected: bool = BooleanProperty(False)
     rabbitMqConnected: bool = BooleanProperty(False)
     
-    # Nueva propiedad para impresiones pendientes
-    pending_prints = StringProperty("0")
-    
     status_message = StringProperty("Esperando conexión...")
     
     def __init__(self, **kwargs):
@@ -84,31 +81,6 @@ class FiscalberryApp(App):
     def _check_rabbit_status(self, dt):
         """Verifica el estado de la conexión RabbitMQ y actualiza la propiedad."""
         self.rabbitMqConnected = self._service_controller.isRabbitRunning()
-        
-        # Actualizar conteo de impresiones pendientes
-        self._update_pending_prints()
-        
-    def _update_pending_prints(self):
-        """Actualiza el conteo de impresiones pendientes en la cola."""
-        try:
-            # Obtener el estado real de RabbitMQ si está disponible
-            if hasattr(self._service_controller, 'rabbit_service') and self._service_controller.rabbit_service:
-                # Intentar obtener información real de la cola
-                # Por ahora simulamos un comportamiento más realista
-                if self.rabbitMqConnected:
-                    # Simular un contador que cambia ocasionalmente
-                    import time
-                    current_time = int(time.time())
-                    # Cambiar el valor cada 10 segundos para simular actividad
-                    values = [0, 0, 0, 1, 0, 2, 0, 0, 1, 0]  # Mayoría de veces 0, ocasionalmente 1-2
-                    index = (current_time // 10) % len(values)
-                    self.pending_prints = str(values[index])
-                else:
-                    self.pending_prints = "0"
-            else:
-                self.pending_prints = "0"
-        except Exception as e:
-            self.pending_prints = "0"
     
     @mainthread  # Decorar el método
     def _on_config_change(self, data):
