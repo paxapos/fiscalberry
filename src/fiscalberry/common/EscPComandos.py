@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import datetime
+import logging
 from math import ceil
 import json
 import base64
@@ -159,8 +160,25 @@ class EscPComandos():
             raise ValueError("No bytes provided to print")
         
 
-    def openDrawer(self, escpos: EscposIO, **kwargs):
-        escpos.printer.cashdraw(CD_KICK_2)
+    def openDrawer(self, escpos: EscposIO, *args, **kwargs):
+        """
+        Abre el cajón de dinero.
+        Acepta argumentos adicionales para compatibilidad con diferentes formatos de llamada.
+        """
+        try:
+            # Intenta abrir el cajón con el comando estándar
+            escpos.printer.cashdraw(CD_KICK_2)
+            return {"status": "success", "message": "Cajón abierto correctamente"}
+        except Exception as e:
+            # Si falla, intenta con comandos alternativos
+            try:
+                # Comando alternativo para impresoras que requieren secuencia diferente
+                escpos.printer.control("\x1b\x70\x00\x19\x19")
+                return {"status": "success", "message": "Cajón abierto con comando alternativo"}
+            except Exception as e2:
+                error_msg = f"Error al abrir cajón: {e}, comando alternativo falló: {e2}"
+                logging.error(error_msg)
+                return {"status": "error", "message": error_msg}
 
 
     def printPedido(self, escpos: EscposIO, **kwargs):

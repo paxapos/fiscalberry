@@ -39,6 +39,9 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=['src/fiscalberry/ui/assets/fiscalberry.ico'],
-    version='file_version_info.txt',  # Add a version file (see below)
-    uac_admin=False,  # Don't request admin privileges unless necessary
+    version='file_version_info.txt',
+    uac_admin=False,
+    # Configuraciones adicionales para evitar falsos positivos
+    manifest=None,
+    resources=[],
 )

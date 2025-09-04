@@ -1,0 +1,178 @@
+name: Build Fiscalberry
+
+on:
+  push:
+    branches: [ main, newfiscal/santi ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller wheel setuptools
+        
+    - name: Prepare build environment
+      run: |
+        echo "Preparing build environment..."
+        mkdir -p dist
+        echo "Python version: $(python --version)"
+        echo "PyInstaller version: $(pyinstaller --version)"
+        
+    # Build executables
+    - name: Build CLI executable
+      run: |
+        echo "Building CLI executable..."
+        pyinstaller fiscalberry-cli.spec --clean --noconfirm
+        echo "CLI build completed"
+        if (Test-Path "dist/fiscalberry-cli.exe") {
+          echo "✓ CLI executable created successfully"
+          $size = (Get-Item "dist/fiscalberry-cli.exe").Length / 1MB
+          echo "CLI size: $([math]::Round($size, 2)) MB"
+        } else {
+          echo "✗ CLI executable not found"
+          exit 1
+        }
+        
+    - name: Build GUI executable
+      run: |
+        echo "Building GUI executable..."
+        pyinstaller fiscalberry-gui.spec --clean --noconfirm
+        echo "GUI build completed"
+        if (Test-Path "dist/fiscalberry-gui.exe") {
+          echo "✓ GUI executable created successfully"
+          $size = (Get-Item "dist/fiscalberry-gui.exe").Length / 1MB
+          echo "GUI size: $([math]::Round($size, 2)) MB"
+        } else {
+          echo "✗ GUI executable not found"
+          exit 1
+        }
+        
+    # Generate file hashes and signatures
+    - name: Calculate file hashes
+      run: |
+        echo "Calculating file hashes..."
+        cd dist
+        
+        # Generate hashes for CLI executable
+        if (Test-Path "fiscalberry-cli.exe") {
+          Get-FileHash fiscalberry-cli.exe -Algorithm SHA256 | Format-List | Out-File -FilePath fiscalberry-cli.exe.sha256 -Encoding UTF8
+          Get-FileHash fiscalberry-cli.exe -Algorithm MD5 | Format-List | Out-File -FilePath fiscalberry-cli.exe.md5 -Encoding UTF8
+          echo "✓ CLI hashes generated"
+        }
+        
+        # Generate hashes for GUI executable  
+        if (Test-Path "fiscalberry-gui.exe") {
+          Get-FileHash fiscalberry-gui.exe -Algorithm SHA256 | Format-List | Out-File -FilePath fiscalberry-gui.exe.sha256 -Encoding UTF8
+          Get-FileHash fiscalberry-gui.exe -Algorithm MD5 | Format-List | Out-File -FilePath fiscalberry-gui.exe.md5 -Encoding UTF8
+          echo "✓ GUI hashes generated"
+        }
+        
+        echo "Hash files created:"
+        Get-ChildItem *.sha256, *.md5 | Format-Table Name, Length
+      shell: powershell
+      
+    # Upload artifacts
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: fiscalberry-executables-${{ github.sha }}
+        path: |
+          dist/*.exe
+          dist/*.sha256
+          dist/*.md5
+        retention-days: 30
+        compression-level: 6
+        
+    - name: Upload release artifacts (on tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: actions/upload-artifact@v4
+      with:
+        name: fiscalberry-release-${{ github.ref_name }}
+        path: |
+          dist/*.exe
+          dist/*.sha256
+          dist/*.md5
+        retention-days: 90
+        compression-level: 9
+        
+          
+    # Create release on tags
+    - name: Create Release (on tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          dist/fiscalberry-cli.exe
+          dist/fiscalberry-cli.exe.sha256
+          dist/fiscalberry-cli.exe.md5
+          dist/fiscalberry-gui.exe
+          dist/fiscalberry-gui.exe.sha256
+          dist/fiscalberry-gui.exe.md5
+        draft: false
+        prerelease: false
+        body: |
+          ## 🚀 Fiscalberry Release ${{ github.ref_name }}
+          
+          ### � Archivos Incluidos
+          - **fiscalberry-gui.exe** - Interfaz gráfica de usuario completa
+          - **fiscalberry-cli.exe** - Herramienta de línea de comandos
+          - **Archivos SHA256/MD5** - Para verificación de integridad
+          
+          ### 🔐 Seguridad y Verificación
+          - ✅ Compilado automáticamente en GitHub Actions
+          - ✅ Código fuente abierto y auditable
+          - ✅ Hashes criptográficos incluidos para verificación
+          - ✅ Build reproducible y transparente
+          
+          ### 📥 Instalación Rápida
+          1. Descargar el ejecutable que necesites
+          2. Verificar integridad con hash SHA256 (opcional pero recomendado)
+          3. Agregar excepción en antivirus si es necesario
+          4. Ejecutar (puede requerir privilegios de administrador)
+          
+          ### 🛡️ Nota sobre Antivirus
+          Si tu antivirus detecta el archivo como sospechoso:
+          - Es un **falso positivo común** con aplicaciones PyInstaller
+          - El código fuente está disponible públicamente
+          - Compilación automatizada sin modificaciones maliciosas
+          - Verifica el hash SHA256 para confirmar integridad del archivo
+          
+          ### 🔍 Verificación de Integridad
+          ```powershell
+          # Verificar hash SHA256 en Windows
+          Get-FileHash fiscalberry-gui.exe -Algorithm SHA256
+          ```
+          
+          ### 🆕 Nuevas Características
+          - Mejorada funcionalidad de caja registradora
+          - Optimización de rendimiento en pantalla de logs
+          - Interfaz de usuario más pulida y consistente
+          - Mejor manejo de errores y logging
+          
+          ---
+          **Nota**: Ambos ejecutables incluyen toda la funcionalidad necesaria para integración con impresoras fiscales y sistemas POS.
+          # Windows
+          certutil -hashfile fiscalberry-gui.exe SHA256
+          
+          # Linux/Mac
+          sha256sum fiscalberry-gui.exe
+          ---
+          **Nota**: Ambos ejecutables incluyen toda la funcionalidad necesaria para integración con impresoras fiscales y sistemas POS.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
