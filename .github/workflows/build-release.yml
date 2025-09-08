@@ -1,0 +1,110 @@
+name: Build and Release Fiscalberry
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcups2-dev xvfb
+          
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+          
+      - name: Build Linux GUI
+        run: |
+          PYTHONPATH=src pyinstaller fiscalberry-gui.spec
+          
+      - name: Package Linux Binary
+        run: |
+          cd dist
+          tar -czf fiscalberry-linux-gui.tar.gz fiscalberry-gui
+          
+      - name: Upload Linux Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: fiscalberry-linux
+          path: dist/fiscalberry-linux-gui.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+          
+      - name: Build Windows GUI
+        run: |
+          $env:PYTHONPATH="src"
+          pyinstaller fiscalberry-windows.spec
+          
+      - name: Setup Inno Setup
+        run: |
+          choco install innosetup -y
+          
+      - name: Build Windows Installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" fiscalberry-installer.iss
+          
+      - name: Upload Windows Installer
+        uses: actions/upload-artifact@v3
+        with:
+          name: fiscalberry-windows
+          path: output/FiscalberrySetup.exe
+
+  create-release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Linux Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: fiscalberry-linux
+          path: ./artifacts/
+          
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: fiscalberry-windows
+          path: ./artifacts/
+          
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./artifacts/fiscalberry-linux-gui.tar.gz
+            ./artifacts/FiscalberrySetup.exe
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
