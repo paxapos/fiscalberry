@@ -46,8 +46,8 @@ class FiscalberrySio:
             self.sio = socketio.Client(
                 reconnection=True,
                 reconnection_attempts=0,
-                reconnection_delay=2,
-                reconnection_delay_max=15,
+                reconnection_delay=1,  # Reducido para reconexión más rápida
+                reconnection_delay_max=10,  # Reducido para reconexión más rápida
                 logger=sioLogger,
                 engineio_logger=False,
             )
@@ -134,8 +134,39 @@ class FiscalberrySio:
         def command(cfg: dict):
             logger.info(f"=== COMANDO SOCKETIO RECIBIDO ===")
             logger.debug(f"Configuración del comando: {cfg}")
-
             
+            # Procesamiento optimizado de comandos con manejo async
+            try:
+                # Crear un handler de comandos para procesar
+                handler = ComandosHandler()
+                
+                # Procesar comando de forma no bloqueante
+                def process_command():
+                    try:
+                        start_time = time.time()
+                        result = handler.send_command(cfg)
+                        processing_time = time.time() - start_time
+                        
+                        # Log optimizado para comandos lentos
+                        if processing_time > 1.0:
+                            logger.warning(f"Comando lento procesado en {processing_time:.2f}s")
+                        else:
+                            logger.debug(f"Comando procesado en {processing_time:.2f}s")
+                            
+                        # Enviar respuesta de vuelta si es necesario
+                        if result and "err" in result:
+                            logger.error(f"Error procesando comando: {result['err']}")
+                        else:
+                            logger.debug("Comando procesado exitosamente")
+                            
+                    except Exception as e:
+                        logger.error(f"Error procesando comando: {e}", exc_info=True)
+                
+                # Ejecutar en hilo separado para no bloquear SocketIO
+                threading.Thread(target=process_command, daemon=True).start()
+                
+            except Exception as e:
+                logger.error(f"Error en manejo de comando SocketIO: {e}", exc_info=True)
 
         @self.sio.event(namespace=ns)
         def start_rabbit(cfg: dict):

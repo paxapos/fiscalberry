@@ -3,12 +3,13 @@
 import sys
 import json
 import threading
+import time
+import queue
 from fiscalberry.common.FiscalberryComandos import FiscalberryComandos
 from fiscalberry.common.Configberry import Configberry
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.EscPComandos import EscPComandos
 from escpos import printer
-from fiscalberry.common.fiscalberry_logger import getLogger
 from queue import Queue
 import traceback
 
@@ -44,41 +45,69 @@ class TraductorException(Exception):
     pass
 
 
-# Cola de trabajos de impresión con un tamaño máximo
-print_queue = Queue(maxsize=100)  # Limitar a 100 trabajos encolados
+# Cola de trabajos de impresión optimizada - mayor capacidad y procesamiento más rápido  
+print_queue = Queue(maxsize=500)  # Aumentar capacidad para mayor throughput
 
-# Añadir un mecanismo de informes periódicos sobre la cola
+# Worker threads pool para procesamiento paralelo
+worker_threads = []
+MAX_WORKERS = 3  # Número de workers concurrentes
 def report_queue_status():
     qsize = print_queue.qsize()
-    if qsize > 10:  # Solo informar si hay muchos trabajos
-        logging.warning(f"Print queue size: {qsize} jobs waiting")
-    threading.Timer(60.0, report_queue_status).start()  # Programar próximo informe
+    if qsize > 50:  # Solo reportar cuando la cola esté más cargada
+        logging.info(f"Print queue busy: {qsize} jobs waiting")
+    elif qsize > 100:
+        logging.warning(f"Print queue overloaded: {qsize} jobs waiting")
+    threading.Timer(30.0, report_queue_status).start()  # Reportar más frecuentemente
+
+def process_print_jobs(worker_id=0):
+    """Worker optimizado para procesar trabajos de impresión"""
+    logger.info(f"Print worker {worker_id} started")
+    
+    while True:
+        try:
+            # Obtener trabajo con timeout para permitir shutdown limpio
+            job_data = print_queue.get(timeout=1.0)
+            if job_data is None:
+                logger.info(f"Worker {worker_id} received shutdown signal")
+                break
+            
+            jsonTicket, q = job_data
+            
+            start_time = time.time()
+            try:
+                result = runTraductor(jsonTicket, q)
+                processing_time = time.time() - start_time
+                
+                # Respuesta optimizada sin nested dicts innecesarios
+                q.put({"success": True, "result": result, "processing_time": processing_time})
+                
+                # Log optimizado solo para trabajos lentos
+                if processing_time > 2.0:
+                    logger.warning(f"Slow print job completed in {processing_time:.2f}s by worker {worker_id}")
+                    
+            except Exception as e:
+                processing_time = time.time() - start_time
+                error_msg = str(e)
+                logger.error(f"Worker {worker_id} print job failed in {processing_time:.2f}s: {error_msg}")
+                q.put({"success": False, "error": error_msg, "processing_time": processing_time})
+
+            print_queue.task_done()
+            
+        except queue.Empty:
+            # Timeout normal, continuar loop
+            continue
+        except Exception as e:
+            logger.error(f"Worker {worker_id} unexpected error: {e}")
+            continue
+
+# Iniciar workers optimizados
+for i in range(MAX_WORKERS):
+    worker = threading.Thread(target=process_print_jobs, args=(i,), daemon=True)
+    worker.start()
+    worker_threads.append(worker)
 
 # Iniciar el informe periódico
 report_queue_status()
-
-def process_print_jobs():
-    while True:
-        job_data = print_queue.get()
-        if job_data is None:
-            break
-        
-        jsonTicket, q = job_data
-        
-        try:
-            result = runTraductor(jsonTicket, q)
-            # Poner el resultado en la cola para informar al consumidor
-            q.put({"success": True, "result": result})
-        except Exception as e:
-            logging.error(f"Error al procesar el trabajo de impresión: {e}")
-            logging.error(traceback.format_exc())
-            # Informar del error
-            q.put({"success": False, "error": str(e)})
-
-        print_queue.task_done()
-
-# Iniciar el hilo que procesa la cola de trabajos de impresión
-threading.Thread(target=process_print_jobs, daemon=True).start()
 
 
 
@@ -308,31 +337,47 @@ class ComandosHandler:
                 logger.info(f"Impresora destino: '{printer_name}'")
                 logger.debug(f"Ticket de impresión: {json.dumps(jsonTicket, indent=2, ensure_ascii=False)}")
 
-                # run multiprocessing
+                # Procesamiento optimizado con cola de alta velocidad
                 q = Queue()
-                logger.debug("Agregando trabajo a la cola de impresión...")
-                print_queue.put((jsonTicket, q))
-                logger.info(f"Trabajo agregado a la cola. Tamaño actual de cola: {print_queue.qsize()}")
                 
-                # Esperar a que el trabajo de impresión se complete con timeout
+                # Verificar capacidad de cola antes de agregar
+                current_queue_size = print_queue.qsize()
+                if current_queue_size > 400:  # 80% de capacidad
+                    logger.warning(f"Print queue near capacity: {current_queue_size}/500")
+                
                 try:
-                    logger.debug("Esperando resultado de impresión...")
-                    result = q.get(timeout=30)  # Añade un timeout razonable
+                    # Agregar trabajo sin bloqueo
+                    print_queue.put_nowait((jsonTicket, q))
+                    logger.debug(f"Job queued fast. Queue size: {current_queue_size + 1}")
                     
-                    if isinstance(result, dict) and result.get("success") == False:
-                        error_msg = result.get("error", "Error desconocido en la impresión")
-                        logger.error(f"Error en impresión: {error_msg}")
-                        rta["err"] = error_msg
+                    # Timeout más agresivo para mayor throughput
+                    result = q.get(timeout=15)  # Reducido de 30 a 15 segundos
+                    
+                    if isinstance(result, dict):
+                        if not result.get("success", True):
+                            error_msg = result.get("error", "Error desconocido en la impresión")
+                            logger.error(f"Print job failed: {error_msg}")
+                            rta["err"] = error_msg
+                        else:
+                            # Log optimizado con tiempo de procesamiento
+                            processing_time = result.get("processing_time", 0)
+                            if processing_time > 0:
+                                logger.info(f"Print completed in {processing_time:.2f}s for '{printer_name}'")
+                            rta["rta"] = result.get("result", result)
                     else:
-                        logger.info(f"Impresión completada exitosamente en '{printer_name}'")
+                        logger.info(f"Print completed successfully for '{printer_name}'")
                         rta["rta"] = result
                         
+                except queue.Full:
+                    error_msg = f"Print queue full. Cannot queue job for '{printer_name}'"
+                    logger.error(error_msg)
+                    rta["err"] = error_msg
                 except queue.Empty:
-                    error_msg = f"Timeout esperando respuesta de impresora '{printer_name}' (30s)"
+                    error_msg = f"Print timeout for '{printer_name}' (15s)"
                     logger.error(error_msg)
                     rta["err"] = error_msg
                 except Exception as e:
-                    error_msg = f"Error esperando resultado de impresión: {e}"
+                    error_msg = f"Print queue error: {e}"
                     logger.error(error_msg, exc_info=True)
                     rta["err"] = error_msg
 

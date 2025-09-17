@@ -67,10 +67,10 @@ class FiscalberryApp(App):
             self.updatePropertiesWithConfig()
             logger.info("Propiedades de configuración actualizadas")
             
-            # Programar la verificación del estado de SocketIO cada 2 segundos
-            Clock.schedule_interval(self._check_sio_status, 2)
-            Clock.schedule_interval(self._check_rabbit_status, 2)
-            logger.debug("Schedulers de verificación de estado configurados")
+            # Programar verificación de estado menos frecuente para mejor performance
+            Clock.schedule_interval(self._check_sio_status, 5)  # Reducido de 2 a 5 segundos
+            Clock.schedule_interval(self._check_rabbit_status, 5)  # Reducido de 2 a 5 segundos
+            logger.debug("Schedulers de verificación de estado configurados (optimizado)")
 
             # Configurar manejadores de señales para Windows
             self._setup_signal_handlers()
@@ -82,10 +82,13 @@ class FiscalberryApp(App):
             raise
     
     def build(self):
-        """Construye la aplicación y configura el icono."""
+        """Construye la aplicación de forma optimizada."""
         logger.info("Construyendo interfaz de usuario...")
         
-        # Configurar el icono de la ventana
+        # Configurar título y icono
+        self.title = "Servidor de Impresión"
+        
+        # Configurar el icono de la ventana de forma optimizada
         try:
             icon_path = os.path.join(self.assetpath, "fiscalberry.ico")
             if os.path.exists(icon_path):
@@ -96,26 +99,51 @@ class FiscalberryApp(App):
                 if sys.platform == 'win32':
                     self._set_windows_icon(icon_path)
             else:
-                logger.warning(f"Archivo de icono no encontrado: {icon_path}")
+                # Fallback a PNG si ICO no existe
+                png_icon = os.path.join(self.assetpath, "fiscalberry.png")
+                if os.path.exists(png_icon):
+                    self.icon = png_icon
+                    logger.info(f"Usando icono PNG fallback: {png_icon}")
         except Exception as e:
             logger.error(f"Error configurando icono: {e}")
         
-        # Crear el ScreenManager y las pantallas
+        # Cargar el archivo KV de forma optimizada
+        try:
+            kv_path = os.path.join(os.path.dirname(__file__), "kv", "main.kv")
+            if os.path.exists(kv_path):
+                Builder.load_file(kv_path)
+                logger.debug("Archivo KV cargado")
+        except Exception as e:
+            logger.error(f"Error cargando archivo KV: {e}")
+        
+        # Escuchar cambios en configberry
+        self._configberry.add_listener(self._on_config_change)
+        
+        # Crear el ScreenManager y las pantallas de forma optimizada
         sm = ScreenManager()
         
-        # Agregar las pantallas
-        sm.add_widget(LoginScreen(name='login'))
-        sm.add_widget(MainScreen(name='main'))
+        # Agregar pantallas en orden de uso más probable
         sm.add_widget(AdoptScreen(name='adopt'))
-        sm.add_widget(LogScreen(name='log'))
+        sm.add_widget(MainScreen(name='main'))
+        sm.add_widget(LoginScreen(name='login'))
+        sm.add_widget(LogScreen(name='logs'))  # Consistencia en naming
+        
+        # Configurar el cierre de ventana para Windows
+        try:
+            from kivy.core.window import Window
+            Window.bind(on_request_close=self._on_window_close)
+        except Exception as e:
+            logger.debug(f"No se pudo configurar cierre de ventana: {e}")
         
         # Determinar pantalla inicial basada en configuración
         if self.tenant and self.tenant.strip():
             sm.current = 'main'
             logger.info("Iniciando en pantalla principal (tenant configurado)")
+            # Iniciar servicios automáticamente si hay tenant
+            self.on_start_service()
         else:
-            sm.current = 'login'
-            logger.info("Iniciando en pantalla de login (tenant no configurado)")
+            sm.current = 'adopt'
+            logger.info("Iniciando en pantalla de adopción (tenant no configurado)")
         
         return sm
     
@@ -221,37 +249,45 @@ class FiscalberryApp(App):
             self.siteAlias = ""
 
     def _check_sio_status(self, dt):
-        """Verifica el estado de la conexión SocketIO y actualiza la propiedad."""
+        """Verifica el estado de la conexión SocketIO de forma optimizada."""
         try:
             previous_status = self.sioConnected
-            self.sioConnected = self._service_controller.isSocketIORunning()
+            # Check más eficiente sin llamadas costosas innecesarias
+            new_status = self._service_controller.isSocketIORunning()
             
-            # Log solo cuando cambia el estado para evitar spam
-            if previous_status != self.sioConnected:
-                if self.sioConnected:
-                    logger.info("SocketIO conectado exitosamente")
+            if previous_status != new_status:
+                self.sioConnected = new_status
+                if new_status:
+                    logger.info("SocketIO conectado")
+                    self.status_message = "Conectado - Listo para imprimir"
                 else:
                     logger.warning("SocketIO desconectado")
+                    self.status_message = "Desconectado - Verificando conexión..."
                     
         except Exception as e:
-            logger.error(f"Error al verificar estado de SocketIO: {e}")
+            # Manejo de errores silencioso para evitar spam en logs
+            if self.sioConnected:  # Solo log si cambia de conectado a error
+                logger.error(f"Error verificando SocketIO: {e}")
             self.sioConnected = False
+            self.status_message = "Error de conexión"
             
     def _check_rabbit_status(self, dt):
-        """Verifica el estado de la conexión RabbitMQ y actualiza la propiedad."""
+        """Verifica el estado de la conexión RabbitMQ de forma optimizada.""" 
         try:
             previous_status = self.rabbitMqConnected
-            self.rabbitMqConnected = self._service_controller.isRabbitRunning()
+            new_status = self._service_controller.isRabbitRunning()
             
-            # Log solo cuando cambia el estado para evitar spam
-            if previous_status != self.rabbitMqConnected:
-                if self.rabbitMqConnected:
-                    logger.info("RabbitMQ conectado exitosamente")
+            if previous_status != new_status:
+                self.rabbitMqConnected = new_status
+                if new_status:
+                    logger.info("RabbitMQ conectado")
                 else:
                     logger.warning("RabbitMQ desconectado")
                     
         except Exception as e:
-            logger.error(f"Error al verificar estado de RabbitMQ: {e}")
+            # Manejo de errores silencioso para evitar spam en logs
+            if self.rabbitMqConnected:  # Solo log si cambia de conectado a error
+                logger.error(f"Error verificando RabbitMQ: {e}")
             self.rabbitMqConnected = False
     
     @mainthread  # Decorar el método
@@ -296,17 +332,23 @@ class FiscalberryApp(App):
         
 
     def on_start_service(self):
-        """Llamado desde la GUI para iniciar el servicio."""
-        Thread(target=self._service_controller.start, daemon=True).start()
+        """Llamado desde la GUI para iniciar el servicio de forma optimizada."""
+        if not self._service_controller.is_service_running():
+            logger.info("Iniciando servicios desde GUI...")
+            self.status_message = "Iniciando servicios..."
+            Thread(target=self._service_controller.start, daemon=True).start()
+        else:
+            logger.debug("Servicio ya en ejecución, omitiendo inicio")
 
 
     def on_stop_service(self):
-        """Llamado desde la GUI para detener el servicio."""
+        """Llamado desde la GUI para detener el servicio de forma optimizada."""
         # Evitar múltiples llamadas
         if self._stopping:
             return
         
-        print("Deteniendo servicios desde la GUI...")
+        logger.info("Deteniendo servicios desde GUI...")
+        self.status_message = "Deteniendo servicios..."
 
         try:
             # Usar el método específico para GUI que no causa problemas de cierre
@@ -315,9 +357,12 @@ class FiscalberryApp(App):
             else:
                 # Fallback al método más seguro
                 self._service_controller._stop_services_only()
-            print("Servicios detenidos desde la GUI")
+            
+            self.status_message = "Servicios detenidos"
+            logger.info("Servicios detenidos desde GUI")
         except Exception as e:
-            print(f"Error al detener servicios desde GUI: {e}")
+            logger.error(f"Error al detener servicios desde GUI: {e}")
+            self.status_message = "Error deteniendo servicios"
     
     def restart_service(self):
         """Reiniciar el servicio completamente."""
@@ -422,46 +467,7 @@ class FiscalberryApp(App):
             sys.exit(1)
         
         
-    def build(self):
-        self.title = "Servidor de Impresión"
-        
-        self.icon = os.path.join(os.path.dirname(__file__), "assets", "fiscalberry.png")
-        
-        # escuchar cambios en configberry
-        self._configberry.add_listener(self._on_config_change)
 
-        self.on_start_service()
-
-        # Cargar el archivo KV
-        kv_path = os.path.join(os.path.dirname(__file__), "kv", "main.kv")
-        Builder.load_file(kv_path)
-
-        sm = ScreenManager()
-        #login_screen = LoginScreen(name="login")
-        #sm.add_widget(login_screen)
-        sm.add_widget(AdoptScreen(name="adopt"))
-        sm.add_widget(MainScreen(name="main"))
-
-        # Agregar la pantalla de logs
-        log_screen = LogScreen(name="logs")
-        sm.add_widget(log_screen)
-
-        # Configurar el cierre de ventana para Windows
-        try:
-            from kivy.core.window import Window
-            Window.bind(on_request_close=self._on_window_close)
-        except:
-            pass
-
-        # Verificar ya tiene tenant o debe ser adoptado
-        if self.tenant and self.tenant.strip():
-            # Si hay un tenant válido, ir directamente a la pantalla principal
-            sm.current = "main"
-        else:
-            # Si no hay tenant, mostrar la pantalla de adoptar
-            sm.current = "adopt"
-
-        return sm
 
 if __name__ == "__main__":
     FiscalberryApp().run()

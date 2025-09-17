@@ -1,4 +1,4 @@
-import os, pika, traceback
+import os, pika, traceback, time
 import queue
 
 from fiscalberry.common.ComandosHandler import ComandosHandler, TraductorException
@@ -67,9 +67,9 @@ class RabbitMQConsumer:
                 credentials=pika.PlainCredentials(self.user, self.password),
                 heartbeat=600,
                 blocked_connection_timeout=300,
-                socket_timeout=10,  # Timeout más corto para detectar errores de red rápidamente
+                socket_timeout=5,  # Timeout más agresivo para detectar errores más rápido
                 connection_attempts=1,  # Solo un intento, el retry lo maneja process_handler
-                retry_delay=1  # Delay corto entre intentos
+                retry_delay=0.5  # Delay más corto entre intentos
             )
             
             self.logger.debug("Creando conexión blocking...")
@@ -147,57 +147,59 @@ class RabbitMQConsumer:
         self.connect()
 
         def callback(ch, method, properties, body):
-            self.logger.info(f"Received message in queue {self.queue}")
+            self.logger.debug(f"Received message in queue {self.queue}")
+            start_time = time.time()
 
             try:
-                # Parse the message body - it might be bytes and need decoding
+                # Parsing optimizado del mensaje
                 if isinstance(body, bytes):
                     body_str = body.decode('utf-8')
                 else:
                     body_str = body
 
-                # Log the raw message for debugging
-                self.logger.info(f"Message content: {body_str[:100]}...")  # Log first 100 chars
+                # Log optimizado - solo para debug y truncado
+                self.logger.debug(f"Message: {body_str[:50]}...")
 
-                # Try to parse as JSON if needed
+                # Parse JSON más eficiente
                 try:
                     import json
                     json_data = json.loads(body_str)
-                    self.logger.info("Successfully parsed message as JSON")
                 except json.JSONDecodeError:
-                    self.logger.warning("Message is not valid JSON, passing as raw string")
+                    self.logger.warning("Non-JSON message, processing as string")
                     json_data = body_str
 
-                # Process the message
+                # Procesar mensaje de forma optimizada
                 comandoHandler = ComandosHandler()
                 result = comandoHandler.send_command(json_data)
                 
-                # Verificar si hay un error en la respuesta
+                processing_time = time.time() - start_time
+                
+                # Verificar errores y acknowledment más rápido
                 if "err" in result:
-                    self.logger.error(f"Error in command handler: {result['err']}")
-                    # Si es un error recuperable, podríamos reintentar o poner en una cola de espera
-                    # Por ahora, consideramos que es un error y no reconocemos el mensaje
+                    self.logger.error(f"Command error: {result['err']}")
                     ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                     return
                     
-                self.logger.info(f"Command handler result: {result}")
-
-                # Acknowledge the message ONLY after successful processing
+                # Acknowledge inmediato para mayor throughput
                 ch.basic_ack(delivery_tag=method.delivery_tag)
+                
+                # Log optimizado solo para trabajos lentos
+                if processing_time > 1.0:
+                    self.logger.warning(f"Slow message processed in {processing_time:.2f}s")
+                else:
+                    self.logger.debug(f"Message processed in {processing_time:.2f}s")
 
             except TraductorException as e:
-                self.logger.error(f"TraductorException Error: {e}")
+                self.logger.error(f"Translator error: {e}")
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-                self.logger.error(traceback.format_exc())
             except Exception as e:
-                self.logger.error(f"Error processing message: {e}")
-                self.logger.error(traceback.format_exc())
+                self.logger.error(f"Processing error: {e}")
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                 
                 
                 
-        # Set prefetch count to process one message at a time
-        self.channel.basic_qos(prefetch_count=1)
+        # Configurar QoS para procesamiento más rápido - permitir más mensajes concurrentes
+        self.channel.basic_qos(prefetch_count=5)  # Aumentado de 1 a 5 para mayor throughput
         self.channel.basic_consume(queue=self.queue, on_message_callback=callback, auto_ack=False)
         self.logger.info(f"Waiting for messages in queue: {self.queue}")
 
