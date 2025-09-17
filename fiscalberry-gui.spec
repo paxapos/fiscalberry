@@ -7,7 +7,9 @@ a = Analysis(
     binaries=[],
     datas=[
         ('./capabilities.json', 'escpos'),
-        ('src/fiscalberry/ui/kv', 'fiscalberry/ui/kv')
+        ('src/fiscalberry/ui/kv', 'fiscalberry/ui/kv'),
+        ('src/fiscalberry/ui/assets/fiscalberry.ico', 'fiscalberry/ui/assets/'),
+        ('src/fiscalberry/ui/assets', 'fiscalberry/ui/assets')
     ],
     hiddenimports=[],
     hookspath=[],

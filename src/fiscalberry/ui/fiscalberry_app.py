@@ -34,6 +34,9 @@ class FiscalberryApp(App):
     
     assetpath = os.path.join(os.path.dirname(__file__), "assets")
     
+    # Configurar el icono de la aplicación para la barra de tareas
+    icon = os.path.join(assetpath, "fiscalberry.ico")
+    
     background_image = StringProperty(os.path.join(assetpath, "bg.jpg"))
     logo_image = StringProperty(os.path.join(assetpath, "fiscalberry.png"))
     disconnected_image = StringProperty(os.path.join(assetpath, "disconnected.png"))
@@ -77,6 +80,122 @@ class FiscalberryApp(App):
         except Exception as e:
             logger.error(f"Error durante inicialización de FiscalberryApp: {e}", exc_info=True)
             raise
+    
+    def build(self):
+        """Construye la aplicación y configura el icono."""
+        logger.info("Construyendo interfaz de usuario...")
+        
+        # Configurar el icono de la ventana
+        try:
+            icon_path = os.path.join(self.assetpath, "fiscalberry.ico")
+            if os.path.exists(icon_path):
+                self.icon = icon_path
+                logger.info(f"Icono configurado: {icon_path}")
+                
+                # Configuración específica para Windows
+                if sys.platform == 'win32':
+                    self._set_windows_icon(icon_path)
+            else:
+                logger.warning(f"Archivo de icono no encontrado: {icon_path}")
+        except Exception as e:
+            logger.error(f"Error configurando icono: {e}")
+        
+        # Crear el ScreenManager y las pantallas
+        sm = ScreenManager()
+        
+        # Agregar las pantallas
+        sm.add_widget(LoginScreen(name='login'))
+        sm.add_widget(MainScreen(name='main'))
+        sm.add_widget(AdoptScreen(name='adopt'))
+        sm.add_widget(LogScreen(name='log'))
+        
+        # Determinar pantalla inicial basada en configuración
+        if self.tenant and self.tenant.strip():
+            sm.current = 'main'
+            logger.info("Iniciando en pantalla principal (tenant configurado)")
+        else:
+            sm.current = 'login'
+            logger.info("Iniciando en pantalla de login (tenant no configurado)")
+        
+        return sm
+    
+    def _set_windows_icon(self, icon_path):
+        """Configura el icono específicamente para Windows."""
+        try:
+            import platform
+            if platform.system() == 'Windows':
+                # Intentar configurar el icono usando kivy
+                from kivy.core.window import Window
+                Window.set_icon(icon_path)
+                logger.debug("Icono de ventana configurado con Kivy")
+                
+                # Para el icono de la barra de tareas en Windows
+                try:
+                    import ctypes
+                    from ctypes import wintypes
+                    
+                    # Obtener el handle de la ventana
+                    hwnd = ctypes.windll.user32.GetActiveWindow()
+                    if hwnd:
+                        # Cargar el icono
+                        hicon = ctypes.windll.user32.LoadImageW(
+                            None, icon_path, 1, 0, 0, 0x00000010 | 0x00008000
+                        )
+                        if hicon:
+                            # Configurar icono pequeño y grande
+                            ctypes.windll.user32.SendMessageW(hwnd, 0x0080, 0, hicon)  # WM_SETICON, ICON_SMALL
+                            ctypes.windll.user32.SendMessageW(hwnd, 0x0080, 1, hicon)  # WM_SETICON, ICON_BIG
+                            logger.debug("Icono de barra de tareas configurado")
+                except Exception as e:
+                    logger.debug(f"No se pudo configurar icono de barra de tareas: {e}")
+                    
+        except Exception as e:
+            logger.error(f"Error configurando icono de Windows: {e}")
+    
+    def on_start(self):
+        """Se ejecuta después de que la aplicación inicie."""
+        logger.info("Aplicación iniciada, configurando icono final...")
+        
+        # Configurar el icono después de que la ventana esté completamente creada
+        try:
+            icon_path = os.path.join(self.assetpath, "fiscalberry.ico")
+            if os.path.exists(icon_path) and sys.platform == 'win32':
+                # Esperar un poco para que la ventana esté completamente inicializada
+                Clock.schedule_once(lambda dt: self._set_windows_icon_delayed(icon_path), 1)
+        except Exception as e:
+            logger.error(f"Error en on_start configurando icono: {e}")
+    
+    def _set_windows_icon_delayed(self, icon_path):
+        """Configura el icono de Windows con un retraso para asegurar que la ventana esté lista."""
+        try:
+            if sys.platform == 'win32':
+                import ctypes
+                from ctypes import wintypes
+                
+                # Buscar la ventana de Fiscalberry
+                def enum_windows_proc(hwnd, lParam):
+                    length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+                    if length > 0:
+                        buffer = ctypes.create_unicode_buffer(length + 1)
+                        ctypes.windll.user32.GetWindowTextW(hwnd, buffer, length + 1)
+                        if "Servidor de Impresión" in buffer.value or "Fiscalberry" in buffer.value:
+                            # Cargar y configurar el icono
+                            hicon = ctypes.windll.user32.LoadImageW(
+                                None, icon_path, 1, 0, 0, 0x00000010 | 0x00008000
+                            )
+                            if hicon:
+                                ctypes.windll.user32.SendMessageW(hwnd, 0x0080, 0, hicon)  # ICON_SMALL
+                                ctypes.windll.user32.SendMessageW(hwnd, 0x0080, 1, hicon)  # ICON_BIG
+                                logger.info("Icono de barra de tareas configurado exitosamente")
+                            return False  # Detener enumeración
+                    return True
+                
+                # Enumerar ventanas para encontrar la nuestra
+                enum_windows_proc_type = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+                ctypes.windll.user32.EnumWindows(enum_windows_proc_type(enum_windows_proc), 0)
+                
+        except Exception as e:
+            logger.error(f"Error configurando icono de barra de tareas: {e}")
         
     def updatePropertiesWithConfig(self):
         """
