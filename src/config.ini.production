@@ -1,0 +1,33 @@
+[SERVIDOR]
+uuid = production-uuid-replace-with-real
+sio_host = https://your-production-server.com
+sio_password = your-secure-password
+# Configuración de logging para producción
+log_level = INFO
+environment = production
+
+[IMPRESORA_FISCAL]
+marca = Hasar
+modelo = 715v2
+path = /dev/ttyUSB0
+driver = Serial
+port = /dev/ttyUSB0
+baudrate = 9600
+
+[IMPRESORA_RED]
+marca = EscP
+host = 192.168.1.100
+driver = Network
+port = 9100
+
+# Configuración RabbitMQ (si se usa)
+[Paxaprinter]
+tenant = your-tenant-name
+site_name = Your Site Name
+alias = your-site-alias
+# Configuración RabbitMQ
+rabbitmq_host = rabbitmq.your-domain.com
+rabbitmq_port = 5672
+rabbitmq_user = fiscalberry
+rabbitmq_password = secure-password
+rabbitmq_vhost = /

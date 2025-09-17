@@ -2,6 +2,11 @@
 uuid = xxxxx-yyyy-zzzz-aaaa-zzzzzzzzzz
 sio_host = http://localhost:5000
 sio_password =
+# Configuración de logging
+# Niveles: DEBUG, INFO, WARNING, ERROR, CRITICAL
+log_level = INFO
+# Entorno: development, production
+environment = production
 
 
 

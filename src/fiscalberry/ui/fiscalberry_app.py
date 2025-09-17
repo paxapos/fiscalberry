@@ -17,8 +17,10 @@ import sys
 import os
 import signal
 
-
+from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.version import VERSION
+
+logger = getLogger("GUI.App")
 
 class FiscalberryApp(App):
     name = StringProperty("Servidor de Impresión")
@@ -43,44 +45,95 @@ class FiscalberryApp(App):
     status_message = StringProperty("Esperando conexión...")
     
     def __init__(self, **kwargs):
+        logger.info("Inicializando FiscalberryApp...")
         super().__init__(**kwargs)
-        self.message_queue = queue.Queue()  # Inicializar la variable message_queue aquí
         
-        self._service_controller = ServiceController()
-        self._configberry = Configberry()
-        self._stopping = False  # Bandera para evitar múltiples llamadas de cierre
+        try:
+            self.message_queue = queue.Queue()  # Inicializar la variable message_queue aquí
+            logger.debug("Cola de mensajes inicializada")
+            
+            self._service_controller = ServiceController()
+            logger.debug("ServiceController inicializado")
+            
+            self._configberry = Configberry()
+            logger.debug("Configberry inicializado")
+            
+            self._stopping = False  # Bandera para evitar múltiples llamadas de cierre
+            logger.debug("Variables de control inicializadas")
 
-        self.updatePropertiesWithConfig()
-        
-        # Programar la verificación del estado de SocketIO cada 2 segundos
-        Clock.schedule_interval(self._check_sio_status, 2)
-        Clock.schedule_interval(self._check_rabbit_status, 2)
+            self.updatePropertiesWithConfig()
+            logger.info("Propiedades de configuración actualizadas")
+            
+            # Programar la verificación del estado de SocketIO cada 2 segundos
+            Clock.schedule_interval(self._check_sio_status, 2)
+            Clock.schedule_interval(self._check_rabbit_status, 2)
+            logger.debug("Schedulers de verificación de estado configurados")
 
-        # Configurar manejadores de señales para Windows
-        self._setup_signal_handlers()
+            # Configurar manejadores de señales para Windows
+            self._setup_signal_handlers()
+            logger.debug("Manejadores de señales configurados")
+            
+            logger.info("FiscalberryApp inicializada exitosamente")
+        except Exception as e:
+            logger.error(f"Error durante inicialización de FiscalberryApp: {e}", exc_info=True)
+            raise
         
     def updatePropertiesWithConfig(self):
         """
         Actualiza las propiedades de la aplicación con los valores de configuración.
         """
-        self.uuid = self._configberry.get("SERVIDOR", "uuid", fallback="")
-        self.host = self._configberry.get("SERVIDOR", "sio_host", fallback="")
-        self.tenant = self._configberry.get("Paxaprinter", "tenant", fallback="")
-        self.siteName = self._configberry.get("Paxaprinter", "site_name", fallback="")
-        self.siteAlias = self._configberry.get("Paxaprinter", "alias", fallback="")
+        try:
+            logger.debug("Actualizando propiedades con configuración...")
+            self.uuid = self._configberry.get("SERVIDOR", "uuid", fallback="")
+            self.host = self._configberry.get("SERVIDOR", "sio_host", fallback="")
+            self.tenant = self._configberry.get("Paxaprinter", "tenant", fallback="")
+            self.siteName = self._configberry.get("Paxaprinter", "site_name", fallback="")
+            self.siteAlias = self._configberry.get("Paxaprinter", "alias", fallback="")
+            
+            logger.info(f"Configuración cargada - UUID: {self.uuid[:8]}..., Host: {self.host}, Tenant: {self.tenant}")
+            logger.debug(f"Site Name: {self.siteName}, Site Alias: {self.siteAlias}")
+        except Exception as e:
+            logger.error(f"Error al actualizar propiedades con configuración: {e}", exc_info=True)
+            # Establecer valores por defecto en caso de error
+            self.uuid = ""
+            self.host = ""
+            self.tenant = ""
+            self.siteName = ""
+            self.siteAlias = ""
 
     def _check_sio_status(self, dt):
         """Verifica el estado de la conexión SocketIO y actualiza la propiedad."""
-        self.sioConnected = self._service_controller.isSocketIORunning()
-        # Opcionalmente, puedes actualizar el status_message aquí también si lo deseas
-        # if self.sioConnected:
-        #     self.status_message = "Conectado a SocketIO"
-        # else:
-        #     self.status_message = "Esperando conexión SocketIO..."
+        try:
+            previous_status = self.sioConnected
+            self.sioConnected = self._service_controller.isSocketIORunning()
+            
+            # Log solo cuando cambia el estado para evitar spam
+            if previous_status != self.sioConnected:
+                if self.sioConnected:
+                    logger.info("SocketIO conectado exitosamente")
+                else:
+                    logger.warning("SocketIO desconectado")
+                    
+        except Exception as e:
+            logger.error(f"Error al verificar estado de SocketIO: {e}")
+            self.sioConnected = False
             
     def _check_rabbit_status(self, dt):
         """Verifica el estado de la conexión RabbitMQ y actualiza la propiedad."""
-        self.rabbitMqConnected = self._service_controller.isRabbitRunning()
+        try:
+            previous_status = self.rabbitMqConnected
+            self.rabbitMqConnected = self._service_controller.isRabbitRunning()
+            
+            # Log solo cuando cambia el estado para evitar spam
+            if previous_status != self.rabbitMqConnected:
+                if self.rabbitMqConnected:
+                    logger.info("RabbitMQ conectado exitosamente")
+                else:
+                    logger.warning("RabbitMQ desconectado")
+                    
+        except Exception as e:
+            logger.error(f"Error al verificar estado de RabbitMQ: {e}")
+            self.rabbitMqConnected = False
     
     @mainthread  # Decorar el método
     def _on_config_change(self, data):

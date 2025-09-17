@@ -23,6 +23,14 @@ class RabbitMQConsumer:
         message_queue: Optional[queue.Queue] = None,
         vhost: str = "/"
     ) -> None:
+        self.logger = getLogger("RabbitMQ.Consumer")
+        
+        self.logger.info("=== Inicializando RabbitMQ Consumer ===")
+        self.logger.info(f"Host: {host}:{port}")
+        self.logger.info(f"Usuario: {user}")
+        self.logger.info(f"VHost: {vhost}")
+        self.logger.info(f"Cola: {queue_name}")
+        
         self.host = host
         self.port = port
         self.user = user
@@ -40,51 +48,63 @@ class RabbitMQConsumer:
         else:
             sioLogger = False
 
-        self.logger = getLogger()
+        self.logger.debug(f"Entorno: {environment}, Logging detallado: {sioLogger}")
         
     
     def connect(self):
         """Conecta al servidor RabbitMQ."""
-        self.logger.info(f"Connecting to RabbitMQ server: {self.host}:{self.port}")
+        self.logger.info(f"=== CONECTANDO A RABBITMQ ===")
+        self.logger.info(f"Servidor: {self.host}:{self.port}")
+        self.logger.debug(f"Parámetros de conexión - Usuario: {self.user}, VHost: {self.vhost}")
 
-        # Use connection parameters with shorter timeouts for faster failure detection
-        params = pika.ConnectionParameters(
-            host=self.host, 
-            port=self.port, 
-            virtual_host=self.vhost, 
-            credentials=pika.PlainCredentials(self.user, self.password),
-            heartbeat=600,
-            blocked_connection_timeout=300,
-            socket_timeout=10,  # Timeout más corto para detectar errores de red rápidamente
-            connection_attempts=1,  # Solo un intento, el retry lo maneja process_handler
-            retry_delay=1  # Delay corto entre intentos
-        )
-        self.connection = pika.BlockingConnection(params)
-        self.channel = self.connection.channel()
-        self.logger.info(f"Blockin channel creado")
-        # Manejo del exchange
         try:
-            self.logger.info(f"Probando si existe exchange")
-            # Verificar si el exchange existe sin intentar modificarlo
-            self.channel.exchange_declare(
-                exchange=self.STREAM_NAME,
-                passive=True  # Solo verifica si existe, no intenta declararlo
+            # Use connection parameters with shorter timeouts for faster failure detection
+            self.logger.debug("Configurando parámetros de conexión...")
+            params = pika.ConnectionParameters(
+                host=self.host, 
+                port=self.port, 
+                virtual_host=self.vhost, 
+                credentials=pika.PlainCredentials(self.user, self.password),
+                heartbeat=600,
+                blocked_connection_timeout=300,
+                socket_timeout=10,  # Timeout más corto para detectar errores de red rápidamente
+                connection_attempts=1,  # Solo un intento, el retry lo maneja process_handler
+                retry_delay=1  # Delay corto entre intentos
             )
-            self.logger.info(f"Exchange {self.STREAM_NAME} ya existe")
-        except pika.exceptions.ChannelClosedByBroker:
-            self.logger.info(f"bloquin contection magic pufff")
-            # Si el exchange no existe, reconectamos y lo creamos
+            
+            self.logger.debug("Creando conexión blocking...")
             self.connection = pika.BlockingConnection(params)
             self.channel = self.connection.channel()
+            self.logger.info("Canal RabbitMQ creado exitosamente")
             
-            self.channel.exchange_declare(
-                exchange=self.STREAM_NAME,
-                exchange_type='direct',  # Usar direct como tipo predeterminado
-                durable=True
-            )
-            self.logger.info(f"Exchange {self.STREAM_NAME} creado como direct")
-        
-        self.logger.info(f"Conectado con RabbitMQ, ahora ... Conectando a cola: {self.queue}")
+            # Manejo del exchange
+            self.logger.debug(f"Verificando si existe exchange '{self.STREAM_NAME}'...")
+            try:
+                # Verificar si el exchange existe sin intentar modificarlo
+                self.channel.exchange_declare(
+                    exchange=self.STREAM_NAME,
+                    passive=True  # Solo verifica si existe, no intenta declararlo
+                )
+                self.logger.info(f"Exchange '{self.STREAM_NAME}' ya existe")
+            except pika.exceptions.ChannelClosedByBroker as e:
+                self.logger.warning(f"Exchange no existe, creando nuevo: {e}")
+                # Si el exchange no existe, reconectamos y lo creamos
+                self.connection = pika.BlockingConnection(params)
+                self.channel = self.connection.channel()
+                
+                self.channel.exchange_declare(
+                    exchange=self.STREAM_NAME,
+                    exchange_type='direct',  # Usar direct como tipo predeterminado
+                    durable=True
+                )
+                self.logger.info(f"Exchange '{self.STREAM_NAME}' creado como direct")
+            
+            self.logger.info(f"Conectado con RabbitMQ exitosamente")
+            self.logger.info(f"Configurando cola: '{self.queue}'...")
+            
+        except Exception as e:
+            self.logger.error(f"Error durante conexión a RabbitMQ: {e}", exc_info=True)
+            raise
 
         # Manejo de la cola - verificar primero si existe
         try:

@@ -83,6 +83,10 @@ class EscPComandos():
     printer = None
 
     def __init__(self, printer):
+        logger.info(f"=== Inicializando EscPComandos ===")
+        logger.info(f"Tipo de impresora: {type(printer).__name__}")
+        logger.debug(f"Impresora: {printer}")
+        
         self.printer = printer
         
         self.total_cols = 40
@@ -91,32 +95,61 @@ class EscPComandos():
         self.desc_cols =  self.total_cols - self.cant_cols - self.price_cols
         self.desc_cols_ext = self.total_cols - self.price_cols
         self.signo = "$" # Agregar el signo $ opcionalmente o espacio.
+        
+        logger.debug(f"Configuración de columnas - Total: {self.total_cols}, Precio: {self.price_cols}, "
+                    f"Cantidad: {self.cant_cols}, Descripción: {self.desc_cols}")
+        logger.info("EscPComandos inicializado exitosamente")
 
     def run(self, jsonTicket):
-        with EscposIO(self.printer, autocut=False,autoclose=True) as escpos:
-            actions = jsonTicket.keys()
-            rta = []
-            for action in actions:
-                fnAction = getattr(self, action, None)
+        logger.info(f"=== EJECUTANDO COMANDOS ESCP ===")
+        logger.debug(f"Ticket JSON: {jsonTicket}")
+        
+        try:
+            with EscposIO(self.printer, autocut=False, autoclose=True) as escpos:
+                logger.debug("Conexión EscposIO establecida")
+                actions = jsonTicket.keys()
+                rta = []
+                
+                logger.info(f"Procesando {len(actions)} acciones: {list(actions)}")
+                
+                for action in actions:
+                    logger.debug(f"Procesando acción: '{action}'")
+                    fnAction = getattr(self, action, None)
 
-                if fnAction:
-                    params = jsonTicket[action]
+                    if fnAction:
+                        params = jsonTicket[action]
+                        logger.debug(f"Parámetros para '{action}': {params}")
 
-                    if isinstance(params, list):
-                        res = fnAction(escpos, *params)
-                    elif isinstance(params, dict):
-                        res = fnAction(escpos, **params)
+                        try:
+                            if isinstance(params, list):
+                                res = fnAction(escpos, *params)
+                            elif isinstance(params, dict):
+                                res = fnAction(escpos, **params)
+                            else:
+                                res = fnAction(escpos, params)
+
+                            logger.info(f"Acción '{action}' ejecutada exitosamente")
+                            rta.append({"action": action, "rta": res})
+                        except Exception as e:
+                            error_msg = f"Error ejecutando acción '{action}': {e}"
+                            logger.error(error_msg, exc_info=True)
+                            rta.append({"action": action, "rta": f"Error: {error_msg}"})
                     else:
-                        res = fnAction(escpos, params)
+                        error_msg = f"Función '{action}' no encontrada"
+                        logger.error(error_msg)
+                        rta.append({"action": action, "rta": "Function not found"})
 
-                    rta.append({"action": action, "rta": res})
-                else:
-                    rta.append({"action": action, "rta": "Function not found"})
-
-            return rta
+                logger.info(f"=== COMANDOS ESCP COMPLETADOS ===")
+                logger.debug(f"Respuesta completa: {rta}")
+                return rta
+                
+        except Exception as e:
+            logger.error(f"Error crítico en EscPComandos.run: {e}", exc_info=True)
+            raise PrinterException(f"Error ejecutando comandos: {e}")
 
 
     def _sendCommand(self, comando, skipStatusErrors=False):
+        logger.debug(f"Enviando comando a impresora: {comando}")
         try:
             ret = self.printer.sendCommand(comando, skipStatusErrors)
             return ret
