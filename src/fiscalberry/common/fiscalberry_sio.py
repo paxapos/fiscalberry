@@ -170,8 +170,21 @@ class FiscalberrySio:
 
         @self.sio.event(namespace=ns)
         def start_rabbit(cfg: dict):
-            logger.info(f"=== INICIANDO RABBITMQ ===")
-            logger.info(f"Configuración RabbitMQ: {cfg}")
+            logger.info("=" * 80)
+            logger.info("=== EVENTO RABBITMQ RECIBIDO DESDE SOCKETIO ===")
+            logger.info("=" * 80)
+            
+            rabbit_cfg = cfg.get('RabbitMq', {})
+            logger.info("Configuración recibida desde el servidor:")
+            logger.info(f"  host: {rabbit_cfg.get('host', 'N/A')}")
+            logger.info(f"  port: {rabbit_cfg.get('port', 'N/A')}")
+            logger.info(f"  user: {rabbit_cfg.get('user', 'N/A')}")
+            logger.info(f"  vhost: {rabbit_cfg.get('vhost', 'N/A')}")
+            logger.info(f"  queue: {rabbit_cfg.get('queue', 'N/A')}")
+            
+            logger.warning("⚠️  IMPORTANTE: La configuración del config.ini tiene PRIORIDAD ABSOLUTA")
+            logger.warning("⚠️  Solo se usarán valores de SocketIO para campos VACÍOS en config.ini")
+            logger.info("=" * 80)
 
             try:
                 # config + restart, pasamos la cola para tail -f

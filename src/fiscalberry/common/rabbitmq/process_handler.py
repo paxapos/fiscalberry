@@ -175,76 +175,180 @@ class RabbitMQProcessHandler:
         Recibe el JSON, actualiza Configberry si cambia y reinicia el hilo.
         data debe traer keys 'RabbitMq' y 'Paxaprinter' como en tu interfaz HiDto.
         
-        LÓGICA: Para cada campo, si tiene contenido en config.ini, usar ese valor.
-        Solo usar valores de SocketIO para completar campos vacíos en config.
+        LÓGICA ABSOLUTA: config.ini NUNCA se sobrescribe.
+        Solo se usan valores de SocketIO para campos que estén vacíos en config.ini.
+        Si config.ini tiene valores, esos se usan y NO se escriben en disco de nuevo.
         """
         rabbit_cfg = data.get('RabbitMq', {})
         
-        def get_config_or_message_value(config_key, message_key, default_value=""):
-            """
-            Obtiene valor del config.ini si existe y no está vacío, sino del mensaje SocketIO.
-            Prioridad: config.ini -> mensaje SocketIO -> valor por defecto
-            """
-            config_value = self.config.get("RabbitMq", config_key, fallback="")
-            if config_value and str(config_value).strip():
-                logger.info(f"{config_key}: usando config.ini -> {config_value}")
-                return config_value
+        logger.info("")
+        logger.info("█" * 80)
+        logger.info("█" + " " * 78 + "█")
+        logger.info("█" + "  PROCESANDO CONFIGURACIÓN RABBITMQ - PRIORIDAD ABSOLUTA: config.ini".ljust(78) + "█")
+        logger.info("█" + " " * 78 + "█")
+        logger.info("█" * 80)
+        logger.info("")
+        
+        # Leer valores actuales de config.ini
+        curr_host = self.config.get("RabbitMq", "host", fallback="")
+        curr_port = self.config.get("RabbitMq", "port", fallback="")
+        curr_user = self.config.get("RabbitMq", "user", fallback="")
+        curr_pwd = self.config.get("RabbitMq", "password", fallback="")
+        curr_vhost = self.config.get("RabbitMq", "vhost", fallback="")
+        curr_queue = self.config.get("RabbitMq", "queue", fallback="")
+        
+        logger.info("📂 Valores actuales en config.ini:")
+        logger.info(f"   host: '{curr_host}' {' (vacío)' if not curr_host or not str(curr_host).strip() else ' ✓'}")
+        logger.info(f"   port: '{curr_port}' {' (vacío)' if not curr_port or not str(curr_port).strip() else ' ✓'}")
+        logger.info(f"   user: '{curr_user}' {' (vacío)' if not curr_user or not str(curr_user).strip() else ' ✓'}")
+        logger.info(f"   password: {'(vacío)' if not curr_pwd or not str(curr_pwd).strip() else '****** ✓'}")
+        logger.info(f"   vhost: '{curr_vhost}' {' (vacío)' if not curr_vhost or not str(curr_vhost).strip() else ' ✓'}")
+        logger.info(f"   queue: '{curr_queue}' {' (vacío)' if not curr_queue or not str(curr_queue).strip() else ' ✓'}")
+        logger.info("")
+        logger.info("🌐 Valores disponibles desde SocketIO:")
+        logger.info(f"   host: {rabbit_cfg.get('host', 'N/A')}")
+        logger.info(f"   port: {rabbit_cfg.get('port', 'N/A')}")
+        logger.info(f"   user: {rabbit_cfg.get('user', 'N/A')}")
+        logger.info(f"   password: {'******' if rabbit_cfg.get('password') else 'N/A'}")
+        logger.info(f"   vhost: {rabbit_cfg.get('vhost', 'N/A')}")
+        logger.info(f"   queue: {rabbit_cfg.get('queue', 'N/A')}")
+        logger.info("")
+        logger.info("⚙️  DECISIÓN FINAL (qué se usará):")
+        logger.info("-" * 80)
+        
+        # Solo usar SocketIO para rellenar campos vacíos (NUNCA sobrescribir)
+        updates = {}
+        final_config = {}
+        
+        # HOST
+        if not curr_host or not str(curr_host).strip():
+            new_host = rabbit_cfg.get("host", "")
+            if new_host:
+                updates["host"] = new_host
+                final_config["host"] = new_host
+                logger.warning(f"   ➤ host: config.ini VACÍO → rellenando desde SocketIO: '{new_host}'")
             else:
-                message_value = rabbit_cfg.get(message_key, default_value)
-                logger.info(f"{config_key}: config.ini vacío, usando SocketIO -> {message_value}")
-                return message_value
-        
-        logger.info("=== Configuración RabbitMQ - Prioridad config.ini ===")
-        
-        # Aplicar la lógica a todos los parámetros
-        host = get_config_or_message_value("host", "host")
-        port_str = get_config_or_message_value("port", "port", "5672")
-        user = get_config_or_message_value("user", "user", "guest")
-        pwd = get_config_or_message_value("password", "password", "guest")
-        vhost = get_config_or_message_value("vhost", "vhost", "/")
-        queue = get_config_or_message_value("queue", "queue", "")
-        
-        # Convertir puerto a entero
-        try:
-            port = int(port_str)
-        except (ValueError, TypeError):
-            logger.warning(f"Puerto inválido '{port_str}', usando 5672 por defecto")
-            port = 5672
-        
-        # compara con lo actual
-        curr = {
-            "host": self.config.get("RabbitMq", "host"),
-            "port": self.config.get("RabbitMq", "port"),
-            "user": self.config.get("RabbitMq", "user"),
-            "password": self.config.get("RabbitMq", "password"),
-            "vhost": self.config.get("RabbitMq", "vhost"),
-            "queue": self.config.get("RabbitMq", "queue"),
-        }
-        new = {"host": host, "port": port, "user": user, "password": pwd, "vhost": vhost, "queue": queue}
-        
-        # Verificar si hay cambios en la configuración
-        if curr != new:
-            self.config.set("RabbitMq", new)
-            logger.info("Configuración de RabbitMQ actualizada en disk con valores prioritarios del config.ini")
+                final_config["host"] = ""
+                logger.error(f"   ➤ host: config.ini VACÍO y SocketIO sin valor → quedará vacío ⚠️")
         else:
-            logger.info("Configuración de RabbitMQ sin cambios")
+            final_config["host"] = curr_host
+            logger.info(f"   ✓ host: usando config.ini (PROTEGIDO) → '{curr_host}'")
             
-        # compara con lo actual de Paxaprinter
+        # PORT
+        if not curr_port or not str(curr_port).strip():
+            new_port = rabbit_cfg.get("port", "5672")
+            if new_port:
+                updates["port"] = new_port
+                final_config["port"] = new_port
+                logger.warning(f"   ➤ port: config.ini VACÍO → rellenando desde SocketIO: '{new_port}'")
+            else:
+                final_config["port"] = "5672"
+                logger.warning(f"   ➤ port: config.ini VACÍO → usando default: '5672'")
+        else:
+            final_config["port"] = curr_port
+            logger.info(f"   ✓ port: usando config.ini (PROTEGIDO) → '{curr_port}'")
+            
+        # USER
+        if not curr_user or not str(curr_user).strip():
+            new_user = rabbit_cfg.get("user", "guest")
+            if new_user:
+                updates["user"] = new_user
+                final_config["user"] = new_user
+                logger.warning(f"   ➤ user: config.ini VACÍO → rellenando desde SocketIO: '{new_user}'")
+            else:
+                final_config["user"] = "guest"
+                logger.warning(f"   ➤ user: config.ini VACÍO → usando default: 'guest'")
+        else:
+            final_config["user"] = curr_user
+            logger.info(f"   ✓ user: usando config.ini (PROTEGIDO) → '{curr_user}'")
+            
+        # PASSWORD
+        if not curr_pwd or not str(curr_pwd).strip():
+            new_pwd = rabbit_cfg.get("password", "guest")
+            if new_pwd:
+                updates["password"] = new_pwd
+                final_config["password"] = new_pwd
+                logger.warning(f"   ➤ password: config.ini VACÍO → rellenando desde SocketIO: '******'")
+            else:
+                final_config["password"] = "guest"
+                logger.warning(f"   ➤ password: config.ini VACÍO → usando default: '******'")
+        else:
+            final_config["password"] = curr_pwd
+            logger.info(f"   ✓ password: usando config.ini (PROTEGIDO) → '******'")
+            
+        # VHOST
+        if not curr_vhost or not str(curr_vhost).strip():
+            new_vhost = rabbit_cfg.get("vhost", "/")
+            if new_vhost:
+                updates["vhost"] = new_vhost
+                final_config["vhost"] = new_vhost
+                logger.warning(f"   ➤ vhost: config.ini VACÍO → rellenando desde SocketIO: '{new_vhost}'")
+            else:
+                final_config["vhost"] = "/"
+                logger.warning(f"   ➤ vhost: config.ini VACÍO → usando default: '/'")
+        else:
+            final_config["vhost"] = curr_vhost
+            logger.info(f"   ✓ vhost: usando config.ini (PROTEGIDO) → '{curr_vhost}'")
+            
+        # QUEUE
+        if not curr_queue or not str(curr_queue).strip():
+            new_queue = rabbit_cfg.get("queue", "")
+            if new_queue:
+                updates["queue"] = new_queue
+                final_config["queue"] = new_queue
+                logger.warning(f"   ➤ queue: config.ini VACÍO → rellenando desde SocketIO: '{new_queue}'")
+            else:
+                final_config["queue"] = ""
+                logger.error(f"   ➤ queue: config.ini VACÍO y SocketIO sin valor → quedará vacío ⚠️")
+        else:
+            final_config["queue"] = curr_queue
+            logger.info(f"   ✓ queue: usando config.ini (PROTEGIDO) → '{curr_queue}'")
+        
+        # Resumen final
+        logger.info("-" * 80)
+        logger.info("")
+        logger.info("🎯 CONFIGURACIÓN FINAL QUE SE USARÁ PARA CONECTAR:")
+        logger.info(f"   🔗 Servidor: {final_config['host']}:{final_config['port']}")
+        logger.info(f"   👤 Usuario: {final_config['user']}")
+        logger.info(f"   🏠 VHost: {final_config['vhost']}")
+        logger.info(f"   📬 Cola: {final_config['queue']}")
+        logger.info("")
+        
+        # SOLO escribir en config.ini si había campos vacíos que rellenamos
+        if updates:
+            self.config.set("RabbitMq", updates)
+            logger.warning(f"💾 Guardando campos rellenados en config.ini: {list(updates.keys())}")
+            logger.warning("   Estos valores ahora quedarán PROTEGIDOS y no se sobrescribirán")
+        else:
+            logger.info("✅ config.ini ya está completo - NO se modificó nada")
+        
+        logger.info("")
+        logger.info("█" * 80)
+        logger.info("")
+            
+        # Hacer lo mismo con Paxaprinter - solo rellenar campos vacíos
         pax_cfg = data.get('Paxaprinter', {})
-        alias = pax_cfg.get('alias')
-        tenant = pax_cfg.get('tenant')
-        site_name = pax_cfg.get('site_name')
-        curr_pax = {
-            "alias": self.config.get("Paxaprinter", "alias"),
-            "tenant": self.config.get("Paxaprinter", "tenant"),
-            "site_name": self.config.get("Paxaprinter", "site_name")
-        }
-        new_pax = {"alias": alias, "tenant": tenant, "site_name": site_name}
-        if curr_pax != new_pax:
-            self.config.set("Paxaprinter", new_pax)
-            logger.info("Configuración de Paxaprinter actualizada en disk.")
+        pax_updates = {}
+        
+        curr_alias = self.config.get("Paxaprinter", "alias", fallback="")
+        curr_tenant = self.config.get("Paxaprinter", "tenant", fallback="")
+        curr_site = self.config.get("Paxaprinter", "site_name", fallback="")
+        
+        if not curr_alias or not str(curr_alias).strip():
+            if pax_cfg.get('alias'):
+                pax_updates["alias"] = pax_cfg.get('alias')
+        if not curr_tenant or not str(curr_tenant).strip():
+            if pax_cfg.get('tenant'):
+                pax_updates["tenant"] = pax_cfg.get('tenant')
+        if not curr_site or not str(curr_site).strip():
+            if pax_cfg.get('site_name'):
+                pax_updates["site_name"] = pax_cfg.get('site_name')
+                
+        if pax_updates:
+            self.config.set("Paxaprinter", pax_updates)
+            logger.info(f"Paxaprinter: campos vacíos rellenados: {list(pax_updates.keys())}")
 
-        # guarda en config y reinicia hilo
+        # Reinicia hilo con la configuración actual de config.ini
         if self._thread and self._thread.is_alive():
             self.stop(timeout=5)
         self.start(message_queue)
