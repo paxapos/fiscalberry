@@ -52,6 +52,13 @@ class FiscalberryApp(App):
         super().__init__(**kwargs)
         
         try:
+            # Detectar si estamos en Android
+            self._is_android = self._detect_android()
+            if self._is_android:
+                logger.info("✓ Ejecutando en Android")
+                # Solicitar permisos necesarios
+                self._request_android_permissions()
+            
             self.message_queue = queue.Queue()  # Inicializar la variable message_queue aquí
             logger.debug("Cola de mensajes inicializada")
             
@@ -72,14 +79,81 @@ class FiscalberryApp(App):
             Clock.schedule_interval(self._check_rabbit_status, 5)  # Reducido de 2 a 5 segundos
             logger.debug("Schedulers de verificación de estado configurados (optimizado)")
 
-            # Configurar manejadores de señales para Windows
-            self._setup_signal_handlers()
-            logger.debug("Manejadores de señales configurados")
+            # Configurar manejadores de señales (solo en escritorio)
+            if not self._is_android:
+                self._setup_signal_handlers()
+                logger.debug("Manejadores de señales configurados")
+            
+            # Iniciar servicio Android si corresponde
+            if self._is_android:
+                self._start_android_service()
             
             logger.info("FiscalberryApp inicializada exitosamente")
         except Exception as e:
             logger.error(f"Error durante inicialización de FiscalberryApp: {e}", exc_info=True)
             raise
+    
+    def _detect_android(self):
+        """Detecta si la app está corriendo en Android"""
+        try:
+            from jnius import autoclass
+            return True
+        except ImportError:
+            return False
+    
+    def _request_android_permissions(self):
+        """Solicita todos los permisos necesarios en Android"""
+        try:
+            from fiscalberry.common.android_permissions import (
+                request_all_permissions, 
+                get_permissions_status_summary,
+                request_storage_permissions,
+                request_network_permissions
+            )
+            
+            logger.info("Solicitando permisos de Android...")
+            
+            # Solicitar permisos críticos primero
+            request_storage_permissions()
+            request_network_permissions()
+            
+            # Luego solicitar el resto
+            request_all_permissions()
+            
+            # Mostrar resumen
+            status = get_permissions_status_summary()
+            logger.info(f"\n{status}")
+            
+        except Exception as e:
+            logger.error(f"Error solicitando permisos Android: {e}", exc_info=True)
+    
+    def _start_android_service(self):
+        """Inicia el servicio Android en segundo plano"""
+        try:
+            from android import AndroidService
+            
+            logger.info("Iniciando servicio Android...")
+            service = AndroidService('Fiscalberry Service', 'running')
+            service.start('Fiscalberry iniciado')
+            logger.info("✓ Servicio Android iniciado")
+            
+        except ImportError:
+            logger.warning("AndroidService no disponible - usando método alternativo")
+            try:
+                from jnius import autoclass
+                
+                PythonService = autoclass('org.kivy.android.PythonService')
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                
+                activity = PythonActivity.mActivity
+                PythonService.start(activity, '')
+                logger.info("✓ Servicio Android iniciado (método alternativo)")
+                
+            except Exception as e:
+                logger.error(f"No se pudo iniciar servicio Android: {e}")
+                logger.warning("La app funcionará solo cuando esté en primer plano")
+        except Exception as e:
+            logger.error(f"Error iniciando servicio Android: {e}", exc_info=True)
     
     def build(self):
         """Construye la aplicación de forma optimizada."""
