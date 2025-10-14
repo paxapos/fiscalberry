@@ -69,18 +69,19 @@ fullscreen = 0
 android.presplash_color = purple
 
 # (list) Permissions
-# Add permissions required by your app and its dependencies (e.g., python-escpos)
-android.permissions = INTERNET, FOREGROUND_SERVICE, ACCESS_NETWORK_STATE
-# Example for storage (adjust based on need and target API/scoped storage):
-# android.permissions = INTERNET, FOREGROUND_SERVICE, ACCESS_NETWORK_STATE, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE
-# Example for Bluetooth (needed for BT printers, requires API level checks in code):
-# android.permissions = INTERNET, FOREGROUND_SERVICE, ACCESS_NETWORK_STATE, BLUETOOTH, BLUETOOTH_ADMIN, BLUETOOTH_SCAN, BLUETOOTH_CONNECT
-# Example for coarse location (sometimes needed for BT scanning on newer Android):
-# android.permissions = INTERNET, FOREGROUND_SERVICE, ACCESS_NETWORK_STATE, ..., ACCESS_COARSE_LOCATION
+# Permisos necesarios para Fiscalberry Android:
+# - INTERNET: Conexión a RabbitMQ y SocketIO
+# - FOREGROUND_SERVICE: Servicio en segundo plano
+# - ACCESS_NETWORK_STATE, ACCESS_WIFI_STATE: Detectar conectividad
+# - WAKE_LOCK: Mantener el dispositivo activo durante impresión
+# - READ/WRITE_EXTERNAL_STORAGE: Guardar configuración y logs
+# - BLUETOOTH*: Para impresoras Bluetooth
+# - ACCESS_COARSE_LOCATION: Requerido para escaneo Bluetooth en Android 10+
+android.permissions = INTERNET,FOREGROUND_SERVICE,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,WAKE_LOCK,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_SCAN,BLUETOOTH_CONNECT,ACCESS_COARSE_LOCATION,ACCESS_FINE_LOCATION
 
 # (list) features (adds uses-feature tags to manifest)
-# Uncomment if using python-escpos with USB printers
-# android.features = android.hardware.usb.host
+# Habilitar soporte para impresoras USB y Bluetooth
+android.features = android.hardware.usb.host,android.hardware.bluetooth
 
 # (int) Target Android API, should be as high as possible.
 android.api = 35

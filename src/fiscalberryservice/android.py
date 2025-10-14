@@ -1,106 +1,193 @@
-from time import sleep
-import os
-from jnius import autoclass
-
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
-Basic structure for an Android background service using Python.
-This typically requires a framework like Kivy (with python-for-android)
-or Chaquopy to bridge Python with the Android OS.
+Servicio Android para Fiscalberry
+Permite que RabbitMQ y SocketIO funcionen en segundo plano
+incluso cuando la app no está en primer plano.
 """
 
+from time import sleep
+import os
+import sys
 
-# Using jnius (common with Kivy/python-for-android) to interact with Android APIs
+# Agregar path de fiscalberry al PYTHONPATH
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from fiscalberry.common.fiscalberry_logger import getLogger
+logger = getLogger("AndroidService")
+
+# Importar componentes de Fiscalberry
+from fiscalberry.common.service_controller import ServiceController
+from fiscalberry.common.Configberry import Configberry
+
+# Android APIs usando jnius
 try:
-    # Example: Get access to the service context if running under PythonService
-    # PythonService = autoclass('org.kivy.android.PythonService')
-    # service = PythonService.mService
-    pass
+    from jnius import autoclass
+    
+    PythonService = autoclass('org.kivy.android.PythonService')
+    PythonActivity = autoclass('org.kivy.android.PythonActivity')
+    Context = autoclass('android.content.Context')
+    NotificationBuilder = autoclass('android.app.Notification$Builder')
+    NotificationChannel = autoclass('android.app.NotificationChannel')
+    NotificationManager = autoclass('android.app.NotificationManager')
+    PendingIntent = autoclass('android.app.PendingIntent')
+    Intent = autoclass('android.content.Intent')
+    String = autoclass('java.lang.String')
+    
+    from jnius import cast  # Para hacer cast de tipos Java
+    
+    ANDROID_AVAILABLE = True
+    logger.info("APIs de Android disponibles")
 except ImportError:
-    print("jnius not found. Android-specific features may not work.")
-    autoclass = None
-    service = None
+    ANDROID_AVAILABLE = False
+    logger.warning("jnius no disponible - APIs de Android no estarán disponibles")
+
+
+# Variable global para el controlador de servicios
+service_controller = None
+
+
+def create_notification_channel():
+    """Crea un canal de notificación para Android 8.0+"""
+    if not ANDROID_AVAILABLE:
+        return
+    
+    try:
+        service = PythonService.mService
+        if service:
+            channel_id = "fiscalberry_service"
+            channel_name = "Fiscalberry Service"
+            importance = NotificationManager.IMPORTANCE_LOW
+            
+            channel = NotificationChannel(channel_id, channel_name, importance)
+            channel.setDescription("Servicio de impresión Fiscalberry")
+            
+            notification_service = service.getSystemService(Context.NOTIFICATION_SERVICE)
+            notification_manager = cast(NotificationManager, notification_service)
+            notification_manager.createNotificationChannel(channel)
+            
+            logger.info("Canal de notificación creado")
+            return channel_id
+    except Exception as e:
+        logger.error(f"Error creando canal de notificación: {e}")
+    
+    return "fiscalberry_service"
+
+
+def show_foreground_notification():
+    """Muestra una notificación permanente para servicio en primer plano"""
+    if not ANDROID_AVAILABLE:
+        return
+    
+    try:
+        service = PythonService.mService
+        if not service:
+            return
+        
+        channel_id = create_notification_channel()
+        
+        # Crear intent para abrir la app al tocar la notificación
+        intent = Intent(service, PythonActivity)
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        pending_intent = PendingIntent.getActivity(service, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+        
+        # Crear notificación
+        builder = NotificationBuilder(service, channel_id)
+        builder.setContentTitle("Fiscalberry Activo")
+        builder.setContentText("Sistema de impresión fiscal en ejecución")
+        builder.setSmallIcon(service.getApplicationInfo().icon)
+        builder.setContentIntent(pending_intent)
+        builder.setOngoing(True)  # No se puede quitar deslizando
+        
+        notification = builder.build()
+        
+        # Mostrar como servicio en primer plano
+        service.startForeground(1, notification)
+        logger.info("Notificación de servicio en primer plano mostrada")
+        
+    except Exception as e:
+        logger.error(f"Error mostrando notificación: {e}")
+
 
 def run_service_logic():
-    """Contains the main logic for the background service."""
-    print("Android Service: Starting background logic.")
+    """Lógica principal del servicio en segundo plano"""
+    global service_controller
+    
+    logger.info("=== Iniciando Servicio Android de Fiscalberry ===")
+    
+    # Mostrar notificación de servicio en primer plano
+    show_foreground_notification()
+    
+    # Obtener argumento de inicio del servicio (opcional)
+    service_argument = os.environ.get('PYTHON_SERVICE_ARGUMENT', 'default')
+    logger.info(f"Argumento del servicio: {service_argument}")
+    
+    # Inicializar configuración
+    try:
+        configberry = Configberry()
+        logger.info("Configberry inicializado")
+        
+        if not configberry.is_comercio_adoptado():
+            logger.warning("Comercio no adoptado - servicio esperará adopción")
+            # En un servicio, no podemos mostrar UI, solo esperar o detener
+            # Por ahora, el servicio seguirá corriendo pero sin hacer nada
+            while True:
+                sleep(30)
+                if configberry.is_comercio_adoptado():
+                    logger.info("Comercio adoptado! Iniciando servicios...")
+                    break
+        
+        # Iniciar controlador de servicios (RabbitMQ, SocketIO)
+        logger.info("Iniciando ServiceController...")
+        service_controller = ServiceController()
+        service_controller.start()
+        logger.info("ServiceController iniciado exitosamente")
+        
+        # Mantener el servicio corriendo
+        logger.info("Servicio en ejecución - esperando trabajos de impresión...")
+        while True:
+            sleep(60)  # Verificar cada minuto que todo sigue funcionando
+            # El ServiceController maneja RabbitMQ y SocketIO en sus propios threads
+            
+    except KeyboardInterrupt:
+        logger.info("Servicio interrumpido por usuario")
+    except Exception as e:
+        logger.error(f"Error en servicio: {e}", exc_info=True)
+    finally:
+        # Limpiar recursos
+        if service_controller:
+            try:
+                logger.info("Deteniendo ServiceController...")
+                service_controller.stop()
+                logger.info("ServiceController detenido")
+            except Exception as e:
+                logger.error(f"Error al detener ServiceController: {e}")
+        
+        logger.info("=== Servicio Android de Fiscalberry finalizado ===")
 
-    # Example: Retrieve an argument passed when starting the service
-    # This environment variable is often set by the service starter (e.g., Kivy's PythonService)
-    service_argument = os.environ.get('PYTHON_SERVICE_ARGUMENT', 'No argument provided')
-    print(f"Android Service: Received argument: {service_argument}")
-
-    # Main service loop
-    counter = 0
-    while True:
-        print(f"Android Service: Running... Loop count: {counter}")
-
-        # --- Add your background tasks here ---
-        # Examples:
-        # - Polling a server for updates
-        # - Processing data in the background
-        # - Interacting with hardware (requires specific permissions and APIs)
-        # - Sending notifications (requires Android API calls via jnius/plyer)
-
-        # Example: Show a Toast notification (requires context and jnius)
-        # if autoclass and service:
-        #     try:
-        #         Toast = autoclass('android.widget.Toast')
-        #         CharSequence = autoclass('java.lang.CharSequence')
-        #         context = service.getApplicationContext()
-        #         if context:
-        #             def show_toast():
-        #                 text = CharSequence(f"Service running {counter}")
-        #                 toast = Toast.makeText(context, text, Toast.LENGTH_SHORT)
-        #                 toast.show()
-        #             # Toasts must be shown on the UI thread
-        #             PythonActivity = autoclass('org.kivy.android.PythonActivity')
-        #             PythonActivity.mActivity.runOnUiThread(show_toast)
-        #     except Exception as e:
-        #         print(f"Android Service: Error showing toast - {e}")
-
-        # Sleep for a period before the next iteration
-        sleep(15) # Sleep for 15 seconds
-        counter += 1
-
-        # Add conditions to stop the service if necessary,
-        # although services are often designed to run until explicitly stopped.
-        # For example:
-        # if should_stop_service():
-        #     print("Android Service: Stopping condition met.")
-        #     break
-
-    print("Android Service: Background logic finished.")
 
 if __name__ == "__main__":
-    # This block is executed when the script is run directly.
-    # When launched as an Android service by the framework (e.g., Kivy),
-    # the framework typically imports and runs this script, potentially
-    # calling a specific function or just executing the module level code.
-    # The `run_service_logic()` function contains the core tasks.
+    """
+    Este bloque se ejecuta cuando el servicio es iniciado por Android.
+    
+    Para iniciar este servicio desde la app principal de Kivy:
+    
+    ```python
+    from android import AndroidService
+    service = AndroidService('Fiscalberry Service', 'running')
+    service.start('service started')
+    ```
+    
+    O usando jnius directamente:
+    
+    ```python
+    from jnius import autoclass
+    PythonService = autoclass('org.kivy.android.PythonService')
+    PythonService.start(mActivity, '')
+    ```
+    """
     run_service_logic()
-
-# --- Notes on Deployment as an Android Service ---
-#
-# 1.  **Framework:** Use Kivy (with buildozer) or Chaquopy.
-# 2.  **Configuration (Buildozer Example):**
-#     In `buildozer.spec`, define the service:
-#     ```
-#     services = YourServiceName:./src/fiscalberryservice/android.py
-#     ```
-#     Replace `YourServiceName` and adjust the path.
-# 3.  **Starting the Service:**
-#     Start it from your main app (e.g., Kivy `main.py`) using Android Intents via jnius:
-#     ```python
-#     from jnius import autoclass
-#     import os
-#
-#     PythonActivity = autoclass('org.kivy.android.PythonActivity')
-#     activity = PythonActivity.mActivity
-#     Intent = autoclass('android.content.Intent')
-#
-#     service_name = 'YourServiceName' # Must match buildozer.spec
 #     service_class_name = f'{activity.getPackageName()}.Service{service_name}'
 #
 #     intent = Intent()
