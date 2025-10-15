@@ -1,0 +1,19 @@
+--- a/jnius/jnius_utils.pxi
++++ b/jnius/jnius_utils.pxi
+@@ -321,8 +321,7 @@ cdef void check_assignable_from(JNIEnv *env, JavaClass jc, bytes sig, object ar
+ 
+         if r == 'S' or r == 'I':
+             if isinstance(arg, int) or (
+-                    (isinstance(arg, long) and arg < 2147483648)):
++                    arg < 2147483648):
+                 score += 10
+                 continue
+             elif isinstance(arg, float):
+@@ -332,7 +331,7 @@ cdef void check_assignable_from(JNIEnv *env, JavaClass jc, bytes sig, object ar
+                 return -1
+ 
+         if r == 'J':
+-            if isinstance(arg, int) or isinstance(arg, long):
++            if isinstance(arg, int):
+                 score += 10
+                 continue

@@ -35,14 +35,16 @@ source.include_patterns = assets/*, capabilities.json
 # (str) Application versioning
 # version = x.x
 # Optional: Use regex to get version from your code (e.g., __init__.py)
-version.regex = __version__ = ['"](.*)['"]
-version.filename = %(source.dir)s/fiscalberry/__init__.py
+version.regex = VERSION = ['"](.*)['"]
+version.filename = %(source.dir)s/fiscalberry/version.py
 
 # (list) Application requirements
 # Comma-separated list of recipes or pure-Python packages.
 # IMPORTANT: Verify each requirement. Check if python-for-android recipes exist for non-pure-Python libs.
 # Remove unnecessary dependencies (like pika if not used on mobile, pywin32,).
-requirements = hostpython3,python3,kivy[base],python-escpos[image,qrcode,usb,serial],python-socketio[client],requests,platformdirs,pyjnius
+# NOTE: python-escpos extras expanded individually due to buildozer parsing limitations
+# NOTE: kivy SIN [base] para forzar compilación desde source en lugar de usar wheels
+requirements = hostpython3,python3,kivy,python-escpos,qrcode,pillow,pyserial,pyusb,python-socketio[client],requests,platformdirs,pyjnius,pika
 
 
 # (str) Presplash of the application
@@ -81,7 +83,8 @@ android.permissions = INTERNET,FOREGROUND_SERVICE,ACCESS_NETWORK_STATE,ACCESS_WI
 
 # (list) features (adds uses-feature tags to manifest)
 # Habilitar soporte para impresoras USB y Bluetooth
-android.features = android.hardware.usb.host,android.hardware.bluetooth
+# NOTA: android.features no soportado en esta versión de buildozer, se agregará manualmente al AndroidManifest.xml
+# android.features = android.hardware.usb.host,android.hardware.bluetooth
 
 # (int) Target Android API, should be as high as possible.
 android.api = 35
@@ -128,6 +131,11 @@ android.debug = true
 
 # (str) The directory in which python-for-android should look for your own build recipes (if any)
 p4a.local_recipes = my_recipes
+
+# (str) Bootstrap to use. Leave empty to let buildozer choose.
+p4a.bootstrap = sdl2
+
+# NOTA: La compilación desde source se fuerza en my_recipes/kivy/__init__.py
 
 #
 # iOS specific - Not relevant for Android build
