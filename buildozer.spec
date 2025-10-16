@@ -44,7 +44,12 @@ version.filename = %(source.dir)s/fiscalberry/version.py
 # Remove unnecessary dependencies (like pika if not used on mobile, pywin32,).
 # NOTE: python-escpos extras expanded individually due to buildozer parsing limitations
 # NOTE: kivy SIN [base] para forzar compilación desde source en lugar de usar wheels
-requirements = hostpython3,python3,kivy,python-escpos,qrcode,pillow,pyserial,pyusb,python-socketio[client],requests,platformdirs,pyjnius,pika
+# NOTE: Dependencias COMPLETAS verificadas del proyecto:
+# - python-escpos: appdirs, argcomplete, importlib-resources, Pillow, python-barcode, PyYAML, qrcode, setuptools, six
+# - python-socketio: python-engineio, bidict, simple-websocket, wsproto, h11
+# - Kivy: filetype (para carga de imágenes)
+# - Proyecto: requests (urllib3, certifi, idna, chardet), platformdirs, pyjnius, pika, pyserial, pyusb
+requirements = hostpython3,python3,kivy,python-escpos,python-barcode,appdirs,argcomplete,importlib-resources,pyyaml,setuptools,six,qrcode,pillow,pyserial,pyusb,python-socketio[client],python-engineio,bidict,simple-websocket,wsproto,h11,requests,urllib3,certifi,idna,chardet,platformdirs,pyjnius,pika,filetype
 
 
 # (str) Presplash of the application

@@ -71,35 +71,33 @@ class KivyRecipePython312(KivyRecipe):
             info(f"📂 Dir contents: {os.listdir(build_dir)[:10]}")
         info("=" * 60)
         
-                # Archivos .pyx que contienen referencias a 'long'
-        # Lista completa obtenida con: find kivy-2.3.0 -name "*.pyx" -exec grep -l "\blong\b" {} \;
-        files_to_patch = [
-            'kivy/_clock.pyx',
-            'kivy/_event.pyx',
-            'kivy/weakproxy.pyx',
-            'kivy/core/image/img_imageio.pyx',
-            'kivy/core/image/_img_sdl2.pyx',
-            'kivy/core/text/text_layout.pyx',
-            'kivy/core/text/_text_pango.pyx',
-            'kivy/core/window/window_x11.pyx',
-            'kivy/graphics/buffer.pyx',
-            'kivy/graphics/cgl_backend/cgl_debug.pyx',
-            'kivy/graphics/cgl.pyx',
-            'kivy/graphics/context_instructions.pyx',
-            'kivy/graphics/opengl.pyx',
-            'kivy/graphics/shader.pyx',
-            'kivy/graphics/tesselator.pyx',
-            'kivy/graphics/texture.pyx',
-            'kivy/graphics/vertex_instructions.pyx',
-            'kivy/graphics/vertex.pyx',
-            'kivy/lib/gstplayer/_gstplayer.pyx',
-        ]
+        # ESTRATEGIA DINÁMICA: Buscar TODOS los .pyx con 'long'
+        files_to_patch = []
+        
+        if os.path.exists(build_dir):
+            info("🔍 Buscando archivos .pyx con 'long'...")
+            for root, dirs, files in os.walk(build_dir):
+                for filename in files:
+                    if filename.endswith('.pyx'):
+                        file_path = os.path.join(root, filename)
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                                # Buscar patterns típicos de 'long'
+                                if '(long,' in content or ', long)' in content or 'long(' in content or ': long' in content:
+                                    files_to_patch.append(file_path)
+                                    info(f"   📌 {os.path.relpath(file_path, build_dir)}")
+                        except Exception as e:
+                            pass
+            
+            info(f"📊 Total: {len(files_to_patch)} archivos a parchear")
         
         modified_files = 0
         
-        for rel_path in files_to_patch:
-            file_path = join(build_dir, rel_path)
+        for file_path in files_to_patch:
             try:
+                rel_name = os.path.relpath(file_path, build_dir)
+                
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
@@ -125,14 +123,35 @@ class KivyRecipePython312(KivyRecipe):
                     content
                 )
                 
-                # Patrón 4: Reemplazar (int, long) por (int,)
+                # Patrón 4a: Reemplazar (long, int) por (int,) - ORDEN LONG PRIMERO
+                content = re.sub(
+                    r'\(\s*long\s*,\s*int\s*\)',
+                    '(int,)',
+                    content
+                )
+                
+                # Patrón 4b: Reemplazar (int, long) por (int,) - ORDEN INT PRIMERO
                 content = re.sub(
                     r'\(\s*int\s*,\s*long\s*\)',
                     '(int,)',
                     content
                 )
                 
-                # Patrón 5: Reemplazar [int, long] por [int]
+                # Patrón 4c: Reemplazar (long,) por (int,) - SOLO LONG
+                content = re.sub(
+                    r'\(\s*long\s*,\s*\)',
+                    '(int,)',
+                    content
+                )
+                
+                # Patrón 5a: Reemplazar [long, int] por [int]
+                content = re.sub(
+                    r'\[\s*long\s*,\s*int\s*\]',
+                    '[int]',
+                    content
+                )
+                
+                # Patrón 5b: Reemplazar [int, long] por [int]
                 content = re.sub(
                     r'\[\s*int\s*,\s*long\s*\]',
                     '[int]',
@@ -140,20 +159,18 @@ class KivyRecipePython312(KivyRecipe):
                 )
                 
                 if content != original_content:
-                    info(f"🔧 Parcheando {rel_path}")
+                    info(f"🔧 Parcheando {rel_name}")
                     with open(file_path, 'w', encoding='utf-8') as f:
                         f.write(content)
                     modified_files += 1
-                    info(f"   ✓ Archivo parcheado correctamente")
+                    info(f"   ✅ Archivo parcheado correctamente")
                 else:
-                    info(f"🔧 Procesando {rel_path}")
-                    info(f"   ℹ No se encontraron referencias a 'long'")
+                    info(f"   ℹ {rel_name}: Sin cambios necesarios")
                     
             except FileNotFoundError:
-                # El archivo puede no existir en esta versión de Kivy
-                warning(f"⚠ Archivo no encontrado: {rel_path}")
+                warning(f"⚠ Archivo no encontrado: {file_path}")
             except Exception as e:
-                warning(f"❌ Error al parchear {rel_path}: {e}")
+                warning(f"❌ Error al parchear {file_path}: {e}")
         
         info("=" * 60)
         if modified_files > 0:
@@ -165,41 +182,83 @@ class KivyRecipePython312(KivyRecipe):
     def prebuild_arch(self, arch):
         """
         Hook ejecutado antes de compilar para cada arquitectura
-        IMPORTANTE: Aplicamos parches ANTES de cualquier otra cosa
+        CRÍTICO: Primero dejamos que el padre prepare TODO, luego parcheamos
         """
-        build_dir = self.get_build_dir(arch.arch)
-        self.apply_python312_patches(build_dir)
-        
-        # Ahora sí ejecutamos el prebuild normal
+        # Primero el padre desempaqueta y prepara archivos
         super().prebuild_arch(arch)
-    
-    def build_arch(self, arch):
-        """
-        Hook de compilación - aseguramos que los parches se apliquen
-        """
+        
+        # AHORA los archivos están listos, aplicamos parches
         build_dir = self.get_build_dir(arch.arch)
-        
-        # CRÍTICO: Aplicar parches justo antes de compilar
+        info("=" * 70)
+        info("🔥 POST-PREBUILD: Archivos listos, aplicando parches")
+        info("=" * 70)
         self.apply_python312_patches(build_dir)
-        
-        # Luego ejecutamos la compilación normal
-        super().build_arch(arch)
     
-    def postbuild_arch(self, arch):
+    def build_cython_components(self, arch):
         """
-        Hook que se ejecuta DESPUÉS de desempaquetar pero ANTES de compilar
-        Aplicamos los parches Python 3.12 aquí
+        MOMENTO CRÍTICO: Este método se ejecuta JUSTO ANTES de que Cython compile
+        Sobrescribimos para aplicar parches en el último momento posible
         """
         build_dir = self.get_build_dir(arch.arch)
         
         info("=" * 70)
-        info("🔥 POST-UNPACK: Aplicando parches Python 3.12 a Kivy")
+        info("🔥 PRE-CYTHON: Último momento - parcheando antes de Cython")
+        info(f"📂 Build dir: {build_dir}")
+        
+        # Listar archivos para debug
+        if os.path.exists(build_dir):
+            pyx_files = []
+            for root, dirs, files in os.walk(build_dir):
+                for f in files:
+                    if f.endswith('.pyx'):
+                        pyx_files.append(os.path.relpath(os.path.join(root, f), build_dir))
+            info(f"📄 Archivos .pyx encontrados: {len(pyx_files)}")
+            if pyx_files:
+                info(f"� Primeros 5: {pyx_files[:5]}")
         info("=" * 70)
         
-        # Aplicar parches inmediatamente después de desempaquetar
+        # Aplicar parches AHORA, justo antes de Cython
         self.apply_python312_patches(build_dir)
         
-        super().postbuild_arch(arch)
+        # Ahora sí, ejecutar Cython con archivos parcheados
+        super().build_cython_components(arch)
+    
+    def cythonize_build(self, env=None, build_dir=None):
+        """
+        MOMENTO CRÍTICO: Kivy sobrescribe este método y define el build_dir REAL
+        Nosotros lo sobrescribimos DE NUEVO para parchear en el directorio correcto
+        """
+        # Si no nos pasan build_dir, Kivy usa 'kivy' como subdirectorio
+        if build_dir is None:
+            base_dir = self.get_build_dir(self.ctx.archs[0].arch)
+            build_dir = join(base_dir, 'kivy')
+        
+        info("=" * 70)
+        info("🔥 CYTHONIZE_BUILD: Parcheando en directorio REAL de Cython")
+        info(f"📂 Build dir que usará Cython: {build_dir}")
+        info(f"📂 Existe: {os.path.exists(build_dir)}")
+        
+        if os.path.exists(build_dir):
+            # Listar .pyx en este directorio específico
+            pyx_files = []
+            for root, dirs, files in os.walk(build_dir):
+                pyx_files.extend([f for f in files if f.endswith('.pyx')])
+            info(f"📄 Archivos .pyx encontrados: {len(pyx_files)}")
+            
+            # Verificar si opengl.pyx tiene 'long'
+            opengl_path = join(build_dir, 'graphics', 'opengl.pyx')
+            if os.path.exists(opengl_path):
+                with open(opengl_path, 'r') as f:
+                    content = f.read()
+                    has_long = '(long,' in content or ', long)' in content
+                    info(f"📄 opengl.pyx existe, tiene 'long': {has_long}")
+        info("=" * 70)
+        
+        # PARCHEAR en el directorio REAL
+        self.apply_python312_patches(build_dir)
+        
+        # Ahora sí, llamar al cythonize_build de Kivy
+        super().cythonize_build(env=env, build_dir=build_dir)
 
 
 recipe = KivyRecipePython312()
