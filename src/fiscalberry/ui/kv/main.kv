@@ -70,7 +70,7 @@ ScreenManager:
                     background_color: 0.2, 0.4, 0.8, 1
                     color: 1, 1, 1, 1
                     font_size: '15sp'
-                    on_press: import webbrowser; webbrowser.open(root.adoptarLink)
+                    on_press: root.open_adoption_link()
                 
                 Label:
                     text: "Se abrirá la página\nde vinculación"
@@ -130,6 +130,32 @@ ScreenManager:
                     halign: 'center'
                 
                 Widget:
+        
+        # Botón de verificación manual
+        BoxLayout:
+            orientation: 'vertical'
+            size_hint_y: None
+            height: dp(70)
+            padding: [dp(40), 0]
+            spacing: dp(10)
+            
+            Button:
+                text: "Ya completé la vinculación - Verificar"
+                size_hint_y: None
+                height: dp(50)
+                background_color: 0.3, 0.7, 0.3, 1
+                color: 1, 1, 1, 1
+                font_size: '14sp'
+                on_press: root.manual_check_adoption()
+            
+            # Indicador de monitoreo
+            Label:
+                text: "🔄 Monitoreando adopción automáticamente..." if root.is_monitoring else ""
+                font_size: '11sp'
+                size_hint_y: None
+                height: dp(20)
+                color: 0.5, 0.5, 0.5, 1
+                halign: 'center'
         
         # Texto explicativo
         BoxLayout:

@@ -196,6 +196,25 @@ def runTraductor(jsonTicket, queue):
         # printer.Serial(devfile='', baudrate=9600, bytesize=8, timeout=1, parity=None, stopbits=None, xonxoff=False, dsrdtr=True, *args, **kwargs)
         driverName = "Serial"
 
+    elif driverName == "Bluetooth".lower():
+        # Bluetooth printer for Android
+        # BluetoothPrinter(mac_address='XX:XX:XX:XX:XX:XX', timeout=10)
+        logger.info(f"Configurando driver Bluetooth para '{printerName}'")
+        logger.debug(f"Parámetros Bluetooth: {driverOps}")
+        
+        # Validar MAC address
+        if 'mac_address' not in driverOps and 'macAddress' not in driverOps:
+            raise DriverError("MAC address requerida para Bluetooth: use 'mac_address' en config")
+        
+        # Normalizar nombre de parámetro
+        if 'macAddress' in driverOps:
+            driverOps['mac_address'] = driverOps.pop('macAddress')
+        
+        # Importar driver Bluetooth custom
+        from fiscalberry.common.bluetooth_printer import BluetoothPrinter
+        driver_class = BluetoothPrinter
+        driverName = "Bluetooth"
+
     elif driverName == "File".lower():
         # (devfile='', auto_flush=True
         # printer.File(devfile='', auto_flush=True, *args, **kwargs)[source]
@@ -219,14 +238,19 @@ def runTraductor(jsonTicket, queue):
     else:
         raise DriverError(f"Invalid driver: {driver}")
     
-    try:
-        driver_class = getattr(printer, driverName)
-        if not callable(driver_class):
-            raise DriverError(f"Driver {driverName} is not callable")
-    except AttributeError:
-        raise DriverError(f"Driver {driverName} not found in printer module")
-    except Exception as e:
-        raise DriverError(f"Error loading driver {driverName}: {e}")
+    # Manejar drivers custom (ej: Bluetooth) que ya tienen driver_class asignado
+    if driverName == "Bluetooth":
+        # Ya está configurado arriba con BluetoothPrinter
+        pass
+    else:
+        try:
+            driver_class = getattr(printer, driverName)
+            if not callable(driver_class):
+                raise DriverError(f"Driver {driverName} is not callable")
+        except AttributeError:
+            raise DriverError(f"Driver {driverName} not found in printer module")
+        except Exception as e:
+            raise DriverError(f"Error loading driver {driverName}: {e}")
 
     try:
         # crear el driver

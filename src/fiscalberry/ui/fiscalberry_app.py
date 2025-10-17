@@ -108,21 +108,48 @@ class FiscalberryApp(App):
                 request_all_permissions, 
                 get_permissions_status_summary,
                 request_storage_permissions,
-                request_network_permissions
+                request_network_permissions,
+                request_bluetooth_permissions
             )
             
-            logger.info("Solicitando permisos de Android...")
+            logger.info("="*70)
+            logger.info("SOLICITANDO PERMISOS DE ANDROID")
+            logger.info("="*70)
             
             # Solicitar permisos críticos primero
+            logger.info("\n1️⃣ Solicitando permisos de almacenamiento...")
             request_storage_permissions()
+            
+            logger.info("\n2️⃣ Solicitando permisos de red...")
             request_network_permissions()
             
+            logger.info("\n3️⃣ Solicitando permisos de Bluetooth...")
+            logger.info("⚠️ IMPORTANTE: Debes ACEPTAR los permisos de Bluetooth en el diálogo")
+            request_bluetooth_permissions()
+            
             # Luego solicitar el resto
+            logger.info("\n4️⃣ Solicitando permisos adicionales...")
             request_all_permissions()
             
             # Mostrar resumen
+            logger.info("\n" + "="*70)
             status = get_permissions_status_summary()
             logger.info(f"\n{status}")
+            logger.info("="*70)
+            
+            # Verificar permisos de Bluetooth específicamente
+            from android.permissions import check_permission
+            bt_connect = check_permission('android.permission.BLUETOOTH_CONNECT')
+            bt_scan = check_permission('android.permission.BLUETOOTH_SCAN')
+            
+            if not bt_connect or not bt_scan:
+                logger.warning("\n⚠️⚠️⚠️ PERMISOS DE BLUETOOTH NO OTORGADOS ⚠️⚠️⚠️")
+                logger.warning("Para usar impresoras Bluetooth, debes:")
+                logger.warning("1. Ir a Configuración → Apps → Fiscalberry → Permisos")
+                logger.warning("2. Habilitar 'Dispositivos cercanos' o 'Bluetooth'")
+                logger.warning("3. Reiniciar la app")
+            else:
+                logger.info("\n✅ Permisos de Bluetooth otorgados correctamente")
             
         except Exception as e:
             logger.error(f"Error solicitando permisos Android: {e}", exc_info=True)
@@ -159,27 +186,34 @@ class FiscalberryApp(App):
         """Construye la aplicación de forma optimizada."""
         logger.info("Construyendo interfaz de usuario...")
         
+        # Detectar plataforma
+        is_android = 'ANDROID_STORAGE' in os.environ or 'ANDROID_ARGUMENT' in os.environ
+        logger.info(f"Plataforma detectada: {'Android' if is_android else 'Desktop'}")
+        
         # Configurar título y icono
         self.title = "Servidor de Impresión"
         
-        # Configurar el icono de la ventana de forma optimizada
-        try:
-            icon_path = os.path.join(self.assetpath, "fiscalberry.ico")
-            if os.path.exists(icon_path):
-                self.icon = icon_path
-                logger.info(f"Icono configurado: {icon_path}")
-                
-                # Configuración específica para Windows
-                if sys.platform == 'win32':
-                    self._set_windows_icon(icon_path)
-            else:
-                # Fallback a PNG si ICO no existe
-                png_icon = os.path.join(self.assetpath, "fiscalberry.png")
-                if os.path.exists(png_icon):
-                    self.icon = png_icon
-                    logger.info(f"Usando icono PNG fallback: {png_icon}")
-        except Exception as e:
-            logger.error(f"Error configurando icono: {e}")
+        # Configurar el icono de la ventana de forma optimizada (solo Desktop)
+        if not is_android:
+            try:
+                icon_path = os.path.join(self.assetpath, "fiscalberry.ico")
+                if os.path.exists(icon_path):
+                    self.icon = icon_path
+                    logger.info(f"Icono configurado: {icon_path}")
+                    
+                    # Configuración específica para Windows
+                    if sys.platform == 'win32':
+                        self._set_windows_icon(icon_path)
+                else:
+                    # Fallback a PNG si ICO no existe
+                    png_icon = os.path.join(self.assetpath, "fiscalberry.png")
+                    if os.path.exists(png_icon):
+                        self.icon = png_icon
+                        logger.info(f"Usando icono PNG fallback: {png_icon}")
+            except Exception as e:
+                logger.error(f"Error configurando icono: {e}")
+        else:
+            logger.debug("Android detectado - configuración de icono omitida")
         
         # Cargar el archivo KV de forma optimizada
         try:
@@ -202,22 +236,43 @@ class FiscalberryApp(App):
         sm.add_widget(LoginScreen(name='login'))
         sm.add_widget(LogScreen(name='logs'))  # Consistencia en naming
         
-        # Configurar el cierre de ventana para Windows
-        try:
-            from kivy.core.window import Window
-            Window.bind(on_request_close=self._on_window_close)
-        except Exception as e:
-            logger.debug(f"No se pudo configurar cierre de ventana: {e}")
+        # Configurar el cierre de ventana (solo Desktop)
+        if not is_android:
+            try:
+                from kivy.core.window import Window
+                Window.bind(on_request_close=self._on_window_close)
+            except Exception as e:
+                logger.debug(f"No se pudo configurar cierre de ventana: {e}")
         
-        # Determinar pantalla inicial basada en configuración
-        if self.tenant and self.tenant.strip():
+        # CRÍTICO: Determinar pantalla inicial basada en estado de adopción
+        if self._configberry.is_comercio_adoptado():
+            # Comercio YA adoptado → ir a main directamente
             sm.current = 'main'
-            logger.info("Iniciando en pantalla principal (tenant configurado)")
-            # Iniciar servicios automáticamente si hay tenant
+            logger.info("Iniciando en pantalla principal (comercio adoptado)")
+            # Iniciar servicios automáticamente
             self.on_start_service()
         else:
+            # Comercio NO adoptado → enviar discover primero
+            logger.info("Comercio no adoptado. Enviando discover...")
+            
+            # CRÍTICO: Enviar discover ANTES de mostrar adopt screen
+            try:
+                from fiscalberry.common.discover import send_discover
+                send_discover()
+                logger.info("Discover enviado exitosamente")
+            except Exception as e:
+                logger.error(f"Error al enviar discover: {e}")
+            
+            # NUEVO: Iniciar SocketIO para recibir configuración de adopción
+            logger.info("Iniciando SocketIO para recibir adopción...")
+            try:
+                self._start_socketio_for_adoption()
+            except Exception as e:
+                logger.error(f"Error iniciando SocketIO: {e}", exc_info=True)
+            
+            # Ahora sí, mostrar pantalla de adopción
             sm.current = 'adopt'
-            logger.info("Iniciando en pantalla de adopción (tenant no configurado)")
+            logger.info("Mostrando pantalla de adopción")
         
         return sm
     
@@ -254,9 +309,119 @@ class FiscalberryApp(App):
         except Exception as e:
             logger.error(f"Error configurando icono de Windows: {e}")
     
+    def _start_socketio_for_adoption(self):
+        """
+        Inicia solo SocketIO (sin RabbitMQ) para recibir el evento de adopción.
+        Solo inicia la conexión SocketIO para escuchar el evento start_rabbit.
+        """
+        try:
+            from fiscalberry.common.fiscalberry_sio import FiscalberrySio
+            
+            uuid_value = self._configberry.get("SERVIDOR", "uuid", fallback="")
+            sio_host = self._configberry.get("SERVIDOR", "sio_host", fallback="")
+            
+            if not uuid_value or not sio_host:
+                logger.error("UUID o sio_host no configurados")
+                return
+            
+            logger.info(f"Conectando SocketIO para adopción - Host: {sio_host}, UUID: {uuid_value[:8]}...")
+            
+            # Crear instancia de SocketIO
+            sio_client = FiscalberrySio(
+                server_url=sio_host,
+                uuid=uuid_value,
+                namespaces='/paxaprinter'
+            )
+            
+            # Iniciar en thread separado
+            Thread(target=sio_client.start, daemon=True).start()
+            
+            logger.info("✓ SocketIO iniciado para recibir adopción")
+            
+        except Exception as e:
+            logger.error(f"Error iniciando SocketIO para adopción: {e}", exc_info=True)
+    
     def on_start(self):
         """Se ejecuta después de que la aplicación inicie."""
-        logger.info("Aplicación iniciada, configurando icono final...")
+        logger.info("Aplicación iniciada")
+        
+        # Detectar si estamos en Android
+        is_android = 'ANDROID_STORAGE' in os.environ or 'ANDROID_ARGUMENT' in os.environ
+        
+        if is_android:
+            logger.info("Android detectado - configurando permisos y servicios...")
+            # Verificar y solicitar permisos en Android
+            try:
+                from fiscalberry.common.android_permissions import (
+                    check_all_permissions, 
+                    request_all_permissions
+                )
+                
+                perms = check_all_permissions()
+                if not perms['all_granted']:
+                    logger.warning("No todos los permisos están otorgados")
+                    request_all_permissions()
+            except Exception as e:
+                logger.error(f"Error gestionando permisos Android: {e}")
+        else:
+            # Configuración de icono para Desktop (Windows)
+            logger.info("Desktop detectado - configurando icono final...")
+            try:
+                icon_path = os.path.join(self.assetpath, "fiscalberry.ico")
+                if os.path.exists(icon_path) and sys.platform == 'win32':
+                    # Esperar un poco para que la ventana esté completamente inicializada
+                    Clock.schedule_once(lambda dt: self._set_windows_icon_delayed(icon_path), 1)
+            except Exception as e:
+                logger.error(f"Error en on_start configurando icono: {e}")
+    
+    def on_pause(self):
+        """
+        Llamado cuando la app pasa a background en Android.
+        Retornar True para permitir pause sin cerrar la app.
+        """
+        logger.info("App pausada (background)")
+        return True  # Importante para Android - permite que la app vuelva
+    
+    def on_resume(self):
+        """
+        Llamado cuando la app vuelve de background en Android.
+        """
+        logger.info("App resumida (foreground)")
+        
+        # Forzar actualización de la ventana de Kivy
+        try:
+            from kivy.core.window import Window
+            Window.canvas.ask_update()
+            logger.debug("Canvas de ventana actualizado en on_resume")
+        except Exception as e:
+            logger.debug(f"No se pudo actualizar canvas de ventana: {e}")
+        
+        # Verificar si el comercio fue adoptado mientras estaba en background
+        try:
+            if hasattr(self, 'root') and self.root:
+                current_screen = self.root.current
+                logger.info(f"Pantalla actual al resumir: {current_screen}")
+                
+                if current_screen == 'adopt':
+                    # Estamos en pantalla de adopción - verificar si ya fue adoptado
+                    logger.info("Verificando adopción después de resumir...")
+                    screen = self.root.get_screen('adopt')
+                    
+                    # Forzar refresh del canvas de la pantalla
+                    if hasattr(screen, 'canvas'):
+                        screen.canvas.ask_update()
+                        logger.debug("Canvas de adopt_screen actualizado")
+                    
+                    # Verificar adopción
+                    if hasattr(screen, 'manual_check_adoption'):
+                        Clock.schedule_once(
+                            lambda dt: screen.manual_check_adoption(), 
+                            0.5
+                        )
+                else:
+                    logger.info(f"En pantalla '{current_screen}', no se requiere verificación de adopción")
+        except Exception as e:
+            logger.error(f"Error en on_resume: {e}", exc_info=True)
         
         # Configurar el icono después de que la ventana esté completamente creada
         try:

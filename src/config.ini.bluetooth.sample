@@ -1,0 +1,24 @@
+# Ejemplo de configuración para impresora Bluetooth
+# Copiar al config.ini principal y ajustar según tu impresora
+
+[IMPRESORA_BLUETOOTH]
+# Nombre descriptivo de la impresora
+marca = PaywaySmartPOS
+modelo = BluePrinter
+
+# Driver Bluetooth
+driver = Bluetooth
+
+# Dirección MAC de la impresora Bluetooth
+# Encontrar con: Ajustes > Bluetooth > Ver dispositivos emparejados
+# Formato: XX:XX:XX:XX:XX:XX o XX-XX-XX-XX-XX-XX
+mac_address = 00:11:22:33:AA:BB
+
+# Timeout de conexión (opcional, por defecto 10 segundos)
+timeout = 10
+
+# Notas:
+# 1. La impresora debe estar emparejada ANTES en los ajustes de Android
+# 2. El Bluetooth debe estar activado
+# 3. La app necesita permisos de Bluetooth (se solicitan automáticamente)
+# 4. La primera conexión puede tardar más tiempo

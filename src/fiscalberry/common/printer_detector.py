@@ -179,18 +179,35 @@ def listar_impresoras():
     # Detección específica para Android
     if ANDROID:
         logger.info("Detectando impresoras en Android...")
-        android_printers = get_android_usb_printers()
         
-        if android_printers:
-            logger.info(f"Encontradas {len(android_printers)} impresoras USB en Android")
-            # Retornar lista de diccionarios con información completa
-            return android_printers
+        # Detectar USB
+        usb_printers = get_android_usb_printers()
+        
+        # Detectar Bluetooth
+        try:
+            from fiscalberry.common.bluetooth_printer import scan_bluetooth_printers
+            logger.info("Escaneando impresoras Bluetooth...")
+            bt_printers = scan_bluetooth_printers(timeout=5)
+            
+            if bt_printers:
+                logger.info(f"Encontradas {len(bt_printers)} impresoras Bluetooth")
+                impresoras.extend(bt_printers)
+        except Exception as e:
+            logger.error(f"Error escaneando Bluetooth: {e}")
+            bt_printers = []
+        
+        if usb_printers:
+            logger.info(f"Encontradas {len(usb_printers)} impresoras USB")
+            impresoras.extend(usb_printers)
+        
+        if impresoras:
+            return impresoras
         else:
-            logger.warning("No se encontraron impresoras USB en Android")
+            logger.warning("No se encontraron impresoras en Android")
             logger.info("Asegúrate de que:")
-            logger.info("  1. La impresora esté conectada vía USB OTG")
-            logger.info("  2. Los permisos USB estén otorgados")
-            logger.info("  3. El cable USB OTG funcione correctamente")
+            logger.info("  1. La impresora esté conectada vía USB OTG o emparejada por Bluetooth")
+            logger.info("  2. Los permisos USB/Bluetooth estén otorgados")
+            logger.info("  3. El Bluetooth esté activado (para impresoras BT)")
             return []
     
     # Linux (incluyendo Raspberry Pi)
