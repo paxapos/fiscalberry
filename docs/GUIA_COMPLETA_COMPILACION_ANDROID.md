@@ -32,6 +32,8 @@ pip install buildozer cython setuptools
 buildozer android debug
 
 # Resultado: bin/fiscalberry-2.0.1-arm64-v8a_armeabi-v7a-debug.apk
+# Compatible: Android 5.1.1+ (API 22+) hasta Android 16 (API 35)
+# ✅ Optimizado para POS Payway desde Android 5.1.1
 ```
 
 ### 🎯 Problemas Críticos Resueltos
@@ -1953,7 +1955,7 @@ buildozer.spec                  # Configuración principal de buildozer
 │                 pillow,pyserial,pyusb,python-socketio[client],
 │                 requests,platformdirs,pyjnius,pika
 ├─ android.api = 35
-├─ android.minapi = 28
+├─ android.minapi = 22
 ├─ android.archs = arm64-v8a,armeabi-v7a
 └─ android.permissions = INTERNET,FOREGROUND_SERVICE,ACCESS_NETWORK_STATE,
                          ACCESS_WIFI_STATE,WAKE_LOCK,READ_EXTERNAL_STORAGE,
@@ -2083,7 +2085,8 @@ Si encuentras problemas no cubiertos en esta guía:
  |   ✅ Ready   | /
  |______________|/
 
- Compatible: Android 9.0+ (API 28+)
+ Compatible: Android 5.1.1+ (API 22+) hasta Android 16 (API 35)
+ ✅ Optimizado para POS Payway desde Android 5.1.1
  Architectures: arm64-v8a, armeabi-v7a
  Status: Production Ready
 ```

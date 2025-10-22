@@ -22,23 +22,33 @@ from fiscalberry.common.service_controller import ServiceController
 from fiscalberry.common.Configberry import Configberry
 
 # Android APIs usando jnius
+ANDROID_API_LEVEL = 0
 try:
     from jnius import autoclass
+    
+    # Obtener el nivel de API actual
+    Build = autoclass('android.os.Build')
+    ANDROID_API_LEVEL = Build.VERSION.SDK_INT
     
     PythonService = autoclass('org.kivy.android.PythonService')
     PythonActivity = autoclass('org.kivy.android.PythonActivity')
     Context = autoclass('android.content.Context')
     NotificationBuilder = autoclass('android.app.Notification$Builder')
-    NotificationChannel = autoclass('android.app.NotificationChannel')
     NotificationManager = autoclass('android.app.NotificationManager')
     PendingIntent = autoclass('android.app.PendingIntent')
     Intent = autoclass('android.content.Intent')
     String = autoclass('java.lang.String')
     
+    # NotificationChannel solo disponible en API 26+
+    if ANDROID_API_LEVEL >= 26:
+        NotificationChannel = autoclass('android.app.NotificationChannel')
+    else:
+        NotificationChannel = None
+    
     from jnius import cast  # Para hacer cast de tipos Java
     
     ANDROID_AVAILABLE = True
-    logger.info("APIs de Android disponibles")
+    logger.info(f"APIs de Android disponibles - API Level: {ANDROID_API_LEVEL}")
 except ImportError:
     ANDROID_AVAILABLE = False
     logger.warning("jnius no disponible - APIs de Android no estarán disponibles")
@@ -49,9 +59,21 @@ service_controller = None
 
 
 def create_notification_channel():
-    """Crea un canal de notificación para Android 8.0+"""
+    """
+    Crea un canal de notificación para Android 8.0+ (API 26+).
+    Para versiones anteriores, esta función no hace nada ya que no se requieren canales.
+    """
     if not ANDROID_AVAILABLE:
-        return
+        return "fiscalberry_service"
+    
+    # Los canales de notificación solo son necesarios en API 26+
+    if ANDROID_API_LEVEL < 26:
+        logger.debug(f"API {ANDROID_API_LEVEL} < 26: No se requieren canales de notificación")
+        return "fiscalberry_service"
+    
+    if not NotificationChannel:
+        logger.warning("NotificationChannel no disponible")
+        return "fiscalberry_service"
     
     try:
         service = PythonService.mService
@@ -67,7 +89,7 @@ def create_notification_channel():
             notification_manager = cast(NotificationManager, notification_service)
             notification_manager.createNotificationChannel(channel)
             
-            logger.info("Canal de notificación creado")
+            logger.info(f"Canal de notificación creado para API {ANDROID_API_LEVEL}")
             return channel_id
     except Exception as e:
         logger.error(f"Error creando canal de notificación: {e}")
@@ -76,38 +98,58 @@ def create_notification_channel():
 
 
 def show_foreground_notification():
-    """Muestra una notificación permanente para servicio en primer plano"""
+    """
+    Muestra una notificación permanente para servicio en primer plano.
+    Funciona desde API 22 (Android 5.1.1) hasta API 35 (Android 16).
+    """
     if not ANDROID_AVAILABLE:
         return
     
     try:
         service = PythonService.mService
         if not service:
+            logger.warning("PythonService.mService no disponible")
             return
         
+        # Crear canal de notificación (solo para API 26+)
         channel_id = create_notification_channel()
         
         # Crear intent para abrir la app al tocar la notificación
         intent = Intent(service, PythonActivity)
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        pending_intent = PendingIntent.getActivity(service, 0, intent, PendingIntent.FLAG_IMMUTABLE)
         
-        # Crear notificación
-        builder = NotificationBuilder(service, channel_id)
+        # PendingIntent con flags apropiados según la versión de API
+        if ANDROID_API_LEVEL >= 23:  # API 23+
+            pending_intent_flags = PendingIntent.FLAG_IMMUTABLE
+        else:  # API 22
+            pending_intent_flags = PendingIntent.FLAG_UPDATE_CURRENT
+            
+        pending_intent = PendingIntent.getActivity(service, 0, intent, pending_intent_flags)
+        
+        # Crear notificación según la versión de API
+        if ANDROID_API_LEVEL >= 26:  # API 26+ (Android 8.0+) - Usar canal
+            builder = NotificationBuilder(service, channel_id)
+        else:  # API 22-25 (Android 5.1.1 - 7.1) - Sin canal
+            builder = NotificationBuilder(service)
+            
         builder.setContentTitle("Fiscalberry Activo")
         builder.setContentText("Sistema de impresión fiscal en ejecución")
         builder.setSmallIcon(service.getApplicationInfo().icon)
         builder.setContentIntent(pending_intent)
         builder.setOngoing(True)  # No se puede quitar deslizando
         
+        # Para API 22-25, establecer prioridad manualmente
+        if ANDROID_API_LEVEL < 26:
+            builder.setPriority(NotificationBuilder.PRIORITY_LOW)
+        
         notification = builder.build()
         
         # Mostrar como servicio en primer plano
         service.startForeground(1, notification)
-        logger.info("Notificación de servicio en primer plano mostrada")
+        logger.info(f"Notificación de servicio en primer plano mostrada (API {ANDROID_API_LEVEL})")
         
     except Exception as e:
-        logger.error(f"Error mostrando notificación: {e}")
+        logger.error(f"Error mostrando notificación: {e}", exc_info=True)
 
 
 def run_service_logic():

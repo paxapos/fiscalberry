@@ -49,6 +49,8 @@ version.filename = %(source.dir)s/fiscalberry/version.py
 # - python-socketio: python-engineio, bidict, simple-websocket, wsproto, h11
 # - Kivy: filetype (para carga de imágenes)
 # - Proyecto: requests (urllib3, certifi, idna, chardet), platformdirs, pyjnius, pika, pyserial, pyusb
+# COMPATIBILIDAD: Todas las dependencias son compatibles con Android API 22-35 (Android 5.1.1 - 16)
+# NOTA: SQLite3 viene integrado con python3, no se especifica separadamente
 requirements = hostpython3,python3,kivy,python-escpos,python-barcode,appdirs,argcomplete,importlib-resources,pyyaml,setuptools,six,qrcode,pillow,pyserial,pyusb,python-socketio[client],python-engineio,bidict,simple-websocket,wsproto,h11,requests,urllib3,certifi,idna,chardet,platformdirs,pyjnius,pika,filetype
 
 
@@ -76,14 +78,16 @@ fullscreen = 0
 android.presplash_color = purple
 
 # (list) Permissions
-# Permisos necesarios para Fiscalberry Android:
+# Permisos necesarios para Fiscalberry Android desde API 22 (Android 5.1.1):
 # - INTERNET: Conexión a RabbitMQ y SocketIO
-# - FOREGROUND_SERVICE: Servicio en segundo plano
+# - FOREGROUND_SERVICE: Servicio en segundo plano (API 28+)
 # - ACCESS_NETWORK_STATE, ACCESS_WIFI_STATE: Detectar conectividad
 # - WAKE_LOCK: Mantener el dispositivo activo durante impresión
 # - READ/WRITE_EXTERNAL_STORAGE: Guardar configuración y logs
 # - BLUETOOTH*: Para impresoras Bluetooth
-# - ACCESS_COARSE_LOCATION: Requerido para escaneo Bluetooth en Android 10+
+# - ACCESS_COARSE_LOCATION: Requerido para escaneo Bluetooth en Android 6.0+ (API 23+)
+# - BLUETOOTH_SCAN, BLUETOOTH_CONNECT: Nuevos permisos Android 12+ (API 31+)
+# Nota: Los permisos específicos de versión se manejan en runtime
 android.permissions = INTERNET,FOREGROUND_SERVICE,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,WAKE_LOCK,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_SCAN,BLUETOOTH_CONNECT,ACCESS_COARSE_LOCATION,ACCESS_FINE_LOCATION
 
 # (list) features (adds uses-feature tags to manifest)
@@ -92,13 +96,16 @@ android.permissions = INTERNET,FOREGROUND_SERVICE,ACCESS_NETWORK_STATE,ACCESS_WI
 # android.features = android.hardware.usb.host,android.hardware.bluetooth
 
 # (int) Target Android API, should be as high as possible.
+# Android 16 = API 35 (última versión soportada)
 android.api = 35
 
 # (int) Minimum API your APK / AAB will support.
-android.minapi = 28
+# Android 5.1.1 = API 22 (compatibilidad con POS Payway)
+android.minapi = 22
 
 # (int) Android NDK API to use. Should usually match android.minapi.
-android.ndk_api = 28
+# Usamos API 22 para máxima compatibilidad con dispositivos POS antiguos
+android.ndk_api = 22
 
 # (bool) Automatically accept SDK license agreements. Useful for CI.
 android.accept_sdk_license = True
@@ -127,6 +134,9 @@ android.release = false
 android.debug_artifact = apk
 android.debug = true
 
+# (bool) Use --private data storage (True) or --dir public storage (False)
+android.private_storage = True
+
 #
 # Python for android (p4a) specific
 #
@@ -141,6 +151,10 @@ p4a.local_recipes = my_recipes
 p4a.bootstrap = sdl2
 
 # NOTA: La compilación desde source se fuerza en my_recipes/kivy/__init__.py
+
+# (list) p4a extra environment variables for fixing compilation issues
+# FIX GLOBAL para DT_HASH de SQLite3 y otras librerías en Android API 22+
+p4a.extra_env = LDFLAGS=-Wl,--hash-style=both, CFLAGS=-fPIC
 
 #
 # iOS specific - Not relevant for Android build

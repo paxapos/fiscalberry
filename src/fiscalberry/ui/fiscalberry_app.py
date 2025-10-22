@@ -52,46 +52,85 @@ class FiscalberryApp(App):
         super().__init__(**kwargs)
         
         try:
-            # Detectar si estamos en Android
-            self._is_android = self._detect_android()
+            # Inicializar variables básicas primero
+            self.message_queue = queue.Queue()
+            self._stopping = False
+            self._is_android = False
+            logger.debug("Variables básicas inicializadas")
+            
+            # Detectar si estamos en Android de forma segura
+            try:
+                self._is_android = self._detect_android()
+                logger.info(f"Detección de Android: {self._is_android}")
+            except Exception as e:
+                logger.warning(f"Error detectando Android: {e}")
+                self._is_android = False
+            
+            # Solicitar permisos de Android de forma segura
             if self._is_android:
                 logger.info("✓ Ejecutando en Android")
-                # Solicitar permisos necesarios
-                self._request_android_permissions()
+                try:
+                    self._request_android_permissions()
+                except Exception as e:
+                    logger.error(f"Error solicitando permisos Android: {e}")
             
-            self.message_queue = queue.Queue()  # Inicializar la variable message_queue aquí
-            logger.debug("Cola de mensajes inicializada")
+            # Inicializar controladores de forma segura
+            try:
+                self._service_controller = ServiceController()
+                logger.debug("ServiceController inicializado")
+            except Exception as e:
+                logger.error(f"Error inicializando ServiceController: {e}")
+                self._service_controller = None
             
-            self._service_controller = ServiceController()
-            logger.debug("ServiceController inicializado")
-            
-            self._configberry = Configberry()
-            logger.debug("Configberry inicializado")
-            
-            self._stopping = False  # Bandera para evitar múltiples llamadas de cierre
-            logger.debug("Variables de control inicializadas")
+            try:
+                self._configberry = Configberry()
+                logger.debug("Configberry inicializado")
+            except Exception as e:
+                logger.error(f"Error inicializando Configberry: {e}")
+                self._configberry = None
 
-            self.updatePropertiesWithConfig()
-            logger.info("Propiedades de configuración actualizadas")
+            # Actualizar propiedades de configuración de forma segura
+            try:
+                self.updatePropertiesWithConfig()
+                logger.info("Propiedades de configuración actualizadas")
+            except Exception as e:
+                logger.error(f"Error actualizando propiedades: {e}")
             
-            # Programar verificación de estado menos frecuente para mejor performance
-            Clock.schedule_interval(self._check_sio_status, 5)  # Reducido de 2 a 5 segundos
-            Clock.schedule_interval(self._check_rabbit_status, 5)  # Reducido de 2 a 5 segundos
-            logger.debug("Schedulers de verificación de estado configurados (optimizado)")
+            # Programar verificación de estado de forma segura
+            try:
+                Clock.schedule_interval(self._check_sio_status, 5)
+                Clock.schedule_interval(self._check_rabbit_status, 5)
+                logger.debug("Schedulers de verificación de estado configurados")
+            except Exception as e:
+                logger.error(f"Error configurando schedulers: {e}")
 
             # Configurar manejadores de señales (solo en escritorio)
             if not self._is_android:
-                self._setup_signal_handlers()
-                logger.debug("Manejadores de señales configurados")
+                try:
+                    self._setup_signal_handlers()
+                    logger.debug("Manejadores de señales configurados")
+                except Exception as e:
+                    logger.warning(f"Error configurando manejadores de señales: {e}")
             
-            # Iniciar servicio Android si corresponde
+            # Iniciar servicio Android de forma segura
             if self._is_android:
-                self._start_android_service()
+                try:
+                    self._start_android_service()
+                except Exception as e:
+                    logger.error(f"Error iniciando servicio Android: {e}")
             
             logger.info("FiscalberryApp inicializada exitosamente")
+            
         except Exception as e:
-            logger.error(f"Error durante inicialización de FiscalberryApp: {e}", exc_info=True)
-            raise
+            logger.error(f"Error crítico durante inicialización de FiscalberryApp: {e}", exc_info=True)
+            # Inicializar valores mínimos para evitar errores adicionales
+            if not hasattr(self, 'message_queue'):
+                self.message_queue = queue.Queue()
+            if not hasattr(self, '_stopping'):
+                self._stopping = False
+            if not hasattr(self, '_is_android'):
+                self._is_android = False
+            # No re-lanzar la excepción para evitar crash total
     
     def _detect_android(self):
         """Detecta si la app está corriendo en Android"""
@@ -104,83 +143,129 @@ class FiscalberryApp(App):
     def _request_android_permissions(self):
         """Solicita todos los permisos necesarios en Android"""
         try:
-            from fiscalberry.common.android_permissions import (
-                request_all_permissions, 
-                get_permissions_status_summary,
-                request_storage_permissions,
-                request_network_permissions,
-                request_bluetooth_permissions
-            )
-            
             logger.info("="*70)
             logger.info("SOLICITANDO PERMISOS DE ANDROID")
             logger.info("="*70)
             
-            # Solicitar permisos críticos primero
-            logger.info("\n1️⃣ Solicitando permisos de almacenamiento...")
-            request_storage_permissions()
+            # Importar módulos de permisos de forma segura
+            try:
+                from fiscalberry.common.android_permissions import (
+                    request_all_permissions, 
+                    get_permissions_status_summary,
+                    request_storage_permissions,
+                    request_network_permissions,
+                    request_bluetooth_permissions
+                )
+                logger.debug("✓ Módulos de permisos importados correctamente")
+            except ImportError as e:
+                logger.warning(f"No se pudieron importar módulos de permisos: {e}")
+                return
             
-            logger.info("\n2️⃣ Solicitando permisos de red...")
-            request_network_permissions()
+            # Solicitar permisos de forma segura
+            try:
+                logger.info("\n1️⃣ Solicitando permisos de almacenamiento...")
+                request_storage_permissions()
+            except Exception as e:
+                logger.warning(f"Error en permisos de almacenamiento: {e}")
             
-            logger.info("\n3️⃣ Solicitando permisos de Bluetooth...")
-            logger.info("⚠️ IMPORTANTE: Debes ACEPTAR los permisos de Bluetooth en el diálogo")
-            request_bluetooth_permissions()
+            try:
+                logger.info("\n2️⃣ Solicitando permisos de red...")
+                request_network_permissions()
+            except Exception as e:
+                logger.warning(f"Error en permisos de red: {e}")
             
-            # Luego solicitar el resto
-            logger.info("\n4️⃣ Solicitando permisos adicionales...")
-            request_all_permissions()
+            try:
+                logger.info("\n3️⃣ Solicitando permisos de Bluetooth...")
+                logger.info("⚠️ IMPORTANTE: Debes ACEPTAR los permisos de Bluetooth en el diálogo")
+                request_bluetooth_permissions()
+            except Exception as e:
+                logger.warning(f"Error en permisos de Bluetooth: {e}")
             
-            # Mostrar resumen
-            logger.info("\n" + "="*70)
-            status = get_permissions_status_summary()
-            logger.info(f"\n{status}")
+            try:
+                logger.info("\n4️⃣ Solicitando permisos adicionales...")
+                request_all_permissions()
+            except Exception as e:
+                logger.warning(f"Error en permisos adicionales: {e}")
+            
+            # Mostrar resumen de forma segura
+            try:
+                logger.info("\n" + "="*70)
+                status = get_permissions_status_summary()
+                logger.info(f"\n{status}")
+            except Exception as e:
+                logger.warning(f"Error obteniendo resumen de permisos: {e}")
+            
+            # Verificar permisos de Bluetooth específicamente de forma segura
+            try:
+                from android.permissions import check_permission
+                bt_connect = check_permission('android.permission.BLUETOOTH_CONNECT')
+                bt_scan = check_permission('android.permission.BLUETOOTH_SCAN')
+                
+                if not bt_connect or not bt_scan:
+                    logger.warning("\n⚠️⚠️⚠️ PERMISOS DE BLUETOOTH NO OTORGADOS ⚠️⚠️⚠️")
+                    logger.warning("Para usar impresoras Bluetooth, debes:")
+                    logger.warning("1. Ir a Configuración → Apps → Fiscalberry → Permisos")
+                    logger.warning("2. Habilitar 'Dispositivos cercanos' o 'Bluetooth'")
+                    logger.warning("3. Reiniciar la app")
+                else:
+                    logger.info("\n✅ Permisos de Bluetooth otorgados correctamente")
+            except Exception as e:
+                logger.warning(f"Error verificando permisos de Bluetooth: {e}")
+            
             logger.info("="*70)
             
-            # Verificar permisos de Bluetooth específicamente
-            from android.permissions import check_permission
-            bt_connect = check_permission('android.permission.BLUETOOTH_CONNECT')
-            bt_scan = check_permission('android.permission.BLUETOOTH_SCAN')
-            
-            if not bt_connect or not bt_scan:
-                logger.warning("\n⚠️⚠️⚠️ PERMISOS DE BLUETOOTH NO OTORGADOS ⚠️⚠️⚠️")
-                logger.warning("Para usar impresoras Bluetooth, debes:")
-                logger.warning("1. Ir a Configuración → Apps → Fiscalberry → Permisos")
-                logger.warning("2. Habilitar 'Dispositivos cercanos' o 'Bluetooth'")
-                logger.warning("3. Reiniciar la app")
-            else:
-                logger.info("\n✅ Permisos de Bluetooth otorgados correctamente")
-            
         except Exception as e:
-            logger.error(f"Error solicitando permisos Android: {e}", exc_info=True)
+            logger.error(f"Error general solicitando permisos Android: {e}", exc_info=True)
+            # No re-lanzar la excepción para evitar crash de la app
     
     def _start_android_service(self):
         """Inicia el servicio Android en segundo plano"""
         try:
-            from android import AndroidService
+            logger.info("Intentando iniciar servicio Android...")
             
-            logger.info("Iniciando servicio Android...")
-            service = AndroidService('Fiscalberry Service', 'running')
-            service.start('Fiscalberry iniciado')
-            logger.info("✓ Servicio Android iniciado")
+            # Método 1: AndroidService
+            try:
+                from android import AndroidService
+                logger.debug("✓ AndroidService importado")
+                
+                service = AndroidService('Fiscalberry Service', 'running')
+                service.start('Fiscalberry iniciado')
+                logger.info("✓ Servicio Android iniciado")
+                return
+                
+            except ImportError:
+                logger.debug("AndroidService no disponible, probando método alternativo...")
+            except Exception as e:
+                logger.warning(f"Error con AndroidService: {e}")
             
-        except ImportError:
-            logger.warning("AndroidService no disponible - usando método alternativo")
+            # Método 2: PythonService via jnius
             try:
                 from jnius import autoclass
+                logger.debug("✓ jnius importado")
                 
                 PythonService = autoclass('org.kivy.android.PythonService')
                 PythonActivity = autoclass('org.kivy.android.PythonActivity')
                 
                 activity = PythonActivity.mActivity
-                PythonService.start(activity, '')
-                logger.info("✓ Servicio Android iniciado (método alternativo)")
-                
+                if activity is not None:
+                    PythonService.start(activity, '')
+                    logger.info("✓ Servicio Android iniciado (método alternativo)")
+                    return
+                else:
+                    logger.warning("PythonActivity.mActivity es None")
+                    
+            except ImportError:
+                logger.debug("jnius no disponible")
             except Exception as e:
-                logger.error(f"No se pudo iniciar servicio Android: {e}")
-                logger.warning("La app funcionará solo cuando esté en primer plano")
+                logger.warning(f"Error con PythonService: {e}")
+            
+            # Si llegamos aquí, ningún método funcionó
+            logger.warning("No se pudo iniciar servicio Android")
+            logger.info("La app funcionará solo cuando esté en primer plano")
+                
         except Exception as e:
-            logger.error(f"Error iniciando servicio Android: {e}", exc_info=True)
+            logger.error(f"Error general iniciando servicio Android: {e}", exc_info=True)
+            # No re-lanzar la excepción para evitar crash de la app
     
     def build(self):
         """Construye la aplicación de forma optimizada."""

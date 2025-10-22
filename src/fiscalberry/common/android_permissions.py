@@ -8,33 +8,108 @@ Helper para gestionar permisos de Android en runtime
 from fiscalberry.common.fiscalberry_logger import getLogger
 logger = getLogger("AndroidPermissions")
 
-# Detectar si estamos en Android
+# Detectar si estamos en Android y obtener información de la versión
 ANDROID = False
+ANDROID_API_LEVEL = 0
 try:
     from android.permissions import request_permissions, check_permission, Permission
     from jnius import autoclass
     ANDROID = True
-    logger.info("Módulo de permisos Android disponible")
+    
+    # Obtener el nivel de API actual
+    Build = autoclass('android.os.Build')
+    ANDROID_API_LEVEL = Build.VERSION.SDK_INT
+    logger.info(f"Módulo de permisos Android disponible - API Level: {ANDROID_API_LEVEL}")
 except ImportError:
     logger.debug("android.permissions no disponible - no es Android")
 
 
-# Mapeo de permisos necesarios para Fiscalberry
-FISCALBERRY_PERMISSIONS = [
+# Mapeo de permisos necesarios para Fiscalberry por versión de API
+FISCALBERRY_PERMISSIONS_BASE = [
     'android.permission.INTERNET',
     'android.permission.ACCESS_NETWORK_STATE',
     'android.permission.ACCESS_WIFI_STATE',
     'android.permission.WAKE_LOCK',
-    'android.permission.FOREGROUND_SERVICE',
     'android.permission.READ_EXTERNAL_STORAGE',
     'android.permission.WRITE_EXTERNAL_STORAGE',
     'android.permission.BLUETOOTH',
     'android.permission.BLUETOOTH_ADMIN',
-    'android.permission.BLUETOOTH_CONNECT',
-    'android.permission.BLUETOOTH_SCAN',
-    'android.permission.ACCESS_COARSE_LOCATION',
-    'android.permission.ACCESS_FINE_LOCATION',
 ]
+
+# Permisos adicionales según versión de API
+FISCALBERRY_PERMISSIONS_API_23_PLUS = [
+    'android.permission.ACCESS_COARSE_LOCATION',  # Requerido para Bluetooth desde API 23
+]
+
+FISCALBERRY_PERMISSIONS_API_28_PLUS = [
+    'android.permission.FOREGROUND_SERVICE',  # Requerido desde API 28
+]
+
+FISCALBERRY_PERMISSIONS_API_31_PLUS = [
+    'android.permission.BLUETOOTH_CONNECT',  # Nuevos permisos de Bluetooth desde API 31
+    'android.permission.BLUETOOTH_SCAN',
+    'android.permission.ACCESS_FINE_LOCATION',  # Requerido para BLUETOOTH_SCAN
+]
+
+
+def get_required_permissions():
+    """
+    Obtiene la lista de permisos requeridos según la versión de Android.
+    
+    Returns:
+        list: Lista de permisos requeridos para la versión actual
+    """
+    if not ANDROID:
+        return []
+    
+    permissions = FISCALBERRY_PERMISSIONS_BASE.copy()
+    
+    # Agregar permisos según nivel de API
+    if ANDROID_API_LEVEL >= 23:  # Android 6.0+
+        permissions.extend(FISCALBERRY_PERMISSIONS_API_23_PLUS)
+        
+    if ANDROID_API_LEVEL >= 28:  # Android 9.0+
+        permissions.extend(FISCALBERRY_PERMISSIONS_API_28_PLUS)
+        
+    if ANDROID_API_LEVEL >= 31:  # Android 12.0+
+        permissions.extend(FISCALBERRY_PERMISSIONS_API_31_PLUS)
+    
+    logger.debug(f"Permisos requeridos para API {ANDROID_API_LEVEL}: {permissions}")
+    return permissions
+
+
+# Mantener compatibilidad con código existente
+FISCALBERRY_PERMISSIONS = get_required_permissions()
+
+
+def is_permission_supported(permission):
+    """
+    Verifica si un permiso es soportado en la versión actual de Android.
+    
+    Args:
+        permission (str): Nombre del permiso
+        
+    Returns:
+        bool: True si el permiso es soportado
+    """
+    if not ANDROID:
+        return True  # En desarrollo, asumimos que sí
+    
+    # Permisos que requieren API específica
+    api_requirements = {
+        'android.permission.FOREGROUND_SERVICE': 28,
+        'android.permission.BLUETOOTH_CONNECT': 31,
+        'android.permission.BLUETOOTH_SCAN': 31,
+        'android.permission.ACCESS_COARSE_LOCATION': 23,
+    }
+    
+    required_api = api_requirements.get(permission, 1)  # API 1 por defecto
+    supported = ANDROID_API_LEVEL >= required_api
+    
+    if not supported:
+        logger.debug(f"Permiso {permission} requiere API {required_api}, actual: {ANDROID_API_LEVEL}")
+    
+    return supported
 
 
 def check_all_permissions():
@@ -48,10 +123,11 @@ def check_all_permissions():
         return {'all_granted': True, 'details': {}}
     
     try:
+        required_permissions = get_required_permissions()
         results = {}
         all_granted = True
         
-        for permission in FISCALBERRY_PERMISSIONS:
+        for permission in required_permissions:
             try:
                 # Convertir string de permiso a objeto Permission si es posible
                 granted = check_permission(permission)
@@ -70,7 +146,9 @@ def check_all_permissions():
         
         return {
             'all_granted': all_granted,
-            'details': results
+            'details': results,
+            'api_level': ANDROID_API_LEVEL,
+            'total_permissions': len(required_permissions)
         }
         
     except Exception as e:
@@ -90,11 +168,12 @@ def request_all_permissions():
         return True
     
     try:
-        logger.info("Solicitando permisos de Android...")
+        logger.info(f"Solicitando permisos de Android para API {ANDROID_API_LEVEL}...")
+        required_permissions = get_required_permissions()
         
         # Filtrar solo los permisos que no están otorgados
         missing_permissions = []
-        for permission in FISCALBERRY_PERMISSIONS:
+        for permission in required_permissions:
             try:
                 if not check_permission(permission):
                     missing_permissions.append(permission)
