@@ -1,8 +1,10 @@
-import os, pika, traceback, time
+import os, pika, traceback
 import queue
+import time
 
 from fiscalberry.common.ComandosHandler import ComandosHandler, TraductorException
 from fiscalberry.common.fiscalberry_logger import getLogger
+from fiscalberry.common.rabbitmq.error_publisher import publish_error
 from typing import Optional
 
 
@@ -176,7 +178,24 @@ class RabbitMQConsumer:
                 
                 # Verificar errores y acknowledment más rápido
                 if "err" in result:
-                    self.logger.error(f"Command error: {result['err']}")
+                    error_msg = result['err']
+                    self.logger.error(f"Command error: {error_msg}")
+                    
+                    # Publicar error a subcola del tenant
+                    try:
+                        publish_error(
+                            error_type="COMMAND_EXECUTION_ERROR",
+                            error_message=error_msg,
+                            context={
+                                "queue": self.queue,
+                                "processing_time": processing_time,
+                                "command_data": json_data if len(str(json_data)) < 1000 else "Data too large",
+                                "result": result
+                            }
+                        )
+                    except Exception as pub_err:
+                        self.logger.error(f"Error publishing to error queue: {pub_err}")
+                    
                     ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                     return
                     
@@ -191,9 +210,41 @@ class RabbitMQConsumer:
 
             except TraductorException as e:
                 self.logger.error(f"Translator error: {e}")
+                
+                # Publicar error de traductor a subcola del tenant
+                try:
+                    publish_error(
+                        error_type="TRANSLATOR_ERROR",
+                        error_message=str(e),
+                        context={
+                            "queue": self.queue,
+                            "processing_time": time.time() - start_time,
+                            "command_data": json_data if len(str(json_data)) < 1000 else "Data too large"
+                        },
+                        exception=e
+                    )
+                except Exception as pub_err:
+                    self.logger.error(f"Error publishing translator error: {pub_err}")
+                
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
             except Exception as e:
                 self.logger.error(f"Processing error: {e}")
+                
+                # Publicar error general a subcola del tenant
+                try:
+                    publish_error(
+                        error_type="PROCESSING_ERROR",
+                        error_message=str(e),
+                        context={
+                            "queue": self.queue,
+                            "processing_time": time.time() - start_time,
+                            "command_data": json_data if len(str(json_data)) < 1000 else "Data too large"
+                        },
+                        exception=e
+                    )
+                except Exception as pub_err:
+                    self.logger.error(f"Error publishing processing error: {pub_err}")
+                
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                 
                 

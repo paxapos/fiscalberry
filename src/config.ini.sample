@@ -1,14 +1,12 @@
 [SERVIDOR]
-uuid = xxxxx-yyyy-zzzz-aaaa-zzzzzzzzzz
+uuid = test-uuid-1234-5678-9012
 sio_host = http://localhost:5000
 sio_password =
 # Configuración de logging
 # Niveles: DEBUG, INFO, WARNING, ERROR, CRITICAL
 log_level = INFO
 # Entorno: development, production
-environment = production
-
-
+environment = development
 
 [IMPRESORA_FISCAL]
 marca = Hasar
@@ -22,12 +20,19 @@ host = 127.0.0.1
 driver = ReceiptDirectJet
 
 # Configuración RabbitMQ / Paxaprinter (se crea automáticamente al adoptar el comercio)
-# [Paxaprinter]
-# tenant = nombre-del-tenant
-# site_name = Nombre del Sitio
-# alias = alias-del-sitio
-# rabbitmq_host = rabbitmq.domain.com
-# rabbitmq_port = 5672
-# rabbitmq_user = usuario
-# rabbitmq_password = contraseña
-# rabbitmq_vhost = /
+[Paxaprinter]
+tenant = test-restaurant
+site_name = Restaurant de Prueba
+alias = rest-test
+rabbitmq_host = localhost
+rabbitmq_port = 5672
+rabbitmq_user = guest
+rabbitmq_password = guest
+rabbitmq_vhost = /
+
+[RabbitMq]
+host = localhost
+port = 5672
+username = guest
+password = guest
+vhost = /

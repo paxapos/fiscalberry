@@ -9,6 +9,7 @@ from fiscalberry.common.FiscalberryComandos import FiscalberryComandos
 from fiscalberry.common.Configberry import Configberry
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.EscPComandos import EscPComandos
+from fiscalberry.common.rabbitmq.error_publisher import publish_error
 from escpos import printer
 from queue import Queue
 import traceback
@@ -124,10 +125,40 @@ def runTraductor(jsonTicket, queue):
     except KeyError as e:
         error_msg = f"En el archivo de configuracion no existe la impresora: '{printerName}' :: {e}"
         logger.error(error_msg)
+        
+        # Publicar error de impresora no encontrada a RabbitMQ
+        try:
+            publish_error(
+                error_type="PRINTER_NOT_FOUND",
+                error_message=error_msg,
+                context={
+                    "printer_name": printerName,
+                    "ticket_data": jsonTicket,
+                    "exception_type": "KeyError"
+                }
+            )
+        except Exception as publish_err:
+            logger.error(f"Error publicando error de impresora no encontrada a RabbitMQ: {publish_err}")
+        
         return {"error": f"Impresora no encontrada: {printerName}"}
     except Exception as e:
         error_msg = f"Error al leer la configuracion de la impresora: '{printerName}' :: {e}"
         logger.error(error_msg, exc_info=True)
+        
+        # Publicar error de configuración a RabbitMQ
+        try:
+            publish_error(
+                error_type="PRINTER_CONFIG_ERROR",
+                error_message=error_msg,
+                context={
+                    "printer_name": printerName,
+                    "ticket_data": jsonTicket,
+                    "exception_type": type(e).__name__
+                }
+            )
+        except Exception as publish_err:
+            logger.error(f"Error publicando error de configuración a RabbitMQ: {publish_err}")
+        
         return {"error": f"Error de configuración: {str(e)}"}
 
 
@@ -318,22 +349,96 @@ class ComandosHandler:
             errtxt = f"Error parseando el JSON: {e}"
             logger.error(errtxt, exc_info=True)
             response["err"] = errtxt
+            
+            # Publicar error a subcola del tenant
+            try:
+                publish_error(
+                    error_type="JSON_PARSE_ERROR",
+                    error_message=errtxt,
+                    context={
+                        "command": str(comando)[:500] if comando else "None",
+                        "error_details": str(e)
+                    },
+                    exception=e
+                )
+            except Exception as pub_err:
+                logger.error(f"Error publishing parse error: {pub_err}")
+                
         except json.JSONDecodeError as e:
             errtxt = f"JSON inválido: {e}"
             logger.error(errtxt)
             response["err"] = errtxt
+            
+            # Publicar error a subcola del tenant
+            try:
+                publish_error(
+                    error_type="JSON_DECODE_ERROR",
+                    error_message=errtxt,
+                    context={
+                        "command": str(comando)[:500] if comando else "None",
+                        "line": getattr(e, 'lineno', 'unknown'),
+                        "column": getattr(e, 'colno', 'unknown')
+                    },
+                    exception=e
+                )
+            except Exception as pub_err:
+                logger.error(f"Error publishing JSON decode error: {pub_err}")
+                
         except TraductorException as e:
             errtxt = f"Error en traductor de comandos: {str(e)}"
             logger.error(errtxt, exc_info=True)
             response["err"] = errtxt
+            
+            # Publicar error a subcola del tenant
+            try:
+                publish_error(
+                    error_type="TRADUCTOR_ERROR",
+                    error_message=errtxt,
+                    context={
+                        "command": jsonMes if isinstance(jsonMes, dict) else str(jsonMes)[:500]
+                    },
+                    exception=e
+                )
+            except Exception as pub_err:
+                logger.error(f"Error publishing traductor error: {pub_err}")
+                
         except KeyError as e:
             errtxt = f"Comando no válido para este tipo de impresora - Clave faltante: {e}"
             logger.error(errtxt, exc_info=True)
             response["err"] = errtxt
+            
+            # Publicar error a subcola del tenant
+            try:
+                publish_error(
+                    error_type="INVALID_COMMAND_ERROR",
+                    error_message=errtxt,
+                    context={
+                        "command": jsonMes if isinstance(jsonMes, dict) else str(jsonMes)[:500],
+                        "missing_key": str(e)
+                    },
+                    exception=e
+                )
+            except Exception as pub_err:
+                logger.error(f"Error publishing key error: {pub_err}")
+                
         except Exception as e:
             errtxt = f"Error desconocido: {repr(e)} - {str(e)}"
             logger.error(errtxt, exc_info=True)
             response["err"] = errtxt
+            
+            # Publicar error a subcola del tenant
+            try:
+                publish_error(
+                    error_type="UNKNOWN_ERROR",
+                    error_message=errtxt,
+                    context={
+                        "command": jsonMes if isinstance(jsonMes, dict) else str(jsonMes)[:500],
+                        "exception_type": type(e).__name__
+                    },
+                    exception=e
+                )
+            except Exception as pub_err:
+                logger.error(f"Error publishing unknown error: {pub_err}")
 
         logger.info(f"=== RESPUESTA DEL COMANDO ===")
         if "err" in response:

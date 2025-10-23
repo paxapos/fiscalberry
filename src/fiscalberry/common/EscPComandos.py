@@ -5,6 +5,7 @@ from math import ceil
 import json
 import base64
 from fiscalberry.common.fiscalberry_logger import getLogger
+from fiscalberry.common.rabbitmq.error_publisher import publish_error
 from escpos.escpos import EscposIO
 from escpos.constants import QR_ECLEVEL_H,CD_KICK_2
 
@@ -133,6 +134,21 @@ class EscPComandos():
                         except Exception as e:
                             error_msg = f"Error ejecutando acción '{action}': {e}"
                             logger.error(error_msg, exc_info=True)
+                            
+                            # Publicar error a RabbitMQ
+                            try:
+                                publish_error(
+                                    error_type="PRINTER_ACTION_ERROR",
+                                    error_message=error_msg,
+                                    context={
+                                        "action": action,
+                                        "params": params,
+                                        "exception_type": type(e).__name__
+                                    }
+                                )
+                            except Exception as publish_err:
+                                logger.error(f"Error publicando error a RabbitMQ: {publish_err}")
+                            
                             rta.append({"action": action, "rta": f"Error: {error_msg}"})
                     else:
                         error_msg = f"Función '{action}' no encontrada"
@@ -144,7 +160,22 @@ class EscPComandos():
                 return rta
                 
         except Exception as e:
-            logger.error(f"Error crítico en EscPComandos.run: {e}", exc_info=True)
+            error_msg = f"Error crítico en EscPComandos.run: {e}"
+            logger.error(error_msg, exc_info=True)
+            
+            # Publicar error crítico a RabbitMQ
+            try:
+                publish_error(
+                    error_type="PRINTER_CRITICAL_ERROR",
+                    error_message=error_msg,
+                    context={
+                        "jsonTicket": jsonTicket,
+                        "exception_type": type(e).__name__
+                    }
+                )
+            except Exception as publish_err:
+                logger.error(f"Error publicando error crítico a RabbitMQ: {publish_err}")
+            
             raise PrinterException(f"Error ejecutando comandos: {e}")
 
 
@@ -210,7 +241,22 @@ class EscPComandos():
                 return {"status": "success", "message": "Cajón abierto con comando alternativo"}
             except Exception as e2:
                 error_msg = f"Error al abrir cajón: {e}, comando alternativo falló: {e2}"
-                logging.error(error_msg)
+                logger.error(error_msg)
+                
+                # Publicar error de cajón a RabbitMQ
+                try:
+                    publish_error(
+                        error_type="CASH_DRAWER_ERROR",
+                        error_message=error_msg,
+                        context={
+                            "primary_error": str(e),
+                            "secondary_error": str(e2),
+                            "exception_types": [type(e).__name__, type(e2).__name__]
+                        }
+                    )
+                except Exception as publish_err:
+                    logger.error(f"Error publicando error de cajón a RabbitMQ: {publish_err}")
+                
                 return {"status": "error", "message": error_msg}
 
 

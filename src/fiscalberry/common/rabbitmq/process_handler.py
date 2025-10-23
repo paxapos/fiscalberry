@@ -27,7 +27,23 @@ class RabbitMQProcessHandler:
         self._thread = None
         self._stop_event = threading.Event()
         self.config = Configberry()
+        # Credenciales activas del RabbitMQ Consumer
+        self.active_credentials = None
         self._initialized = True
+
+    def get_active_rabbitmq_credentials(self):
+        """Retorna las credenciales activas del RabbitMQ Consumer."""
+        return self.active_credentials
+    
+    def _update_active_credentials(self, host, port, user, password, vhost="/"):
+        """Actualiza las credenciales activas."""
+        self.active_credentials = {
+            'host': host,
+            'port': port,
+            'user': user,
+            'password': password,
+            'vhost': vhost
+        }
 
     def start(self, message_queue):
         """Arranca el consumidor en un hilo daemon (no bloqueante)."""
@@ -39,6 +55,9 @@ class RabbitMQProcessHandler:
         port = self.config.get("RabbitMq", "port")
         user = self.config.get("RabbitMq", "user")
         password = self.config.get("RabbitMq", "password")
+        
+        # Actualizar credenciales activas
+        self._update_active_credentials(host, port, user, password)
         
         # TODO deberia usarse esto: queue_name = self.config.get("RabbitMq", "queue")
         queue_name = self.config.get("SERVIDOR", "uuid")
