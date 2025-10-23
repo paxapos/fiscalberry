@@ -31,7 +31,6 @@ import threading
 import queue
 import os
 from pathlib import Path
-import httpx
 
 # Configuración
 SECRET_KEY = os.getenv("DEVELOPER_PANEL_SECRET", "your-secret-key-change-in-production")
@@ -445,125 +444,38 @@ async def get_tenants(credentials: HTTPAuthorizationCredentials = Depends(securi
     tenants = list(error_store.keys()) if error_store else ["santiago_gay"]
     return {"tenants": tenants}
 
-# Endpoint para cargar comercios desde APIs de Paxapos
+# TODO: Endpoint futuro para cargar comercios desde base de datos Paxapos
 @app.get("/api/comercios/paxapos")
 async def get_comercios_paxapos(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """
-    Carga todos los comercios desde las APIs de Paxapos y los une con sus respectivas colas de impresión.
-    Retorna: uuid, tenant, fecha de creación de la paxaprinter, status connect/disconnect
+    Endpoint futuro para cargar todos los comercios desde la base de datos Paxapos.
+    Cada comercio tendrá su propia cola de errores: {tenant_id}_errors
     """
     verify_token_string(credentials.credentials)
     
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Obtener datos de sitios
-            sites_response = await client.get("https://api-dev.paxapos.com/sites")
-            sites_response.raise_for_status()
-            sites_data = sites_response.json()
-            
-            # Obtener datos de paxaprinters
-            printers_response = await client.get("https://api-dev.paxapos.com/paxaprinters")
-            printers_response.raise_for_status()
-            printers_data = printers_response.json()
-            
-        # Crear un diccionario para mapear sitios por ID o tenant
-        sites_map = {}
-        if isinstance(sites_data, dict) and 'data' in sites_data:
-            sites_list = sites_data['data']
-        elif isinstance(sites_data, list):
-            sites_list = sites_data
-        else:
-            sites_list = []
-            
-        for site in sites_list:
-            if isinstance(site, dict):
-                # Mapear por diferentes posibles identificadores
-                site_id = site.get('id') or site.get('site_id') or site.get('uuid')
-                tenant = site.get('tenant') or site.get('tenant_id') or site.get('name')
-                if site_id:
-                    sites_map[str(site_id)] = site
-                if tenant:
-                    sites_map[str(tenant)] = site
-        
-        # Procesar paxaprinters y combinar con sitios
-        comercios_unidos = []
-        if isinstance(printers_data, dict) and 'data' in printers_data:
-            printers_list = printers_data['data']
-        elif isinstance(printers_data, list):
-            printers_list = printers_data
-        else:
-            printers_list = []
-            
-        for printer in printers_list:
-            if isinstance(printer, dict):
-                # Extraer datos de la impresora
-                printer_uuid = printer.get('uuid') or printer.get('id')
-                printer_site_id = printer.get('site_id') or printer.get('tenant_id')
-                printer_tenant = printer.get('tenant') or printer.get('tenant_id')
-                created_at = printer.get('created_at') or printer.get('createdAt')
-                status = printer.get('status') or printer.get('connection_status') or 'unknown'
-                
-                # Buscar el sitio correspondiente
-                site_info = None
-                if printer_site_id:
-                    site_info = sites_map.get(str(printer_site_id))
-                if not site_info and printer_tenant:
-                    site_info = sites_map.get(str(printer_tenant))
-                
-                # Determinar el tenant final
-                final_tenant = printer_tenant or (site_info.get('tenant') if site_info else None) or printer_site_id or 'unknown'
-                
-                # Determinar el status de conexión
-                connection_status = 'disconnect'
-                if status and isinstance(status, str):
-                    status_lower = status.lower()
-                    if status_lower in ['connected', 'online', 'active', 'connect']:
-                        connection_status = 'connect'
-                    elif status_lower in ['disconnected', 'offline', 'inactive', 'disconnect']:
-                        connection_status = 'disconnect'
-                elif isinstance(status, bool):
-                    connection_status = 'connect' if status else 'disconnect'
-                
-                comercio_data = {
-                    "uuid": printer_uuid,
-                    "tenant": final_tenant,
-                    "fecha_creacion": created_at,
-                    "status": connection_status,
-                    "site_info": site_info,
-                    "printer_info": printer,
-                    "cola_errores": f"{final_tenant}_errors" if final_tenant != 'unknown' else None
-                }
-                
-                comercios_unidos.append(comercio_data)
-        
-        return {
-            "comercios": comercios_unidos,
-            "total": len(comercios_unidos),
-            "implementado": True,
-            "fuentes": {
-                "sites_count": len(sites_list),
-                "printers_count": len(printers_list)
-            }
-        }
-        
-    except httpx.RequestError as e:
-        logger.error(f"Error de conexión con APIs de Paxapos: {e}")
-        raise HTTPException(
-            status_code=503,
-            detail=f"Error de conexión con APIs de Paxapos: {str(e)}"
-        )
-    except httpx.HTTPStatusError as e:
-        logger.error(f"Error HTTP de APIs de Paxapos: {e.response.status_code}")
-        raise HTTPException(
-            status_code=e.response.status_code,
-            detail=f"Error HTTP de APIs de Paxapos: {e.response.status_code}"
-        )
-    except Exception as e:
-        logger.error(f"Error inesperado al cargar comercios: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error inesperado al cargar comercios: {str(e)}"
-        )
+    # TODO: Implementar conexión a base de datos Paxapos
+    # comercios = await fetch_comercios_from_paxapos_db()
+    
+    # Estructura de respuesta esperada:
+    comercios_ejemplo = [
+        {
+            "id": 1,
+            "nombre": "Santiago Gay Commerce",
+            "tenant_id": "santiago_gay",
+            "estado": "activo",
+            "ultima_conexion": "2025-10-23T14:30:00Z",
+            "cola_errores": "santiago_gay_errors",
+            "fiscalberry_version": "1.0.0"
+        },
+        # Más comercios...
+    ]
+    
+    return {
+        "comercios": comercios_ejemplo,
+        "total": len(comercios_ejemplo),
+        "implementado": False,  # Cambiar a True cuando se implemente
+        "nota": "Este endpoint está preparado para implementación futura"
+    }
 
 @app.get("/api/errors/{tenant}")
 async def get_tenant_errors(
@@ -954,48 +866,6 @@ async def get_dashboard():
                 margin-top: 16px;
             }
             
-            /* Estilos para detalles de comercios Paxapos */
-            .commerce-details {
-                margin: 16px 0;
-            }
-            
-            .commerce-detail {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 8px 0;
-                border-bottom: 1px solid #e2e8f0;
-            }
-            
-            .commerce-detail:last-child {
-                border-bottom: none;
-            }
-            
-            .detail-label {
-                font-size: 12px;
-                color: #718096;
-                font-weight: 500;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-            
-            .detail-value {
-                font-size: 14px;
-                color: #2d3748;
-                font-weight: 600;
-                text-align: right;
-                word-break: break-all;
-                max-width: 60%;
-            }
-            
-            .detail-value.healthy {
-                color: #22543d;
-            }
-            
-            .detail-value.error {
-                color: #c53030;
-            }
-            
             /* Botones */
             .btn {
                 border: none;
@@ -1264,16 +1134,16 @@ async def get_dashboard():
                     </div>
                 </div>
                 
-                <!-- Sección de comercios Paxapos -->
-                <div id="comercios-section" class="section">
-                    <div class="section-header">
-                        <h2 class="section-title">🏢 Comercios Paxapos</h2>
-                        <button onclick="loadComerciosFromPaxapos()" class="btn btn-primary">
-                            🔄 Actualizar Comercios
-                        </button>
-                    </div>
-                    <div id="comercios-list" class="commerce-grid">
-                        <!-- Se cargan dinámicamente -->
+                <!-- Sección futura para comercios Paxapos -->
+                <div id="comercios-section" style="display: none;">
+                    <div class="section">
+                        <div class="section-header">
+                            <h2 class="section-title">🏢 Comercios Paxapos</h2>
+                            <button onclick="loadComerciosFromPaxapos()" class="btn btn-primary">
+                                Cargar Comercios
+                            </button>
+                        </div>
+                        <div id="comercios-list"></div>
                     </div>
                 </div>
             </div>
@@ -1335,7 +1205,6 @@ async def get_dashboard():
             async function loadDashboard() {
                 await loadStats();
                 await loadTenants();
-                await loadComerciosFromPaxapos(); // Cargar comercios automáticamente
             }
             
             async function loadStats() {
@@ -1528,140 +1397,36 @@ async def get_dashboard():
                 }, 3000);
             }
             
-            // Función para cargar comercios desde APIs de Paxapos
+            // TODO: Función futura para cargar comercios desde base de datos Paxapos
             async function loadComerciosFromPaxapos() {
                 try {
-                    // Mostrar estado de carga
-                    document.getElementById('comercios-list').innerHTML = `
-                        <div class="commerce-card empty">
-                            <div class="commerce-icon">⏳</div>
-                            <h3>Cargando comercios...</h3>
-                            <p>Consultando APIs de Paxapos...</p>
-                        </div>
-                    `;
-                    
+                    // Esta función se implementará cuando se conecte con la base de datos Paxapos
                     const response = await fetch('/api/comercios/paxapos', {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
-                    
-                    if (!response.ok) {
-                        throw new Error(`Error HTTP: ${response.status}`);
-                    }
-                    
                     const data = await response.json();
                     
-                    if (!data.comercios || data.comercios.length === 0) {
-                        document.getElementById('comercios-list').innerHTML = `
-                            <div class="commerce-card empty">
-                                <div class="commerce-icon">🏪</div>
-                                <h3>No se encontraron comercios</h3>
-                                <p>No hay comercios disponibles en Paxapos</p>
-                            </div>
-                        `;
-                        return;
-                    }
-                    
-                    let comerciosHtml = '';
+                    let comerciosHtml = '<h2>Comercios Paxapos</h2>';
                     for (const comercio of data.comercios) {
-                        const statusClass = comercio.status === 'connect' ? 'healthy' : 'error';
-                        const statusIcon = comercio.status === 'connect' ? '🟢' : '🔴';
-                        const statusText = comercio.status === 'connect' ? 'Conectado' : 'Desconectado';
-                        
-                        // Formatear fecha de creación
-                        let fechaCreacion = 'No disponible';
-                        if (comercio.fecha_creacion) {
-                            try {
-                                fechaCreacion = new Date(comercio.fecha_creacion).toLocaleDateString('es-ES');
-                            } catch (e) {
-                                fechaCreacion = comercio.fecha_creacion;
-                            }
-                        }
-                        
                         comerciosHtml += `
-                            <div class="commerce-card">
-                                <div class="commerce-header">
-                                    <div class="commerce-icon">🖨️</div>
-                                    <div class="commerce-status ${statusClass}">${statusIcon}</div>
+                            <div class="comercio-card">
+                                <h3>${comercio.nombre}</h3>
+                                <p>ID: ${comercio.id}</p>
+                                <p>Estado: ${comercio.estado}</p>
+                                <div class="comercio-actions">
+                                    <button onclick="loadTenantErrors('${comercio.tenant_id}')" class="btn-primary">Ver Errores</button>
+                                    <button onclick="refreshTenantErrors('${comercio.tenant_id}')" class="btn-refresh">🔄</button>
                                 </div>
-                                <h3 class="commerce-name">${comercio.tenant}</h3>
-                                <div class="commerce-details">
-                                    <div class="commerce-detail">
-                                        <span class="detail-label">UUID:</span>
-                                        <span class="detail-value">${comercio.uuid || 'N/A'}</span>
-                                    </div>
-                                    <div class="commerce-detail">
-                                        <span class="detail-label">Tenant:</span>
-                                        <span class="detail-value">${comercio.tenant}</span>
-                                    </div>
-                                    <div class="commerce-detail">
-                                        <span class="detail-label">Fecha Creación:</span>
-                                        <span class="detail-value">${fechaCreacion}</span>
-                                    </div>
-                                    <div class="commerce-detail">
-                                        <span class="detail-label">Estado:</span>
-                                        <span class="detail-value ${statusClass}">${statusText}</span>
-                                    </div>
-                                    ${comercio.cola_errores ? `
-                                        <div class="commerce-detail">
-                                            <span class="detail-label">Cola Errores:</span>
-                                            <span class="detail-value">${comercio.cola_errores}</span>
-                                        </div>
-                                    ` : ''}
-                                </div>
-                                <div class="commerce-actions">
-                                    <button class="btn btn-secondary btn-sm" onclick="viewCommerceDetails('${comercio.tenant}')">
-                                        Ver Detalles
-                                    </button>
-                                    ${comercio.cola_errores ? `
-                                        <button class="btn btn-primary btn-sm" onclick="loadTenantErrors('${comercio.tenant}')">
-                                            Ver Errores
-                                        </button>
-                                    ` : ''}
+                                <div class="error-queue-info">
+                                    <small>Cola: ${comercio.tenant_id}_errors</small>
                                 </div>
                             </div>
                         `;
                     }
-                    
                     document.getElementById('comercios-list').innerHTML = comerciosHtml;
-                    
-                    // Mostrar estadísticas
-                    console.log(`✅ Cargados ${data.total} comercios desde Paxapos`);
-                    console.log(`📊 Sites: ${data.fuentes?.sites_count || 0}, Printers: ${data.fuentes?.printers_count || 0}`);
                     
                 } catch (error) {
                     console.error('Error loading comercios from Paxapos:', error);
-                    document.getElementById('comercios-list').innerHTML = `
-                        <div class="commerce-card empty">
-                            <div class="commerce-icon">❌</div>
-                            <h3>Error al cargar comercios</h3>
-                            <p>Error: ${error.message}</p>
-                            <button class="btn btn-secondary btn-sm" onclick="loadComerciosFromPaxapos()">
-                                Reintentar
-                            </button>
-                        </div>
-                    `;
-                }
-            }
-            
-            // Función para cargar errores de un tenant específico
-            async function loadTenantErrors(tenant) {
-                try {
-                    const response = await fetch(`/api/errors/${tenant}`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    
-                    if (response.ok) {
-                        const errors = await response.json();
-                        // Mostrar errores específicos del tenant
-                        displayRecentErrors(errors);
-                        
-                        // Scroll hacia la sección de errores
-                        document.querySelector('#recent-errors').scrollIntoView({ 
-                            behavior: 'smooth' 
-                        });
-                    }
-                } catch (error) {
-                    console.error(`Error loading errors for tenant ${tenant}:`, error);
                 }
             }
             
