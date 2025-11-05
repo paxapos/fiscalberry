@@ -3,453 +3,538 @@ ScreenManager:
         name: "login"
     MainScreen:
         name: "main"
-    LogScreen: # Add LogScreen here
-        name: "logs" # Give it a name for navigation
+    LogScreen:
+        name: "logs"
+    AdoptScreen:
+        name: "adopt"
 
 <AdoptScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(20)
+        padding: dp(30)
         spacing: dp(20)
         canvas.before:
             Color:
-                rgba: 0.95, 0.95, 1, 1  # Fondo celeste claro
+                rgba: 0.98, 0.98, 1, 1
             Rectangle:
                 pos: self.pos
                 size: self.size
-
-        # Logo y título
+        
+        # Header con logo
         BoxLayout:
             orientation: 'vertical'
             size_hint_y: None
-            height: dp(120)
-            spacing: dp(10)
+            height: dp(140)
+            spacing: dp(15)
             
             Image:
                 source: app.logo_image
                 size_hint_y: None
-                height: dp(60)
+                height: dp(80)
                 allow_stretch: True
                 keep_ratio: True
-                
-            Label:
-                text: "Vincula tu dispositivo con Paxapos"
-                font_size: '18sp'
-                bold: True
-                color: 0.1, 0.2, 0.5, 1
-                size_hint_y: None
-                height: dp(40)
-                halign: 'center'
-        
-        # Contenido principal
-        BoxLayout:
-            orientation: 'horizontal'
-            spacing: dp(40)
-            size_hint_y: None
-            height: dp(280)
-            
-            # Lado izquierdo - Botón
-            BoxLayout:
-                orientation: 'vertical'
-                size_hint_x: 0.5
-                spacing: dp(15)
-                
-                Label:
-                    text: "Usar navegador"
-                    font_size: '16sp'
-                    bold: True
-                    color: 0.2, 0.2, 0.2, 1
-                    size_hint_y: None
-                    height: dp(30)
-                    halign: 'center'
-                
-                Button:
-                    text: "Abrir vinculación"
-                    size_hint_y: None
-                    height: dp(60)
-                    background_color: 0.2, 0.4, 0.8, 1
-                    color: 1, 1, 1, 1
-                    font_size: '15sp'
-                    on_press: import webbrowser; webbrowser.open(root.adoptarLink)
-                
-                Label:
-                    text: "Se abrirá la página\nde vinculación"
-                    font_size: '12sp'
-                    color: 0.5, 0.5, 0.5, 1
-                    size_hint_y: None
-                    height: dp(40)
-                    halign: 'center'
-                    text_size: self.width, None
-                
-                Widget:
-            
-            # Lado derecho - QR
-            BoxLayout:
-                orientation: 'vertical'
-                size_hint_x: 0.5
-                spacing: dp(15)
-                
-                Label:
-                    text: "Escanear QR"
-                    font_size: '16sp'
-                    bold: True
-                    color: 0.2, 0.2, 0.2, 1
-                    size_hint_y: None
-                    height: dp(30)
-                    halign: 'center'
-                
-                # Contenedor del QR sin fondo
-                BoxLayout:
-                    orientation: 'vertical'
-                    size_hint_y: None
-                    height: dp(180)
-                    
-                    AsyncImage:
-                        source: root.qrCodeLink
-                        size_hint: None, None
-                        size: dp(160), dp(160)
-                        pos_hint: {'center_x': 0.5, 'center_y': 0.5}
-                        allow_stretch: True
-                        keep_ratio: True
-                        
-                    # Loading fallback
-                    Label:
-                        text: "📱 Cargando QR..."
-                        font_size: '14sp'
-                        color: 0.6, 0.6, 0.6, 1
-                        halign: 'center'
-                        pos_hint: {'center_x': 0.5, 'center_y': 0.5}
-                        opacity: 0
-                
-                Label:
-                    text: "Escanea con tu celular"
-                    font_size: '12sp'
-                    color: 0.5, 0.5, 0.5, 1
-                    size_hint_y: None
-                    height: dp(20)
-                    halign: 'center'
-                
-                Widget:
-        
-        # Texto explicativo
-        BoxLayout:
-            orientation: 'vertical'
-            size_hint_y: None
-            height: dp(90)
-            spacing: dp(10)
-            padding: [dp(20), 0]
             
             Label:
-                text: "¿Qué es esto?"
-                font_size: '14sp'
+                text: "Vincular Dispositivo"
+                font_size: sp(24)
                 bold: True
                 color: 0.2, 0.2, 0.2, 1
                 size_hint_y: None
-                height: dp(25)
-                halign: 'center'
+                height: dp(40)
+        
+        Widget:
+            size_hint_y: 0.3
+        
+        # Contenedor del QR
+        BoxLayout:
+            orientation: 'vertical'
+            size_hint_y: None
+            height: dp(280)
+            spacing: dp(15)
+            padding: dp(20)
+            canvas.before:
+                Color:
+                    rgba: 1, 1, 1, 1
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [15]
             
             Label:
-                text: "Esta vinculación conecta y habilita el servicio de impresión (Paxaprinter)\ncon tu comercio, permitiendo imprimir tickets y facturas automáticamente\ndesde el sistema Paxapos."
-                font_size: '12sp'
+                text: "Escanea el código QR"
+                font_size: sp(16)
                 color: 0.4, 0.4, 0.4, 1
                 size_hint_y: None
-                height: dp(55)
-                halign: 'center'
-                text_size: self.width - dp(40), None
-                valign: 'middle'
+                height: dp(30)
+            
+            AsyncImage:
+                source: root.qrCodeLink
+                size_hint: None, None
+                size: dp(200), dp(200)
+                pos_hint: {'center_x': 0.5}
+                allow_stretch: True
+                keep_ratio: True
         
-        # Espaciador flexible
         Widget:
+            size_hint_y: 0.2
+        
+        # Botón para abrir en navegador (WebView en Android, navegador en Desktop)
+        Button:
+            text: "Iniciar Sesión en Paxapos"
+            size_hint_y: None
+            height: dp(50)
+            background_normal: ''
+            background_color: 0, 0, 0, 0
+            canvas.before:
+                Color:
+                    rgba: 0.2, 0.5, 0.9, 1
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [25]
+            font_size: sp(16)
+            color: 1, 1, 1, 1
+            on_press: root.open_web_login()
+        
+        Widget:
+            size_hint_y: 0.5
 
 <LoginScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: 20
-        spacing: 15
+        padding: dp(30)
+        spacing: dp(20)
         canvas.before:
             Color:
-                rgba: 0.9, 0.9, 1, 1  # Fondo celeste casi blanco
+                rgba: 0.98, 0.98, 1, 1
             Rectangle:
                 pos: self.pos
                 size: self.size
-
+        
+        Widget:
+            size_hint_y: 0.2
+        
         Image:
             source: app.logo_image
             size_hint_y: None
-            height: 96
+            height: dp(80)
             allow_stretch: True
             keep_ratio: True
-            color: 1, 1, 1, 1
-            margin_bottom: 10
-
-
+        
         Label:
             text: "Iniciar Sesión"
-            font_size: 24
-            color: 0.1, 0.2, 0.5, 1  # Azul oscuro
-
-        Label:
-            text: "Utilice su usuario y contraseña para acceder al sistema."
+            font_size: sp(26)
+            bold: True
+            color: 0.2, 0.2, 0.2, 1
             size_hint_y: None
-            height: 30
-            halign: "center"
-            valign: "middle"
-            text_size: self.size
-            color: 0.5, 0.5, 0.5, 1  # Gris tenue
-
+            height: dp(40)
+        
         Label:
             text: root.errorMsg
-            color: 0.8, 0.2, 0.2, 1  # Rojo estándar para errores
-            font_size: 16
+            color: 0.9, 0.2, 0.2, 1
+            font_size: sp(14)
             size_hint_y: None
-            height: 30
-            halign: "center"
-            valign: "middle"
-            text_size: self.size
-
+            height: dp(30)
+        
+        Widget:
+            size_hint_y: 0.1
+        
         TextInput:
             id: username
             hint_text: "Usuario"
             multiline: False
             size_hint_y: None
-            height: 50
+            height: dp(50)
+            padding: [dp(15), dp(15)]
+            font_size: sp(16)
+            background_normal: ''
             background_color: 1, 1, 1, 1
-            foreground_color: 0, 0, 0, 1
-            padding: [10, 10]
-            on_text_validate: password.focus = True  # Al presionar Enter, enfocar el siguiente input
+            foreground_color: 0.2, 0.2, 0.2, 1
+            canvas.before:
+                Color:
+                    rgba: 0.9, 0.9, 0.9, 1
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [10]
+            on_text_validate: password.focus = True
+        
         TextInput:
             id: password
             hint_text: "Contraseña"
             password: True
             multiline: False
             size_hint_y: None
-            height: 50
+            height: dp(50)
+            padding: [dp(15), dp(15)]
+            font_size: sp(16)
+            background_normal: ''
             background_color: 1, 1, 1, 1
-            foreground_color: 0, 0, 0, 1
-            padding: [10, 10]
-            on_text_validate: root.login(username.text, password.text)  # Al presionar Enter, ejecutar login
+            foreground_color: 0.2, 0.2, 0.2, 1
+            canvas.before:
+                Color:
+                    rgba: 0.9, 0.9, 0.9, 1
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [10]
+            on_text_validate: root.login(username.text, password.text)
+        
         Button:
-            text: "Login"
+            text: "Iniciar Sesión"
             size_hint_y: None
-            height: 50
-            background_color: 0.1, 0.2, 0.5, 1  # Azul oscuro
+            height: dp(50)
+            background_normal: ''
+            background_color: 0, 0, 0, 0
+            canvas.before:
+                Color:
+                    rgba: 0.2, 0.5, 0.9, 1
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [25]
+            font_size: sp(16)
+            bold: True
             color: 1, 1, 1, 1
             on_press: root.login(username.text, password.text)
+        
+        Widget:
+            size_hint_y: 0.4
 
-# Define a reusable Separator widget
 <Separator@Widget>:
+    size_hint_y: None
+    height: dp(1)
     canvas:
         Color:
-            rgba: 0.8, 0.8, 0.8, 1 # Light gray color for separator
+            rgba: 0.9, 0.9, 0.9, 1
         Rectangle:
-            pos: self.x, self.center_y - dp(0.5) # Center the line vertically
-            size: self.width, dp(1) # Make it 1dp thick
+            pos: self.pos
+            size: self.size
 
 <MainScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(25)
-        spacing: dp(20)
+        padding: dp(20)
+        spacing: dp(15)
         canvas.before:
             Color:
-                rgba: 0.96, 0.96, 1, 1 # Fondo más claro y limpio
+                rgba: 0.98, 0.98, 1, 1
             Rectangle:
                 pos: self.pos
                 size: self.size
-
-        # Header mejorado con mejor diseño
+        
+        # Header
         BoxLayout:
             orientation: 'horizontal'
             size_hint_y: None
             height: dp(60)
-            spacing: dp(15)
-            canvas.before:
-                Color:
-                    rgba: 1, 1, 1, 0.8 # Fondo blanco semi-transparente
-                RoundedRectangle:
-                    pos: self.pos
-                    size: self.size
-                    radius: [dp(10)]
-            padding: dp(15)
+            spacing: dp(10)
             
             Image:
                 source: app.logo_image
                 size_hint: None, None
-                size: dp(40), dp(40)
+                size: dp(50), dp(50)
                 allow_stretch: True
                 keep_ratio: True
-                
+            
             Label:
-                text: "Fiscalberry - Servidor de Impresión"
-                font_size: '18sp'
+                text: "Servidor de Impresión"
+                font_size: sp(20)
                 bold: True
+                color: 0.2, 0.2, 0.2, 1
                 halign: 'left'
                 valign: 'middle'
-                color: 0.1, 0.2, 0.5, 1
-                size_hint_x: 1
-                
-            # Estado visual grande en header
-            Label:
-                text: "[CONECTADO]" if app.sioConnected else "[DESCONECTADO]"
-                font_size: '14sp'
-                bold: True
-                color: (0.1, 0.7, 0.1, 1) if app.sioConnected else (0.8, 0.1, 0.1, 1)
-                halign: 'right'
-                valign: 'middle'
-                size_hint: None, None
-                size: dp(130), dp(40)
-
-        # Panel de información del comercio mejorado
+                text_size: self.size
+        
+        Separator:
+        
+        # Información del comercio
         BoxLayout:
             orientation: 'vertical'
             size_hint_y: None
             height: dp(100)
-            spacing: dp(10)
+            spacing: dp(5)
+            padding: dp(15)
             canvas.before:
                 Color:
-                    rgba: 1, 1, 1, 0.9
+                    rgba: 1, 1, 1, 1
                 RoundedRectangle:
                     pos: self.pos
                     size: self.size
-                    radius: [dp(10)]
-                Color:
-                    rgba: 0.8, 0.8, 0.9, 1
-                Line:
-                    rounded_rectangle: (self.pos[0], self.pos[1], self.size[0], self.size[1], dp(10))
-                    width: 1
-            padding: dp(15)
-
+                    radius: [10]
+            
             Label:
-                text: "INFORMACIÓN DEL COMERCIO"
-                font_size: '14sp'
+                text: f"Comercio: {app.siteName if app.siteName else 'No configurado'}"
+                font_size: sp(16)
                 bold: True
-                color: 0.1, 0.2, 0.5, 1
+                color: 0.2, 0.2, 0.2, 1
+                halign: 'left'
+                valign: 'middle'
+                text_size: self.width, None
                 size_hint_y: None
-                height: dp(20)
-                halign: 'center'
-
+                height: dp(25)
+            
+            Label:
+                text: f"Dispositivo: {app.siteAlias if app.siteAlias else 'No configurado'}"
+                font_size: sp(14)
+                color: 0.4, 0.4, 0.4, 1
+                halign: 'left'
+                valign: 'middle'
+                text_size: self.width, None
+                size_hint_y: None
+                height: dp(22)
+            
+            Label:
+                text: f"Ubicación: {app.printLocation if app.printLocation else 'No especificada'}"
+                font_size: sp(14)
+                color: 0.4, 0.4, 0.4, 1
+                halign: 'left'
+                valign: 'middle'
+                text_size: self.width, None
+                size_hint_y: None
+                height: dp(22)
+        
+        # Estado de conexiones
+        BoxLayout:
+            orientation: 'vertical'
+            size_hint_y: None
+            height: dp(110)
+            spacing: dp(8)
+            padding: dp(15)
+            canvas.before:
+                Color:
+                    rgba: 1, 1, 1, 1
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [10]
+            
+            Label:
+                text: "Estado de Conexión"
+                font_size: sp(16)
+                bold: True
+                color: 0.2, 0.2, 0.2, 1
+                halign: 'left'
+                valign: 'middle'
+                text_size: self.width, None
+                size_hint_y: None
+                height: dp(25)
+            
             BoxLayout:
                 orientation: 'horizontal'
-                spacing: dp(20)
+                size_hint_y: None
+                height: dp(30)
+                spacing: dp(10)
+                
+                Image:
+                    source: root.connected_image if app.sioConnected else root.disconnected_image
+                    size_hint: None, None
+                    size: dp(24), dp(24)
                 
                 Label:
-                    text: f"Comercio: {app.siteName or 'No configurado'}"
-                    font_size: '13sp'
-                    color: 0.3, 0.3, 0.3, 1
+                    text: "Nube (Sync): " + ("Conectado" if app.sioConnected else "Desconectado")
+                    color: (0.2, 0.7, 0.2, 1) if app.sioConnected else (0.9, 0.3, 0.3, 1)
+                    font_size: sp(14)
                     halign: 'left'
                     valign: 'middle'
                     text_size: self.width, None
-                    size_hint_x: 0.6
-
+            
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: dp(30)
+                spacing: dp(10)
+                
+                Image:
+                    source: root.connected_image if app.rabbitMqConnected else root.disconnected_image
+                    size_hint: None, None
+                    size: dp(24), dp(24)
+                
                 Label:
-                    text: f"Dispositivo: {app.siteAlias or 'Sin alias'}"
-                    font_size: '13sp'
-                    color: 0.3, 0.3, 0.3, 1
+                    text: "Cola Local (Cmds): " + ("Conectado" if app.rabbitMqConnected else "Desconectado")
+                    color: (0.2, 0.7, 0.2, 1) if app.rabbitMqConnected else (0.9, 0.3, 0.3, 1)
+                    font_size: sp(14)
                     halign: 'left'
                     valign: 'middle'
                     text_size: self.width, None
-                    size_hint_x: 0.4
-
-        # Espaciador
-        Widget:
-
-        # Botón de logs mejorado
-        Button:
-            text: "Ver Registro de Actividad del Servicio"
-            size_hint_y: None
-            height: dp(55)
-            background_color: 0.1, 0.3, 0.6, 1
-            color: 1, 1, 1, 1
-            font_size: '15sp'
-            bold: True
-            canvas.before:
-                Color:
-                    rgba: 0.1, 0.3, 0.6, 1
-                RoundedRectangle:
-                    pos: self.pos
-                    size: self.size
-                    radius: [dp(8)]
-            on_press: app.root.current = "logs"
-
-        # Footer mejorado
+        
+        # Información de impresión
         BoxLayout:
-            orientation: 'horizontal'
+            orientation: 'vertical'
             size_hint_y: None
-            height: dp(25)
-            spacing: dp(15)
+            height: dp(80)
+            spacing: dp(5)
+            padding: dp(15)
             canvas.before:
                 Color:
-                    rgba: 0.9, 0.9, 0.9, 0.7
+                    rgba: 1, 1, 1, 1
                 RoundedRectangle:
                     pos: self.pos
                     size: self.size
-                    radius: [dp(5)]
-            padding: dp(10)
+                    radius: [10]
             
-            Label:
-                text: f"ID: {app.uuid[:8] if app.uuid else 'No ID'}"
-                font_size: '10sp'
-                color: 0.4, 0.4, 0.4, 1
-                halign: "left"
-                valign: "middle"
-                size_hint_x: 0.35
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: dp(25)
                 
-            Label:
-                text: f"v{app.version if app.version else '1.0'}"
-                font_size: '10sp'
-                color: 0.4, 0.4, 0.4, 1
-                halign: "center"
-                valign: "middle"
-                size_hint_x: 0.3
+                Label:
+                    text: "Última Impresión:"
+                    font_size: sp(14)
+                    color: 0.4, 0.4, 0.4, 1
+                    halign: 'left'
+                    valign: 'middle'
+                    text_size: self.width, None
+                    size_hint_x: 0.5
                 
-            Label:
-                text: f"{app.host if app.host else 'Paxapos'}"
-                font_size: '10sp'
-                color: 0.4, 0.4, 0.4, 1
-                halign: "right"
-                valign: "middle"
-                size_hint_x: 0.35
+                Label:
+                    text: app.lastPrintTime if app.lastPrintTime else "N/A"
+                    font_size: sp(14)
+                    color: 0.2, 0.2, 0.2, 1
+                    halign: 'right'
+                    valign: 'middle'
+                    text_size: self.width, None
+                    size_hint_x: 0.5
             
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                height: dp(25)
+                
+                Label:
+                    text: "Impresiones en Cola:"
+                    font_size: sp(14)
+                    color: 0.4, 0.4, 0.4, 1
+                    halign: 'left'
+                    valign: 'middle'
+                    text_size: self.width, None
+                    size_hint_x: 0.5
+                
+                Label:
+                    text: str(app.queueCount)
+                    font_size: sp(14)
+                    bold: True
+                    color: 0.2, 0.2, 0.2, 1
+                    halign: 'right'
+                    valign: 'middle'
+                    text_size: self.width, None
+                    size_hint_x: 0.5
+        
+        # Botón de logs
+        Button:
+            text: "Ver Logs de Impresión"
+            size_hint_y: None
+            height: dp(50)
+            background_normal: ''
+            background_color: 0, 0, 0, 0
+            canvas.before:
+                Color:
+                    rgba: 0.3, 0.3, 0.3, 1
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [25]
+            font_size: sp(14)
+            color: 1, 1, 1, 1
+            on_press: app.root.current = "logs"
+        
+        Widget:
+        
+        # Footer
+        Label:
+            text: f"UUID: {app.uuid[:8]}... | v{app.version} | {app.host}"
+            font_size: sp(10)
+            color: 0.6, 0.6, 0.6, 1
+            size_hint_y: None
+            height: dp(20)
+
 <LogScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: 10
-        spacing: 10
-
-        Label:
-            text: "Logs del Servicio"
-            font_size: 24
-            size_hint_y: None
-            height: 50
+        padding: dp(20)
+        spacing: dp(10)
+        canvas.before:
+            Color:
+                rgba: 0.98, 0.98, 1, 1
+            Rectangle:
+                pos: self.pos
+                size: self.size
         
-        Button:
-            text: root.logFilePath
-            font_size: 12
+        # Header
+        BoxLayout:
+            orientation: 'horizontal'
             size_hint_y: None
-            height: self.texture_size[1] + dp(10) # Adjust height based on text
-            # Style to look like a clickable link
-            background_color: 0, 0, 0, 0 # Transparent background
-            color: 0.1, 0.2, 0.8, 1 # Blue color like a hyperlink
-            # Action to open the file using a method defined in the Python class
-            # Ensure 'open_log_file' method exists in your LogScreen Python class
+            height: dp(50)
+            spacing: dp(10)
+            
+            Button:
+                text: "← Volver"
+                size_hint: None, None
+                size: dp(80), dp(40)
+                background_normal: ''
+                background_color: 0, 0, 0, 0
+                canvas.before:
+                    Color:
+                        rgba: 0.2, 0.5, 0.9, 1
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [20]
+                font_size: sp(14)
+                color: 1, 1, 1, 1
+                on_press: app.root.current = "main"
+            
+            Label:
+                text: "Logs de Impresión"
+                font_size: sp(20)
+                bold: True
+                color: 0.2, 0.2, 0.2, 1
+                halign: 'left'
+                valign: 'middle'
+                text_size: self.width, None
+        
+        # Área de logs
+        BoxLayout:
+            orientation: 'vertical'
+            padding: dp(15)
+            canvas.before:
+                Color:
+                    rgba: 1, 1, 1, 1
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [10]
+            
+            ScrollView:
+                id: scroll_view
+                
+                TextInput:
+                    id: log_output
+                    text: root.logs
+                    readonly: True
+                    font_size: sp(12)
+                    font_name: 'RobotoMono-Regular'
+                    background_color: 0.95, 0.95, 0.95, 1
+                    foreground_color: 0.2, 0.2, 0.2, 1
+                    size_hint_y: None
+                    height: max(self.minimum_height, scroll_view.height)
+                    multiline: True
+                    padding: [dp(10), dp(10)]
+        
+        # Botón para abrir archivo
+        Button:
+            text: "Abrir Archivo de Log"
+            size_hint_y: None
+            height: dp(45)
+            background_normal: ''
+            background_color: 0, 0, 0, 0
+            canvas.before:
+                Color:
+                    rgba: 0.3, 0.3, 0.3, 1
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [22.5]
+            font_size: sp(14)
+            color: 1, 1, 1, 1
             on_press: root.open_log_file()
-
-        ScrollView:
-            id: scroll_view  # Agregar un ID para acceder desde Python
-            size_hint: (1, 1)
-            TextInput:
-                id: log_output
-                text: root.logs
-                readonly: True
-                font_size: 14
-                background_color: 0, 0, 0, 1  # Fondo negro
-                foreground_color: 1, 1, 1, 1  # Texto blanco
-                size_hint_y: None
-                height: self.minimum_height
-                multiline: True
-
-        Button:
-            text: "Volver"
-            size_hint_y: None
-            height: 50
-            on_press: app.root.current = "main"

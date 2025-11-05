@@ -240,7 +240,7 @@ class Configberry:
         self.set("SERVIDOR", {
             "uuid": myUuid,
             "platform": f"{os.name} {platform.system()} {platform.release()} {platform.machine()}",
-            "sio_host": "https://beta.paxapos.com",
+            "sio_host": "https://www.paxapos.com",
             "sio_password": ""
             })
         
@@ -390,32 +390,6 @@ class Configberry:
         self.config.read( self.configFilePath )
         return self.config.get(section, key, fallback=fallback)
     
-    def is_comercio_adoptado(self):
-        """
-        Verifica si el comercio ha sido adoptado.
-        Un comercio se considera adoptado si tiene configuración de RabbitMQ
-        con un tenant asociado en la sección [Paxaprinter].
-        
-        Retorna True si existe la sección Paxaprinter y tiene un tenant configurado,
-        False en caso contrario.
-        """
-        # Verificar si existe la sección Paxaprinter
-        if not self.config.has_section("Paxaprinter"):
-            return False
-        
-        # Verificar si tiene un tenant configurado
-        tenant = self.get("Paxaprinter", "tenant", fallback="")
-        
-        # El tenant debe existir y no estar vacío ni ser un valor de ejemplo
-        if not tenant or tenant.strip() == "":
-            return False
-        
-        # Valores de ejemplo que no se consideran válidos
-        example_values = ["your-tenant-name", "tenant-name", "example", "test"]
-        if tenant.lower() in example_values:
-            return False
-        
-        return True
     
     def add_listener(self, callback):
         """callback(section: str, values: dict)"""

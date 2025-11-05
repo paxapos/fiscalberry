@@ -1,0 +1,225 @@
+name: Build Desktop & Pi Ejecutables - on New Version
+# 
+# Este workflow construye ejecutables para múltiples plataformas:
+# - CLI: Linux x64, Windows x64, Raspberry Pi ARM64
+# - GUI: Solo Windows x64 (Kivy es más complejo en Linux)
+#
+
+on:
+  push:
+    tags: # Trigger on tags like v*.*.*
+      - 'v*.*.*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true  # Cancel previous runs if new commits are pushed
+
+jobs:
+  build-desktop:
+    strategy:
+      fail-fast: false   # Continue with other jobs if one fails
+      matrix:
+        os: [ubuntu-22.04, windows-latest]
+        include:
+          - os: ubuntu-22.04
+            os_name: linux
+            asset_suffix_cli: cli-lin-x64
+            artifact_path_cli: dist/fiscalberry-cli
+            python_platform: linux
+            build_gui: false
+          - os: windows-latest
+            os_name: windows
+            asset_suffix_cli: cli-win-x64.exe
+            asset_suffix_gui: gui-win-x64.exe
+            artifact_path_cli: dist/fiscalberry-cli.exe
+            artifact_path_gui: dist/fiscalberry-gui.exe
+            python_platform: win32
+            build_gui: true
+         
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Linux dependencies (if applicable)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libcups2-dev \
+            libgl1-mesa-glx libgles2-mesa libegl1-mesa libmtdev1 \
+            xvfb
+
+      # Add steps for macOS dependencies if needed (e.g., using brew)
+      # - name: Install macOS dependencies (if applicable)
+      #   if: runner.os == 'macOS'
+      #   run: |
+      #     brew install sdl2 # Example
+
+      - name: Cache PyInstaller
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/pyinstaller
+            ~/AppData/Local/pip/Cache  # Windows cache
+          key: ${{ runner.os }}-pyinstaller-${{ hashFiles('fiscalberry-gui.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-pyinstaller-
+
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pip pyinstaller
+
+      # --- Build CLI for all platforms ---
+      - name: Install CLI dependencies
+        run: pip install -r requirements.cli.txt
+
+      - name: Build CLI executable (${{ matrix.os_name }})
+        shell: bash
+        run: |
+          echo "Building CLI executable for ${{ matrix.os_name }}..."
+          pyinstaller fiscalberry-cli.spec
+
+      # --- Build GUI (only for Windows) ---
+      - name: Install GUI dependencies (Windows only)
+        if: matrix.build_gui == true
+        run: pip install -r requirements.kivy.txt
+
+      - name: Build GUI executable (Windows only)
+        if: matrix.build_gui == true
+        shell: bash
+        run: |
+          echo "Building GUI executable for Windows..."
+          # Set environment variables to prevent Kivy from trying to initialize graphics
+          export KIVY_NO_WINDOW=1
+          export KIVY_GL_BACKEND=mock
+          export KIVY_GRAPHICS=mock
+          pyinstaller fiscalberry-gui.spec
+
+      - name: List dist directory contents (after build)
+        if: always()
+        shell: bash
+        run: |
+          echo "Listing contents of ./dist directory:"
+          ls -lR ./dist || echo "Dist directory not found or empty."
+
+      - name: Rename CLI artifact
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          # Ensure the CLI source path exists before moving
+          if [ -e "${{ matrix.artifact_path_cli }}" ]; then
+            echo "Moving ${{ matrix.artifact_path_cli }} to artifacts/fiscalberry-${{ matrix.asset_suffix_cli }}"
+            mv ${{ matrix.artifact_path_cli }} artifacts/fiscalberry-${{ matrix.asset_suffix_cli }}
+          else
+            echo "ERROR: CLI source file ${{ matrix.artifact_path_cli }} not found!"
+            exit 1
+          fi
+
+      - name: Rename GUI artifact (Windows only)
+        if: matrix.build_gui == true
+        shell: bash
+        run: |
+          # Ensure the GUI source path exists before moving
+          if [ -e "${{ matrix.artifact_path_gui }}" ]; then
+            echo "Moving ${{ matrix.artifact_path_gui }} to artifacts/fiscalberry-${{ matrix.asset_suffix_gui }}"
+            mv ${{ matrix.artifact_path_gui }} artifacts/fiscalberry-${{ matrix.asset_suffix_gui }}
+          else
+            echo "ERROR: GUI source file ${{ matrix.artifact_path_gui }} not found!"
+            exit 1
+          fi
+
+      - name: Upload executables artifact (${{ matrix.os_name }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: fiscalberry-executables-${{ matrix.os_name }}
+          path: artifacts/
+
+  build-raspberry-pi-cli:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Pi CLI executable
+        uses: uraimo/run-on-arch-action@v2
+        with:
+          arch: aarch64
+          distro: ubuntu22.04
+          run: |
+            apt-get update
+            apt-get install -y python3-pip python3-dev libcups2-dev
+            # Install CLI dependencies only
+            pip3 install -r requirements.cli.txt
+            pip3 install pyinstaller
+            pyinstaller fiscalberry-cli.spec
+
+      - name: Rename Pi CLI artifact
+        run: |
+          mkdir -p artifacts
+          sudo mv dist/fiscalberry-cli artifacts/fiscalberry-cli-pi-arm64
+
+      - name: Upload Pi CLI executable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fiscalberry-executables-pi
+          path: artifacts/fiscalberry-cli-pi-arm64
+
+  create-release:
+    runs-on: ubuntu-22.04
+    needs: [build-desktop, build-raspberry-pi-cli] # Wait for all builds
+    permissions:
+      contents: write # Needed to create release and upload assets
+
+    steps:
+      - name: Checkout code (optional, needed if release notes use repo files)
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts # Download all artifacts into artifacts directory
+          # No 'name' specified to download all artifacts from the workflow run
+
+      - name: List downloaded artifacts (debugging)
+        run: |
+          find ./artifacts -type f
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }} # Use the tag that triggered the workflow
+          release_name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          # body: | # Optional: Add release notes
+          #   Release notes for ${{ github.ref_name }}
+          #   - Feature A
+          #   - Bugfix B
+
+      - name: Set upload URL
+        run: echo "UPLOAD_URL=${{ steps.create_release.outputs.upload_url }}" >> $GITHUB_ENV
+
+      - name: Upload all assets to release
+        shell: bash
+        run: |
+          for artifact_dir in ./artifacts/fiscalberry-executables-*; do
+            files=$(find "$artifact_dir" -type f | tr '\n' ' ')
+            if [ -n "$files" ]; then
+              echo "Uploading files from $artifact_dir"
+              gh release upload "${{ github.ref_name }}" $files --clobber -R "${{ github.repository }}"
+            fi
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

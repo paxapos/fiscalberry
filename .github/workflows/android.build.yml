@@ -1,0 +1,94 @@
+name: Build Android APK
+
+
+on:
+  push:
+    tags: # Trigger on tags like v*.*.*
+      - 'NEVER-MATCH-v*.*.*'
+  workflow_dispatch: # Allows manual triggering if needed
+
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin' # O 'zulu', 'adopt', etc.
+          java-version: '17'
+
+      - name: Set up Python 3.11 # O la versión que prefieras/necesites
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Get pip cache dir 
+        id: pip-cache
+        run: |
+          echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pip-cache.outputs.dir }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }} # Cambia si tus requisitos están en buildozer.spec
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Cache Buildozer global directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }} # Key based on buildozer.spec changes
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
+
+      - name: Install Buildozer system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+          git zip unzip build-essential python3-pip python3-dev \
+          libffi-dev libssl-dev libncurses5-dev zlib1g-dev libsqlite3-dev libbz2-dev \
+          autoconf automake libtool libltdl-dev pkg-config \
+          cython3 ccache
+
+      - name: Install Python build tools and Cython
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          python -m pip install cython
+
+      - name: Install Buildozer
+        run: |
+          python -m pip install buildozer
+          python -m pip install -r requirements.android.txt
+
+
+   
+      - name: Build APK with Buildozer
+        # Set ACLOCAL_PATH and PKG_CONFIG_PATH explicitly before running buildozer
+        # This helps autotools find necessary macro and package config files
+        run: |
+          export ACLOCAL_PATH="${ACLOCAL_PATH}:/usr/share/aclocal"
+          export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
+          rm -rf ~/.buildozer
+          rm -rf ./.buildozer
+
+          buildozer -v android release
+
+      # ---  step for debugging ---
+      - name: List bin directory contents (after build)
+        if: always() # Run even if previous steps fail, to aid debugging
+        run: |
+          echo "Listing contents of ./bin directory:"
+          ls -lR ./bin || echo "Bin directory not found or empty."
+    
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fiscalberry-android-apk-${{ github.ref_name }}
+          path: bin/*.apk

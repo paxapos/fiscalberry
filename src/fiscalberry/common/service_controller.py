@@ -8,8 +8,8 @@ from fiscalberry.common.discover import send_discover_in_thread
 from fiscalberry.common.Configberry import Configberry
 import time
 import threading
-
-logger = getLogger("ServiceController")
+from fiscalberry.common.fiscalberry_logger import getLogger
+logger = getLogger()
 
 class ServiceController:
     """
@@ -32,35 +32,22 @@ class ServiceController:
     
     def __init__(self):
         if hasattr(self, 'initialized'):
-            logger.debug("ServiceController ya inicializado")
             return
             
-        logger.info("=== Inicializando ServiceController ===")
         self.initialized = True
         self.socketio_thread = None
         self.discover_thread = None
-        
-        try:
-            self.configberry = Configberry()
-            logger.debug("Configberry inicializado")
-            
-            self._stop_event = threading.Event() # Evento para detener limpiamente
-            self.initial_retries = 0 # Contador para chequeo inicial de UUID
-            logger.debug("Variables de control inicializadas")
+        self.configberry = Configberry()
+        self._stop_event = threading.Event() # Evento para detener limpiamente
+        self.initial_retries = 0 # Contador para chequeo inicial de UUID
 
-            sio_host = self.configberry.get("SERVIDOR", "sio_host")
-            if not sio_host:
-                logger.error("sio_host no configurado en la configuración. Abortando.")
-                os._exit(1)
-            logger.info(f"Host SocketIO configurado: {sio_host}")
+        sio_host = self.configberry.get("SERVIDOR", "sio_host")
+        if not sio_host:
+            logger.error("sio_host no configurado. Abortando.")
+            os._exit(1)
 
-            # --- Bucle de chequeo inicial de UUID ---
-            uuidval = self.configberry.get("SERVIDOR", "uuid", fallback="")
-            logger.info(f"UUID configurado: {uuidval[:8]}..." if uuidval else "UUID no configurado")
-            
-        except Exception as e:
-            logger.error(f"Error durante inicialización de ServiceController: {e}", exc_info=True)
-            raise
+        # --- Bucle de chequeo inicial de UUID ---
+        uuidval = self.configberry.get("SERVIDOR", "uuid", fallback="")
         if not uuidval:
             logger.error(f"UUID NO encontrado en config file: {uuidval}")
             os._exit(1)

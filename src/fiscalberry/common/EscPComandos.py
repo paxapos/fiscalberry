@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import datetime
-import logging
 from math import ceil
 import json
 import base64
@@ -83,10 +82,6 @@ class EscPComandos():
     printer = None
 
     def __init__(self, printer):
-        logger.info(f"=== Inicializando EscPComandos ===")
-        logger.info(f"Tipo de impresora: {type(printer).__name__}")
-        logger.debug(f"Impresora: {printer}")
-        
         self.printer = printer
         
         self.total_cols = 40
@@ -95,61 +90,32 @@ class EscPComandos():
         self.desc_cols =  self.total_cols - self.cant_cols - self.price_cols
         self.desc_cols_ext = self.total_cols - self.price_cols
         self.signo = "$" # Agregar el signo $ opcionalmente o espacio.
-        
-        logger.debug(f"Configuración de columnas - Total: {self.total_cols}, Precio: {self.price_cols}, "
-                    f"Cantidad: {self.cant_cols}, Descripción: {self.desc_cols}")
-        logger.info("EscPComandos inicializado exitosamente")
 
     def run(self, jsonTicket):
-        logger.info(f"=== EJECUTANDO COMANDOS ESCP ===")
-        logger.debug(f"Ticket JSON: {jsonTicket}")
-        
-        try:
-            with EscposIO(self.printer, autocut=False, autoclose=True) as escpos:
-                logger.debug("Conexión EscposIO establecida")
-                actions = jsonTicket.keys()
-                rta = []
-                
-                logger.info(f"Procesando {len(actions)} acciones: {list(actions)}")
-                
-                for action in actions:
-                    logger.debug(f"Procesando acción: '{action}'")
-                    fnAction = getattr(self, action, None)
+        with EscposIO(self.printer, autocut=False,autoclose=True) as escpos:
+            actions = jsonTicket.keys()
+            rta = []
+            for action in actions:
+                fnAction = getattr(self, action, None)
 
-                    if fnAction:
-                        params = jsonTicket[action]
-                        logger.debug(f"Parámetros para '{action}': {params}")
+                if fnAction:
+                    params = jsonTicket[action]
 
-                        try:
-                            if isinstance(params, list):
-                                res = fnAction(escpos, *params)
-                            elif isinstance(params, dict):
-                                res = fnAction(escpos, **params)
-                            else:
-                                res = fnAction(escpos, params)
-
-                            logger.info(f"Acción '{action}' ejecutada exitosamente")
-                            rta.append({"action": action, "rta": res})
-                        except Exception as e:
-                            error_msg = f"Error ejecutando acción '{action}': {e}"
-                            logger.error(error_msg, exc_info=True)
-                            rta.append({"action": action, "rta": f"Error: {error_msg}"})
+                    if isinstance(params, list):
+                        res = fnAction(escpos, *params)
+                    elif isinstance(params, dict):
+                        res = fnAction(escpos, **params)
                     else:
-                        error_msg = f"Función '{action}' no encontrada"
-                        logger.error(error_msg)
-                        rta.append({"action": action, "rta": "Function not found"})
+                        res = fnAction(escpos, params)
 
-                logger.info(f"=== COMANDOS ESCP COMPLETADOS ===")
-                logger.debug(f"Respuesta completa: {rta}")
-                return rta
-                
-        except Exception as e:
-            logger.error(f"Error crítico en EscPComandos.run: {e}", exc_info=True)
-            raise PrinterException(f"Error ejecutando comandos: {e}")
+                    rta.append({"action": action, "rta": res})
+                else:
+                    rta.append({"action": action, "rta": "Function not found"})
+
+            return rta
 
 
     def _sendCommand(self, comando, skipStatusErrors=False):
-        logger.debug(f"Enviando comando a impresora: {comando}")
         try:
             ret = self.printer.sendCommand(comando, skipStatusErrors)
             return ret
@@ -193,25 +159,8 @@ class EscPComandos():
             raise ValueError("No bytes provided to print")
         
 
-    def openDrawer(self, escpos: EscposIO, *args, **kwargs):
-        """
-        Abre el cajón de dinero.
-        Acepta argumentos adicionales para compatibilidad con diferentes formatos de llamada.
-        """
-        try:
-            # Intenta abrir el cajón con el comando estándar
-            escpos.printer.cashdraw(CD_KICK_2)
-            return {"status": "success", "message": "Cajón abierto correctamente"}
-        except Exception as e:
-            # Si falla, intenta con comandos alternativos
-            try:
-                # Comando alternativo para impresoras que requieren secuencia diferente
-                escpos.printer.control("\x1b\x70\x00\x19\x19")
-                return {"status": "success", "message": "Cajón abierto con comando alternativo"}
-            except Exception as e2:
-                error_msg = f"Error al abrir cajón: {e}, comando alternativo falló: {e2}"
-                logging.error(error_msg)
-                return {"status": "error", "message": error_msg}
+    def openDrawer(self, escpos: EscposIO, **kwargs):
+        escpos.printer.cashdraw(CD_KICK_2)
 
 
     def printPedido(self, escpos: EscposIO, **kwargs):

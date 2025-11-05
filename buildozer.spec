@@ -77,9 +77,9 @@ android.presplash_color = purple
 
 # (list) Permissions
 # Permisos necesarios para Fiscalberry Android:
-# - INTERNET: Conexión a RabbitMQ y SocketIO
+# - INTERNET: Conexión a RabbitMQ, SocketIO y WebView
 # - FOREGROUND_SERVICE: Servicio en segundo plano
-# - ACCESS_NETWORK_STATE, ACCESS_WIFI_STATE: Detectar conectividad
+# - ACCESS_NETWORK_STATE, ACCESS_WIFI_STATE: Detectar conectividad y para WebView
 # - WAKE_LOCK: Mantener el dispositivo activo durante impresión
 # - READ/WRITE_EXTERNAL_STORAGE: Guardar configuración y logs
 # - BLUETOOTH*: Para impresoras Bluetooth
@@ -99,6 +99,8 @@ android.minapi = 28
 
 # (int) Android NDK API to use. Should usually match android.minapi.
 android.ndk_api = 28
+
+android.sdkmanager_path = /home/vap/Android/Sdk/cmdline-tools/latest/bin/sdkmanager
 
 # (bool) Automatically accept SDK license agreements. Useful for CI.
 android.accept_sdk_license = True
@@ -126,6 +128,24 @@ android.release = false
 # (str) The format used to package the app for debug mode (apk).
 android.debug_artifact = apk
 android.debug = true
+
+# ====== CONFIGURACIÓN PARA DEEP LINKS ======
+# Esto permite que la app se abra desde links de la web
+
+# (str) XML file for additional intent filters
+# Este archivo se debe crear en: templates/AndroidManifest.tmpl.xml
+android.manifest.intent_filters = templates/intent_filters.xml
+
+# (str) Android app theme
+# Opcional: usar tema Material Design
+# android.theme = @android:style/Theme.Material.Light.DarkActionBar
+
+# (str) Android logcat filters to use
+# android.logcat_filters = *:S python:D
+
+# ====== META-DATA PARA APP LINKS ======
+# Esto mejora la vinculación automática sin necesidad de elegir navegador
+# android.meta_data = asset_statements:@xml/assetlinks
 
 #
 # Python for android (p4a) specific

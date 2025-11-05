@@ -1,0 +1,37 @@
+<!-- Intent filters para Deep Links y App Links -->
+<!-- Coloca este archivo en: templates/intent_filters.xml -->
+
+<!-- Deep Link con HTTPS (App Links) -->
+<intent-filter android:autoVerify="true">
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    
+    <!-- Link principal para vinculación -->
+    <data 
+        android:scheme="https"
+        android:host="beta.paxapos.com"
+        android:pathPrefix="/link-device" />
+    
+    <!-- También captura la raíz por si acaso -->
+    <data 
+        android:scheme="https"
+        android:host="beta.paxapos.com"
+        android:pathPrefix="/adopt" />
+</intent-filter>
+
+<!-- Deep Link con esquema personalizado (Fallback) -->
+<intent-filter>
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    
+    <!-- Esquema personalizado fiscalberry:// -->
+    <data 
+        android:scheme="fiscalberry"
+        android:host="adopt" />
+    
+    <data 
+        android:scheme="fiscalberry"
+        android:host="link" />
+</intent-filter>
