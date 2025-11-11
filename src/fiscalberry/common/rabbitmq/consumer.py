@@ -179,27 +179,27 @@ class RabbitMQConsumer:
                 # Verificar errores y acknowledment más rápido
                 if "err" in result:
                     error_msg = result['err']
-                    self.logger.error(f"Command error: {error_msg}")
+                    self.logger.error("Command execution failed: %s", error_msg)
                     
-                    # Publicar error a subcola del tenant
-                    try:
-                        publish_error(
-                            error_type="COMMAND_EXECUTION_ERROR",
-                            error_message=error_msg,
-                            context={
-                                "queue": self.queue,
-                                "processing_time": processing_time,
-                                "command_data": json_data if len(str(json_data)) < 1000 else "Data too large",
-                                "result": result
-                            }
-                        )
-                    except Exception as pub_err:
-                        self.logger.error(f"Error publishing to error queue: {pub_err}")
+                    # Publicar error a RabbitMQ
+                    publish_error(
+                        error_type="COMMAND_EXECUTION_ERROR",
+                        error_message=error_msg,
+                        context={
+                            "command": json_data,
+                            "result": result,
+                            "queue": self.queue
+                        }
+                    )
                     
+                    # Si es un error recuperable, podríamos reintentar o poner en una cola de espera
+                    # Por ahora, consideramos que es un error y no reconocemos el mensaje
                     ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                     return
                     
-                # Acknowledge inmediato para mayor throughput
+                self.logger.debug("Command processed successfully")
+
+                # Acknowledge the message ONLY after successful processing
                 ch.basic_ack(delivery_tag=method.delivery_tag)
                 
                 # Log optimizado solo para trabajos lentos
@@ -209,41 +209,53 @@ class RabbitMQConsumer:
                     self.logger.debug(f"Message processed in {processing_time:.2f}s")
 
             except TraductorException as e:
-                self.logger.error(f"Translator error: {e}")
+                self.logger.error("Translation error: %s", e)
+                self.logger.debug(traceback.format_exc())
                 
-                # Publicar error de traductor a subcola del tenant
-                try:
-                    publish_error(
-                        error_type="TRANSLATOR_ERROR",
-                        error_message=str(e),
-                        context={
-                            "queue": self.queue,
-                            "processing_time": time.time() - start_time,
-                            "command_data": json_data if len(str(json_data)) < 1000 else "Data too large"
-                        },
-                        exception=e
-                    )
-                except Exception as pub_err:
-                    self.logger.error(f"Error publishing translator error: {pub_err}")
+                # Publicar error a RabbitMQ
+                publish_error(
+                    error_type="TRANSLATOR_ERROR",
+                    error_message=str(e),
+                    context={
+                        "command": body_str[:500] if isinstance(body_str, str) else str(body)[:500],
+                        "queue": self.queue
+                    },
+                    exception=e
+                )
                 
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-            except Exception as e:
-                self.logger.error(f"Processing error: {e}")
                 
-                # Publicar error general a subcola del tenant
-                try:
-                    publish_error(
-                        error_type="PROCESSING_ERROR",
-                        error_message=str(e),
-                        context={
-                            "queue": self.queue,
-                            "processing_time": time.time() - start_time,
-                            "command_data": json_data if len(str(json_data)) < 1000 else "Data too large"
-                        },
-                        exception=e
-                    )
-                except Exception as pub_err:
-                    self.logger.error(f"Error publishing processing error: {pub_err}")
+            except json.JSONDecodeError as e:
+                self.logger.error("JSON decode error: %s", e)
+                self.logger.debug(traceback.format_exc())
+                
+                # Publicar error a RabbitMQ
+                publish_error(
+                    error_type="JSON_DECODE_ERROR",
+                    error_message=f"Invalid JSON format: {str(e)}",
+                    context={
+                        "raw_body": body_str[:500] if isinstance(body_str, str) else str(body)[:500],
+                        "queue": self.queue
+                    },
+                    exception=e
+                )
+                
+                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+                
+            except Exception as e:
+                self.logger.error("Message processing error: %s", e)
+                self.logger.debug(traceback.format_exc())
+                
+                # Publicar error a RabbitMQ
+                publish_error(
+                    error_type="PROCESSING_ERROR",
+                    error_message=f"Error processing message: {str(e)}",
+                    context={
+                        "raw_body": body_str[:500] if 'body_str' in locals() else str(body)[:500],
+                        "queue": self.queue
+                    },
+                    exception=e
+                )
                 
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                 

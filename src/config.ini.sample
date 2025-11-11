@@ -2,11 +2,21 @@
 uuid = test-uuid-1234-5678-9012
 sio_host = http://localhost:5000
 sio_password =
-# Configuración de logging
-# Niveles: DEBUG, INFO, WARNING, ERROR, CRITICAL
-log_level = INFO
-# Entorno: development, production
-environment = development
+
+[RabbitMq]
+# Configuración del servidor RabbitMQ
+host = rabbitmq.restodigital.com.ar
+port = 5672
+user = fiscalberry
+password = fiscalberry123
+vhost = /
+# La cola debe ser el identificador único del comercio/tenant
+queue = nombre-comercio-unico
+
+# NOTA: Los exchanges de errores se crean automáticamente:
+# - fiscalberry_errors (direct): Para errores del tenant específico
+# - fiscalberry_errors_topic (topic): Para panel de desarrollador (todos los errores)
+
 
 [IMPRESORA_FISCAL]
 marca = Hasar
