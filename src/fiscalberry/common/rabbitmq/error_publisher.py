@@ -50,13 +50,15 @@ class ErrorPublisher:
                 self.tenant = self.config.get("Paxaprinter", "tenant", fallback="")
                 if self.tenant:
                     self.error_queue_name = f"{self.tenant}_errors"
-                    logger.info(f"ErrorPublisher configurado para tenant: {self.tenant}")
+                    logger.info("ErrorPublisher initialized - Tenant: %s, Queue: %s", 
+                               self.tenant, self.error_queue_name)
                 else:
-                    logger.warning("Tenant no configurado en sección Paxaprinter")
+                    logger.warning("ErrorPublisher: Tenant not configured in Paxaprinter section")
             else:
-                logger.warning("Sección Paxaprinter no encontrada - ErrorPublisher deshabilitado")
+                logger.debug("ErrorPublisher: Paxaprinter section not found - error publishing disabled")
         except Exception as e:
-            logger.error(f"Error configurando tenant info: {e}")
+            logger.error("ErrorPublisher: Failed to setup tenant info - %s", e)
+            logger.debug(traceback.format_exc())
             
     def _get_rabbitmq_config(self) -> Dict[str, Any]:
         """Obtiene la configuración de RabbitMQ."""
@@ -68,10 +70,10 @@ class ErrorPublisher:
                 active_creds = process_handler.get_active_rabbitmq_credentials()
                 
                 if active_creds:
-                    logger.info("Usando credenciales activas del RabbitMQ Consumer")
+                    logger.debug("ErrorPublisher: Using active RabbitMQ consumer credentials")
                     return active_creds
             except Exception as e:
-                logger.debug(f"No se pudieron obtener credenciales activas: {e}")
+                logger.debug("ErrorPublisher: Could not obtain active credentials, using config - %s", e)
             
             # Intentar obtener configuración de Paxaprinter primero
             if self.config.config.has_section("Paxaprinter"):
@@ -102,7 +104,8 @@ class ErrorPublisher:
             }
             
         except Exception as e:
-            logger.error(f"Error obteniendo configuración RabbitMQ: {e}")
+            logger.error("ErrorPublisher: Failed to get RabbitMQ config - %s", e)
+            logger.debug(traceback.format_exc())
             return {
                 'host': 'localhost',
                 'port': 5672,
@@ -120,14 +123,18 @@ class ErrorPublisher:
         """
         with self._lock:
             if self._is_connected and self.connection and not self.connection.is_closed:
+                logger.debug("ErrorPublisher: Already connected")
                 return True
                 
             if not self.tenant or not self.error_queue_name:
-                logger.warning("Tenant no configurado - no se puede conectar ErrorPublisher")
+                logger.warning("ErrorPublisher: Cannot connect - tenant not configured")
                 return False
                 
             try:
                 config = self._get_rabbitmq_config()
+                
+                logger.debug("ErrorPublisher: Connecting to RabbitMQ - Host: %s:%s, VHost: %s, User: %s",
+                           config['host'], config['port'], config['vhost'], config['user'])
                 
                 credentials = pika.PlainCredentials(config['user'], config['password'])
                 parameters = pika.ConnectionParameters(
@@ -143,6 +150,8 @@ class ErrorPublisher:
                 # Establecer conexión
                 self.connection = pika.BlockingConnection(parameters)
                 self.channel = self.connection.channel()
+                
+                logger.debug("ErrorPublisher: RabbitMQ connection established")
                 
                 # Declarar exchange para errores
                 error_exchange = "fiscalberry_errors"
@@ -160,6 +169,9 @@ class ErrorPublisher:
                     durable=True
                 )
                 
+                logger.debug("ErrorPublisher: Exchanges declared - %s (direct), %s (topic)",
+                           error_exchange, dev_panel_exchange)
+                
                 # Declarar cola específica del tenant
                 self.channel.queue_declare(
                     queue=self.error_queue_name,
@@ -172,6 +184,9 @@ class ErrorPublisher:
                     queue=dev_panel_queue,
                     durable=True
                 )
+                
+                logger.debug("ErrorPublisher: Queues declared - %s (tenant), %s (dev panel)",
+                           self.error_queue_name, dev_panel_queue)
                 
                 # Enlazar cola del tenant al exchange directo
                 self.channel.queue_bind(
@@ -188,11 +203,13 @@ class ErrorPublisher:
                 )
                 
                 self._is_connected = True
-                logger.info(f"ErrorPublisher conectado exitosamente - Cola: {self.error_queue_name}")
+                logger.info("ErrorPublisher connected - Tenant: %s, Queue: %s, Exchanges: %s + %s",
+                           self.tenant, self.error_queue_name, error_exchange, dev_panel_exchange)
                 return True
                 
             except Exception as e:
-                logger.error(f"Error conectando ErrorPublisher: {e}")
+                logger.error("ErrorPublisher: Connection failed - %s", e)
+                logger.debug(traceback.format_exc())
                 self._is_connected = False
                 return False
     
@@ -203,9 +220,10 @@ class ErrorPublisher:
                 if self.connection and not self.connection.is_closed:
                     self.connection.close()
                 self._is_connected = False
-                logger.info("ErrorPublisher desconectado")
+                logger.debug("ErrorPublisher disconnected")
             except Exception as e:
-                logger.error(f"Error desconectando ErrorPublisher: {e}")
+                logger.error("ErrorPublisher: Disconnect failed - %s", e)
+                logger.debug(traceback.format_exc())
     
     def publish_error(self, error_type: str, error_message: str, 
                      context: Optional[Dict[str, Any]] = None, 
@@ -220,13 +238,15 @@ class ErrorPublisher:
             exception: Excepción original si está disponible
         """
         if not self.tenant:
+            logger.debug("ErrorPublisher: No tenant configured, skipping error publication")
             return  # No hay tenant configurado
             
         try:
             # Reconectar si es necesario
             if not self._is_connected:
+                logger.debug("ErrorPublisher: Not connected, attempting connection...")
                 if not self.connect():
-                    logger.warning("No se pudo conectar ErrorPublisher para publicar error")
+                    logger.warning("ErrorPublisher: Failed to connect - error not published")
                     return
             
             # Preparar payload del error
@@ -246,6 +266,12 @@ class ErrorPublisher:
                     'args': str(exception.args),
                     'traceback': traceback.format_exc()
                 }
+                logger.debug("ErrorPublisher: Exception details included in error payload")
+            
+            # Log del error que se va a publicar
+            logger.error("[%s] %s (Tenant: %s)", error_type, error_message, self.tenant)
+            logger.debug("ErrorPublisher: Publishing error - Type: %s, Context keys: %s",
+                        error_type, list(context.keys()) if context else [])
             
             # Publicar al exchange directo (para el tenant específico)
             with self._lock:
@@ -274,12 +300,14 @@ class ErrorPublisher:
                         )
                     )
                     
-                    logger.debug(f"Error publicado a colas {self.error_queue_name} y developer_panel: {error_type}")
+                    logger.info("Error published to RabbitMQ - Type: %s, Tenant: %s, Queues: [%s, developer_panel]",
+                               error_type, self.tenant, self.error_queue_name)
                 else:
-                    logger.warning("Canal RabbitMQ no disponible para publicar error")
+                    logger.warning("ErrorPublisher: RabbitMQ channel unavailable - error not published")
                     
         except Exception as e:
-            logger.error(f"Error publicando a cola de errores: {e}")
+            logger.error("ErrorPublisher: Failed to publish error - %s", e)
+            logger.debug(traceback.format_exc())
             # Marcar como desconectado para forzar reconexión
             self._is_connected = False
 
@@ -320,4 +348,5 @@ def publish_error(error_type: str, error_message: str,
         publisher = get_error_publisher()
         publisher.publish_error(error_type, error_message, context, exception)
     except Exception as e:
-        logger.error(f"Error en publish_error: {e}")
+        logger.error("publish_error: Critical failure - %s", e)
+        logger.debug(traceback.format_exc())
