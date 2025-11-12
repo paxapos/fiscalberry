@@ -10,6 +10,7 @@ from fiscalberry.common.Configberry import Configberry
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.EscPComandos import EscPComandos
 from fiscalberry.common.rabbitmq.error_publisher import publish_error
+from fiscalberry.common.printer_error_detector import PrinterErrorDetector, analyze_printer_response
 from escpos import printer
 from queue import Queue
 import traceback
@@ -53,16 +54,51 @@ print_queue = Queue(maxsize=500)  # Aumentar capacidad para mayor throughput
 worker_threads = []
 MAX_WORKERS = 3  # Número de workers concurrentes
 def report_queue_status():
+    """Monitorea el estado de la cola y alerta sobre problemas de acumulación"""
     qsize = print_queue.qsize()
-    if qsize > 50:  # Solo reportar cuando la cola esté más cargada
-        logging.info(f"Print queue busy: {qsize} jobs waiting")
-    elif qsize > 100:
-        logging.warning(f"Print queue overloaded: {qsize} jobs waiting")
-    threading.Timer(30.0, report_queue_status).start()  # Reportar más frecuentemente
+    
+    # Alertar sobre cola ocupada (más de 50 comandas)
+    if qsize > 50:
+        logging.warning(f"Print queue busy: {qsize} jobs waiting")
+        
+        if qsize > 100:
+            logging.error(f"Print queue overloaded: {qsize} jobs waiting")
+            
+            # Publicar alerta crítica de cola sobrecargada
+            publish_error(
+                error_type="QUEUE_OVERLOADED",
+                error_message=f"Print queue has {qsize} pending jobs (capacity: 500)",
+                context={
+                    "queue_size": qsize,
+                    "max_capacity": 500,
+                    "utilization_percent": (qsize / 500) * 100,
+                    "active_workers": MAX_WORKERS
+                }
+            )
+        
+        elif qsize > 200:
+            # Alerta crítica - cola cerca de capacidad máxima
+            logging.critical(f"Print queue CRITICAL: {qsize} jobs waiting (near capacity)")
+            
+            publish_error(
+                error_type="QUEUE_NEAR_CAPACITY",
+                error_message=f"Print queue critically overloaded with {qsize} jobs",
+                context={
+                    "queue_size": qsize,
+                    "max_capacity": 500,
+                    "utilization_percent": (qsize / 500) * 100,
+                    "warning": "Queue may start rejecting new jobs soon"
+                }
+            )
+    
+    threading.Timer(30.0, report_queue_status).start()  # Reportar cada 30 segundos
 
 def process_print_jobs(worker_id=0):
-    """Worker optimizado para procesar trabajos de impresión"""
+    """Worker optimizado para procesar trabajos de impresión con detección de comandas trabadas"""
     logger.info(f"Print worker {worker_id} started")
+    
+    # Umbral de tiempo para considerar una comanda como trabada
+    STUCK_JOB_THRESHOLD = 30.0  # 30 segundos
     
     while True:
         try:
@@ -73,6 +109,7 @@ def process_print_jobs(worker_id=0):
                 break
             
             jsonTicket, q = job_data
+            printer_name = jsonTicket.get('printerName', 'unknown')
             
             start_time = time.time()
             try:
@@ -82,14 +119,57 @@ def process_print_jobs(worker_id=0):
                 # Respuesta optimizada sin nested dicts innecesarios
                 q.put({"success": True, "result": result, "processing_time": processing_time})
                 
-                # Log optimizado solo para trabajos lentos
-                if processing_time > 2.0:
-                    logger.warning(f"Slow print job completed in {processing_time:.2f}s by worker {worker_id}")
+                # Detectar trabajos lentos (pueden indicar problemas)
+                if processing_time > 5.0:
+                    logger.warning(f"Slow print job completed in {processing_time:.2f}s by worker {worker_id} for printer '{printer_name}'")
+                    
+                    # Alertar si el trabajo está cerca de trabarse
+                    if processing_time > 15.0:
+                        publish_error(
+                            error_type="SLOW_PRINT_JOB",
+                            error_message=f"Print job took {processing_time:.2f}s to complete",
+                            context={
+                                "worker_id": worker_id,
+                                "printer_name": printer_name,
+                                "processing_time": processing_time,
+                                "queue_size": print_queue.qsize()
+                            }
+                        )
+                
+                # Detectar comandas trabadas (timeout excedido)
+                elif processing_time > STUCK_JOB_THRESHOLD:
+                    logger.error(f"STUCK JOB DETECTED: Print job took {processing_time:.2f}s (threshold: {STUCK_JOB_THRESHOLD}s)")
+                    
+                    publish_error(
+                        error_type="STUCK_PRINT_JOB",
+                        error_message=f"Print job got stuck for {processing_time:.2f}s",
+                        context={
+                            "worker_id": worker_id,
+                            "printer_name": printer_name,
+                            "processing_time": processing_time,
+                            "threshold": STUCK_JOB_THRESHOLD,
+                            "queue_size": print_queue.qsize()
+                        }
+                    )
                     
             except Exception as e:
                 processing_time = time.time() - start_time
                 error_msg = str(e)
                 logger.error(f"Worker {worker_id} print job failed in {processing_time:.2f}s: {error_msg}")
+                
+                # Publicar error de trabajo fallido
+                publish_error(
+                    error_type="PRINT_JOB_FAILED",
+                    error_message=f"Print job failed: {error_msg}",
+                    context={
+                        "worker_id": worker_id,
+                        "printer_name": printer_name,
+                        "processing_time": processing_time,
+                        "error": error_msg
+                    },
+                    exception=e
+                )
+                
                 q.put({"success": False, "error": error_msg, "processing_time": processing_time})
 
             print_queue.task_done()
@@ -99,6 +179,13 @@ def process_print_jobs(worker_id=0):
             continue
         except Exception as e:
             logger.error(f"Worker {worker_id} unexpected error: {e}")
+            
+            publish_error(
+                error_type="WORKER_CRITICAL_ERROR",
+                error_message=f"Worker {worker_id} encountered critical error",
+                context={"worker_id": worker_id},
+                exception=e
+            )
             continue
 
 # Iniciar workers optimizados
@@ -300,22 +387,25 @@ def runTraductor(jsonTicket, queue):
         result = comando.run(jsonTicket)
         logger.info(f"=== IMPRESIÓN EXITOSA ===")
         logger.debug(f"Resultado: {result}")
+        
+        # Analizar la respuesta de la impresora buscando mensajes de error/warning
+        analyze_printer_response(result, printerName)
+        
         return {"message": "Impresión exitosa", "result": result}
     except Exception as e:
         error_msg = f"Print error: {str(e)}"
         logging.error(error_msg)
         
-        # Publicar error a RabbitMQ
-        publish_error(
-            error_type="PRINTER_ACTION_ERROR",
+        # Detectar tipo específico de error y publicar
+        error_type, description = PrinterErrorDetector.detect_and_publish_error(
             error_message=error_msg,
+            exception=e,
             context={
                 "printer_name": printerName,
                 "driver": driverName,
                 "driver_ops": driverOps,
                 "command": jsonTicket
-            },
-            exception=e
+            }
         )
         
         raise e
@@ -444,13 +534,24 @@ class ComandosHandler:
                     print_queue.put_nowait((jsonTicket, q))
                     logger.debug(f"Job queued fast. Queue size: {current_queue_size + 1}")
                     
-                    # Timeout más agresivo para mayor throughput
-                    result = q.get(timeout=15)  # Reducido de 30 a 15 segundos
+                    # Timeout de 30 segundos para detectar comandas trabadas
+                    result = q.get(timeout=30)
                     
                     if isinstance(result, dict):
                         if not result.get("success", True):
                             error_msg = result.get("error", "Error desconocido en la impresión")
                             logger.error(f"Print job failed: {error_msg}")
+                            
+                            # Publicar error de impresión fallida
+                            publish_error(
+                                error_type="PRINT_JOB_ERROR",
+                                error_message=error_msg,
+                                context={
+                                    "printer_name": printer_name,
+                                    "processing_time": result.get("processing_time", 0)
+                                }
+                            )
+                            
                             rta["err"] = error_msg
                         else:
                             # Log optimizado con tiempo de procesamiento
@@ -463,16 +564,51 @@ class ComandosHandler:
                         rta["rta"] = result
                         
                 except queue.Full:
-                    error_msg = f"Print queue full. Cannot queue job for '{printer_name}'"
+                    error_msg = f"Print queue full ({current_queue_size}/500). Cannot queue job for '{printer_name}'"
                     logger.error(error_msg)
+                    
+                    # Publicar alerta de cola llena
+                    publish_error(
+                        error_type="QUEUE_FULL",
+                        error_message=error_msg,
+                        context={
+                            "printer_name": printer_name,
+                            "queue_size": current_queue_size,
+                            "max_capacity": 500
+                        }
+                    )
+                    
                     rta["err"] = error_msg
+                    
                 except queue.Empty:
-                    error_msg = f"Print timeout for '{printer_name}' (15s)"
+                    error_msg = f"Print TIMEOUT for '{printer_name}' (30s) - Job may be stuck"
                     logger.error(error_msg)
+                    
+                    # Publicar alerta de timeout (comanda trabada)
+                    publish_error(
+                        error_type="PRINT_TIMEOUT",
+                        error_message=error_msg,
+                        context={
+                            "printer_name": printer_name,
+                            "timeout_seconds": 30,
+                            "queue_size": print_queue.qsize()
+                        }
+                    )
+                    
                     rta["err"] = error_msg
+                    
                 except Exception as e:
                     error_msg = f"Print queue error: {e}"
                     logger.error(error_msg, exc_info=True)
+                    
+                    # Publicar error de cola
+                    publish_error(
+                        error_type="QUEUE_ERROR",
+                        error_message=error_msg,
+                        context={"printer_name": printer_name},
+                        exception=e
+                    )
+                    
                     rta["err"] = error_msg
 
             

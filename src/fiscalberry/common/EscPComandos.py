@@ -6,6 +6,7 @@ import json
 import base64
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.rabbitmq.error_publisher import publish_error
+from fiscalberry.common.printer_error_detector import PrinterErrorDetector, analyze_printer_response
 from escpos.escpos import EscposIO
 from escpos.constants import QR_ECLEVEL_H,CD_KICK_2
 
@@ -135,11 +136,11 @@ class EscPComandos():
                             error_msg = f"Error ejecutando acción '{action}': {e}"
                             logger.error(error_msg, exc_info=True)
                             
-                            # Publicar error a RabbitMQ
+                            # Detectar tipo específico de error y publicar
                             try:
-                                publish_error(
-                                    error_type="PRINTER_ACTION_ERROR",
+                                PrinterErrorDetector.detect_and_publish_error(
                                     error_message=error_msg,
+                                    exception=e,
                                     context={
                                         "action": action,
                                         "params": params,
@@ -157,17 +158,23 @@ class EscPComandos():
 
                 logger.info(f"=== COMANDOS ESCP COMPLETADOS ===")
                 logger.debug(f"Respuesta completa: {rta}")
+                
+                # Analizar respuestas buscando mensajes de error/warning
+                for item in rta:
+                    if isinstance(item, dict) and 'rta' in item:
+                        analyze_printer_response(item['rta'], "current_printer")
+                
                 return rta
                 
         except Exception as e:
             error_msg = f"Error crítico en EscPComandos.run: {e}"
             logger.error(error_msg, exc_info=True)
             
-            # Publicar error crítico a RabbitMQ
+            # Detectar tipo específico de error crítico y publicar
             try:
-                publish_error(
-                    error_type="PRINTER_CRITICAL_ERROR",
+                PrinterErrorDetector.detect_and_publish_error(
                     error_message=error_msg,
+                    exception=e,
                     context={
                         "jsonTicket": jsonTicket,
                         "exception_type": type(e).__name__
