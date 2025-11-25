@@ -1,3 +1,7 @@
+# ============================================
+# ARCHIVO: src/fiscalberry/ui/kv/main.kv
+# ============================================
+
 ScreenManager:
     LoginScreen:
         name: "login"
@@ -78,9 +82,9 @@ ScreenManager:
         Widget:
             size_hint_y: 0.2
         
-        # Botón para abrir en navegador (WebView en Android, navegador en Desktop)
+        # Botón para abrir en navegador
         Button:
-            text: "Iniciar Sesión en Paxapos"
+            text: "Abrir vinculación"
             size_hint_y: None
             height: dp(50)
             background_normal: ''
@@ -94,7 +98,7 @@ ScreenManager:
                     radius: [25]
             font_size: sp(16)
             color: 1, 1, 1, 1
-            on_press: root.open_web_login()
+            on_press: import webbrowser; webbrowser.open(root.adoptarLink)
         
         Widget:
             size_hint_y: 0.5
@@ -294,7 +298,7 @@ ScreenManager:
                 size_hint_y: None
                 height: dp(22)
         
-        # Estado de conexiones
+        # Diccionario - NUEVA SECCIÓN
         BoxLayout:
             orientation: 'vertical'
             size_hint_y: None
@@ -310,7 +314,7 @@ ScreenManager:
                     radius: [10]
             
             Label:
-                text: "Estado de Conexión"
+                text: "Diccionario"
                 font_size: sp(16)
                 bold: True
                 color: 0.2, 0.2, 0.2, 1
@@ -320,43 +324,22 @@ ScreenManager:
                 size_hint_y: None
                 height: dp(25)
             
-            BoxLayout:
-                orientation: 'horizontal'
+            Button:
+                text: "Abrir Documentación"
                 size_hint_y: None
-                height: dp(30)
-                spacing: dp(10)
-                
-                Image:
-                    source: root.connected_image if app.sioConnected else root.disconnected_image
-                    size_hint: None, None
-                    size: dp(24), dp(24)
-                
-                Label:
-                    text: "Nube (Sync): " + ("Conectado" if app.sioConnected else "Desconectado")
-                    color: (0.2, 0.7, 0.2, 1) if app.sioConnected else (0.9, 0.3, 0.3, 1)
-                    font_size: sp(14)
-                    halign: 'left'
-                    valign: 'middle'
-                    text_size: self.width, None
-            
-            BoxLayout:
-                orientation: 'horizontal'
-                size_hint_y: None
-                height: dp(30)
-                spacing: dp(10)
-                
-                Image:
-                    source: root.connected_image if app.rabbitMqConnected else root.disconnected_image
-                    size_hint: None, None
-                    size: dp(24), dp(24)
-                
-                Label:
-                    text: "Cola Local (Cmds): " + ("Conectado" if app.rabbitMqConnected else "Desconectado")
-                    color: (0.2, 0.7, 0.2, 1) if app.rabbitMqConnected else (0.9, 0.3, 0.3, 1)
-                    font_size: sp(14)
-                    halign: 'left'
-                    valign: 'middle'
-                    text_size: self.width, None
+                height: dp(50)
+                background_normal: ''
+                background_color: 0, 0, 0, 0
+                canvas.before:
+                    Color:
+                        rgba: 0.2, 0.5, 0.9, 1
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [25]
+                font_size: sp(14)
+                color: 1, 1, 1, 1
+                on_press: import webbrowser; webbrowser.open("http://doc.paxapos.com/")
         
         # Información de impresión
         BoxLayout:
@@ -513,7 +496,6 @@ ScreenManager:
                     text: root.logs
                     readonly: True
                     font_size: sp(12)
-                    font_name: 'RobotoMono-Regular'
                     background_color: 0.95, 0.95, 0.95, 1
                     foreground_color: 0.2, 0.2, 0.2, 1
                     size_hint_y: None
