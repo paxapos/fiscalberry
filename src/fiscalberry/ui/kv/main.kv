@@ -226,7 +226,7 @@ ScreenManager:
                 pos: self.pos
                 size: self.size
         
-        # Header
+        # Header con ícono de diccionario
         BoxLayout:
             orientation: 'horizontal'
             size_hint_y: None
@@ -248,6 +248,16 @@ ScreenManager:
                 halign: 'left'
                 valign: 'middle'
                 text_size: self.size
+            
+            # Botón minimalista solo con ícono de libro
+            Button:
+                size_hint: None, None
+                size: dp(30), dp(30)
+                background_normal: "fiscalberry/ui/assets/book.png"
+                background_down: "fiscalberry/ui/assets/book.png"
+                background_color: 1, 1, 1, 1
+                border: (0, 0, 0, 0)
+                on_press: import webbrowser; webbrowser.open("http://doc.paxapos.com/")
         
         Separator:
         
@@ -296,49 +306,6 @@ ScreenManager:
                 text_size: self.width, None
                 size_hint_y: None
                 height: dp(22)
-        
-        # Diccionario - NUEVA SECCIÓN
-        BoxLayout:
-            orientation: 'vertical'
-            size_hint_y: None
-            height: dp(110)
-            spacing: dp(8)
-            padding: dp(15)
-            canvas.before:
-                Color:
-                    rgba: 1, 1, 1, 1
-                RoundedRectangle:
-                    pos: self.pos
-                    size: self.size
-                    radius: [10]
-            
-            Label:
-                text: "Diccionario"
-                font_size: sp(16)
-                bold: True
-                color: 0.2, 0.2, 0.2, 1
-                halign: 'left'
-                valign: 'middle'
-                text_size: self.width, None
-                size_hint_y: None
-                height: dp(25)
-            
-            Button:
-                text: "Abrir Documentación"
-                size_hint_y: None
-                height: dp(50)
-                background_normal: ''
-                background_color: 0, 0, 0, 0
-                canvas.before:
-                    Color:
-                        rgba: 0.2, 0.5, 0.9, 1
-                    RoundedRectangle:
-                        pos: self.pos
-                        size: self.size
-                        radius: [25]
-                font_size: sp(14)
-                color: 1, 1, 1, 1
-                on_press: import webbrowser; webbrowser.open("http://docs.paxapos.com/")
         
         # Información de impresión
         BoxLayout:
@@ -402,6 +369,24 @@ ScreenManager:
                     text_size: self.width, None
                     size_hint_x: 0.5
         
+        # Botón de logs
+        Button:
+            text: "Ver Logs de Impresión"
+            size_hint_y: None
+            height: dp(50)
+            background_normal: ''
+            background_color: 0, 0, 0, 0
+            canvas.before:
+                Color:
+                    rgba: 0.3, 0.3, 0.3, 1
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [25]
+            font_size: sp(14)
+            color: 1, 1, 1, 1
+            on_press: app.root.current = "logs"
+        
         Widget:
         
         # Footer
@@ -431,21 +416,15 @@ ScreenManager:
             height: dp(50)
             spacing: dp(10)
             
+            # Botón minimalista de volver
             Button:
-                text: "← Volver"
+                text: "Volver"
                 size_hint: None, None
-                size: dp(80), dp(40)
+                size: dp(100), dp(40)
                 background_normal: ''
                 background_color: 0, 0, 0, 0
-                canvas.before:
-                    Color:
-                        rgba: 0.2, 0.5, 0.9, 1
-                    RoundedRectangle:
-                        pos: self.pos
-                        size: self.size
-                        radius: [20]
                 font_size: sp(14)
-                color: 1, 1, 1, 1
+                color: 0.4, 0.4, 0.4, 1
                 on_press: app.root.current = "main"
             
             Label:
@@ -483,21 +462,3 @@ ScreenManager:
                     height: max(self.minimum_height, scroll_view.height)
                     multiline: True
                     padding: [dp(10), dp(10)]
-        
-        # Botón para abrir archivo
-        Button:
-            text: "Abrir Archivo de Log"
-            size_hint_y: None
-            height: dp(45)
-            background_normal: ''
-            background_color: 0, 0, 0, 0
-            canvas.before:
-                Color:
-                    rgba: 0.3, 0.3, 0.3, 1
-                RoundedRectangle:
-                    pos: self.pos
-                    size: self.size
-                    radius: [22.5]
-            font_size: sp(14)
-            color: 1, 1, 1, 1
-            on_press: root.open_log_file()
