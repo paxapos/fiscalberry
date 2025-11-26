@@ -1,7 +1,6 @@
 # ============================================
 # ARCHIVO: src/fiscalberry/ui/kv/main.kv
 # ============================================
-
 ScreenManager:
     LoginScreen:
         name: "login"
@@ -339,7 +338,7 @@ ScreenManager:
                         radius: [25]
                 font_size: sp(14)
                 color: 1, 1, 1, 1
-                on_press: import webbrowser; webbrowser.open("http://doc.paxapos.com/")
+                on_press: import webbrowser; webbrowser.open("http://docs.paxapos.com/")
         
         # Información de impresión
         BoxLayout:
@@ -402,24 +401,6 @@ ScreenManager:
                     valign: 'middle'
                     text_size: self.width, None
                     size_hint_x: 0.5
-        
-        # Botón de logs
-        Button:
-            text: "Ver Logs de Impresión"
-            size_hint_y: None
-            height: dp(50)
-            background_normal: ''
-            background_color: 0, 0, 0, 0
-            canvas.before:
-                Color:
-                    rgba: 0.3, 0.3, 0.3, 1
-                RoundedRectangle:
-                    pos: self.pos
-                    size: self.size
-                    radius: [25]
-            font_size: sp(14)
-            color: 1, 1, 1, 1
-            on_press: app.root.current = "logs"
         
         Widget:
         
