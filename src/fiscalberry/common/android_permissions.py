@@ -3,10 +3,18 @@
 
 """
 Helper para gestionar permisos de Android en runtime
+Sistema mejorado con callbacks para manejar respuestas del usuario
 """
 
 from fiscalberry.common.fiscalberry_logger import getLogger
+import time
+from typing import Callable, Optional, List, Dict
+
 logger = getLogger("AndroidPermissions")
+
+# Callbacks globales para notificar cambios en permisos
+_permission_granted_callbacks = []
+_permission_denied_callbacks = []
 
 # Detectar si estamos en Android y obtener información de la versión
 ANDROID = False
@@ -17,9 +25,14 @@ try:
     ANDROID = True
     
     # Obtener el nivel de API actual
-    Build = autoclass('android.os.Build')
-    ANDROID_API_LEVEL = Build.VERSION.SDK_INT
-    logger.info(f"Módulo de permisos Android disponible - API Level: {ANDROID_API_LEVEL}")
+    try:
+        BuildVersion = autoclass('android.os.Build$VERSION')
+        ANDROID_API_LEVEL = BuildVersion.SDK_INT
+        logger.info(f"Módulo de permisos Android disponible - API Level: {ANDROID_API_LEVEL}")
+    except Exception as e:
+        logger.warning(f"No se pudo obtener API Level: {e}")
+        ANDROID_API_LEVEL = 23  # Asumir API 23 (Android 6.0) como mínimo
+        logger.info(f"Usando API Level por defecto: {ANDROID_API_LEVEL}")
 except ImportError:
     logger.debug("android.permissions no disponible - no es Android")
 
@@ -30,8 +43,6 @@ FISCALBERRY_PERMISSIONS_BASE = [
     'android.permission.ACCESS_NETWORK_STATE',
     'android.permission.ACCESS_WIFI_STATE',
     'android.permission.WAKE_LOCK',
-    'android.permission.READ_EXTERNAL_STORAGE',
-    'android.permission.WRITE_EXTERNAL_STORAGE',
     'android.permission.BLUETOOTH',
     'android.permission.BLUETOOTH_ADMIN',
 ]
@@ -51,6 +62,13 @@ FISCALBERRY_PERMISSIONS_API_31_PLUS = [
     'android.permission.ACCESS_FINE_LOCATION',  # Requerido para BLUETOOTH_SCAN
 ]
 
+# Permisos de almacenamiento (deprecados en Android 13+)
+# Solo necesarios en Android 12 y anteriores para guardar config.ini y logs
+FISCALBERRY_PERMISSIONS_STORAGE_LEGACY = [
+    'android.permission.READ_EXTERNAL_STORAGE',
+    'android.permission.WRITE_EXTERNAL_STORAGE',
+]
+
 
 def get_required_permissions():
     """
@@ -63,6 +81,14 @@ def get_required_permissions():
         return []
     
     permissions = FISCALBERRY_PERMISSIONS_BASE.copy()
+    
+    # Permisos de almacenamiento solo para Android 12 y anteriores
+    # En Android 13+ (API 33+) estos permisos están deprecados
+    if ANDROID_API_LEVEL < 33:  # Solo Android 12 y anteriores
+        permissions.extend(FISCALBERRY_PERMISSIONS_STORAGE_LEGACY)
+        logger.debug(f"Android {ANDROID_API_LEVEL} < 33: agregando permisos de almacenamiento legacy")
+    else:
+        logger.debug(f"Android {ANDROID_API_LEVEL} >= 33: permisos de almacenamiento no necesarios")
     
     # Agregar permisos según nivel de API
     if ANDROID_API_LEVEL >= 23:  # Android 6.0+
@@ -112,6 +138,28 @@ def is_permission_supported(permission):
     return supported
 
 
+def add_permission_granted_callback(callback: Callable):
+    """Registra callback para cuando se otorga un permiso"""
+    if callback not in _permission_granted_callbacks:
+        _permission_granted_callbacks.append(callback)
+        logger.debug(f"Callback registrado: {callback.__name__}")
+
+
+def add_permission_denied_callback(callback: Callable):
+    """Registra callback para cuando se deniega un permiso"""
+    if callback not in _permission_denied_callbacks:
+        _permission_denied_callbacks.append(callback)
+        logger.debug(f"Callback registrado: {callback.__name__}")
+
+
+def remove_permission_callback(callback: Callable):
+    """Elimina un callback registrado"""
+    if callback in _permission_granted_callbacks:
+        _permission_granted_callbacks.remove(callback)
+    if callback in _permission_denied_callbacks:
+        _permission_denied_callbacks.remove(callback)
+
+
 def check_all_permissions():
     """
     Verifica si todos los permisos necesarios están otorgados.
@@ -120,11 +168,12 @@ def check_all_permissions():
         dict: Diccionario con el estado de cada permiso
     """
     if not ANDROID:
-        return {'all_granted': True, 'details': {}}
+        return {'all_granted': True, 'details': {}, 'missing': []}
     
     try:
         required_permissions = get_required_permissions()
         results = {}
+        missing = []
         all_granted = True
         
         for permission in required_permissions:
@@ -135,6 +184,7 @@ def check_all_permissions():
                 
                 if not granted:
                     all_granted = False
+                    missing.append(permission)
                     logger.warning(f"Permiso no otorgado: {permission}")
                 else:
                     logger.debug(f"Permiso otorgado: {permission}")
@@ -142,29 +192,37 @@ def check_all_permissions():
             except Exception as e:
                 logger.error(f"Error verificando permiso {permission}: {e}")
                 results[permission] = False
+                missing.append(permission)
                 all_granted = False
         
         return {
             'all_granted': all_granted,
             'details': results,
+            'missing': missing,
+            'missing_count': len(missing),
             'api_level': ANDROID_API_LEVEL,
             'total_permissions': len(required_permissions)
         }
         
     except Exception as e:
         logger.error(f"Error verificando permisos: {e}", exc_info=True)
-        return {'all_granted': False, 'details': {}}
+        return {'all_granted': False, 'details': {}, 'missing': []}
 
 
-def request_all_permissions():
+def request_all_permissions(callback_on_complete: Optional[Callable] = None):
     """
     Solicita todos los permisos necesarios de una vez.
+    
+    Args:
+        callback_on_complete: Función a llamar cuando se complete la solicitud
     
     Returns:
         bool: True si se solicitaron los permisos correctamente
     """
     if not ANDROID:
         logger.debug("No es Android - permisos no necesarios")
+        if callback_on_complete:
+            callback_on_complete(True)
         return True
     
     try:
@@ -183,6 +241,7 @@ def request_all_permissions():
         
         if missing_permissions:
             logger.info(f"Solicitando {len(missing_permissions)} permisos faltantes...")
+            logger.info("⚠️ El usuario verá diálogos de permisos del sistema")
             
             # Método 1: Usar request_permissions de python-for-android
             try:
@@ -199,14 +258,51 @@ def request_all_permissions():
                 except Exception as e2:
                     logger.error(f"ActivityCompat también falló: {e2}")
             
+            # Esperar un poco para que el usuario responda
+            if callback_on_complete:
+                # Programar verificación después de 2 segundos
+                from kivy.clock import Clock
+                Clock.schedule_once(lambda dt: _verify_and_callback(callback_on_complete), 2)
+            
             return True
         else:
             logger.info("Todos los permisos ya están otorgados")
+            if callback_on_complete:
+                callback_on_complete(True)
             return True
             
     except Exception as e:
         logger.error(f"Error solicitando permisos: {e}", exc_info=True)
+        if callback_on_complete:
+            callback_on_complete(False)
         return False
+
+
+def _verify_and_callback(callback: Callable):
+    """Verifica permisos y ejecuta callback"""
+    try:
+        status = check_all_permissions()
+        success = status['all_granted']
+        
+        if success:
+            logger.info("✅ Todos los permisos otorgados")
+            for cb in _permission_granted_callbacks:
+                try:
+                    cb()
+                except Exception as e:
+                    logger.error(f"Error en callback granted: {e}")
+        else:
+            logger.warning(f"⚠️ {status['missing_count']} permisos faltantes")
+            for cb in _permission_denied_callbacks:
+                try:
+                    cb(status['missing'])
+                except Exception as e:
+                    logger.error(f"Error en callback denied: {e}")
+        
+        callback(success)
+    except Exception as e:
+        logger.error(f"Error en verificación: {e}")
+        callback(False)
 
 
 def _request_permissions_via_activity_compat(permissions):

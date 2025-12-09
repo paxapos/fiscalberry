@@ -141,7 +141,7 @@ class FiscalberryApp(App):
             return False
     
     def _request_android_permissions(self):
-        """Solicita todos los permisos necesarios en Android"""
+        """Solicita todos los permisos necesarios en Android automáticamente"""
         try:
             logger.info("="*70)
             logger.info("SOLICITANDO PERMISOS DE ANDROID")
@@ -150,73 +150,35 @@ class FiscalberryApp(App):
             # Importar módulos de permisos de forma segura
             try:
                 from fiscalberry.common.android_permissions import (
-                    request_all_permissions, 
-                    get_permissions_status_summary,
-                    request_storage_permissions,
-                    request_network_permissions,
-                    request_bluetooth_permissions
+                    request_all_permissions,
+                    check_all_permissions
                 )
                 logger.debug("✓ Módulos de permisos importados correctamente")
             except ImportError as e:
                 logger.warning(f"No se pudieron importar módulos de permisos: {e}")
                 return
             
-            # Solicitar permisos de forma segura
+            # Verificar estado actual de permisos
             try:
-                logger.info("\n1️⃣ Solicitando permisos de almacenamiento...")
-                request_storage_permissions()
-            except Exception as e:
-                logger.warning(f"Error en permisos de almacenamiento: {e}")
-            
-            try:
-                logger.info("\n2️⃣ Solicitando permisos de red...")
-                request_network_permissions()
-            except Exception as e:
-                logger.warning(f"Error en permisos de red: {e}")
-            
-            try:
-                logger.info("\n3️⃣ Solicitando permisos de Bluetooth...")
-                logger.info("⚠️ IMPORTANTE: Debes ACEPTAR los permisos de Bluetooth en el diálogo")
-                request_bluetooth_permissions()
-            except Exception as e:
-                logger.warning(f"Error en permisos de Bluetooth: {e}")
-            
-            try:
-                logger.info("\n4️⃣ Solicitando permisos adicionales...")
-                request_all_permissions()
-            except Exception as e:
-                logger.warning(f"Error en permisos adicionales: {e}")
-            
-            # Mostrar resumen de forma segura
-            try:
-                logger.info("\n" + "="*70)
-                status = get_permissions_status_summary()
-                logger.info(f"\n{status}")
-            except Exception as e:
-                logger.warning(f"Error obteniendo resumen de permisos: {e}")
-            
-            # Verificar permisos de Bluetooth específicamente de forma segura
-            try:
-                from android.permissions import check_permission
-                bt_connect = check_permission('android.permission.BLUETOOTH_CONNECT')
-                bt_scan = check_permission('android.permission.BLUETOOTH_SCAN')
+                status = check_all_permissions()
+                logger.info(f"Estado: {status['total_permissions']} permisos requeridos")
+                logger.info(f"Otorgados: {status['total_permissions'] - status['missing_count']}")
+                logger.info(f"Faltantes: {status['missing_count']}")
                 
-                if not bt_connect or not bt_scan:
-                    logger.warning("\n⚠️⚠️⚠️ PERMISOS DE BLUETOOTH NO OTORGADOS ⚠️⚠️⚠️")
-                    logger.warning("Para usar impresoras Bluetooth, debes:")
-                    logger.warning("1. Ir a Configuración → Apps → Fiscalberry → Permisos")
-                    logger.warning("2. Habilitar 'Dispositivos cercanos' o 'Bluetooth'")
-                    logger.warning("3. Reiniciar la app")
+                if not status['all_granted']:
+                    logger.info("⚠️ Solicitando permisos faltantes automáticamente...")
+                    # Solicitar permisos directamente (aparecerán diálogos nativos de Android)
+                    request_all_permissions(callback_on_complete=self._on_permissions_result)
                 else:
-                    logger.info("\n✅ Permisos de Bluetooth otorgados correctamente")
+                    logger.info("✅ Todos los permisos ya otorgados")
+                    
             except Exception as e:
-                logger.warning(f"Error verificando permisos de Bluetooth: {e}")
+                logger.warning(f"Error verificando permisos: {e}")
             
             logger.info("="*70)
             
         except Exception as e:
-            logger.error(f"Error general solicitando permisos Android: {e}", exc_info=True)
-            # No re-lanzar la excepción para evitar crash de la app
+            logger.error(f"Error general verificando permisos Android: {e}", exc_info=True)
     
     def _start_android_service(self):
         """Inicia el servicio Android en segundo plano"""
@@ -330,6 +292,7 @@ class FiscalberryApp(App):
                 logger.debug(f"No se pudo configurar cierre de ventana: {e}")
         
         # CRÍTICO: Determinar pantalla inicial basada en estado de adopción
+        # (Los permisos se solicitan automáticamente en __init__)
         if self._configberry.is_comercio_adoptado():
             # Comercio YA adoptado → ir a main directamente
             sm.current = 'main'
@@ -571,6 +534,54 @@ class FiscalberryApp(App):
             self.tenant = ""
             self.siteName = ""
             self.siteAlias = ""
+
+    def _on_permissions_result(self, success):
+        """Callback cuando se completa la solicitud de permisos"""
+        if success:
+            logger.info("✅ Todos los permisos otorgados correctamente")
+        else:
+            logger.warning("⚠️ Algunos permisos fueron denegados")
+            logger.warning("La aplicación puede tener funcionalidad limitada")
+            # Mostrar toast o notificación en la UI actual
+            self._show_permission_warning()
+    
+    def _show_permission_warning(self):
+        """Muestra advertencia sobre permisos faltantes en la UI actual"""
+        try:
+            from kivy.uix.popup import Popup
+            from kivy.uix.label import Label
+            from kivy.uix.button import Button
+            from kivy.uix.boxlayout import BoxLayout
+            
+            content = BoxLayout(orientation='vertical', padding=10, spacing=10)
+            content.add_widget(Label(
+                text='Algunos permisos no fueron otorgados.\n\n'
+                     'La aplicación puede tener funcionalidad limitada.\n\n'
+                     'Puedes otorgar los permisos desde:\n'
+                     'Configuración → Apps → Fiscalberry → Permisos',
+                size_hint_y=0.8
+            ))
+            
+            btn = Button(text='Entendido', size_hint_y=0.2)
+            content.add_widget(btn)
+            
+            popup = Popup(
+                title='Permisos Faltantes',
+                content=content,
+                size_hint=(0.9, 0.5),
+                auto_dismiss=False
+            )
+            
+            btn.bind(on_press=popup.dismiss)
+            popup.open()
+            
+        except Exception as e:
+            logger.error(f"Error mostrando advertencia de permisos: {e}")
+
+    def _on_permissions_denied(self, missing_permissions):
+        """Callback cuando el usuario deniega permisos (legacy - no usado)"""
+        logger.warning(f"Usuario denegó {len(missing_permissions)} permisos")
+        logger.warning(f"Permisos faltantes: {missing_permissions}")
 
     def _check_sio_status(self, dt):
         """Verifica el estado de la conexión SocketIO de forma optimizada."""
