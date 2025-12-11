@@ -54,6 +54,48 @@ except ImportError:
     logger.warning("jnius no disponible - APIs de Android no estarán disponibles")
 
 
+def request_battery_exemption():
+    """
+    Solicita exclusión de optimización de batería si no está ya excluida.
+    
+    POR QUÉ: Doze mode mata servicios en background después de 30 min.
+    La exclusión permite que el service corra 24/7 sin interrupciones.
+    """
+    if not ANDROID_AVAILABLE or ANDROID_API_LEVEL < 23:
+        return
+    
+    try:
+        from jnius import autoclass, cast
+        
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        Settings = autoclass('android.provider.Settings')
+        PowerManager = autoclass('android.os.PowerManager')
+        Intent = autoclass('android.content.Intent')
+        Uri = autoclass('android.net.Uri')
+        Context = autoclass('android.content.Context')
+        
+        activity = PythonActivity.mActivity
+        package_name = activity.getPackageName()
+        
+        power_manager = activity.getSystemService(Context.POWER_SERVICE)
+        power_manager = cast(PowerManager, power_manager)
+        
+        if not power_manager.isIgnoringBatteryOptimizations(package_name):
+            logger.warning("⚠️  App NO excluida de optimización de batería")
+            
+            intent = Intent()
+            intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            intent.setData(Uri.parse(f"package:{package_name}"))
+            activity.startActivity(intent)
+            
+            logger.info("✅ Solicitud de exclusión enviada al usuario")
+        else:
+            logger.info("✅ App ya excluida de optimización de batería")
+            
+    except Exception as e:
+        logger.error(f"Error solicitando exclusión de batería: {e}", exc_info=True)
+
+
 # Variable global para el controlador de servicios
 service_controller = None
 
@@ -169,6 +211,9 @@ def run_service_logic():
     try:
         configberry = Configberry()
         logger.info("Configberry inicializado")
+        
+        # Solicitar exclusión de optimización de batería (Android 6.0+)
+        request_battery_exemption()
         
         if not configberry.is_comercio_adoptado():
             logger.warning("Comercio no adoptado - servicio esperará adopción")

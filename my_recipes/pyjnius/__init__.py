@@ -82,6 +82,34 @@ class PyjniusRecipePython312(PyjniusRecipe):
             print(f"   ℹ No se encontraron referencias a 'long'")
             return False
     
+    def apply_patches(self, arch):
+        """
+        Override para NO aplicar patches.
+        El fix de Python 3.12 se hace en prebuild_arch programáticamente.
+        """
+        print("[PYJNIUS] Skipping patch application (handled by prebuild_arch)")
+        # NO llamar a super().apply_patches(arch)
+        pass
+    
+    def get_recipe_env(self, arch):
+        """
+        Override para remover SDL2 de las bibliotecas de link.
+        webview bootstrap NO tiene SDL2.
+        """
+        env = super().get_recipe_env(arch)
+        
+        # Remover SDL2 de LDFLAGS y LDLIBS si existe
+        if 'LDFLAGS' in env:
+            env['LDFLAGS'] = env['LDFLAGS'].replace('-lSDL2', '').strip()
+        
+        if 'LDLIBS' in env:
+            env['LDLIBS'] = env['LDLIBS'].replace('-lSDL2', '').strip()
+        
+        print(f"[PYJNIUS] LDFLAGS after SDL2 removal: {env.get('LDFLAGS', 'N/A')}")
+        print(f"[PYJNIUS] LDLIBS after SDL2 removal: {env.get('LDLIBS', 'N/A')}")
+        
+        return env
+    
     def prebuild_arch(self, arch):
         super().prebuild_arch(arch)
         

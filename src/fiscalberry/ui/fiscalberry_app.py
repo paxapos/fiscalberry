@@ -430,55 +430,58 @@ class FiscalberryApp(App):
         logger.info("App pausada (background)")
         return True  # Importante para Android - permite que la app vuelva
     
+    @mainthread
     def on_resume(self):
         """
         Llamado cuando la app vuelve de background en Android.
+        
+        CRÍTICO: Este método DEBE ejecutarse en el main thread de Kivy.
+        El decorador @mainthread garantiza esto. Sin él, las actualizaciones
+        de canvas son silenciosamente ignoradas, causando pantalla negra.
         """
         logger.info("App resumida (foreground)")
         
-        # Forzar actualización de la ventana de Kivy
-        try:
-            from kivy.core.window import Window
-            Window.canvas.ask_update()
-            logger.debug("Canvas de ventana actualizado en on_resume")
-        except Exception as e:
-            logger.debug(f"No se pudo actualizar canvas de ventana: {e}")
+        # PASO 1: Forzar actualización completa de la ventana
+        from kivy.core.window import Window
+        Window.canvas.ask_update()
+        logger.debug("Canvas de ventana actualizado en on_resume")
         
-        # Verificar si el comercio fue adoptado mientras estaba en background
-        try:
-            if hasattr(self, 'root') and self.root:
-                current_screen = self.root.current
-                logger.info(f"Pantalla actual al resumir: {current_screen}")
-                
-                if current_screen == 'adopt':
-                    # Estamos en pantalla de adopción - verificar si ya fue adoptado
-                    logger.info("Verificando adopción después de resumir...")
-                    screen = self.root.get_screen('adopt')
-                    
-                    # Forzar refresh del canvas de la pantalla
-                    if hasattr(screen, 'canvas'):
-                        screen.canvas.ask_update()
-                        logger.debug("Canvas de adopt_screen actualizado")
-                    
-                    # Verificar adopción
-                    if hasattr(screen, 'manual_check_adoption'):
-                        Clock.schedule_once(
-                            lambda dt: screen.manual_check_adoption(), 
-                            0.5
-                        )
-                else:
-                    logger.info(f"En pantalla '{current_screen}', no se requiere verificación de adopción")
-        except Exception as e:
-            logger.error(f"Error en on_resume: {e}", exc_info=True)
+        # PASO 2: Verificar si el comercio fue adoptado mientras estaba en background
+        if not hasattr(self, 'root') or not self.root:
+            logger.warning("on_resume: self.root no disponible aún")
+            return
         
-        # Configurar el icono después de que la ventana esté completamente creada
-        try:
-            icon_path = os.path.join(self.assetpath, "fiscalberry.ico")
-            if os.path.exists(icon_path) and sys.platform == 'win32':
-                # Esperar un poco para que la ventana esté completamente inicializada
-                Clock.schedule_once(lambda dt: self._set_windows_icon_delayed(icon_path), 1)
-        except Exception as e:
-            logger.error(f"Error en on_start configurando icono: {e}")
+        current_screen = self.root.current
+        logger.info(f"Pantalla actual al resumir: {current_screen}")
+        
+        # PASO 3: Actualizar canvas de la pantalla actual
+        if current_screen == 'adopt':
+            # Estamos en pantalla de adopción - verificar si ya fue adoptado
+            logger.info("Verificando adopción después de resumir...")
+            screen = self.root.get_screen('adopt')
+            
+            # Forzar refresh del canvas de la pantalla
+            if hasattr(screen, 'canvas'):
+                screen.canvas.ask_update()
+                logger.debug("Canvas de adopt_screen actualizado")
+            
+            # Verificar adopción (programar para evitar race condition)
+            if hasattr(screen, 'manual_check_adoption'):
+                Clock.schedule_once(
+                    lambda dt: screen.manual_check_adoption(), 
+                    0.5
+                )
+        else:
+            logger.info(f"En pantalla '{current_screen}', no se requiere verificación de adopción")
+            
+            # Aún así, actualizar canvas de la pantalla actual
+            try:
+                current_screen_obj = self.root.get_screen(current_screen)
+                if hasattr(current_screen_obj, 'canvas'):
+                    current_screen_obj.canvas.ask_update()
+                    logger.debug(f"Canvas de {current_screen} actualizado")
+            except Exception as e:
+                logger.error(f"Error actualizando canvas de pantalla actual: {e}", exc_info=True)
     
     def _set_windows_icon_delayed(self, icon_path):
         """Configura el icono de Windows con un retraso para asegurar que la ventana esté lista."""
