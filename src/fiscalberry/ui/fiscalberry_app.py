@@ -34,13 +34,14 @@ class FiscalberryApp(App):
     
     assetpath = os.path.join(os.path.dirname(__file__), "assets")
     
-    # Configurar el icono de la aplicación para la barra de tareas
+    # Configurar el icono de la aplicación para la barra de tareas (solo Desktop)
     icon = os.path.join(assetpath, "fiscalberry.ico")
     
-    background_image = StringProperty(os.path.join(assetpath, "bg.jpg"))
-    logo_image = StringProperty(os.path.join(assetpath, "fiscalberry.png"))
-    disconnected_image = StringProperty(os.path.join(assetpath, "disconnected.png"))
-    connected_image = StringProperty(os.path.join(assetpath, "connected.png"))
+    # UI Minimalista - Sin imágenes decorativas
+    # Todas las imágenes fueron eliminadas para lograr:
+    # - Resume instantáneo en Android (sin recargas de texturas)
+    # - APK más pequeño (~1.7 MB menos)
+    # - Menor consumo de RAM
     
     sioConnected: bool = BooleanProperty(False)
     rabbitMqConnected: bool = BooleanProperty(False)
@@ -435,54 +436,46 @@ class FiscalberryApp(App):
         """
         Llamado cuando la app vuelve de background en Android.
         
-        CRÍTICO: Este método DEBE ejecutarse en el main thread de Kivy.
-        El decorador @mainthread garantiza esto. Sin él, las actualizaciones
-        de canvas son silenciosamente ignoradas, causando pantalla negra.
+        VERSIÓN OPTIMIZADA (Sin imágenes en UI):
+        Como la UI no tiene imágenes/texturas que recargar, solo necesitamos
+        actualizar el canvas básico. Esto hace el resume INSTANTÁNEO.
+        
+        El decorador @mainthread es OBLIGATORIO porque las operaciones de
+        canvas DEBEN ejecutarse en el main thread de Kivy.
         """
-        logger.info("App resumida (foreground)")
+        logger.info("APP RESUMIDA (UI minimalista - sin imágenes)")
         
-        # PASO 1: Forzar actualización completa de la ventana
-        from kivy.core.window import Window
-        Window.canvas.ask_update()
-        logger.debug("Canvas de ventana actualizado en on_resume")
-        
-        # PASO 2: Verificar si el comercio fue adoptado mientras estaba en background
-        if not hasattr(self, 'root') or not self.root:
-            logger.warning("on_resume: self.root no disponible aún")
-            return
-        
-        current_screen = self.root.current
-        logger.info(f"Pantalla actual al resumir: {current_screen}")
-        
-        # PASO 3: Actualizar canvas de la pantalla actual
-        if current_screen == 'adopt':
-            # Estamos en pantalla de adopción - verificar si ya fue adoptado
-            logger.info("Verificando adopción después de resumir...")
-            screen = self.root.get_screen('adopt')
+        try:
+            from kivy.core.window import Window
             
-            # Forzar refresh del canvas de la pantalla
-            if hasattr(screen, 'canvas'):
-                screen.canvas.ask_update()
-                logger.debug("Canvas de adopt_screen actualizado")
+            # Actualizar canvas de ventana (rápido - sin texturas)
+            Window.canvas.ask_update()
+            logger.debug("Canvas actualizado")
             
-            # Verificar adopción (programar para evitar race condition)
-            if hasattr(screen, 'manual_check_adoption'):
-                Clock.schedule_once(
-                    lambda dt: screen.manual_check_adoption(), 
-                    0.5
-                )
-        else:
-            logger.info(f"En pantalla '{current_screen}', no se requiere verificación de adopción")
+            # Verificar estado de la app
+            if not hasattr(self, 'root') or not self.root:
+                logger.warning("on_resume: self.root no disponible aún")
+                return
             
-            # Aún así, actualizar canvas de la pantalla actual
-            try:
-                current_screen_obj = self.root.get_screen(current_screen)
-                if hasattr(current_screen_obj, 'canvas'):
-                    current_screen_obj.canvas.ask_update()
-                    logger.debug(f"Canvas de {current_screen} actualizado")
-            except Exception as e:
-                logger.error(f"Error actualizando canvas de pantalla actual: {e}", exc_info=True)
+            current_screen = self.root.current
+            logger.info(f"Pantalla actual: {current_screen}")
+            
+            # Lógica específica por pantalla
+            if current_screen == 'adopt':
+                logger.info("Verificando adopción después de resumir...")
+                screen = self.root.get_screen('adopt')
+                if hasattr(screen, 'manual_check_adoption'):
+                    Clock.schedule_once(
+                        lambda dt: screen.manual_check_adoption(), 
+                        0.5
+                    )
+            
+            logger.info("Resume completado instantáneamente")
+            
+        except Exception as e:
+            logger.error(f"Error en on_resume: {e}", exc_info=True)
     
+
     def _set_windows_icon_delayed(self, icon_path):
         """Configura el icono de Windows con un retraso para asegurar que la ventana esté lista."""
         try:

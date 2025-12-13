@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
 """
-Android CLI Main - Entry Point
+Android CLI Main - Entry Point (Headless)
 
 Reusa ServiceController, Configberry, FiscalberrySio del desktop CLI.
 Diferencias: headless (sin input/webbrowser), abre navegador automáticamente.
+
+Ubicación: fiscalberry/android/headless/main.py
 """
 import os
 import sys
 import signal
 import time
-from pathlib import Path
-
-# Add to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Setup crash reporting FIRST
-from android_cli.crash_reporter import setup_crash_reporting
+from fiscalberry.android.headless.crash_reporter import setup_crash_reporting
 setup_crash_reporting()
 
 # Import from common (REUTILIZADO de desktop)

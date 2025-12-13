@@ -2,17 +2,18 @@
 # -*- coding: utf-8 -*-
 
 """
-Servicio Android para Fiscalberry
+Servicio Android para Fiscalberry (UI Version)
+
 Permite que RabbitMQ y SocketIO funcionen en segundo plano
 incluso cuando la app no está en primer plano.
+
+Ubicación: fiscalberry/android/ui/service.py
 """
 
 from time import sleep
 import os
 import sys
 
-# Agregar path de fiscalberry al PYTHONPATH
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from fiscalberry.common.fiscalberry_logger import getLogger
 logger = getLogger("AndroidService")

@@ -16,10 +16,7 @@ package.domain = com.paxapos
 source.dir = src
 
 # (str) Main python file to execute (relative to source.dir)
-# GUI MODE (default):
-source.main_py = fiscalberry/gui.py
-# CLI MODE (sin UI): Descomentar para compilar versión CLI headless
-#source.main_py = android_cli/main.py
+source.main_py = main.py
 
 # (list) Source files extensions to include
 source.include_exts = py,png,jpg,kv,atlas,json,svg,pem,crt,ico # Add other extensions if needed (e.g., fonts, sounds)
@@ -75,10 +72,7 @@ icon.filename = %(source.dir)s/fiscalberry/ui/assets/fiscalberry.png
 orientation = portrait
 
 # (list) List of service to declare
-# GUI MODE (default):
-services = fiscalberryservice:fiscalberryservice.android.py:foreground:sticky
-# CLI MODE (sin UI): Descomentar para compilar versión CLI headless
-#services = fiscalberryservice:android_cli.android_service.py:foreground:sticky
+services = fiscalberryservice:fiscalberry/android/app/service.py:foreground:sticky
 
 #
 # Android specific

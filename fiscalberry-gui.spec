@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['src/fiscalberry/gui.py'],
+    ['src/fiscalberry/desktop/main.py'],
     pathex=[],
     binaries=[],
     datas=[

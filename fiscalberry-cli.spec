@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['src/fiscalberry/cli.py'],
+    ['src/fiscalberry/cli/main.py'],
     pathex=[],
     binaries=[],
     datas=[('./capabilities.json', 'escpos')],

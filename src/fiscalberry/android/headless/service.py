@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Android Service Entry Point - CLI Version
 
-Wrapper Android que:
-1. Configura notificación foreground
-2. Solicita battery exemption
-3. Delega a android_cli.main
+"""
+Android Service Entry Point - Fiscalberry CLI (Headless)
+
+Entry point para el servicio Android foreground sin UI.
+Integra con el sistema Android (notificaciones, battery exemption, etc.)
+y delega la lógica real a fiscalberry.android.headless.main.
+
+Ubicación: fiscalberry/android/headless/service.py
 """
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from fiscalberry.common.fiscalberry_logger import getLogger
-logger = getLogger("Service.AndroidCLI")
+logger = getLogger("Service.Android")
 
 # Android APIs
 ANDROID_API_LEVEL = 0
@@ -23,6 +24,7 @@ ANDROID_AVAILABLE = False
 try:
     from jnius import autoclass, cast
     
+    # Android classes
     Build = autoclass('android.os.Build')
     ANDROID_API_LEVEL = Build.VERSION.SDK_INT
     
@@ -33,20 +35,25 @@ try:
     PendingIntent = autoclass('android.app.PendingIntent')
     Intent = autoclass('android.content.Intent')
     
+    # NotificationChannel (API 26+)
     if ANDROID_API_LEVEL >= 26:
         NotificationChannel = autoclass('android.app.NotificationChannel')
     else:
         NotificationChannel = None
     
     ANDROID_AVAILABLE = True
-    logger.info(f"✓ Android APIs available - API {ANDROID_API_LEVEL}")
+    logger.info(f"✓ Android APIs available - API Level: {ANDROID_API_LEVEL}")
     
 except ImportError:
-    logger.warning("jnius not available - running without Android APIs")
+    logger.warning("jnius not available - running in non-Android mode")
 
 
 def request_battery_exemption():
-    """Solicita exclusión de optimización de batería."""
+    """
+    Solicita exclusión de optimización de batería (Android 6.0+).
+    
+    CRÍTICO para servicios 24/7 - sin esto, Doze mode matará el servicio.
+    """
     if not ANDROID_AVAILABLE or ANDROID_API_LEVEL < 23:
         return
     
@@ -63,7 +70,7 @@ def request_battery_exemption():
         power_manager = cast(PowerManager, power_manager)
         
         if not power_manager.isIgnoringBatteryOptimizations(package_name):
-            logger.warning("⚠ App NO excluida de batería")
+            logger.warning("⚠ App NO excluida de optimización de batería")
             
             intent = Intent()
             intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
@@ -72,14 +79,19 @@ def request_battery_exemption():
             
             logger.info("✓ Solicitud de exclusión enviada")
         else:
-            logger.info("✓ App ya excluida de batería")
+            logger.info("✓ App ya excluida de optimización de batería")
             
     except Exception as e:
-        logger.error(f"Error battery exemption: {e}", exc_info=True)
+        logger.error(f"Error solicitando exclusión: {e}", exc_info=True)
 
 
 def create_notification_channel():
-    """Crea canal de notificación (API 26+)."""
+    """
+    Crea canal de notificación para API 26+ (Android 8.0+).
+    
+    Returns:
+        str: Channel ID
+    """
     channel_id = "fiscalberry_cli"
     
     if not ANDROID_AVAILABLE or ANDROID_API_LEVEL < 26:
@@ -88,19 +100,19 @@ def create_notification_channel():
     try:
         service = PythonService.mService
         if service:
-            channel_name = "Fiscalberry CLI"
+            channel_name = "Fiscalberry CLI Service"
             importance = NotificationManager.IMPORTANCE_LOW
             
             channel = NotificationChannel(channel_id, channel_name, importance)
-            channel.setDescription("Servicio de impresión fiscal (CLI)")
+            channel.setDescription("Servicio de impresión fiscal (modo CLI)")
             
             notification_service = service.getSystemService(Context.NOTIFICATION_SERVICE)
             notification_manager = cast(NotificationManager, notification_service)
             notification_manager.createNotificationChannel(channel)
             
-            logger.info(f"✓ Notification channel created")
+            logger.info(f"✓ Notification channel created (API {ANDROID_API_LEVEL})")
     except Exception as e:
-        logger.error(f"Error creating channel: {e}")
+        logger.error(f"Error creating notification channel: {e}")
     
     return channel_id
 
@@ -108,7 +120,8 @@ def create_notification_channel():
 def show_foreground_notification():
     """
     Muestra notificación foreground.
-    CRÍTICO: Sin esto, Android mata el servicio.
+    
+    CRÍTICO: Sin foreground notification, Android matará el servicio rápidamente.
     """
     if not ANDROID_AVAILABLE:
         logger.info("No Android - skipping notification")
@@ -122,8 +135,10 @@ def show_foreground_notification():
         
         channel_id = create_notification_channel()
         
+        # Crear intent dummy (no hay activity en CLI puro)
         intent = Intent()
         
+        # PendingIntent flags según API level
         if ANDROID_API_LEVEL >= 23:
             pending_intent_flags = PendingIntent.FLAG_IMMUTABLE
         else:
@@ -133,6 +148,7 @@ def show_foreground_notification():
             service, 0, intent, pending_intent_flags
         )
         
+        # Builder según API level
         if ANDROID_API_LEVEL >= 26:
             builder = NotificationBuilder(service, channel_id)
         else:
@@ -142,7 +158,7 @@ def show_foreground_notification():
         builder.setContentText("Servicio de impresión activo (headless)")
         builder.setSmallIcon(service.getApplicationInfo().icon)
         builder.setContentIntent(pending_intent)
-        builder.setOngoing(True)
+        builder.setOngoing(True)  # No dismissable
         
         if ANDROID_API_LEVEL < 26:
             builder.setPriority(NotificationBuilder.PRIORITY_LOW)
@@ -154,32 +170,37 @@ def show_foreground_notification():
         
     except Exception as e:
         logger.critical(f"✗ Error showing notification: {e}", exc_info=True)
-        raise
+        raise  # Fail fast - sin notificación, Android matará el servicio
 
 
 def run_service():
-    """Lógica principal del servicio Android CLI."""
+    """
+    Lógica principal del servicio Android.
+    
+    Configura Android (notificación, battery exemption) y luego
+    delega a fiscalberry_cli.main.
+    """
     logger.critical("="*70)
     logger.critical("FISCALBERRY CLI ANDROID SERVICE - STARTING")
     logger.critical("="*70)
     logger.info(f"PID: {os.getpid()}")
     logger.info(f"API Level: {ANDROID_API_LEVEL}")
     
-    # 1. Foreground notification (CRÍTICO)
+    # 1. Mostrar notificación foreground (CRÍTICO - antes que nada)
     show_foreground_notification()
     
-    # 2. Battery exemption
+    # 2. Solicitar battery exemption
     request_battery_exemption()
     
     # 3. Delegar a CLI main
-    logger.info("Delegando a android_cli.main...")
+    logger.info("Delegando a fiscalberry_cli.main...")
     
     try:
-        from android_cli.main import main
-        main()
+        from fiscalberry.android.headless.main import main
+        main()  # Blocking call - retorna solo cuando se detiene
     except Exception as e:
         logger.critical(f"CLI main crashed: {type(e).__name__}: {e}", exc_info=True)
-        raise
+        raise  # Re-raise para que crash reporter lo capture
     
     logger.critical("="*70)
     logger.critical("FISCALBERRY CLI ANDROID SERVICE - STOPPED")
