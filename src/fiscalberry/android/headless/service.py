@@ -85,6 +85,114 @@ def request_battery_exemption():
         logger.error(f"Error solicitando exclusión: {e}", exc_info=True)
 
 
+# =============================================================================
+# HARDWARE LOCKS - Mantener CPU y WiFi activos permanentemente
+# =============================================================================
+
+# Variables globales para los locks (para poder liberarlos en shutdown)
+_wakelock = None
+_wifi_lock = None
+
+
+def acquire_wakelock():
+    """
+    Adquiere PARTIAL_WAKE_LOCK para mantener la CPU activa.
+    
+    CRÍTICO: Sin esto, la CPU entra en deep sleep cuando la pantalla se apaga,
+    pausando todos los threads de Python incluyendo RabbitMQ y SocketIO.
+    """
+    global _wakelock
+    
+    if not ANDROID_AVAILABLE:
+        return None
+    
+    try:
+        PowerManager = autoclass('android.os.PowerManager')
+        service = PythonService.mService
+        
+        if not service:
+            logger.warning("WakeLock: PythonService.mService no disponible")
+            return None
+        
+        pm = service.getSystemService(Context.POWER_SERVICE)
+        pm = cast(PowerManager, pm)
+        
+        # PARTIAL_WAKE_LOCK = 1
+        _wakelock = pm.newWakeLock(1, "FiscalberryCLI:WakeLock")
+        _wakelock.acquire()
+        
+        logger.critical("🔒 WAKELOCK ADQUIRIDO - CPU forzada a mantenerse activa")
+        return _wakelock
+        
+    except Exception as e:
+        logger.error(f"Error adquiriendo WakeLock: {e}", exc_info=True)
+        return None
+
+
+def acquire_wifi_lock():
+    """
+    Adquiere WiFi Lock en modo HIGH PERFORMANCE.
+    
+    CRÍTICO: Sin esto, el radio WiFi entra en modo ahorro de energía,
+    causando latencia alta y posibles desconexiones de RabbitMQ.
+    """
+    global _wifi_lock
+    
+    if not ANDROID_AVAILABLE:
+        return None
+    
+    try:
+        WifiManager = autoclass('android.net.wifi.WifiManager')
+        service = PythonService.mService
+        
+        if not service:
+            logger.warning("WiFiLock: PythonService.mService no disponible")
+            return None
+        
+        wm = service.getSystemService(Context.WIFI_SERVICE)
+        wm = cast(WifiManager, wm)
+        
+        # WIFI_MODE_FULL_HIGH_PERF = 3, WIFI_MODE_FULL_LOW_LATENCY = 4 (API 29+)
+        wifi_mode = 4 if ANDROID_API_LEVEL >= 29 else 3
+        mode_name = "LOW_LATENCY" if ANDROID_API_LEVEL >= 29 else "HIGH_PERF"
+        
+        _wifi_lock = wm.createWifiLock(wifi_mode, "FiscalberryCLI:WifiLock")
+        _wifi_lock.acquire()
+        
+        logger.critical(f"📶 WIFI_LOCK ADQUIRIDO ({mode_name}) - Radio WiFi a máxima potencia")
+        return _wifi_lock
+        
+    except Exception as e:
+        logger.error(f"Error adquiriendo WiFi Lock: {e}", exc_info=True)
+        return None
+
+
+def release_hardware_locks():
+    """Libera WakeLock y WiFiLock. Solo llamar en shutdown explícito."""
+    global _wakelock, _wifi_lock
+    
+    released = []
+    
+    try:
+        if _wakelock is not None and _wakelock.isHeld():
+            _wakelock.release()
+            released.append("WakeLock")
+            _wakelock = None
+    except Exception as e:
+        logger.error(f"Error liberando WakeLock: {e}")
+    
+    try:
+        if _wifi_lock is not None and _wifi_lock.isHeld():
+            _wifi_lock.release()
+            released.append("WiFiLock")
+            _wifi_lock = None
+    except Exception as e:
+        logger.error(f"Error liberando WiFiLock: {e}")
+    
+    if released:
+        logger.info(f"🔓 Hardware locks liberados: {', '.join(released)}")
+
+
 def create_notification_channel():
     """
     Crea canal de notificación para API 26+ (Android 8.0+).
@@ -177,7 +285,7 @@ def run_service():
     """
     Lógica principal del servicio Android.
     
-    Configura Android (notificación, battery exemption) y luego
+    Configura Android (notificación, hardware locks, battery exemption) y luego
     delega a fiscalberry_cli.main.
     """
     logger.critical("="*70)
@@ -189,10 +297,15 @@ def run_service():
     # 1. Mostrar notificación foreground (CRÍTICO - antes que nada)
     show_foreground_notification()
     
-    # 2. Solicitar battery exemption
+    # 2. Adquirir Hardware Locks ANTES de cualquier otra cosa
+    logger.info("Adquiriendo hardware locks...")
+    acquire_wakelock()
+    acquire_wifi_lock()
+    
+    # 3. Solicitar battery exemption (puede fallar sin Activity)
     request_battery_exemption()
     
-    # 3. Delegar a CLI main
+    # 4. Delegar a CLI main
     logger.info("Delegando a fiscalberry_cli.main...")
     
     try:
@@ -201,6 +314,9 @@ def run_service():
     except Exception as e:
         logger.critical(f"CLI main crashed: {type(e).__name__}: {e}", exc_info=True)
         raise  # Re-raise para que crash reporter lo capture
+    finally:
+        # Liberar hardware locks al salir
+        release_hardware_locks()
     
     logger.critical("="*70)
     logger.critical("FISCALBERRY CLI ANDROID SERVICE - STOPPED")
@@ -209,3 +325,4 @@ def run_service():
 
 if __name__ == "__main__":
     run_service()
+

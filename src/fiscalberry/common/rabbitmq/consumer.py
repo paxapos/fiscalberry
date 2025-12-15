@@ -61,14 +61,15 @@ class RabbitMQConsumer:
 
         try:
             # Use connection parameters with shorter timeouts for faster failure detection
+            # TUNING AGRESIVO: heartbeat=30 detecta muerte en ~60s, blocked_timeout=15 reconecta rápido
             self.logger.debug("Configurando parámetros de conexión...")
             params = pika.ConnectionParameters(
                 host=self.host, 
                 port=self.port, 
                 virtual_host=self.vhost, 
                 credentials=pika.PlainCredentials(self.user, self.password),
-                heartbeat=600,
-                blocked_connection_timeout=300,
+                heartbeat=30,                    # Detectar conexión muerta en ~60 segundos
+                blocked_connection_timeout=15,   # Reconectar rápido si conexión bloqueada
                 socket_timeout=5,  # Timeout más agresivo para detectar errores más rápido
                 connection_attempts=1,  # Solo un intento, el retry lo maneja process_handler
                 retry_delay=0.5  # Delay más corto entre intentos

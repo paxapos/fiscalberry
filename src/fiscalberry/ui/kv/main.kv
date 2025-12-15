@@ -25,7 +25,14 @@ ScreenManager:
             height: dp(120)
             spacing: dp(10)
             
-            # Logo eliminado - UI minimalista
+            
+            # Logo (string vacío - no se mostrará)
+            Image:
+                source: app.logo_image
+                size_hint_y: None
+                height: dp(60)
+                allow_stretch: True
+                keep_ratio: True
                 
             Label:
                 text: "Vincula tu dispositivo con Paxapos"
@@ -195,6 +202,12 @@ ScreenManager:
                 size: self.size
 
         # Logo eliminado - UI minimalista
+        Image:
+            source: app.logo_image
+            size_hint_y: None
+            height: 96
+            allow_stretch: True
+            keep_ratio: True
 
 
         Label:
@@ -286,7 +299,14 @@ ScreenManager:
                     radius: [dp(10)]
             padding: dp(15)
             
-            # Logo eliminado - UI minimalista
+            
+            # Logo (string vacío - no se mostrará)
+            Image:
+                source: app.logo_image
+                size_hint: None, None
+                size: dp(40), dp(40)
+                allow_stretch: True
+                keep_ratio: True
                 
             Label:
                 text: "Fiscalberry - Servidor de Impresión"

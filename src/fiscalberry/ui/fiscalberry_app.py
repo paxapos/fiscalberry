@@ -32,16 +32,19 @@ class FiscalberryApp(App):
     version = StringProperty( VERSION )
 
     
+    
     assetpath = os.path.join(os.path.dirname(__file__), "assets")
     
     # Configurar el icono de la aplicación para la barra de tareas (solo Desktop)
     icon = os.path.join(assetpath, "fiscalberry.ico")
     
-    # UI Minimalista - Sin imágenes decorativas
-    # Todas las imágenes fueron eliminadas para lograr:
-    # - Resume instantáneo en Android (sin recargas de texturas)
-    # - APK más pequeño (~1.7 MB menos)
-    # - Menor consumo de RAM
+    # UI Minimalista - Propiedades de imágenes como strings vacíos
+    # Mantener las propiedades para compatibilidad con archivos KV
+    # pero con valores vacíos para no mostrar imágenes ni cargar texturas
+    background_image = StringProperty("")
+    logo_image = StringProperty("")
+    disconnected_image = StringProperty("")
+    connected_image = StringProperty("")
     
     sioConnected: bool = BooleanProperty(False)
     rabbitMqConnected: bool = BooleanProperty(False)
@@ -399,9 +402,14 @@ class FiscalberryApp(App):
         
         if is_android:
             logger.info("Android detectado - configurando permisos y servicios...")
-            # Verificar y solicitar permisos en Android
+            
+            # CRÍTICO: Verificar Battery Exemption PRIMERO (antes de permisos regulares)
+            # Sin esto, Doze mode matará el servicio en background
+            self._check_and_request_battery_exemption()
+            
+            # Verificar y solicitar permisos regulares en Android
             try:
-                from fiscalberry.common.android_permissions import (
+                from fiscalberry.android.permissions import (
                     check_all_permissions, 
                     request_all_permissions
                 )
@@ -423,6 +431,103 @@ class FiscalberryApp(App):
             except Exception as e:
                 logger.error(f"Error en on_start configurando icono: {e}")
     
+    def _check_and_request_battery_exemption(self):
+        """
+        Verifica y solicita exclusión de optimización de batería.
+        
+        CRÍTICO: Esta es la defensa principal contra Doze mode.
+        Sin esto, Android cortará la red del servicio después de 30 minutos.
+        """
+        try:
+            from jnius import autoclass, cast
+            
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            Settings = autoclass('android.provider.Settings')
+            PowerManager = autoclass('android.os.PowerManager')
+            Intent = autoclass('android.content.Intent')
+            Uri = autoclass('android.net.Uri')
+            Context = autoclass('android.content.Context')
+            
+            # NOTA: En jnius, clases internas de Java se acceden con $ (Build$VERSION)
+            BuildVersion = autoclass('android.os.Build$VERSION')
+            
+            # Solo necesario en API 23+ (Android 6.0+)
+            if BuildVersion.SDK_INT < 23:
+                logger.info("API < 23 - Battery exemption no requerida")
+                return
+            
+            activity = PythonActivity.mActivity
+            if not activity:
+                logger.warning("Activity no disponible para battery exemption")
+                return
+            
+            package_name = activity.getPackageName()
+            
+            power_manager = activity.getSystemService(Context.POWER_SERVICE)
+            power_manager = cast(PowerManager, power_manager)
+            
+            if power_manager.isIgnoringBatteryOptimizations(package_name):
+                logger.info("✅ App ya excluida de optimización de batería")
+                return
+            
+            # Mostrar warning al usuario
+            logger.critical("⚠️ App NO excluida de optimización de batería")
+            logger.critical("⚠️ El servicio puede ser terminado por Android en background")
+            
+            # Solicitar exclusión via Intent del sistema
+            intent = Intent()
+            intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            intent.setData(Uri.parse(f"package:{package_name}"))
+            
+            try:
+                activity.startActivity(intent)
+                logger.info("📱 Diálogo de exclusión de batería mostrado al usuario")
+            except Exception as e:
+                logger.error(f"Error mostrando diálogo de battery exemption: {e}")
+                # Mostrar popup manual como fallback
+                self._show_battery_exemption_warning()
+                
+        except ImportError:
+            logger.debug("jnius no disponible - no es Android")
+        except Exception as e:
+            logger.error(f"Error verificando battery exemption: {e}", exc_info=True)
+    
+    def _show_battery_exemption_warning(self):
+        """Muestra advertencia sobre battery exemption si el Intent falla."""
+        try:
+            from kivy.uix.popup import Popup
+            from kivy.uix.label import Label
+            from kivy.uix.button import Button
+            from kivy.uix.boxlayout import BoxLayout
+            
+            content = BoxLayout(orientation='vertical', padding=10, spacing=10)
+            content.add_widget(Label(
+                text='⚠️ CONFIGURACIÓN CRÍTICA REQUERIDA ⚠️\n\n'
+                     'Para que Fiscalberry funcione en segundo plano,\n'
+                     'debes desactivar la optimización de batería:\n\n'
+                     '1. Ir a Configuración → Apps → Fiscalberry\n'
+                     '2. Batería → Sin restricciones\n\n'
+                     'Sin esto, el servicio se detendrá automáticamente.',
+                size_hint_y=0.8,
+                halign='center'
+            ))
+            
+            btn = Button(text='Entendido', size_hint_y=0.2)
+            content.add_widget(btn)
+            
+            popup = Popup(
+                title='Configuración Requerida',
+                content=content,
+                size_hint=(0.9, 0.6),
+                auto_dismiss=False
+            )
+            
+            btn.bind(on_press=popup.dismiss)
+            popup.open()
+            
+        except Exception as e:
+            logger.error(f"Error mostrando warning de battery exemption: {e}")
+    
     def on_pause(self):
         """
         Llamado cuando la app pasa a background en Android.
@@ -436,31 +541,70 @@ class FiscalberryApp(App):
         """
         Llamado cuando la app vuelve de background en Android.
         
-        VERSIÓN OPTIMIZADA (Sin imágenes en UI):
-        Como la UI no tiene imágenes/texturas que recargar, solo necesitamos
-        actualizar el canvas básico. Esto hace el resume INSTANTÁNEO.
+        CRÍTICO: Android destruye el contexto OpenGL (surfaceDestroyed en SDL).
+        Un simple canvas.ask_update() NO es suficiente - debemos limpiar caches.
         
-        El decorador @mainthread es OBLIGATORIO porque las operaciones de
-        canvas DEBEN ejecutarse en el main thread de Kivy.
+        Como NO tenemos imágenes (todas son strings vacíos), solo necesitamos:
+        1. Limpiar caches de Kivy (texturas inválidas)
+        2. Forzar recreación del canvas
+        
+        El decorador @mainthread es OBLIGATORIO.
         """
-        logger.info("APP RESUMIDA (UI minimalista - sin imágenes)")
+        logger.info("APP RESUMIDA - Recuperación de contexto OpenGL")
         
         try:
             from kivy.core.window import Window
+            from kivy.cache import Cache
             
-            # Actualizar canvas de ventana (rápido - sin texturas)
+            # PASO 1: Limpiar caches de Kivy
+            # Cuando SDL destruye la surface, las texturas en cache apuntan a memoria inválida
+            logger.debug("Limpiando caches de Kivy...")
+            
+            try:
+                Cache.remove('kv.texture')
+                logger.debug("Cache kv.texture limpiada")
+            except:
+                pass
+            
+            try:
+                Cache.remove('kv.image')
+                logger.debug("Cache kv.image limpiada")
+            except:
+                pass
+            
+            try:
+                Cache.remove('kv.atlas')
+                logger.debug("Cache kv.atlas limpiada")
+            except:
+                pass
+            
+            # PASO 2: Forzar actualización de ventana
             Window.canvas.ask_update()
-            logger.debug("Canvas actualizado")
+            logger.debug("Canvas de ventana actualizado")
             
-            # Verificar estado de la app
+            # PASO 3: Programar refrescos diferidos para asegurar recreación
+            def refresh_ui(dt):
+                try:
+                    Window.canvas.ask_update()
+                    if self.root and hasattr(self.root, 'canvas'):
+                        self.root.canvas.ask_update()
+                    logger.debug("UI refrescada")
+                except Exception as e:
+                    logger.error(f"Error refrescando UI: {e}")
+            
+            # Múltiples refreshes para asegurar éxito
+            Clock.schedule_once(refresh_ui, 0.1)
+            Clock.schedule_once(refresh_ui, 0.3)
+            Clock.schedule_once(refresh_ui, 0.5)
+            
+            # PASO 4: Lógica específica de adopción
             if not hasattr(self, 'root') or not self.root:
-                logger.warning("on_resume: self.root no disponible aún")
+                logger.warning("on_resume: self.root no disponible")
                 return
             
             current_screen = self.root.current
             logger.info(f"Pantalla actual: {current_screen}")
             
-            # Lógica específica por pantalla
             if current_screen == 'adopt':
                 logger.info("Verificando adopción después de resumir...")
                 screen = self.root.get_screen('adopt')
@@ -470,7 +614,7 @@ class FiscalberryApp(App):
                         0.5
                     )
             
-            logger.info("Resume completado instantáneamente")
+            logger.info("Recuperación de contexto OpenGL completada")
             
         except Exception as e:
             logger.error(f"Error en on_resume: {e}", exc_info=True)

@@ -84,7 +84,6 @@ fullscreen = 0
 # (string) Presplash background color
 android.presplash_color = purple
 
-# (list) Permissions
 # Permisos necesarios para Fiscalberry Android desde API 22 (Android 5.1.1):
 # - INTERNET: Conexión a RabbitMQ y SocketIO
 # - FOREGROUND_SERVICE: Servicio en segundo plano (API 28+)
@@ -94,8 +93,9 @@ android.presplash_color = purple
 # - BLUETOOTH*: Para impresoras Bluetooth
 # - ACCESS_COARSE_LOCATION: Requerido para escaneo Bluetooth en Android 6.0+ (API 23+)
 # - BLUETOOTH_SCAN, BLUETOOTH_CONNECT: Nuevos permisos Android 12+ (API 31+)
+# - RECEIVE_BOOT_COMPLETED: Para auto-arranque después de reinicio del dispositivo
 # Nota: Los permisos específicos de versión se manejan en runtime
-android.permissions = INTERNET,FOREGROUND_SERVICE,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,WAKE_LOCK,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_SCAN,BLUETOOTH_CONNECT,ACCESS_COARSE_LOCATION,ACCESS_FINE_LOCATION,REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+android.permissions = INTERNET,FOREGROUND_SERVICE,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,WAKE_LOCK,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_SCAN,BLUETOOTH_CONNECT,ACCESS_COARSE_LOCATION,ACCESS_FINE_LOCATION,REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,RECEIVE_BOOT_COMPLETED
 
 # (list) features (adds uses-feature tags to manifest)
 # Habilitar soporte para impresoras USB y Bluetooth
@@ -103,8 +103,8 @@ android.permissions = INTERNET,FOREGROUND_SERVICE,ACCESS_NETWORK_STATE,ACCESS_WI
 # android.features = android.hardware.usb.host,android.hardware.bluetooth
 
 # (int) Target Android API, should be as high as possible.
-# Android 16 = API 35 (última versión soportada)
-android.api = 35
+# Android 13 = API 33 (evita requisito de foregroundServiceType de API 34+)
+android.api = 33
 
 # (int) Minimum API your APK / AAB will support.
 # Android 5.1.1 = API 22 (compatibilidad con POS Payway)

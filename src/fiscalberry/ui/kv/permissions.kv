@@ -18,7 +18,13 @@
             height: dp(100)
             spacing: dp(10)
             
-            # Logo eliminado - UI minimalista
+            # Logo (string vacío - no se mostrará)
+            Image:
+                source: app.logo_image
+                size_hint_y: None
+                height: dp(50)
+                allow_stretch: True
+                keep_ratio: True
             
             Label:
                 text: "Permisos de Android"

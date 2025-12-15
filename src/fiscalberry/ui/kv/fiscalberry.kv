@@ -70,6 +70,6 @@
 
 
 <ConnectedImage>:
-    # Indicador visual eliminado - usar estado de texto en labels
-    size_hint_y: None
-    height: 0
+    source: app.connected_image if app.connected else app.disconnected_image
+    height: 16
+    keep_ratio: True

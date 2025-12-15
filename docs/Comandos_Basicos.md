@@ -13,9 +13,6 @@ adb install -r bin/fiscalberry-*.apk
 # Verificar logs
 adb logcat -s python:* | grep -i permission
 
-# Limpiar compilación
-buildozer android clean
-
 # Actualizar dependencias
 pip install --upgrade -r requirements.txt   
 pip freeze > requirements.txt

@@ -97,6 +97,142 @@ def request_battery_exemption():
         logger.error(f"Error solicitando exclusión de batería: {e}", exc_info=True)
 
 
+# =============================================================================
+# HARDWARE LOCKS - Mantener CPU y WiFi activos permanentemente
+# =============================================================================
+
+# Variables globales para los locks (para poder liberarlos en shutdown)
+_wakelock = None
+_wifi_lock = None
+
+
+def acquire_wakelock():
+    """
+    Adquiere PARTIAL_WAKE_LOCK para mantener la CPU activa.
+    
+    CRÍTICO: Sin esto, la CPU entra en deep sleep cuando la pantalla se apaga,
+    pausando todos los threads de Python incluyendo RabbitMQ y SocketIO.
+    
+    PARTIAL_WAKE_LOCK (flag=1): CPU activa, pantalla puede apagarse.
+    acquire() sin timeout: Mantiene el lock indefinidamente.
+    """
+    global _wakelock
+    
+    if not ANDROID_AVAILABLE:
+        logger.debug("WakeLock: No Android, omitiendo")
+        return None
+    
+    try:
+        from jnius import autoclass, cast
+        
+        PowerManager = autoclass('android.os.PowerManager')
+        service = PythonService.mService
+        
+        if not service:
+            logger.warning("WakeLock: PythonService.mService no disponible")
+            return None
+        
+        pm = service.getSystemService(Context.POWER_SERVICE)
+        pm = cast(PowerManager, pm)
+        
+        # PARTIAL_WAKE_LOCK = 1
+        # Tag para identificar en debug: "Fiscalberry:ServiceWakeLock"
+        _wakelock = pm.newWakeLock(1, "Fiscalberry:ServiceWakeLock")
+        
+        # acquire() sin timeout = lock permanente hasta release()
+        _wakelock.acquire()
+        
+        logger.critical("🔒 WAKELOCK ADQUIRIDO - CPU forzada a mantenerse activa")
+        return _wakelock
+        
+    except Exception as e:
+        logger.error(f"Error adquiriendo WakeLock: {e}", exc_info=True)
+        return None
+
+
+def acquire_wifi_lock():
+    """
+    Adquiere WiFi Lock en modo HIGH PERFORMANCE.
+    
+    CRÍTICO: Sin esto, el radio WiFi entra en modo ahorro de energía,
+    causando latencia alta y posibles desconexiones de RabbitMQ.
+    
+    WIFI_MODE_FULL_HIGH_PERF (flag=3): WiFi a máxima potencia, sin PSM.
+    WIFI_MODE_FULL_LOW_LATENCY (flag=4): API 29+, latencia mínima.
+    """
+    global _wifi_lock
+    
+    if not ANDROID_AVAILABLE:
+        logger.debug("WiFiLock: No Android, omitiendo")
+        return None
+    
+    try:
+        from jnius import autoclass, cast
+        
+        WifiManager = autoclass('android.net.wifi.WifiManager')
+        service = PythonService.mService
+        
+        if not service:
+            logger.warning("WiFiLock: PythonService.mService no disponible")
+            return None
+        
+        wm = service.getSystemService(Context.WIFI_SERVICE)
+        wm = cast(WifiManager, wm)
+        
+        # Elegir modo según API level
+        # WIFI_MODE_FULL_HIGH_PERF = 3 (API 12+)
+        # WIFI_MODE_FULL_LOW_LATENCY = 4 (API 29+)
+        if ANDROID_API_LEVEL >= 29:
+            wifi_mode = 4  # WIFI_MODE_FULL_LOW_LATENCY
+            mode_name = "LOW_LATENCY"
+        else:
+            wifi_mode = 3  # WIFI_MODE_FULL_HIGH_PERF
+            mode_name = "HIGH_PERF"
+        
+        _wifi_lock = wm.createWifiLock(wifi_mode, "Fiscalberry:ServiceWifiLock")
+        
+        # acquire() sin timeout = lock permanente hasta release()
+        _wifi_lock.acquire()
+        
+        logger.critical(f"📶 WIFI_LOCK ADQUIRIDO ({mode_name}) - Radio WiFi a máxima potencia")
+        return _wifi_lock
+        
+    except Exception as e:
+        logger.error(f"Error adquiriendo WiFi Lock: {e}", exc_info=True)
+        return None
+
+
+def release_hardware_locks():
+    """
+    Libera WakeLock y WiFiLock.
+    
+    IMPORTANTE: Solo llamar en shutdown explícito de la app.
+    Si se liberan mientras el servicio corre, Android dormirá el dispositivo.
+    """
+    global _wakelock, _wifi_lock
+    
+    released = []
+    
+    try:
+        if _wakelock is not None and _wakelock.isHeld():
+            _wakelock.release()
+            released.append("WakeLock")
+            _wakelock = None
+    except Exception as e:
+        logger.error(f"Error liberando WakeLock: {e}")
+    
+    try:
+        if _wifi_lock is not None and _wifi_lock.isHeld():
+            _wifi_lock.release()
+            released.append("WiFiLock")
+            _wifi_lock = None
+    except Exception as e:
+        logger.error(f"Error liberando WiFiLock: {e}")
+    
+    if released:
+        logger.info(f"🔓 Hardware locks liberados: {', '.join(released)}")
+
+
 # Variable global para el controlador de servicios
 service_controller = None
 
@@ -201,8 +337,14 @@ def run_service_logic():
     
     logger.info("=== Iniciando Servicio Android de Fiscalberry ===")
     
-    # Mostrar notificación de servicio en primer plano
+    # PASO 1: Mostrar notificación de servicio en primer plano
     show_foreground_notification()
+    
+    # PASO 2: Adquirir Hardware Locks ANTES de cualquier otra cosa
+    # Esto garantiza que CPU y WiFi estén activos para RabbitMQ/SocketIO
+    logger.info("Adquiriendo hardware locks...")
+    acquire_wakelock()
+    acquire_wifi_lock()
     
     # Obtener argumento de inicio del servicio (opcional)
     service_argument = os.environ.get('PYTHON_SERVICE_ARGUMENT', 'default')
@@ -214,6 +356,7 @@ def run_service_logic():
         logger.info("Configberry inicializado")
         
         # Solicitar exclusión de optimización de batería (Android 6.0+)
+        # NOTA: Esto puede fallar si no hay Activity, pero los locks ya están activos
         request_battery_exemption()
         
         if not configberry.is_comercio_adoptado():
@@ -251,6 +394,9 @@ def run_service_logic():
                 logger.info("ServiceController detenido")
             except Exception as e:
                 logger.error(f"Error al detener ServiceController: {e}")
+        
+        # Liberar hardware locks al final
+        release_hardware_locks()
         
         logger.info("=== Servicio Android de Fiscalberry finalizado ===")
 
