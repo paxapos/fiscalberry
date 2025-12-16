@@ -2,12 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-Servicio Android para Fiscalberry (UI Version)
+Servicio Android para Fiscalberry
 
 Permite que RabbitMQ y SocketIO funcionen en segundo plano
 incluso cuando la app no está en primer plano.
-
-Ubicación: fiscalberry/android/app/service.py
 """
 
 from time import sleep
@@ -20,12 +18,12 @@ logger = getLogger("AndroidService")
 from fiscalberry.common.service_controller import ServiceController
 from fiscalberry.common.Configberry import Configberry
 
-# Android APIs usando jnius
+# Android APIs
 ANDROID_API_LEVEL = 0
 ANDROID_AVAILABLE = False
 
 try:
-    from jnius import autoclass
+    from jnius import autoclass, cast
     
     BuildVERSION = autoclass('android.os.Build$VERSION')
     ANDROID_API_LEVEL = BuildVERSION.SDK_INT
@@ -37,59 +35,15 @@ try:
     NotificationManager = autoclass('android.app.NotificationManager')
     PendingIntent = autoclass('android.app.PendingIntent')
     Intent = autoclass('android.content.Intent')
-    String = autoclass('java.lang.String')
     
     if ANDROID_API_LEVEL >= 26:
         NotificationChannel = autoclass('android.app.NotificationChannel')
     else:
         NotificationChannel = None
     
-    from jnius import cast
-    
     ANDROID_AVAILABLE = True
-    logger.info(f"APIs de Android disponibles - API Level: {ANDROID_API_LEVEL}")
 except ImportError:
     ANDROID_AVAILABLE = False
-    logger.warning("jnius no disponible - APIs de Android no estarán disponibles")
-
-
-def request_battery_exemption():
-    """Solicita exclusión de optimización de batería."""
-    if not ANDROID_AVAILABLE or ANDROID_API_LEVEL < 23:
-        return
-    
-    try:
-        from jnius import autoclass, cast
-        
-        PythonActivity = autoclass('org.kivy.android.PythonActivity')
-        Settings = autoclass('android.provider.Settings')
-        PowerManager = autoclass('android.os.PowerManager')
-        Intent = autoclass('android.content.Intent')
-        Uri = autoclass('android.net.Uri')
-        Context = autoclass('android.content.Context')
-        
-        activity = PythonActivity.mActivity
-        
-        if activity is None:
-            logger.debug("mActivity es None - normal en servicio")
-            return
-            
-        package_name = activity.getPackageName()
-        power_manager = activity.getSystemService(Context.POWER_SERVICE)
-        power_manager = cast(PowerManager, power_manager)
-        
-        if not power_manager.isIgnoringBatteryOptimizations(package_name):
-            logger.warning("App NO excluida de optimización de batería")
-            intent = Intent()
-            intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-            intent.setData(Uri.parse(f"package:{package_name}"))
-            activity.startActivity(intent)
-            logger.info("Solicitud de exclusión enviada al usuario")
-        else:
-            logger.info("✅ App ya excluida de optimización de batería")
-            
-    except Exception as e:
-        logger.error(f"Error solicitando exclusión de batería: {e}")
 
 
 # Variables globales para hardware locks
@@ -110,7 +64,6 @@ def acquire_wakelock():
         
         service = PythonService.mService
         if not service:
-            logger.warning("WakeLock: mService no disponible")
             return None
         
         pm = service.getSystemService(Context.POWER_SERVICE)
@@ -118,17 +71,15 @@ def acquire_wakelock():
         
         _wakelock = pm.newWakeLock(1, "Fiscalberry:ServiceWakeLock")
         _wakelock.acquire()
-        
-        logger.critical("🔒 WAKELOCK ADQUIRIDO - CPU activa")
         return _wakelock
         
     except Exception as e:
-        logger.error(f"Error adquiriendo WakeLock: {e}")
+        logger.error(f"Error WakeLock: {e}")
         return None
 
 
 def acquire_wifi_lock():
-    """Adquiere WiFi Lock en modo HIGH PERFORMANCE."""
+    """Adquiere WiFi Lock."""
     global _wifi_lock
     
     if not ANDROID_AVAILABLE:
@@ -140,23 +91,18 @@ def acquire_wifi_lock():
         
         service = PythonService.mService
         if not service:
-            logger.warning("WiFiLock: mService no disponible")
             return None
         
         wm = service.getSystemService(Context.WIFI_SERVICE)
         wm = cast(WifiManager, wm)
         
         wifi_mode = 4 if ANDROID_API_LEVEL >= 29 else 3
-        mode_name = "LOW_LATENCY" if ANDROID_API_LEVEL >= 29 else "HIGH_PERF"
-        
         _wifi_lock = wm.createWifiLock(wifi_mode, "Fiscalberry:ServiceWifiLock")
         _wifi_lock.acquire()
-        
-        logger.critical(f"📶 WIFI_LOCK ADQUIRIDO ({mode_name})")
         return _wifi_lock
         
     except Exception as e:
-        logger.error(f"Error adquiriendo WiFi Lock: {e}")
+        logger.error(f"Error WiFiLock: {e}")
         return None
 
 
@@ -164,33 +110,23 @@ def release_hardware_locks():
     """Libera WakeLock y WiFiLock."""
     global _wakelock, _wifi_lock
     
-    released = []
-    
     try:
         if _wakelock is not None and _wakelock.isHeld():
             _wakelock.release()
-            released.append("WakeLock")
             _wakelock = None
-    except Exception as e:
-        logger.error(f"Error liberando WakeLock: {e}")
+    except:
+        pass
     
     try:
         if _wifi_lock is not None and _wifi_lock.isHeld():
             _wifi_lock.release()
-            released.append("WiFiLock")
             _wifi_lock = None
-    except Exception as e:
-        logger.error(f"Error liberando WiFiLock: {e}")
-    
-    if released:
-        logger.info(f"🔓 Hardware locks liberados: {', '.join(released)}")
-
-
-service_controller = None
+    except:
+        pass
 
 
 def create_notification_channel():
-    """Crea un canal de notificación para Android 8.0+ (API 26+)."""
+    """Crea un canal de notificación para Android 8.0+."""
     if not ANDROID_AVAILABLE or ANDROID_API_LEVEL < 26 or not NotificationChannel:
         return "fiscalberry_service"
     
@@ -204,23 +140,21 @@ def create_notification_channel():
             notification_service = service.getSystemService(Context.NOTIFICATION_SERVICE)
             notification_manager = cast(NotificationManager, notification_service)
             notification_manager.createNotificationChannel(channel)
-            
             return channel_id
-    except Exception as e:
-        logger.error(f"Error creando canal de notificación: {e}")
+    except:
+        pass
     
     return "fiscalberry_service"
 
 
 def show_foreground_notification():
-    """Muestra una notificación permanente para servicio en primer plano."""
+    """Muestra notificación de servicio en primer plano."""
     if not ANDROID_AVAILABLE:
         return
     
     try:
         service = PythonService.mService
         if not service:
-            logger.warning("mService no disponible para notificación")
             return
         
         channel_id = create_notification_channel()
@@ -253,66 +187,72 @@ def show_foreground_notification():
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
                 )
                 service.startForeground(1, notification, foreground_types)
-            except Exception:
+            except:
                 service.startForeground(1, notification)
         else:
             service.startForeground(1, notification)
-        
-        logger.info(f"Foreground notification mostrada (API {ANDROID_API_LEVEL})")
-        
+            
     except Exception as e:
-        logger.error(f"Error mostrando notificación: {e}")
+        logger.error(f"Error notificación: {e}")
+
+
+service_controller = None
 
 
 def run_service_logic():
     """Lógica principal del servicio en segundo plano."""
     global service_controller
     
-    logger.info("=== Iniciando Servicio Android de Fiscalberry ===")
+    logger.info("=== Iniciando Fiscalberry Android Service ===")
+    logger.info(f"API Level: {ANDROID_API_LEVEL}")
     
-    # PASO 1: Mostrar notificación de servicio en primer plano
+    # Mostrar notificación
     show_foreground_notification()
     
-    # PASO 2: Adquirir Hardware Locks
-    acquire_wakelock()
-    acquire_wifi_lock()
+    # Adquirir locks
+    if acquire_wakelock():
+        logger.info("WakeLock adquirido")
+    if acquire_wifi_lock():
+        logger.info("WiFiLock adquirido")
     
-    # Inicializar configuración
     try:
         configberry = Configberry()
-        request_battery_exemption()
         
+        # Esperar adopción si es necesario
         if not configberry.is_comercio_adoptado():
-            logger.warning("Comercio no adoptado - esperando adopción...")
+            logger.info("Comercio no adoptado. Esperando adopción...")
             while True:
                 sleep(30)
                 if configberry.is_comercio_adoptado():
-                    logger.info("Comercio adoptado! Iniciando servicios...")
+                    logger.info("Comercio adoptado exitosamente")
                     break
         
-        # Iniciar ServiceController (RabbitMQ, SocketIO)
-        logger.info("Iniciando ServiceController...")
+        # Iniciar servicios
+        logger.info("Comercio adoptado. Iniciando servicios...")
         service_controller = ServiceController()
-        service_controller.start()
         
-        # Mantener el servicio corriendo
-        logger.info("Servicio en ejecución...")
+        logger.info("Iniciando controlador de servicios...")
+        service_controller.start()
+        logger.info("Controlador de servicios iniciado exitosamente")
+        
+        # Mantener servicio activo
         while True:
             sleep(60)
             
     except KeyboardInterrupt:
-        logger.info("Servicio interrumpido")
+        logger.info("Interrupción detectada")
     except Exception as e:
         logger.error(f"Error en servicio: {e}", exc_info=True)
     finally:
         if service_controller:
             try:
                 service_controller.stop()
+                logger.info("Servicios detenidos correctamente")
             except Exception as e:
-                logger.error(f"Error deteniendo ServiceController: {e}")
+                logger.error(f"Error al detener: {e}")
         
         release_hardware_locks()
-        logger.info("=== Servicio Android de Fiscalberry finalizado ===")
+        logger.info("=== Finalizando Fiscalberry Android Service ===")
 
 
 if __name__ == "__main__":

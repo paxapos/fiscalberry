@@ -32,39 +32,32 @@ class ServiceController:
     
     def __init__(self):
         if hasattr(self, 'initialized'):
-            logger.debug("ServiceController ya inicializado")
             return
             
-        logger.info("=== Inicializando ServiceController ===")
         self.initialized = True
         self.socketio_thread = None
         self.discover_thread = None
         
         try:
             self.configberry = Configberry()
-            logger.debug("Configberry inicializado")
-            
-            self._stop_event = threading.Event() # Evento para detener limpiamente
-            self.initial_retries = 0 # Contador para chequeo inicial de UUID
-            logger.debug("Variables de control inicializadas")
+            self._stop_event = threading.Event()
+            self.initial_retries = 0
 
             sio_host = self.configberry.get("SERVIDOR", "sio_host")
             if not sio_host:
-                logger.error("sio_host no configurado en la configuración. Abortando.")
+                logger.error("sio_host no configurado")
                 os._exit(1)
-            logger.info(f"Host SocketIO configurado: {sio_host}")
 
-            # --- Bucle de chequeo inicial de UUID ---
             uuidval = self.configberry.get("SERVIDOR", "uuid", fallback="")
-            logger.info(f"UUID configurado: {uuidval[:8]}..." if uuidval else "UUID no configurado")
             
         except Exception as e:
-            logger.error(f"Error durante inicialización de ServiceController: {e}", exc_info=True)
+            logger.error(f"Error ServiceController init: {e}")
             raise
         if not uuidval:
-            logger.error(f"UUID NO encontrado en config file: {uuidval}")
+            logger.error("UUID no encontrado")
             os._exit(1)
 
+        logger.info(f"ServiceController: {sio_host} uuid={uuidval[:8]}...")
         self.sio = FiscalberrySio(sio_host, uuidval)
         
         # Configurar manejo de señales

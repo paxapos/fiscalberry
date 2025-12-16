@@ -214,38 +214,24 @@ class AdoptScreen(Screen):
             dt: Delta time (requerido por Clock.schedule_once)
         """
         try:
-            logger.info("Iniciando transición a pantalla main...")
-            
-            # Obtener referencia a la app
             app = App.get_running_app()
-            
-            # Actualizar propiedades de configuración
             app.updatePropertiesWithConfig()
-            logger.debug("Propiedades de configuración actualizadas")
             
-            # Cambiar a pantalla main
             if self.manager:
                 self.manager.current = 'main'
-                logger.info("Cambiado a pantalla main")
             else:
                 logger.error("ScreenManager no disponible")
                 return
             
-            # Iniciar servicios (SocketIO, RabbitMQ en GUI)
             app.on_start_service()
-            logger.info("Servicios iniciados")
             
-            # NUEVO: Iniciar servicio Android después de adopción
-            # Este es el momento correcto porque el comercio ya está adoptado
             if IS_ANDROID and hasattr(app, '_start_android_service'):
-                logger.info("Iniciando servicio Android post-adopción...")
                 try:
                     app._start_android_service()
-                    logger.info("✅ Servicio Android iniciado")
                 except Exception as e:
-                    logger.error(f"Error iniciando servicio Android: {e}")
+                    logger.error(f"Error servicio Android: {e}")
             
-            logger.info("✅ Transición a pantalla main completada exitosamente")
+            logger.info("Pantalla main OK")
             
         except Exception as e:
             logger.error(f"Error al ir a main: {e}", exc_info=True)

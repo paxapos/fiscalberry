@@ -54,15 +54,10 @@ class FiscalberrySio:
             self.config = Configberry()
             self.message_queue = queue.Queue()
             
-            logger.debug("Inicializando RabbitMQ Process Handler...")
             self.rabbit_handler = RabbitMQProcessHandler()
-            logger.debug("RabbitMQ Process Handler inicializado")
             
             self._register_events()
-            logger.info("Eventos SocketIO registrados exitosamente")
-            
             self._initialized = True
-            logger.info("FiscalberrySio inicializado correctamente")
             
         except Exception as e:
             logger.error(f"Error durante inicialización de FiscalberrySio: {e}", exc_info=True)

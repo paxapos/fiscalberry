@@ -203,11 +203,7 @@ def listar_impresoras():
         if impresoras:
             return impresoras
         else:
-            logger.warning("No se encontraron impresoras en Android")
-            logger.info("Asegúrate de que:")
-            logger.info("  1. La impresora esté conectada vía USB OTG o emparejada por Bluetooth")
-            logger.info("  2. Los permisos USB/Bluetooth estén otorgados")
-            logger.info("  3. El Bluetooth esté activado (para impresoras BT)")
+            logger.warning("No se encontraron impresoras. Verifica USB/Bluetooth conectado y permisos otorgados.")
             return []
     
     # Linux (incluyendo Raspberry Pi)

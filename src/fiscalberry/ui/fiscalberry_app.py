@@ -194,42 +194,27 @@ class FiscalberryApp(App):
         org.kivy.android.PythonService que no existe cuando se usa un servicio nombrado.
         """
         try:
-            logger.info("Intentando iniciar servicio Android...")
-            
             from jnius import autoclass
-            logger.debug("✓ jnius importado")
             
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
             
             activity = PythonActivity.mActivity
             if activity is None:
-                logger.warning("PythonActivity.mActivity es None - no se puede iniciar servicio")
+                logger.warning("mActivity es None")
                 return
             
-            # Usar la clase de servicio generada por p4a que tiene el método start() correcto
-            # Esta clase configura automáticamente todos los extras necesarios del Intent
             package_name = activity.getPackageName()
             service_class_name = f"{package_name}.ServiceFiscalberryservice"
             
-            logger.info(f"Iniciando servicio: {service_class_name}")
-            
-            # Importar la clase del servicio generada por p4a
             ServiceClass = autoclass(service_class_name)
-            
-            # Usar el método estático start(context, pythonServiceArgument)
-            # Este método configura correctamente el Intent con:
-            # - androidPrivate, androidArgument, pythonHome, pythonPath
-            # - serviceEntrypoint, pythonName, serviceStartAsForeground
-            # - serviceTitle, contentTitle, contentText
             ServiceClass.start(activity, "")
             
-            logger.info(f"✓ Servicio iniciado: {service_class_name}")
+            logger.info(f"Servicio Android iniciado")
                 
         except ImportError:
-            logger.warning("jnius no disponible - no es Android")
+            pass
         except Exception as e:
-            logger.error(f"Error iniciando servicio Android: {e}", exc_info=True)
-            logger.warning("La app funcionará solo cuando esté en primer plano")
+            logger.error(f"Error servicio Android: {e}")
     
     def build(self):
         """Construye la aplicación de forma optimizada."""
@@ -665,17 +650,13 @@ class FiscalberryApp(App):
         Actualiza las propiedades de la aplicación con los valores de configuración.
         """
         try:
-            logger.debug("Actualizando propiedades con configuración...")
             self.uuid = self._configberry.get("SERVIDOR", "uuid", fallback="")
             self.host = self._configberry.get("SERVIDOR", "sio_host", fallback="")
             self.tenant = self._configberry.get("Paxaprinter", "tenant", fallback="")
             self.siteName = self._configberry.get("Paxaprinter", "site_name", fallback="")
             self.siteAlias = self._configberry.get("Paxaprinter", "alias", fallback="")
-            
-            logger.info(f"Configuración cargada - UUID: {self.uuid[:8]}..., Host: {self.host}, Tenant: {self.tenant}")
-            logger.debug(f"Site Name: {self.siteName}, Site Alias: {self.siteAlias}")
         except Exception as e:
-            logger.error(f"Error al actualizar propiedades con configuración: {e}", exc_info=True)
+            logger.error(f"Error config: {e}")
             # Establecer valores por defecto en caso de error
             self.uuid = ""
             self.host = ""
@@ -876,48 +857,39 @@ class FiscalberryApp(App):
     def on_stop(self):
         """Este método se llama al cerrar la aplicación."""
         if self._stopping:
-            return
+            return True
 
-        print("Cerrando aplicación inmediatamente...")
+        logger.info("App cerrándose...")
         self._stopping = True
 
-        # NO esperar a los servicios - cerrar inmediatamente
         try:
-            # Detener los schedulers de Kivy inmediatamente
             Clock.unschedule(self._check_sio_status)
             Clock.unschedule(self._check_rabbit_status)
         except:
             pass
 
-        # Forzar cierre inmediato sin esperar servicios
-        print("Forzando cierre inmediato...")
-        Clock.schedule_once(self._immediate_force_exit, 0.1)
-        return False  # No dejar que Kivy maneje el cierre
-    
-    def _immediate_force_exit(self, dt):
-        """Forzar salida inmediata sin esperar servicios."""
+        # Detener servicios en background sin bloquear
         try:
-            # Intentar parar servicios rápidamente en background
             def stop_services_background():
                 try:
-                    self._service_controller._stop_event.set()
-                    if hasattr(self._service_controller, 'sio') and self._service_controller.sio:
-                        self._service_controller.sio.stop()
+                    if hasattr(self, '_service_controller') and self._service_controller:
+                        self._service_controller._stop_event.set()
+                        if hasattr(self._service_controller, 'sio') and self._service_controller.sio:
+                            self._service_controller.sio.stop()
                 except:
                     pass
 
-            # Ejecutar en background sin bloquear
             thread = threading.Thread(target=stop_services_background, daemon=True)
             thread.start()
         except:
             pass
 
-        # Salir inmediatamente
-        try:
-            print("Terminando proceso...")
-            os._exit(0)
-        except:
-            pass
+        logger.info("=== Finalizando Fiscalberry GUI ===")
+        return True  # Dejar que Kivy maneje el cierre normalmente
+    
+    def _immediate_force_exit(self, dt):
+        """Solo se usa para cierre de emergencia."""
+        pass
     
     def _setup_signal_handlers(self):
         """Configurar manejadores de señales para cierre limpio."""

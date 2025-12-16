@@ -95,7 +95,7 @@ def report_queue_status():
 
 def process_print_jobs(worker_id=0):
     """Worker optimizado para procesar trabajos de impresión con detección de comandas trabadas"""
-    logger.info(f"Print worker {worker_id} started")
+
     
     # Umbral de tiempo para considerar una comanda como trabada
     STUCK_JOB_THRESHOLD = 30.0  # 30 segundos
@@ -201,14 +201,10 @@ report_queue_status()
 
 
 def runTraductor(jsonTicket, queue):
-    # extraigo el printerName del jsonTicket
     printerName = jsonTicket.pop('printerName')
-    logger.info(f"Iniciando proceso de impresión para impresora: '{printerName}'")
-    logger.debug(f"JSON ticket recibido: {json.dumps(jsonTicket, indent=2, ensure_ascii=False)}")
 
     try:
         dictSectionConf = configberry.get_config_for_printer(printerName)
-        logger.debug(f"Configuración de impresora '{printerName}' cargada exitosamente")
     except KeyError as e:
         error_msg = f"Printer not found in configuration: '{printerName}'"
         logger.error(error_msg)
@@ -244,48 +240,32 @@ def runTraductor(jsonTicket, queue):
 
 
     driverName = dictSectionConf.pop("driver", "Dummy")
-    # convertir a lowercase
     driverName = driverName.lower()
-    logger.info(f"Driver seleccionado para '{printerName}': {driverName}")
 
     driverOps = dictSectionConf
-    logger.debug(f"Opciones del driver: {driverOps}")
 
     if driverName == "Fiscalberry".lower():
-        # proxy pass to FiscalberryComandos
-        logger.info(f"Usando FiscalberryComandos para impresora '{printerName}'")
         try:
             comando = FiscalberryComandos()
             host = driverOps.get('host', 'localhost')
             printerName = driverOps.get('printerName', printerName)
             jsonTicket['printerName'] = printerName
-            logger.debug(f"Enviando comando a host: {host}")
             result = comando.run(host, jsonTicket)
-            logger.info(f"Comando FiscalberryComandos ejecutado exitosamente")
             return queue.put(result)
         except Exception as e:
-            logger.error(f"Error ejecutando FiscalberryComandos: {e}", exc_info=True)
+            logger.error(f"Error FiscalberryComandos: {e}")
             return queue.put({"error": f"Error en FiscalberryComandos: {str(e)}"})
 
     if driverName == "Win32Raw".lower():
-        # printer.Win32Raw(printer_name='', *args, **kwargs)[source]
         driverName = "Win32Raw"
         driver = printer.Win32Raw
-        logger.info(f"Configurando driver Win32Raw para '{printerName}'")
 
         if not driver.is_usable():
-            error_msg = f"Driver {driverName} no está disponible en este sistema"
-            logger.error(error_msg)
-            raise DriverError(error_msg)
-        logger.debug("Driver Win32Raw verificado como disponible")
+            raise DriverError(f"Driver {driverName} no disponible")
 
 
     elif driverName == "Usb".lower():
-        
-        # printer.Usb(idVendor=None, idProduct=None, usb_args={}, timeout=0, in_ep=130, out_ep=1, *args, **kwargs)
         driverName = "Usb"
-        logger.info(f"Configurando driver USB para '{printerName}'")
-        logger.debug(f"Parámetros USB: {driverOps}")
 
         # convertir de string eJ: 0x82 a int
         if 'out_ep' in driverOps:
@@ -311,8 +291,7 @@ def runTraductor(jsonTicket, queue):
     elif driverName == "Bluetooth".lower():
         # Bluetooth printer for Android
         # BluetoothPrinter(mac_address='XX:XX:XX:XX:XX:XX', timeout=10)
-        logger.info(f"Configurando driver Bluetooth para '{printerName}'")
-        logger.debug(f"Parámetros Bluetooth: {driverOps}")
+
         
         # Validar MAC address
         if 'mac_address' not in driverOps and 'macAddress' not in driverOps:
@@ -365,30 +344,14 @@ def runTraductor(jsonTicket, queue):
             raise DriverError(f"Error loading driver {driverName}: {e}")
 
     try:
-        # crear el driver
-        logger.debug(f"Creando instancia del driver {driverName} con opciones: {driverOps}")
         driver = driver_class(**driverOps)
-        logger.info(f"Driver {driverName} creado exitosamente")
     except Exception as e:
-        error_msg = f"Error creando driver {driverName}: {e}"
-        logger.error(error_msg, exc_info=True)
-        raise DriverError(error_msg)
+        raise DriverError(f"Error creando driver {driverName}: {e}")
 
     try:
         comando = EscPComandos(driver)
-        logger.info(f"EscPComandos inicializado para '{printerName}'")
-        
-        logger.info(f"=== INICIANDO IMPRESIÓN ===")
-        logger.info(f"Impresora: {printerName}")
-        logger.info(f"Driver: {driverName}")
-        logger.debug(f"DriverOps: {driverOps}")
-        logger.debug(f"Comando JSON:\n{json.dumps(jsonTicket, indent=2, ensure_ascii=False)}")
-        
         result = comando.run(jsonTicket)
-        logger.info(f"=== IMPRESIÓN EXITOSA ===")
-        logger.debug(f"Resultado: {result}")
         
-        # Analizar la respuesta de la impresora buscando mensajes de error/warning
         analyze_printer_response(result, printerName)
         
         return {"message": "Impresión exitosa", "result": result}
@@ -419,29 +382,18 @@ class ComandosHandler:
 
     def send_command(self, comando):
         response = {}
-        logger.info(f"=== PROCESANDO COMANDO ===")
-        logger.debug(f"Comando recibido (tipo: {type(comando).__name__}): {str(comando)[:200]}...")
         
         try:
             if isinstance(comando, str):
-                logger.debug("Parseando comando desde string JSON")
                 jsonMes = json.loads(comando, strict=False)
-            #si es un diccionario o json, no hacer nada
             elif isinstance(comando, dict):
-                logger.debug("Comando recibido como diccionario")
                 jsonMes = comando
-            #si es del typo class bytes, convertir a string y luego a json
             elif isinstance(comando, bytes):
-                logger.debug("Parseando comando desde bytes")
                 jsonMes = json.loads(comando.decode("utf-8"), strict=False)
             else:
-                error_msg = f"Tipo de dato no soportado: {type(comando).__name__}"
-                logger.error(error_msg)
-                raise TypeError(error_msg)
+                raise TypeError(f"Tipo no soportado: {type(comando).__name__}")
             
-            logger.info("Comando parseado exitosamente, ejecutando...")
             response = self.__json_to_comando(jsonMes)
-            logger.info("Comando ejecutado exitosamente")
             
         except TypeError as e:
             errtxt = "Invalid command data type: %s" % e
@@ -495,13 +447,8 @@ class ComandosHandler:
                 exception=e
             )
 
-        logger.info(f"=== RESPUESTA DEL COMANDO ===")
         if "err" in response:
-            logger.error(f"Comando falló con error: {response.get('err', 'Error desconocido')}")
-        else:
-            logger.info("Comando ejecutado exitosamente")
-            
-        logger.debug(f"Respuesta completa: {json.dumps(response, indent=2, ensure_ascii=False)}")
+            logger.error(f"Error: {response.get('err')}")
         return response
 
     def __json_to_comando(self, jsonTicket):
@@ -517,9 +464,9 @@ class ComandosHandler:
             # esto se debe ejecutar antes que cualquier otro comando
             if 'printerName' in jsonTicket:
                 printer_name = jsonTicket.get('printerName')
-                logger.info(f"=== PROCESANDO IMPRESIÓN ===")
-                logger.info(f"Impresora destino: '{printer_name}'")
-                logger.debug(f"Ticket de impresión: {json.dumps(jsonTicket, indent=2, ensure_ascii=False)}")
+                # Log con JSON compacto del ticket
+                ticket_copy = {k: v for k, v in jsonTicket.items() if k != 'printerName'}
+                logger.info(f"Imprimiendo: '{printer_name}' {json.dumps(ticket_copy, ensure_ascii=False)}")
 
                 # Procesamiento optimizado con cola de alta velocidad
                 q = Queue()
@@ -532,7 +479,6 @@ class ComandosHandler:
                 try:
                     # Agregar trabajo sin bloqueo
                     print_queue.put_nowait((jsonTicket, q))
-                    logger.debug(f"Job queued fast. Queue size: {current_queue_size + 1}")
                     
                     # Timeout de 30 segundos para detectar comandas trabadas
                     result = q.get(timeout=30)
@@ -554,13 +500,14 @@ class ComandosHandler:
                             
                             rta["err"] = error_msg
                         else:
-                            # Log optimizado con tiempo de procesamiento
                             processing_time = result.get("processing_time", 0)
                             if processing_time > 0:
-                                logger.info(f"Print completed in {processing_time:.2f}s for '{printer_name}'")
+                                logger.info(f"Print OK: '{printer_name}' ({processing_time:.2f}s)")
+                            else:
+                                logger.info(f"Print OK: '{printer_name}'")
                             rta["rta"] = result.get("result", result)
                     else:
-                        logger.info(f"Print completed successfully for '{printer_name}'")
+                        logger.info(f"Print OK: '{printer_name}'")
                         rta["rta"] = result
                         
                 except queue.Full:

@@ -85,42 +85,26 @@ class EscPComandos():
     printer = None
 
     def __init__(self, printer):
-        logger.info(f"=== Inicializando EscPComandos ===")
-        logger.info(f"Tipo de impresora: {type(printer).__name__}")
-        logger.debug(f"Impresora: {printer}")
-        
         self.printer = printer
         
         self.total_cols = 40
-        self.price_cols = 12 #12 espacios permiten hasta 9,999,999.99
-        self.cant_cols = 6   #4 no admitiría decimales, 6 sería mejor
-        self.desc_cols =  self.total_cols - self.cant_cols - self.price_cols
+        self.price_cols = 12
+        self.cant_cols = 6
+        self.desc_cols = self.total_cols - self.cant_cols - self.price_cols
         self.desc_cols_ext = self.total_cols - self.price_cols
-        self.signo = "$" # Agregar el signo $ opcionalmente o espacio.
-        
-        logger.debug(f"Configuración de columnas - Total: {self.total_cols}, Precio: {self.price_cols}, "
-                    f"Cantidad: {self.cant_cols}, Descripción: {self.desc_cols}")
-        logger.info("EscPComandos inicializado exitosamente")
+        self.signo = "$"
 
     def run(self, jsonTicket):
-        logger.info(f"=== EJECUTANDO COMANDOS ESCP ===")
-        logger.debug(f"Ticket JSON: {jsonTicket}")
-        
         try:
             with EscposIO(self.printer, autocut=False, autoclose=True) as escpos:
-                logger.debug("Conexión EscposIO establecida")
                 actions = jsonTicket.keys()
                 rta = []
                 
-                logger.info(f"Procesando {len(actions)} acciones: {list(actions)}")
-                
                 for action in actions:
-                    logger.debug(f"Procesando acción: '{action}'")
                     fnAction = getattr(self, action, None)
 
                     if fnAction:
                         params = jsonTicket[action]
-                        logger.debug(f"Parámetros para '{action}': {params}")
 
                         try:
                             if isinstance(params, list):
@@ -130,36 +114,24 @@ class EscPComandos():
                             else:
                                 res = fnAction(escpos, params)
 
-                            logger.info(f"Acción '{action}' ejecutada exitosamente")
                             rta.append({"action": action, "rta": res})
                         except Exception as e:
-                            error_msg = f"Error ejecutando acción '{action}': {e}"
-                            logger.error(error_msg, exc_info=True)
+                            logger.error(f"Error '{action}': {e}")
                             
-                            # Detectar tipo específico de error y publicar
                             try:
                                 PrinterErrorDetector.detect_and_publish_error(
-                                    error_message=error_msg,
+                                    error_message=str(e),
                                     exception=e,
-                                    context={
-                                        "action": action,
-                                        "params": params,
-                                        "exception_type": type(e).__name__
-                                    }
+                                    context={"action": action}
                                 )
-                            except Exception as publish_err:
-                                logger.error(f"Error publicando error a RabbitMQ: {publish_err}")
+                            except:
+                                pass
                             
-                            rta.append({"action": action, "rta": f"Error: {error_msg}"})
+                            rta.append({"action": action, "rta": f"Error: {e}"})
                     else:
-                        error_msg = f"Función '{action}' no encontrada"
-                        logger.error(error_msg)
+                        logger.error(f"Función '{action}' no encontrada")
                         rta.append({"action": action, "rta": "Function not found"})
 
-                logger.info(f"=== COMANDOS ESCP COMPLETADOS ===")
-                logger.debug(f"Respuesta completa: {rta}")
-                
-                # Analizar respuestas buscando mensajes de error/warning
                 for item in rta:
                     if isinstance(item, dict) and 'rta' in item:
                         analyze_printer_response(item['rta'], "current_printer")
