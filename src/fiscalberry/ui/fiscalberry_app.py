@@ -299,8 +299,12 @@ class FiscalberryApp(App):
             # Comercio YA adoptado → ir a main directamente
             sm.current = 'main'
             logger.info("Iniciando en pantalla principal (comercio adoptado)")
-            # Iniciar servicios automáticamente
+            # Iniciar servicios automáticamente (SocketIO, RabbitMQ en GUI)
             self.on_start_service()
+            # NUEVO: Iniciar servicio Android SOLO cuando ya está adoptado
+            if self._is_android:
+                logger.info("Comercio adoptado - Iniciando servicio Android...")
+                Clock.schedule_once(lambda dt: self._start_android_service(), 0.5)
         else:
             # Comercio NO adoptado → enviar discover primero
             logger.info("Comercio no adoptado. Enviando discover...")
@@ -321,6 +325,7 @@ class FiscalberryApp(App):
                 logger.error(f"Error iniciando SocketIO: {e}", exc_info=True)
             
             # Ahora sí, mostrar pantalla de adopción
+            # NOTA: El servicio Android se iniciará DESPUÉS de adoptar en _go_to_main()
             sm.current = 'adopt'
             logger.info("Mostrando pantalla de adopción")
         
@@ -419,12 +424,10 @@ class FiscalberryApp(App):
             except Exception as e:
                 logger.error(f"Error gestionando permisos Android: {e}")
             
-            # CRÍTICO: Iniciar el servicio de background DESPUÉS de que la Activity esté lista
-            # Esto debe hacerse en on_start(), no en __init__
-            try:
-                self._start_android_service()
-            except Exception as e:
-                logger.error(f"Error iniciando servicio Android: {e}", exc_info=True)
+            # NOTA: El servicio Android YA NO se inicia aquí.
+            # Se inicia DESPUÉS de la adopción en:
+            # - build() si ya está adoptado
+            # - adopt_screen._go_to_main() después de adoptar
         else:
             # Configuración de icono para Desktop (Windows)
             logger.info("Desktop detectado - configurando icono final...")

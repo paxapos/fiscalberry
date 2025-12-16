@@ -231,9 +231,19 @@ class AdoptScreen(Screen):
                 logger.error("ScreenManager no disponible")
                 return
             
-            # Iniciar servicios
+            # Iniciar servicios (SocketIO, RabbitMQ en GUI)
             app.on_start_service()
             logger.info("Servicios iniciados")
+            
+            # NUEVO: Iniciar servicio Android después de adopción
+            # Este es el momento correcto porque el comercio ya está adoptado
+            if IS_ANDROID and hasattr(app, '_start_android_service'):
+                logger.info("Iniciando servicio Android post-adopción...")
+                try:
+                    app._start_android_service()
+                    logger.info("✅ Servicio Android iniciado")
+                except Exception as e:
+                    logger.error(f"Error iniciando servicio Android: {e}")
             
             logger.info("✅ Transición a pantalla main completada exitosamente")
             

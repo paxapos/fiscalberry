@@ -27,11 +27,7 @@ class RabbitMQConsumer:
     ) -> None:
         self.logger = getLogger("RabbitMQ.Consumer")
         
-        self.logger.info("=== Inicializando RabbitMQ Consumer ===")
-        self.logger.info(f"Host: {host}:{port}")
-        self.logger.info(f"Usuario: {user}")
-        self.logger.info(f"VHost: {vhost}")
-        self.logger.info(f"Cola: {queue_name}")
+        self.logger.info(f"RabbitMQ Consumer: {host}:{port} queue={queue_name}")
         
         self.host = host
         self.port = port
@@ -50,14 +46,10 @@ class RabbitMQConsumer:
         else:
             sioLogger = False
 
-        self.logger.debug(f"Entorno: {environment}, Logging detallado: {sioLogger}")
         
-    
     def connect(self):
         """Conecta al servidor RabbitMQ."""
-        self.logger.info(f"=== CONECTANDO A RABBITMQ ===")
-        self.logger.info(f"Servidor: {self.host}:{self.port}")
-        self.logger.debug(f"Parámetros de conexión - Usuario: {self.user}, VHost: {self.vhost}")
+        self.logger.info(f"Conectando a RabbitMQ {self.host}:{self.port}...")
 
         try:
             # Use connection parameters with shorter timeouts for faster failure detection

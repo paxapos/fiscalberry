@@ -31,11 +31,7 @@ class FiscalberrySio:
             logger.debug("FiscalberrySio ya inicializado, saltando...")
             return
             
-        logger.info("=== Inicializando FiscalberrySio ===")
-        logger.info(f"URL del servidor: {server_url}")
-        logger.info(f"UUID: {uuid}")
-        logger.info(f"Namespace: {namespaces}")
-        logger.info(f"Entorno: {environment}")
+        logger.info(f"FiscalberrySio: {server_url} ns={namespaces}")
         
         self.server_url = server_url
         self.uuid = uuid
@@ -78,23 +74,19 @@ class FiscalberrySio:
 
         @self.sio.event(namespace=ns)
         def connect():
-            logger.info(f"=== SOCKETIO CONECTADO ===")
-            logger.info(f"SID: {self.sio.sid}")
-            logger.info(f"Namespace: {ns}")
+            logger.info(f"SocketIO conectado (SID: {self.sio.sid})")
 
         @self.sio.event(namespace=ns)
         def connect_error(err):
-            logger.error(f"=== ERROR DE CONEXIÓN SOCKETIO ===")
-            logger.error(f"Error: {err}")
+            logger.error(f"SocketIO error de conexión: {err}")
 
         @self.sio.event(namespace=ns)
         def disconnect():
-            logger.warning("=== SOCKETIO DESCONECTADO ===")
+            logger.warning("SocketIO desconectado")
 
         @self.sio.event(namespace=ns)
         def error(err):
-            logger.error(f"=== ERROR SOCKETIO ===")
-            logger.error(f"Error: {err}")
+            logger.error(f"SocketIO error: {err}")
 
         @self.sio.event(namespace=ns)
         def start_sio():
@@ -102,38 +94,28 @@ class FiscalberrySio:
 
         @self.sio.event(namespace=ns)
         def adopt(data):
-            """ eliminar  de configberry la info de  la seccion paxaprinter"""
-            logger.info(f"=== EVENTO ADOPT RECIBIDO ===")
-            logger.info(f"Datos: {data}")
+            """Eliminar de configberry la info de la seccion paxaprinter"""
+            logger.info("Evento adopt recibido")
             try:
-                logger.info("Deteniendo servicio RabbitMQ...")
                 self.rabbit_handler.stop()
-                logger.info("Eliminando sección Paxaprinter de configuración...")
-                if self.config.delete_section("Paxaprinter"):
-                    logger.info("RabbitMQ detenido y sección Paxaprinter eliminada exitosamente")
-                else:
-                    logger.warning("No se pudo eliminar la sección Paxaprinter")
+                self.config.delete_section("Paxaprinter")
+                logger.info("Adopt: RabbitMQ detenido, config limpiada")
             except Exception as e:
-                logger.error(f"Error en adopt: {e}", exc_info=True)
+                logger.error(f"Error en adopt: {e}")
             
 
         @self.sio.event(namespace=ns)
         def message(data):
-            logger.info(f"=== MENSAJE SOCKETIO RECIBIDO ===")
-            logger.debug(f"Datos del mensaje: {data}")
+            logger.debug(f"Mensaje SocketIO recibido")
             if self.on_message:
                 try:
-                    logger.debug("Ejecutando callback on_message...")
                     self.on_message(data)
                 except Exception as e:
-                    logger.error(f"Error en callback on_message: {e}", exc_info=True)
-            else:
-                logger.debug("No hay callback on_message configurado")
+                    logger.error(f"Error en on_message: {e}")
 
         @self.sio.event(namespace=ns)
         def command(cfg: dict):
-            logger.info(f"=== COMANDO SOCKETIO RECIBIDO ===")
-            logger.debug(f"Configuración del comando: {cfg}")
+            logger.debug("Comando SocketIO recibido")
             
             # Procesamiento optimizado de comandos con manejo async
             try:
@@ -170,38 +152,18 @@ class FiscalberrySio:
 
         @self.sio.event(namespace=ns)
         def start_rabbit(cfg: dict):
-            logger.info("=" * 80)
-            logger.info("=== EVENTO RABBITMQ RECIBIDO DESDE SOCKETIO ===")
-            logger.info("=" * 80)
-            
-            rabbit_cfg = cfg.get('RabbitMq', {})
-            logger.info("Configuración recibida desde el servidor:")
-            logger.info(f"  host: {rabbit_cfg.get('host', 'N/A')}")
-            logger.info(f"  port: {rabbit_cfg.get('port', 'N/A')}")
-            logger.info(f"  user: {rabbit_cfg.get('user', 'N/A')}")
-            logger.info(f"  vhost: {rabbit_cfg.get('vhost', 'N/A')}")
-            logger.info(f"  queue: {rabbit_cfg.get('queue', 'N/A')}")
-            
-            logger.warning("⚠️  IMPORTANTE: La configuración del config.ini tiene PRIORIDAD ABSOLUTA")
-            logger.warning("⚠️  Solo se usarán valores de SocketIO para campos VACÍOS en config.ini")
-            logger.info("=" * 80)
-
+            logger.info("Evento start_rabbit recibido")
             try:
-                # config + restart, pasamos la cola para tail -f
-                # Create and start a daemon thread to run configure_and_restart
-                logger.debug("Creando hilo para RabbitMQ...")
                 self.rabbitmq_thread = threading.Thread(
                     target=self.rabbit_handler.configure_and_restart,
                     args=(cfg, self.message_queue),
                     daemon=True
                 )
-                logger.debug("Iniciando hilo RabbitMQ...")
                 self.rabbitmq_thread.start()
-                logger.info("Hilo RabbitMQ iniciado, esperando...")
                 self.rabbitmq_thread.join()
-                logger.info("RabbitMQ configurado y iniciado exitosamente")
+                logger.info("RabbitMQ iniciado")
             except Exception as e:
-                logger.error(f"Error iniciando RabbitMQ: {e}", exc_info=True)
+                logger.error(f"Error iniciando RabbitMQ: {e}")
             
     def isRabbitMQRunning(self):
         """

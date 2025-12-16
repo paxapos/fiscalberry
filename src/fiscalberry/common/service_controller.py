@@ -153,36 +153,31 @@ class ServiceController:
         self.initial_retries = 0
 
         if self._stop_event.is_set():
-            logger.info("Stop requested during initial UUID check.")
-            return # Salir si se pidió detener
+            logger.info("Stop requested during initial check.")
+            return
 
-        # Enviar el discover al servidor la primera vez
+        # Enviar el discover al servidor
         self.discover_thread = send_discover_in_thread()
         self.discover_thread.start()
 
-        # --- Bucle principal de reconexión ---
+        # Bucle principal de reconexión
         while not self._stop_event.is_set():
-            # Creamos un hilo que ejecutará _run_sio_instance
             self.socketio_thread = threading.Thread(
                 target=self._run_sio_instance,
-                daemon=True # Daemon para que no bloquee la salida si el principal muere
+                daemon=True
             )
             logger.info("* * * * * SocketIO thread start.")
             self.socketio_thread.start()
             
-            # En lugar de un join simple que puede bloquear indefinidamente,
-            # usamos un join con timeout para verificar periódicamente el estado
             while self.socketio_thread.is_alive() and not self._stop_event.is_set():
                 self.socketio_thread.join(timeout=1.0)
             
             logger.info("* * * * * SocketIO thread finished or stop requested.")
 
-            # Si el hilo terminó, verificamos si fue por una señal de stop
             if self._stop_event.is_set():
                 logger.info("Stop event received. Exiting SIO loop.")
-                break # Salir del bucle while
+                break
 
-            # Si no fue por stop, asumimos desconexión/error y reintentamos
             logger.warning("SIO thread terminated. Reconnecting in 5 seconds...")
             time.sleep(5)
 
