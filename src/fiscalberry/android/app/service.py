@@ -28,8 +28,9 @@ try:
     from jnius import autoclass
     
     # Obtener el nivel de API actual
-    Build = autoclass('android.os.Build')
-    ANDROID_API_LEVEL = Build.VERSION.SDK_INT
+    # En jnius, las clases internas de Java usan $ (Build$VERSION, no Build.VERSION)
+    BuildVERSION = autoclass('android.os.Build$VERSION')
+    ANDROID_API_LEVEL = BuildVERSION.SDK_INT
     
     PythonService = autoclass('org.kivy.android.PythonService')
     PythonActivity = autoclass('org.kivy.android.PythonActivity')

@@ -116,12 +116,8 @@ class FiscalberryApp(App):
                 except Exception as e:
                     logger.warning(f"Error configurando manejadores de señales: {e}")
             
-            # Iniciar servicio Android de forma segura
-            if self._is_android:
-                try:
-                    self._start_android_service()
-                except Exception as e:
-                    logger.error(f"Error iniciando servicio Android: {e}")
+            # NOTA: El servicio Android se inicia en on_start() donde la Activity ya existe
+            # No iniciar aquí porque PythonActivity.mActivity es None durante __init__
             
             logger.info("FiscalberryApp inicializada exitosamente")
             
@@ -185,53 +181,55 @@ class FiscalberryApp(App):
             logger.error(f"Error general verificando permisos Android: {e}", exc_info=True)
     
     def _start_android_service(self):
-        """Inicia el servicio Android en segundo plano"""
+        """
+        Inicia el servicio Android en segundo plano.
+        
+        IMPORTANTE: El servicio está registrado en buildozer.spec como:
+        services = fiscalberryservice:fiscalberry/android/app/service.py:foreground:sticky
+        
+        p4a genera una clase de servicio con el nombre:
+        com.paxapos.fiscalberry.ServiceFiscalberryservice
+        
+        NO se puede usar android.start_service() porque ese método busca
+        org.kivy.android.PythonService que no existe cuando se usa un servicio nombrado.
+        """
         try:
             logger.info("Intentando iniciar servicio Android...")
             
-            # Método 1: AndroidService
-            try:
-                from android import AndroidService
-                logger.debug("✓ AndroidService importado")
-                
-                service = AndroidService('Fiscalberry Service', 'running')
-                service.start('Fiscalberry iniciado')
-                logger.info("✓ Servicio Android iniciado")
+            from jnius import autoclass
+            logger.debug("✓ jnius importado")
+            
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            
+            activity = PythonActivity.mActivity
+            if activity is None:
+                logger.warning("PythonActivity.mActivity es None - no se puede iniciar servicio")
                 return
-                
-            except ImportError:
-                logger.debug("AndroidService no disponible, probando método alternativo...")
-            except Exception as e:
-                logger.warning(f"Error con AndroidService: {e}")
             
-            # Método 2: PythonService via jnius
-            try:
-                from jnius import autoclass
-                logger.debug("✓ jnius importado")
-                
-                PythonService = autoclass('org.kivy.android.PythonService')
-                PythonActivity = autoclass('org.kivy.android.PythonActivity')
-                
-                activity = PythonActivity.mActivity
-                if activity is not None:
-                    PythonService.start(activity, '')
-                    logger.info("✓ Servicio Android iniciado (método alternativo)")
-                    return
-                else:
-                    logger.warning("PythonActivity.mActivity es None")
-                    
-            except ImportError:
-                logger.debug("jnius no disponible")
-            except Exception as e:
-                logger.warning(f"Error con PythonService: {e}")
+            # Usar la clase de servicio generada por p4a que tiene el método start() correcto
+            # Esta clase configura automáticamente todos los extras necesarios del Intent
+            package_name = activity.getPackageName()
+            service_class_name = f"{package_name}.ServiceFiscalberryservice"
             
-            # Si llegamos aquí, ningún método funcionó
-            logger.warning("No se pudo iniciar servicio Android")
-            logger.info("La app funcionará solo cuando esté en primer plano")
+            logger.info(f"Iniciando servicio: {service_class_name}")
+            
+            # Importar la clase del servicio generada por p4a
+            ServiceClass = autoclass(service_class_name)
+            
+            # Usar el método estático start(context, pythonServiceArgument)
+            # Este método configura correctamente el Intent con:
+            # - androidPrivate, androidArgument, pythonHome, pythonPath
+            # - serviceEntrypoint, pythonName, serviceStartAsForeground
+            # - serviceTitle, contentTitle, contentText
+            ServiceClass.start(activity, "")
+            
+            logger.info(f"✓ Servicio iniciado: {service_class_name}")
                 
+        except ImportError:
+            logger.warning("jnius no disponible - no es Android")
         except Exception as e:
-            logger.error(f"Error general iniciando servicio Android: {e}", exc_info=True)
-            # No re-lanzar la excepción para evitar crash de la app
+            logger.error(f"Error iniciando servicio Android: {e}", exc_info=True)
+            logger.warning("La app funcionará solo cuando esté en primer plano")
     
     def build(self):
         """Construye la aplicación de forma optimizada."""
@@ -420,6 +418,13 @@ class FiscalberryApp(App):
                     request_all_permissions()
             except Exception as e:
                 logger.error(f"Error gestionando permisos Android: {e}")
+            
+            # CRÍTICO: Iniciar el servicio de background DESPUÉS de que la Activity esté lista
+            # Esto debe hacerse en on_start(), no en __init__
+            try:
+                self._start_android_service()
+            except Exception as e:
+                logger.error(f"Error iniciando servicio Android: {e}", exc_info=True)
         else:
             # Configuración de icono para Desktop (Windows)
             logger.info("Desktop detectado - configurando icono final...")
