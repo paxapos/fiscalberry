@@ -94,8 +94,13 @@ android.presplash_color = purple
 # - ACCESS_COARSE_LOCATION: Requerido para escaneo Bluetooth en Android 6.0+ (API 23+)
 # - BLUETOOTH_SCAN, BLUETOOTH_CONNECT: Nuevos permisos Android 12+ (API 31+)
 # - RECEIVE_BOOT_COMPLETED: Para auto-arranque después de reinicio del dispositivo
+# - POST_NOTIFICATIONS: Requerido en Android 13+ (API 33+) para mostrar notificaciones
+# - FOREGROUND_SERVICE_DATA_SYNC: Tipo de servicio para RabbitMQ/SocketIO (API 34+)
+# - FOREGROUND_SERVICE_CONNECTED_DEVICE: Tipo de servicio para impresoras BT (API 34+)
+# - ACCESS_BACKGROUND_LOCATION: Escaneo BT cuando la app está en segundo plano (API 29+)
+# - SCHEDULE_EXACT_ALARM, USE_EXACT_ALARM: Para reconexiones programadas (API 31+)
 # Nota: Los permisos específicos de versión se manejan en runtime
-android.permissions = INTERNET,FOREGROUND_SERVICE,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,WAKE_LOCK,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_SCAN,BLUETOOTH_CONNECT,ACCESS_COARSE_LOCATION,ACCESS_FINE_LOCATION,REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,RECEIVE_BOOT_COMPLETED
+android.permissions = INTERNET,FOREGROUND_SERVICE,FOREGROUND_SERVICE_DATA_SYNC,FOREGROUND_SERVICE_CONNECTED_DEVICE,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,WAKE_LOCK,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_SCAN,BLUETOOTH_CONNECT,ACCESS_COARSE_LOCATION,ACCESS_FINE_LOCATION,ACCESS_BACKGROUND_LOCATION,REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,RECEIVE_BOOT_COMPLETED,POST_NOTIFICATIONS,SCHEDULE_EXACT_ALARM,USE_EXACT_ALARM
 
 # (list) features (adds uses-feature tags to manifest)
 # Habilitar soporte para impresoras USB y Bluetooth
@@ -153,6 +158,10 @@ android.private_storage = True
 
 # (str) The directory in which python-for-android should look for your own build recipes (if any)
 p4a.local_recipes = my_recipes
+
+# (str) Hook script to run before/after APK build (for manifest modifications)
+# This hook injects foregroundServiceType for API 34+ compatibility
+p4a.hook = p4a_hooks/manifest_hook.py
 
 # (str) Bootstrap to use. Leave empty to let buildozer choose.
 # GUI MODE (default) - Requiere SDL2 para Kivy:

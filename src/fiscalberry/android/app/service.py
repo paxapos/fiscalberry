@@ -325,7 +325,24 @@ def show_foreground_notification():
         notification = builder.build()
         
         # Mostrar como servicio en primer plano
-        service.startForeground(1, notification)
+        # API 34+ requiere especificar foregroundServiceType
+        if ANDROID_API_LEVEL >= 34:
+            try:
+                ServiceInfo = autoclass('android.content.pm.ServiceInfo')
+                # FOREGROUND_SERVICE_TYPE_DATA_SYNC = 1
+                # FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE = 16
+                foreground_types = (
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC | 
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+                )
+                service.startForeground(1, notification, foreground_types)
+                logger.info(f"Foreground service iniciado con types DATA_SYNC|CONNECTED_DEVICE (API {ANDROID_API_LEVEL})")
+            except Exception as e:
+                logger.warning(f"Fallback a startForeground sin types: {e}")
+                service.startForeground(1, notification)
+        else:
+            service.startForeground(1, notification)
+        
         logger.info(f"Notificación de servicio en primer plano mostrada (API {ANDROID_API_LEVEL})")
         
     except Exception as e:

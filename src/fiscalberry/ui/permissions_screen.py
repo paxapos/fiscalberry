@@ -163,10 +163,14 @@ class PermissionsScreen(Screen):
             'ACCESS_WIFI_STATE': 'Estado WiFi',
             'ACCESS_COARSE_LOCATION': 'Ubicación Aproximada',
             'ACCESS_FINE_LOCATION': 'Ubicación Precisa',
+            'ACCESS_BACKGROUND_LOCATION': 'Ubicación en Segundo Plano',
             'READ_EXTERNAL_STORAGE': 'Lectura Almacenamiento',
             'WRITE_EXTERNAL_STORAGE': 'Escritura Almacenamiento',
             'WAKE_LOCK': 'Mantener Despierto',
             'FOREGROUND_SERVICE': 'Servicio en Primer Plano',
+            'POST_NOTIFICATIONS': 'Notificaciones',
+            'SCHEDULE_EXACT_ALARM': 'Alarmas Exactas',
+            'USE_EXACT_ALARM': 'Usar Alarmas Exactas',
         }
         
         # Extraer el nombre corto del permiso

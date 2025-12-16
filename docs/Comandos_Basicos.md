@@ -11,7 +11,7 @@ buildozer android debug
 adb install -r bin/fiscalberry-*.apk
 
 # Verificar logs
-adb logcat -s python:* 
+adb logcat -c && adb logcat -s python:*
 
 # Actualizar dependencias
 pip install --upgrade -r requirements.txt   

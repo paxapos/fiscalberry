@@ -56,10 +56,21 @@ FISCALBERRY_PERMISSIONS_API_28_PLUS = [
     'android.permission.FOREGROUND_SERVICE',  # Requerido desde API 28
 ]
 
+# API 29+: Ubicación en background requerida para BT scan en segundo plano
+FISCALBERRY_PERMISSIONS_API_29_PLUS = [
+    'android.permission.ACCESS_BACKGROUND_LOCATION',
+]
+
 FISCALBERRY_PERMISSIONS_API_31_PLUS = [
     'android.permission.BLUETOOTH_CONNECT',  # Nuevos permisos de Bluetooth desde API 31
     'android.permission.BLUETOOTH_SCAN',
     'android.permission.ACCESS_FINE_LOCATION',  # Requerido para BLUETOOTH_SCAN
+    'android.permission.SCHEDULE_EXACT_ALARM',  # Para reconexiones programadas
+]
+
+# API 33+: Permiso explícito para notificaciones (incluyendo foreground service)
+FISCALBERRY_PERMISSIONS_API_33_PLUS = [
+    'android.permission.POST_NOTIFICATIONS',
 ]
 
 # Permisos de almacenamiento (deprecados en Android 13+)
@@ -96,9 +107,17 @@ def get_required_permissions():
         
     if ANDROID_API_LEVEL >= 28:  # Android 9.0+
         permissions.extend(FISCALBERRY_PERMISSIONS_API_28_PLUS)
+    
+    if ANDROID_API_LEVEL >= 29:  # Android 10.0+
+        permissions.extend(FISCALBERRY_PERMISSIONS_API_29_PLUS)
+        logger.debug(f"Android {ANDROID_API_LEVEL} >= 29: agregando ACCESS_BACKGROUND_LOCATION")
         
     if ANDROID_API_LEVEL >= 31:  # Android 12.0+
         permissions.extend(FISCALBERRY_PERMISSIONS_API_31_PLUS)
+    
+    if ANDROID_API_LEVEL >= 33:  # Android 13.0+
+        permissions.extend(FISCALBERRY_PERMISSIONS_API_33_PLUS)
+        logger.debug(f"Android {ANDROID_API_LEVEL} >= 33: agregando POST_NOTIFICATIONS")
     
     logger.debug(f"Permisos requeridos para API {ANDROID_API_LEVEL}: {permissions}")
     return permissions
