@@ -52,7 +52,7 @@ class FiscalberryApp(App):
     status_message = StringProperty("Esperando conexión...")
     
     def __init__(self, **kwargs):
-        logger.info("Inicializando FiscalberryApp...")
+        logger.debug("Inicializando FiscalberryApp...")
         super().__init__(**kwargs)
         
         try:
@@ -65,14 +65,14 @@ class FiscalberryApp(App):
             # Detectar si estamos en Android de forma segura
             try:
                 self._is_android = self._detect_android()
-                logger.info(f"Detección de Android: {self._is_android}")
+                logger.debug(f"Detección de Android: {self._is_android}")
             except Exception as e:
                 logger.warning(f"Error detectando Android: {e}")
                 self._is_android = False
             
             # Solicitar permisos de Android de forma segura
             if self._is_android:
-                logger.info("✓ Ejecutando en Android")
+                logger.debug("✓ Ejecutando en Android")
                 try:
                     self._request_android_permissions()
                 except Exception as e:
@@ -96,7 +96,7 @@ class FiscalberryApp(App):
             # Actualizar propiedades de configuración de forma segura
             try:
                 self.updatePropertiesWithConfig()
-                logger.info("Propiedades de configuración actualizadas")
+                logger.debug("Propiedades de configuración actualizadas")
             except Exception as e:
                 logger.error(f"Error actualizando propiedades: {e}")
             
@@ -143,9 +143,7 @@ class FiscalberryApp(App):
     def _request_android_permissions(self):
         """Solicita todos los permisos necesarios en Android automáticamente"""
         try:
-            logger.info("="*70)
-            logger.info("SOLICITANDO PERMISOS DE ANDROID")
-            logger.info("="*70)
+            logger.debug("Solicitando permisos de Android...")
             
             # Importar módulos de permisos de forma segura
             try:
@@ -161,21 +159,18 @@ class FiscalberryApp(App):
             # Verificar estado actual de permisos
             try:
                 status = check_all_permissions()
-                logger.info(f"Estado: {status['total_permissions']} permisos requeridos")
-                logger.info(f"Otorgados: {status['total_permissions'] - status['missing_count']}")
-                logger.info(f"Faltantes: {status['missing_count']}")
+                logger.debug(f"Permisos: {status['total_permissions']} requeridos, {status['missing_count']} faltantes")
                 
                 if not status['all_granted']:
-                    logger.info("⚠️ Solicitando permisos faltantes automáticamente...")
-                    # Solicitar permisos directamente (aparecerán diálogos nativos de Android)
+                    logger.debug("Solicitando permisos faltantes...")
                     request_all_permissions(callback_on_complete=self._on_permissions_result)
                 else:
-                    logger.info("✅ Todos los permisos ya otorgados")
+                    logger.debug("Todos los permisos ya otorgados")
                     
             except Exception as e:
                 logger.warning(f"Error verificando permisos: {e}")
             
-            logger.info("="*70)
+
             
         except Exception as e:
             logger.error(f"Error general verificando permisos Android: {e}", exc_info=True)
@@ -209,7 +204,7 @@ class FiscalberryApp(App):
             ServiceClass = autoclass(service_class_name)
             ServiceClass.start(activity, "")
             
-            logger.info(f"Servicio Android iniciado")
+            logger.debug("Servicio Android iniciado")
                 
         except ImportError:
             pass
@@ -218,11 +213,11 @@ class FiscalberryApp(App):
     
     def build(self):
         """Construye la aplicación de forma optimizada."""
-        logger.info("Construyendo interfaz de usuario...")
+        logger.debug("Construyendo interfaz de usuario...")
         
         # Detectar plataforma
         is_android = 'ANDROID_STORAGE' in os.environ or 'ANDROID_ARGUMENT' in os.environ
-        logger.info(f"Plataforma detectada: {'Android' if is_android else 'Desktop'}")
+        logger.debug(f"Plataforma: {'Android' if is_android else 'Desktop'}")
         
         # Configurar título y icono
         self.title = "Servidor de Impresión"
@@ -233,7 +228,7 @@ class FiscalberryApp(App):
                 icon_path = os.path.join(self.assetpath, "fiscalberry.ico")
                 if os.path.exists(icon_path):
                     self.icon = icon_path
-                    logger.info(f"Icono configurado: {icon_path}")
+                    logger.debug(f"Icono configurado: {icon_path}")
                     
                     # Configuración específica para Windows
                     if sys.platform == 'win32':
@@ -243,7 +238,7 @@ class FiscalberryApp(App):
                     png_icon = os.path.join(self.assetpath, "fiscalberry.png")
                     if os.path.exists(png_icon):
                         self.icon = png_icon
-                        logger.info(f"Usando icono PNG fallback: {png_icon}")
+                        logger.debug(f"Usando icono PNG fallback: {png_icon}")
             except Exception as e:
                 logger.error(f"Error configurando icono: {e}")
         else:
@@ -283,27 +278,25 @@ class FiscalberryApp(App):
         if self._configberry.is_comercio_adoptado():
             # Comercio YA adoptado → ir a main directamente
             sm.current = 'main'
-            logger.info("Iniciando en pantalla principal (comercio adoptado)")
-            # Iniciar servicios automáticamente (SocketIO, RabbitMQ en GUI)
+            logger.debug("Iniciando en pantalla principal (comercio adoptado)")
             self.on_start_service()
-            # NUEVO: Iniciar servicio Android SOLO cuando ya está adoptado
             if self._is_android:
-                logger.info("Comercio adoptado - Iniciando servicio Android...")
+                logger.debug("Iniciando servicio Android...")
                 Clock.schedule_once(lambda dt: self._start_android_service(), 0.5)
         else:
             # Comercio NO adoptado → enviar discover primero
-            logger.info("Comercio no adoptado. Enviando discover...")
+            logger.debug("Comercio no adoptado. Enviando discover...")
             
             # CRÍTICO: Enviar discover ANTES de mostrar adopt screen
             try:
                 from fiscalberry.common.discover import send_discover
                 send_discover()
-                logger.info("Discover enviado exitosamente")
+                logger.debug("Discover enviado")
             except Exception as e:
                 logger.error(f"Error al enviar discover: {e}")
             
             # NUEVO: Iniciar SocketIO para recibir configuración de adopción
-            logger.info("Iniciando SocketIO para recibir adopción...")
+            logger.debug("Iniciando SocketIO para adopción...")
             try:
                 self._start_socketio_for_adoption()
             except Exception as e:
@@ -312,7 +305,7 @@ class FiscalberryApp(App):
             # Ahora sí, mostrar pantalla de adopción
             # NOTA: El servicio Android se iniciará DESPUÉS de adoptar en _go_to_main()
             sm.current = 'adopt'
-            logger.info("Mostrando pantalla de adopción")
+            logger.debug("Mostrando pantalla de adopción")
         
         return sm
     
@@ -364,7 +357,7 @@ class FiscalberryApp(App):
                 logger.error("UUID o sio_host no configurados")
                 return
             
-            logger.info(f"Conectando SocketIO para adopción - Host: {sio_host}, UUID: {uuid_value[:8]}...")
+            logger.debug(f"Conectando SocketIO para adopción - Host: {sio_host}")
             
             # Crear instancia de SocketIO
             sio_client = FiscalberrySio(
@@ -376,20 +369,20 @@ class FiscalberryApp(App):
             # Iniciar en thread separado
             Thread(target=sio_client.start, daemon=True).start()
             
-            logger.info("✓ SocketIO iniciado para recibir adopción")
+            logger.debug("SocketIO iniciado para adopción")
             
         except Exception as e:
             logger.error(f"Error iniciando SocketIO para adopción: {e}", exc_info=True)
     
     def on_start(self):
         """Se ejecuta después de que la aplicación inicie."""
-        logger.info("Aplicación iniciada")
+        logger.debug("Aplicación iniciada")
         
         # Detectar si estamos en Android
         is_android = 'ANDROID_STORAGE' in os.environ or 'ANDROID_ARGUMENT' in os.environ
         
         if is_android:
-            logger.info("Android detectado - configurando permisos y servicios...")
+            logger.debug("Android detectado - configurando permisos y servicios...")
             
             # CRÍTICO: Verificar Battery Exemption PRIMERO (antes de permisos regulares)
             # Sin esto, Doze mode matará el servicio en background
@@ -415,7 +408,7 @@ class FiscalberryApp(App):
             # - adopt_screen._go_to_main() después de adoptar
         else:
             # Configuración de icono para Desktop (Windows)
-            logger.info("Desktop detectado - configurando icono final...")
+            logger.debug("Desktop detectado - configurando icono...")
             try:
                 icon_path = os.path.join(self.assetpath, "fiscalberry.ico")
                 if os.path.exists(icon_path) and sys.platform == 'win32':
@@ -460,7 +453,7 @@ class FiscalberryApp(App):
             power_manager = cast(PowerManager, power_manager)
             
             if power_manager.isIgnoringBatteryOptimizations(package_name):
-                logger.info("✅ App ya excluida de optimización de batería")
+                logger.debug("App ya excluida de optimización de batería")
                 return
             
             # Mostrar warning al usuario
@@ -474,7 +467,7 @@ class FiscalberryApp(App):
             
             try:
                 activity.startActivity(intent)
-                logger.info("📱 Diálogo de exclusión de batería mostrado al usuario")
+                logger.debug("Diálogo de exclusión de batería mostrado")
             except Exception as e:
                 logger.error(f"Error mostrando diálogo de battery exemption: {e}")
                 # Mostrar popup manual como fallback
@@ -526,8 +519,8 @@ class FiscalberryApp(App):
         Llamado cuando la app pasa a background en Android.
         Retornar True para permitir pause sin cerrar la app.
         """
-        logger.info("App pausada (background)")
-        return True  # Importante para Android - permite que la app vuelva
+        logger.debug("App pausada (background)")
+        return True
     
     @mainthread
     def on_resume(self):
@@ -543,7 +536,7 @@ class FiscalberryApp(App):
         
         El decorador @mainthread es OBLIGATORIO.
         """
-        logger.info("APP RESUMIDA - Recuperación de contexto OpenGL")
+        logger.debug("App resumida - recuperando contexto OpenGL")
         
         try:
             from kivy.core.window import Window
@@ -596,10 +589,10 @@ class FiscalberryApp(App):
                 return
             
             current_screen = self.root.current
-            logger.info(f"Pantalla actual: {current_screen}")
+            logger.debug(f"Pantalla actual: {current_screen}")
             
             if current_screen == 'adopt':
-                logger.info("Verificando adopción después de resumir...")
+                logger.debug("Verificando adopción después de resumir...")
                 screen = self.root.get_screen('adopt')
                 if hasattr(screen, 'manual_check_adoption'):
                     Clock.schedule_once(
@@ -607,7 +600,7 @@ class FiscalberryApp(App):
                         0.5
                     )
             
-            logger.info("Recuperación de contexto OpenGL completada")
+            logger.debug("Recuperación de contexto OpenGL completada")
             
         except Exception as e:
             logger.error(f"Error en on_resume: {e}", exc_info=True)
@@ -634,7 +627,7 @@ class FiscalberryApp(App):
                             if hicon:
                                 ctypes.windll.user32.SendMessageW(hwnd, 0x0080, 0, hicon)  # ICON_SMALL
                                 ctypes.windll.user32.SendMessageW(hwnd, 0x0080, 1, hicon)  # ICON_BIG
-                                logger.info("Icono de barra de tareas configurado exitosamente")
+                                logger.debug("Icono de barra de tareas configurado")
                             return False  # Detener enumeración
                     return True
                 
@@ -667,7 +660,7 @@ class FiscalberryApp(App):
     def _on_permissions_result(self, success):
         """Callback cuando se completa la solicitud de permisos"""
         if success:
-            logger.info("✅ Todos los permisos otorgados correctamente")
+            logger.debug("Todos los permisos otorgados")
         else:
             logger.warning("⚠️ Algunos permisos fueron denegados")
             logger.warning("La aplicación puede tener funcionalidad limitada")
@@ -798,7 +791,7 @@ class FiscalberryApp(App):
     def on_start_service(self):
         """Llamado desde la GUI para iniciar el servicio de forma optimizada."""
         if not self._service_controller.is_service_running():
-            logger.info("Iniciando servicios desde GUI...")
+            logger.debug("Iniciando servicios desde GUI...")
             self.status_message = "Iniciando servicios..."
             Thread(target=self._service_controller.start, daemon=True).start()
         else:
@@ -811,7 +804,7 @@ class FiscalberryApp(App):
         if self._stopping:
             return
         
-        logger.info("Deteniendo servicios desde GUI...")
+        logger.debug("Deteniendo servicios desde GUI...")
         self.status_message = "Deteniendo servicios..."
 
         try:
@@ -823,7 +816,7 @@ class FiscalberryApp(App):
                 self._service_controller._stop_services_only()
             
             self.status_message = "Servicios detenidos"
-            logger.info("Servicios detenidos desde GUI")
+            logger.debug("Servicios detenidos desde GUI")
         except Exception as e:
             logger.error(f"Error al detener servicios desde GUI: {e}")
             self.status_message = "Error deteniendo servicios"
@@ -859,7 +852,7 @@ class FiscalberryApp(App):
         if self._stopping:
             return True
 
-        logger.info("App cerrándose...")
+        logger.debug("App cerrándose...")
         self._stopping = True
 
         try:

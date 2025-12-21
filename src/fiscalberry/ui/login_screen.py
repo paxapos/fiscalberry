@@ -63,7 +63,7 @@ class LoginScreen(Screen):
         backend_url = host.rstrip("/") + "/sites.json"
         try:
             response = requests.get(backend_url, headers={"Authorization": f"Bearer {self.load_token()}"})
-            logger.info(f"Response: {response.status_code}, {response.text}")
+            logger.debug(f"Response: {response.status_code}")
             if response.status_code == 200:
                 return response.json()
             else:

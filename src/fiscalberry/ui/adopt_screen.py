@@ -21,14 +21,14 @@ if IS_ANDROID:
         from jnius import autoclass
         from android import activity
         ANDROID_AVAILABLE = True
-        logger.info("Módulos de Android disponibles")
+        logger.debug("Módulos de Android disponibles")
     except ImportError:
         ANDROID_AVAILABLE = False
         logger.warning("Módulos de Android no disponibles")
 else:
     ANDROID_AVAILABLE = False
     import webbrowser  # Solo para desktop
-    logger.info("Modo Desktop - usando webbrowser")
+    logger.debug("Modo Desktop - usando webbrowser")
 
 
 configberry = Configberry()
@@ -54,11 +54,11 @@ class AdoptScreen(Screen):
         super().__init__(**kwargs)
         self._monitoring = False
         self._adoption_thread = None
-        logger.info(f"AdoptScreen inicializada - Plataforma: {self.platform_name}")
+        logger.debug(f"AdoptScreen inicializada - Plataforma: {self.platform_name}")
     
     def on_pre_enter(self):
         """Se llama justo antes de entrar a la pantalla - útil para Android."""
-        logger.info("Pre-entrada a pantalla de adopción")
+        logger.debug("Pre-entrada a pantalla de adopción")
         # Forzar refresh de la UI
         try:
             from kivy.core.window import Window
@@ -72,7 +72,7 @@ class AdoptScreen(Screen):
         Se llama cuando entramos a esta pantalla.
         Inicia el monitoreo automático de adopción.
         """
-        logger.info(f"Entrando a pantalla de adopción en {self.platform_name}")
+        logger.debug(f"Entrando a pantalla de adopción en {self.platform_name}")
         
         # Actualizar links por si cambiaron
         self._update_links()
@@ -82,14 +82,14 @@ class AdoptScreen(Screen):
             self._monitoring = True
             self.is_monitoring = True
             self._start_adoption_monitoring()
-            logger.info("Monitoreo de adopción iniciado")
+            logger.debug("Monitoreo de adopción iniciado")
     
     def on_leave(self):
         """
         Se llama cuando salimos de esta pantalla.
         Detiene el monitoreo.
         """
-        logger.info("Saliendo de pantalla de adopción")
+        logger.debug("Saliendo de pantalla de adopción")
         self._monitoring = False
         self.is_monitoring = False
     
@@ -120,14 +120,14 @@ class AdoptScreen(Screen):
                 # Usar Intent de Android
                 success = self._open_url_android(url)
                 if success:
-                    logger.info(f"Link abierto en Android: {url}")
+                    logger.debug(f"Link abierto en Android")
                 else:
                     logger.error("No se pudo abrir el link en Android")
             else:
                 # Usar webbrowser para Desktop
                 import webbrowser
                 webbrowser.open(url)
-                logger.info(f"Link abierto en Desktop: {url}")
+                logger.debug("Link abierto en Desktop")
                 
         except Exception as e:
             logger.error(f"Error al abrir navegador: {e}", exc_info=True)
@@ -155,7 +155,7 @@ class AdoptScreen(Screen):
             currentActivity = PythonActivity.mActivity
             currentActivity.startActivity(intent)
             
-            logger.info("Intent de Android lanzado exitosamente")
+            logger.debug("Intent de Android lanzado")
             return True
             
         except Exception as e:
@@ -171,7 +171,7 @@ class AdoptScreen(Screen):
         Todas las operaciones de UI se hacen mediante Clock.schedule_once.
         """
         def monitor():
-            logger.info("Thread de monitoreo de adopción iniciado")
+            logger.debug("Thread de monitoreo de adopción iniciado")
             check_count = 0
             check_interval = 3 if IS_ANDROID else 2  # Android: 3s, Desktop: 2s
             
@@ -197,7 +197,7 @@ class AdoptScreen(Screen):
                     logger.error(f"Error en monitoreo de adopción: {e}")
                     time.sleep(5)  # Esperar más tiempo si hay error
             
-            logger.info("Thread de monitoreo de adopción finalizado")
+            logger.debug("Thread de monitoreo de adopción finalizado")
         
         # Iniciar thread daemon (se cierra automáticamente con la app)
         self._adoption_thread = threading.Thread(target=monitor, daemon=True)
@@ -242,7 +242,7 @@ class AdoptScreen(Screen):
         Útil para un botón de "Verificar Adopción" en la UI.
         """
         try:
-            logger.info("[Verificación manual] Comprobando estado de adopción...")
+            logger.debug("Comprobando estado de adopción...")
             
             # Verificar si existe la sección Paxaprinter
             has_section = configberry.config.has_section("Paxaprinter")
@@ -257,7 +257,7 @@ class AdoptScreen(Screen):
             
             # Verificar estado final
             is_adopted = configberry.is_comercio_adoptado()
-            logger.info(f"[Verificación manual] is_comercio_adoptado() retornó: {is_adopted}")
+            logger.debug(f"is_comercio_adoptado(): {is_adopted}")
             
             if is_adopted:
                 logger.info("[Verificación manual] ✅ Comercio adoptado - Redirigiendo a main...")

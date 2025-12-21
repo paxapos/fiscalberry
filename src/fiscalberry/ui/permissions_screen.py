@@ -26,7 +26,7 @@ class PermissionsScreen(Screen):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        logger.info("Inicializando PermissionsScreen")
+        logger.debug("Inicializando PermissionsScreen")
         self._is_android = self._detect_android()
         
     def _detect_android(self):
@@ -39,7 +39,7 @@ class PermissionsScreen(Screen):
     
     def on_enter(self):
         """Se llama cuando se entra a la pantalla"""
-        logger.info("Entrando a PermissionsScreen")
+        logger.debug("Entrando a PermissionsScreen")
         if self._is_android:
             self.check_permissions_status()
         else:
@@ -55,7 +55,7 @@ class PermissionsScreen(Screen):
         try:
             from fiscalberry.common.android_permissions import check_all_permissions
             
-            logger.info("Verificando estado de permisos...")
+            logger.debug("Verificando estado de permisos...")
             status = check_all_permissions()
             
             self.permissions_granted = status.get('all_granted', False)
@@ -65,7 +65,7 @@ class PermissionsScreen(Screen):
             
             if self.permissions_granted:
                 self.permissions_message = f"✅ Todos los permisos otorgados ({self.total_count}/{self.total_count})"
-                logger.info("✅ Todos los permisos están otorgados")
+                logger.debug("Todos los permisos están otorgados")
             else:
                 self.permissions_message = f"⚠️ Faltan {self.missing_count} de {self.total_count} permisos"
                 logger.warning(f"⚠️ Faltan {self.missing_count} permisos")
@@ -79,13 +79,13 @@ class PermissionsScreen(Screen):
     def request_all_permissions(self):
         """Solicita todos los permisos necesarios"""
         if not self._is_android:
-            logger.info("No es Android - permisos no necesarios")
+            logger.debug("No es Android - permisos no necesarios")
             return
         
         try:
             from fiscalberry.common.android_permissions import request_all_permissions
             
-            logger.info("Solicitando todos los permisos...")
+            logger.debug("Solicitando todos los permisos...")
             self.permissions_message = "Solicitando permisos..."
             
             # Solicitar permisos con callback
@@ -97,7 +97,7 @@ class PermissionsScreen(Screen):
     
     def _on_permissions_requested(self, success):
         """Callback cuando se completa la solicitud de permisos"""
-        logger.info(f"Solicitud de permisos completada: {success}")
+        logger.debug(f"Solicitud de permisos completada: {success}")
         
         # Esperar un poco y verificar de nuevo
         Clock.schedule_once(lambda dt: self.check_permissions_status(), 1)
@@ -105,13 +105,13 @@ class PermissionsScreen(Screen):
     def open_app_settings(self):
         """Abre la configuración de la app en Android"""
         if not self._is_android:
-            logger.info("No es Android - no hay configuración de app")
+            logger.debug("No es Android - no hay configuración de app")
             return
         
         try:
             from jnius import autoclass
             
-            logger.info("Abriendo configuración de la app...")
+            logger.debug("Abriendo configuración de la app...")
             
             # Obtener contexto de la actividad
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
@@ -127,7 +127,7 @@ class PermissionsScreen(Screen):
             intent.setData(uri)
             
             activity.startActivity(intent)
-            logger.info("✓ Configuración de app abierta")
+            logger.debug("Configuración de app abierta")
             
         except Exception as e:
             logger.error(f"Error abriendo configuración: {e}", exc_info=True)
