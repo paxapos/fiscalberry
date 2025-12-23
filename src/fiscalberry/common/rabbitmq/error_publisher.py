@@ -161,16 +161,7 @@ class ErrorPublisher:
                     durable=True
                 )
                 
-                # Declarar exchange adicional para el panel de desarrollador (topic para wildcards)
-                dev_panel_exchange = "fiscalberry_errors_topic"
-                self.channel.exchange_declare(
-                    exchange=dev_panel_exchange,
-                    exchange_type='topic',
-                    durable=True
-                )
-                
-                logger.debug("ErrorPublisher: Exchanges declared - %s (direct), %s (topic)",
-                           error_exchange, dev_panel_exchange)
+                logger.debug("ErrorPublisher: Exchange declared - %s (direct)", error_exchange)
                 
                 # Declarar cola específica del tenant
                 self.channel.queue_declare(
@@ -178,15 +169,7 @@ class ErrorPublisher:
                     durable=True
                 )
                 
-                # Declarar cola para el panel de desarrollador (captura todos los errores)
-                dev_panel_queue = "developer_panel_all_errors"
-                self.channel.queue_declare(
-                    queue=dev_panel_queue,
-                    durable=True
-                )
-                
-                logger.debug("ErrorPublisher: Queues declared - %s (tenant), %s (dev panel)",
-                           self.error_queue_name, dev_panel_queue)
+                logger.debug("ErrorPublisher: Queue declared - %s (tenant)", self.error_queue_name)
                 
                 # Enlazar cola del tenant al exchange directo
                 self.channel.queue_bind(
@@ -195,16 +178,9 @@ class ErrorPublisher:
                     routing_key=self.tenant
                 )
                 
-                # Enlazar cola del panel de desarrollador al exchange topic
-                self.channel.queue_bind(
-                    exchange=dev_panel_exchange,
-                    queue=dev_panel_queue,
-                    routing_key="*.errors"  # Captura todos los patrones {tenant}.errors
-                )
-                
                 self._is_connected = True
-                logger.info("ErrorPublisher connected - Tenant: %s, Queue: %s, Exchanges: %s + %s",
-                           self.tenant, self.error_queue_name, error_exchange, dev_panel_exchange)
+                logger.info("ErrorPublisher connected - Tenant: %s, Queue: %s, Exchange: %s",
+                           self.tenant, self.error_queue_name, error_exchange)
                 return True
                 
             except Exception as e:
@@ -288,19 +264,7 @@ class ErrorPublisher:
                         )
                     )
                     
-                    # También publicar al exchange topic para el panel de desarrollador
-                    self.channel.basic_publish(
-                        exchange="fiscalberry_errors_topic",
-                        routing_key=f"{self.tenant}.errors",  # Patrón para wildcard matching
-                        body=json.dumps(error_data, ensure_ascii=False),
-                        properties=pika.BasicProperties(
-                            delivery_mode=2,
-                            content_type='application/json',
-                            timestamp=int(time.time())
-                        )
-                    )
-                    
-                    logger.info("Error published to RabbitMQ - Type: %s, Tenant: %s, Queues: [%s, developer_panel]",
+                    logger.info("Error published to RabbitMQ - Type: %s, Tenant: %s, Queue: %s",
                                error_type, self.tenant, self.error_queue_name)
                 else:
                     logger.warning("ErrorPublisher: RabbitMQ channel unavailable - error not published")
