@@ -20,6 +20,23 @@ class RabbitMQProcessHandler:
                 cls._instance = super().__new__(cls)
                 cls._instance._initialized = False
             return cls._instance
+    
+    @classmethod
+    def reset_singleton(cls):
+        """
+        Resetea el estado del singleton para permitir reinicialización.
+        CRÍTICO para Android cuando la app se cierra y reabre.
+        """
+        with cls._lock:
+            if cls._instance:
+                # Limpiar stop_event si existe
+                if hasattr(cls._instance, '_stop_event'):
+                    cls._instance._stop_event.clear()
+                # Marcar como no inicializado
+                cls._instance._initialized = False
+                # Limpiar referencias a threads muertos
+                if hasattr(cls._instance, '_thread'):
+                    cls._instance._thread = None
 
     def __init__(self):
         if self._initialized:

@@ -25,6 +25,31 @@ class FiscalberrySio:
                 cls._instance = super().__new__(cls)
                 cls._instance._initialized = False
             return cls._instance
+    
+    @classmethod
+    def reset_singleton(cls):
+        """
+        Resetea el estado del singleton para permitir reinicialización.
+        CRÍTICO para Android cuando la app se cierra y reabre.
+        """
+        with cls._lock:
+            if cls._instance:
+                # Limpiar stop_event si existe
+                if hasattr(cls._instance, 'stop_event'):
+                    cls._instance.stop_event.clear()
+                # Marcar como no inicializado
+                cls._instance._initialized = False
+                # Limpiar referencias a threads muertos
+                if hasattr(cls._instance, 'thread'):
+                    cls._instance.thread = None
+                if hasattr(cls._instance, 'rabbitmq_thread'):
+                    cls._instance.rabbitmq_thread = None
+                # Resetear también RabbitMQ handler
+                try:
+                    from fiscalberry.common.rabbitmq.process_handler import RabbitMQProcessHandler
+                    RabbitMQProcessHandler.reset_singleton()
+                except Exception:
+                    pass
 
     def __init__(self, server_url: str, uuid: str, namespaces='/paxaprinter', on_message=None):
         if self._initialized:

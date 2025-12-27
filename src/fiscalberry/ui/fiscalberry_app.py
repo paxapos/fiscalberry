@@ -70,6 +70,17 @@ class FiscalberryApp(App):
                 logger.warning(f"Error detectando Android: {e}")
                 self._is_android = False
             
+            # CRÍTICO: Resetear singletons en Android para evitar estado corrupto
+            # Cuando la app se cierra y reabre, el proceso Python puede sobrevivir
+            # y los singletons mantienen estado previo causando freeze
+            if self._is_android:
+                try:
+                    from fiscalberry.common.service_controller import ServiceController
+                    ServiceController.reset_singleton()
+                    logger.debug("Singletons reseteados para reinicio Android")
+                except Exception as e:
+                    logger.warning(f"Error reseteando singletons: {e}")
+            
             # Solicitar permisos de Android de forma segura
             if self._is_android:
                 logger.debug("✓ Ejecutando en Android")
@@ -530,13 +541,56 @@ class FiscalberryApp(App):
         CRÍTICO: Android destruye el contexto OpenGL (surfaceDestroyed en SDL).
         Un simple canvas.ask_update() NO es suficiente - debemos limpiar caches.
         
-        Como NO tenemos imágenes (todas son strings vacíos), solo necesitamos:
-        1. Limpiar caches de Kivy (texturas inválidas)
-        2. Forzar recreación del canvas
+        TAMBIÉN CRÍTICO: Cuando la app se cierra desde el menú de recents,
+        el proceso Python puede sobrevivir con _stopping=True y singletons
+        en estado corrupto. Debemos resetear todo para permitir reinicio.
         
         El decorador @mainthread es OBLIGATORIO.
         """
         logger.debug("App resumida - recuperando contexto OpenGL")
+        
+        # CRÍTICO: Resetear estado de cierre si la app fue cerrada desde recents
+        # pero el proceso sigue vivo
+        if self._stopping:
+            logger.warning("App resumida después de cerrar desde recents - reseteando estado")
+            self._stopping = False
+            
+            # Resetear singletons para permitir reinicio de servicios
+            try:
+                from fiscalberry.common.service_controller import ServiceController
+                ServiceController.reset_singleton()
+                logger.debug("Singletons reseteados en on_resume")
+            except Exception as e:
+                logger.warning(f"Error reseteando singletons en on_resume: {e}")
+            
+            # Re-inicializar service controller si es necesario
+            try:
+                if hasattr(self, '_service_controller') and self._service_controller:
+                    # Limpiar eventos de stop
+                    if hasattr(self._service_controller, '_stop_event'):
+                        self._service_controller._stop_event.clear()
+                    if hasattr(self._service_controller, 'sio') and self._service_controller.sio:
+                        if hasattr(self._service_controller.sio, 'stop_event'):
+                            self._service_controller.sio.stop_event.clear()
+                    logger.debug("Stop events limpiados")
+            except Exception as e:
+                logger.warning(f"Error limpiando stop events: {e}")
+            
+            # Re-programar verificación de estado
+            try:
+                Clock.schedule_interval(self._check_sio_status, 5)
+                Clock.schedule_interval(self._check_rabbit_status, 5)
+                logger.debug("Schedulers re-programados")
+            except Exception as e:
+                logger.warning(f"Error re-programando schedulers: {e}")
+            
+            # Reiniciar servicio si el comercio está adoptado
+            try:
+                if self._configberry and self._configberry.is_comercio_adoptado():
+                    logger.debug("Reiniciando servicio después de resume desde recents...")
+                    self.on_start_service()
+            except Exception as e:
+                logger.warning(f"Error reiniciando servicio: {e}")
         
         try:
             from kivy.core.window import Window
@@ -789,13 +843,32 @@ class FiscalberryApp(App):
         
 
     def on_start_service(self):
-        """Llamado desde la GUI para iniciar el servicio de forma optimizada."""
-        if not self._service_controller.is_service_running():
-            logger.debug("Iniciando servicios desde GUI...")
-            self.status_message = "Iniciando servicios..."
-            Thread(target=self._service_controller.start, daemon=True).start()
+        """
+        Llamado desde la GUI para iniciar el servicio.
+        
+        CRÍTICO: En Android, las conexiones SocketIO/RabbitMQ deben ser manejadas
+        SOLO por el servicio foreground (proceso separado) que sobrevive cuando
+        la Activity se cierra. Si las iniciamos aquí en la UI, cuando Kivy cierra
+        desde el menú de recents, esas conexiones mueren y la app se traba al reabrir.
+        
+        En Desktop no hay servicio foreground, así que iniciamos el ServiceController aquí.
+        """
+        if self._is_android:
+            # En Android: Solo iniciar el servicio foreground
+            # El servicio foreground (service.py) tiene su propio ServiceController
+            # que maneja SocketIO/RabbitMQ independientemente
+            logger.debug("Android: delegando a servicio foreground")
+            self.status_message = "Servicio activo (foreground)"
+            # El servicio Android ya fue iniciado en build() o _go_to_main()
+            # No necesitamos hacer nada más aquí
         else:
-            logger.debug("Servicio ya en ejecución, omitiendo inicio")
+            # En Desktop: Iniciar el ServiceController local
+            if not self._service_controller.is_service_running():
+                logger.debug("Desktop: Iniciando servicios desde GUI...")
+                self.status_message = "Iniciando servicios..."
+                Thread(target=self._service_controller.start, daemon=True).start()
+            else:
+                logger.debug("Desktop: Servicio ya en ejecución, omitiendo inicio")
 
 
     def on_stop_service(self):
@@ -804,7 +877,15 @@ class FiscalberryApp(App):
         if self._stopping:
             return
         
-        logger.debug("Deteniendo servicios desde GUI...")
+        if self._is_android:
+            # En Android: No podemos detener el servicio foreground desde la UI
+            # El servicio foreground maneja su propio ciclo de vida
+            logger.debug("Android: No se puede detener el servicio foreground desde UI")
+            self.status_message = "Servicio foreground activo"
+            return
+        
+        # Desktop: Detener el ServiceController local
+        logger.debug("Desktop: Deteniendo servicios desde GUI...")
         self.status_message = "Deteniendo servicios..."
 
         try:
@@ -861,21 +942,29 @@ class FiscalberryApp(App):
         except:
             pass
 
-        # Detener servicios en background sin bloquear
-        try:
-            def stop_services_background():
-                try:
-                    if hasattr(self, '_service_controller') and self._service_controller:
-                        self._service_controller._stop_event.set()
-                        if hasattr(self._service_controller, 'sio') and self._service_controller.sio:
-                            self._service_controller.sio.stop()
-                except:
-                    pass
+        # CRÍTICO para Android: NO detener servicios aquí.
+        # El servicio Android foreground (fiscalberryservice) mantiene los servicios vivos.
+        # Si los detenemos aquí, al reabrir la app desde recents, los servicios 
+        # estarán en estado corrupto y la app se quedará trabada.
+        # Solo detener servicios en Desktop donde no hay servicio foreground.
+        if not self._is_android:
+            # Detener servicios en background sin bloquear (solo Desktop)
+            try:
+                def stop_services_background():
+                    try:
+                        if hasattr(self, '_service_controller') and self._service_controller:
+                            self._service_controller._stop_event.set()
+                            if hasattr(self._service_controller, 'sio') and self._service_controller.sio:
+                                self._service_controller.sio.stop()
+                    except:
+                        pass
 
-            thread = threading.Thread(target=stop_services_background, daemon=True)
-            thread.start()
-        except:
-            pass
+                thread = threading.Thread(target=stop_services_background, daemon=True)
+                thread.start()
+            except:
+                pass
+        else:
+            logger.debug("Android: servicios no detenidos (servicio foreground activo)")
 
         logger.info("=== Finalizando Fiscalberry GUI ===")
         return True  # Dejar que Kivy maneje el cierre normalmente

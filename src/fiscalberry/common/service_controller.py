@@ -30,6 +30,36 @@ class ServiceController:
             cls._instance = super(ServiceController, cls).__new__(cls)
         return cls._instance
     
+    @classmethod
+    def reset_singleton(cls):
+        """
+        Resetea el estado del singleton para permitir reinicialización.
+        
+        CRÍTICO para Android: Cuando la app se cierra y reabre, el proceso Python
+        puede sobrevivir y el singleton mantiene estado previo (_stop_event.set(),
+        initialized=True) causando que el servicio no reinicie.
+        
+        Debe llamarse desde FiscalberryApp.__init__() en Android.
+        """
+        if cls._instance:
+            # Limpiar el evento de stop para permitir reinicio
+            if hasattr(cls._instance, '_stop_event'):
+                cls._instance._stop_event.clear()
+            # Marcar como no inicializado para forzar re-init completo
+            if hasattr(cls._instance, 'initialized'):
+                cls._instance.initialized = False
+            # Limpiar referencias a threads muertos
+            if hasattr(cls._instance, 'socketio_thread'):
+                cls._instance.socketio_thread = None
+            if hasattr(cls._instance, 'discover_thread'):
+                cls._instance.discover_thread = None
+        # Resetear también el singleton de FiscalberrySio
+        try:
+            from fiscalberry.common.fiscalberry_sio import FiscalberrySio
+            FiscalberrySio.reset_singleton()
+        except Exception:
+            pass
+    
     def __init__(self):
         if hasattr(self, 'initialized'):
             return
