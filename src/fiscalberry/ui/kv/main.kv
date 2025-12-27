@@ -370,26 +370,43 @@ ScreenManager:
                     text_size: self.width, None
                     size_hint_x: 0.4
 
-        # Espaciador
-        Widget:
-
-        # Botón de logs mejorado
-        Button:
-            text: "Ver Registro de Actividad del Servicio"
-            size_hint_y: None
-            height: dp(55)
-            background_color: 0.1, 0.3, 0.6, 1
-            color: 1, 1, 1, 1
-            font_size: '15sp'
-            bold: True
+        # Panel de logs en tiempo real
+        BoxLayout:
+            orientation: 'vertical'
+            spacing: dp(5)
             canvas.before:
                 Color:
-                    rgba: 0.1, 0.3, 0.6, 1
+                    rgba: 0.1, 0.1, 0.15, 1
                 RoundedRectangle:
                     pos: self.pos
                     size: self.size
-                    radius: [dp(8)]
-            on_press: app.root.current = "logs"
+                    radius: [dp(10)]
+            padding: dp(10)
+
+            Label:
+                text: "REGISTRO DE ACTIVIDAD"
+                font_size: '12sp'
+                bold: True
+                color: 0.7, 0.7, 0.8, 1
+                size_hint_y: None
+                height: dp(20)
+                halign: 'left'
+                text_size: self.size
+
+            ScrollView:
+                id: main_scroll_view
+                do_scroll_x: False
+                TextInput:
+                    id: main_log_output
+                    text: app.logs
+                    readonly: True
+                    font_size: '11sp'
+                    background_color: 0, 0, 0, 0
+                    foreground_color: 0.8, 0.9, 0.8, 1
+                    size_hint_y: None
+                    height: max(self.minimum_height, main_scroll_view.height)
+                    multiline: True
+                    cursor_color: 0, 0, 0, 0
 
         # Footer mejorado
         BoxLayout:

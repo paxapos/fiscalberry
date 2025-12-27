@@ -50,6 +50,7 @@ class FiscalberryApp(App):
     rabbitMqConnected: bool = BooleanProperty(False)
     
     status_message = StringProperty("Esperando conexión...")
+    logs = StringProperty("")  # Logs en tiempo real para MainScreen
     
     def __init__(self, **kwargs):
         logger.debug("Inicializando FiscalberryApp...")
@@ -115,6 +116,7 @@ class FiscalberryApp(App):
             try:
                 Clock.schedule_interval(self._check_sio_status, 5)
                 Clock.schedule_interval(self._check_rabbit_status, 5)
+                Clock.schedule_interval(self._update_logs, 1)  # Actualizar logs cada segundo
                 logger.debug("Schedulers de verificación de estado configurados")
             except Exception as e:
                 logger.error(f"Error configurando schedulers: {e}")
@@ -800,6 +802,16 @@ class FiscalberryApp(App):
             if self.rabbitMqConnected:  # Solo log si cambia de conectado a error
                 logger.error(f"Error verificando RabbitMQ: {e}")
             self.rabbitMqConnected = False
+    
+    def _update_logs(self, dt):
+        """Actualiza la propiedad logs leyendo el archivo de logs."""
+        try:
+            from fiscalberry.common.fiscalberry_logger import getLogFilePath
+            log_path = getLogFilePath()
+            with open(log_path, "r") as log_file:
+                self.logs = log_file.read()
+        except Exception:
+            pass  # Silenciar errores de lectura de logs
     
     @mainthread  # Decorar el método
     def _on_config_change(self, data):
