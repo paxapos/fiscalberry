@@ -317,16 +317,7 @@ ScreenManager:
                 color: 0.1, 0.2, 0.5, 1
                 size_hint_x: 1
                 
-            # Estado visual grande en header
-            Label:
-                text: "[CONECTADO]" if app.sioConnected else "[DESCONECTADO]"
-                font_size: '14sp'
-                bold: True
-                color: (0.1, 0.7, 0.1, 1) if app.sioConnected else (0.8, 0.1, 0.1, 1)
-                halign: 'right'
-                valign: 'middle'
-                size_hint: None, None
-                size: dp(130), dp(40)
+
 
         # Panel de información del comercio mejorado
         BoxLayout:
