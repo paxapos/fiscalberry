@@ -16,14 +16,14 @@ class FiscalberryComandos():
 	def run(self, host, jsonData):
 		"""Envia comando a impresora"""
 
-		logger.info(f"Conectando a la URL {host}")
+		logger.debug(f"Conectando a la URL {host}")
 		headers = {'Content-type': 'application/json'}
 
 		try:
 			reply = requests.post(host, data=json.dumps(jsonData), headers=headers, timeout=self.timeout)
 
 			if reply.status_code == 200:
-				logger.info("Conexión exitosa")
+				logger.debug("Conexión exitosa")
 				return []
 		except requests.exceptions.Timeout as e:
 			# Maybe set up for a retry, or continue in a retry loop

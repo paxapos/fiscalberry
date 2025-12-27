@@ -204,23 +204,23 @@ def run_service_logic():
     global service_controller
     
     logger.info("=== Iniciando Fiscalberry Android Service ===")
-    logger.info(f"API Level: {ANDROID_API_LEVEL}")
+    logger.debug(f"API Level: {ANDROID_API_LEVEL}")
     
     # Mostrar notificación
     show_foreground_notification()
     
     # Adquirir locks
     if acquire_wakelock():
-        logger.info("WakeLock adquirido")
+        logger.debug("WakeLock adquirido")
     if acquire_wifi_lock():
-        logger.info("WiFiLock adquirido")
+        logger.debug("WiFiLock adquirido")
     
     try:
         configberry = Configberry()
         
         # Esperar adopción si es necesario
         if not configberry.is_comercio_adoptado():
-            logger.info("Comercio no adoptado. Esperando adopción...")
+            logger.debug("Comercio no adoptado. Esperando adopción...")
             while True:
                 sleep(30)
                 if configberry.is_comercio_adoptado():
@@ -231,16 +231,16 @@ def run_service_logic():
         logger.info("Comercio adoptado. Iniciando servicios...")
         service_controller = ServiceController()
         
-        logger.info("Iniciando controlador de servicios...")
+        logger.debug("Iniciando controlador de servicios...")
         service_controller.start()
-        logger.info("Controlador de servicios iniciado exitosamente")
+        logger.debug("Controlador de servicios iniciado exitosamente")
         
         # Mantener servicio activo
         while True:
             sleep(60)
             
     except KeyboardInterrupt:
-        logger.info("Interrupción detectada")
+        logger.debug("Interrupción detectada")
     except Exception as e:
         logger.error(f"Error en servicio: {e}", exc_info=True)
     finally:

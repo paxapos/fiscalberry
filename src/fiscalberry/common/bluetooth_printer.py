@@ -18,7 +18,7 @@ ANDROID = False
 try:
     from jnius import autoclass, cast
     ANDROID = True
-    logger.info("Módulo Bluetooth Android disponible")
+    logger.debug("Módulo Bluetooth Android disponible")
 except ImportError:
     logger.warning("jnius no disponible - Bluetooth solo funciona en Android")
 
@@ -47,7 +47,7 @@ class BluetoothConnection:
         self._lock = Lock()
         self.connected = False
         
-        logger.info(f"BluetoothConnection inicializada para MAC: {self.mac_address}")
+        logger.debug(f"BluetoothConnection inicializada para MAC: {self.mac_address}")
     
     def connect(self):
         """
@@ -57,7 +57,7 @@ class BluetoothConnection:
             bool: True si la conexión fue exitosa
         """
         try:
-            logger.info(f"Conectando a impresora Bluetooth: {self.mac_address}")
+            logger.debug(f"Conectando a impresora Bluetooth: {self.mac_address}")
             
             # Obtener adaptador Bluetooth
             BluetoothAdapter = autoclass('android.bluetooth.BluetoothAdapter')
@@ -102,7 +102,7 @@ class BluetoothConnection:
                 adapter.cancelDiscovery()
             
             # Conectar socket
-            logger.info("Conectando socket Bluetooth...")
+            logger.debug("Conectando socket Bluetooth...")
             self.socket.connect()
             
             # Obtener streams de entrada/salida
@@ -182,7 +182,7 @@ class BluetoothConnection:
     
     def close(self):
         """Cierra la conexión Bluetooth."""
-        logger.info(f"Cerrando conexión Bluetooth: {self.mac_address}")
+        logger.debug(f"Cerrando conexión Bluetooth: {self.mac_address}")
         
         try:
             if self.output_stream:
@@ -207,7 +207,7 @@ class BluetoothConnection:
         self.output_stream = None
         self.input_stream = None
         
-        logger.info("Conexión Bluetooth cerrada")
+        logger.debug("Conexión Bluetooth cerrada")
     
     def __enter__(self):
         """Context manager entry."""
@@ -238,7 +238,7 @@ class BluetoothPrinter:
         self.connection = None
         self.device_name = f"BT Printer {mac_address}"
         
-        logger.info(f"BluetoothPrinter inicializada: {mac_address}")
+        logger.debug(f"BluetoothPrinter inicializada: {mac_address}")
     
     def open(self):
         """Abre conexión a la impresora."""
@@ -288,7 +288,7 @@ def scan_bluetooth_printers(timeout=10):
         return []
     
     try:
-        logger.info("Iniciando escaneo de impresoras Bluetooth...")
+        logger.debug("Iniciando escaneo de impresoras Bluetooth...")
         
         BluetoothAdapter = autoclass('android.bluetooth.BluetoothAdapter')
         adapter = BluetoothAdapter.getDefaultAdapter()
@@ -303,7 +303,7 @@ def scan_bluetooth_printers(timeout=10):
         printers = []
         
         # 1. Obtener dispositivos ya emparejados
-        logger.info("Buscando dispositivos emparejados...")
+        logger.debug("Buscando dispositivos emparejados...")
         bonded_devices = adapter.getBondedDevices()
         
         if bonded_devices:
@@ -337,15 +337,15 @@ def scan_bluetooth_printers(timeout=10):
                         'connection': 'Bluetooth'
                     }
                     printers.append(printer_info)
-                    logger.info(f"Impresora encontrada: {device_name} ({mac_address})")
+                    logger.debug(f"Impresora encontrada: {device_name} ({mac_address})")
         
         # 2. Descubrir nuevos dispositivos (opcional)
         if adapter.startDiscovery():
-            logger.info(f"Descubriendo nuevos dispositivos Bluetooth ({timeout}s)...")
+            logger.debug(f"Descubriendo nuevos dispositivos Bluetooth ({timeout}s)...")
             time.sleep(timeout)
             adapter.cancelDiscovery()
         
-        logger.info(f"Escaneo completo: {len(printers)} impresoras encontradas")
+        logger.debug(f"Escaneo completo: {len(printers)} impresoras encontradas")
         return printers
         
     except Exception as e:
@@ -368,7 +368,7 @@ def pair_bluetooth_device(mac_address):
         return False
     
     try:
-        logger.info(f"Intentando emparejar dispositivo: {mac_address}")
+        logger.debug(f"Intentando emparejar dispositivo: {mac_address}")
         
         BluetoothAdapter = autoclass('android.bluetooth.BluetoothAdapter')
         adapter = BluetoothAdapter.getDefaultAdapter()

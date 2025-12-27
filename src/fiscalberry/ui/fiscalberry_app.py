@@ -76,8 +76,8 @@ class FiscalberryApp(App):
             # y los singletons mantienen estado previo causando freeze
             if self._is_android:
                 try:
-                    from fiscalberry.common.service_controller import ServiceController
-                    ServiceController.reset_singleton()
+                    from fiscalberry.common import service_controller as sc_module
+                    sc_module.ServiceController.reset_singleton()
                     logger.debug("Singletons reseteados para reinicio Android")
                 except Exception as e:
                     logger.warning(f"Error reseteando singletons: {e}")
@@ -452,7 +452,7 @@ class FiscalberryApp(App):
             
             # Solo necesario en API 23+ (Android 6.0+)
             if BuildVersion.SDK_INT < 23:
-                logger.info("API < 23 - Battery exemption no requerida")
+                logger.debug("API < 23 - Battery exemption no requerida")
                 return
             
             activity = PythonActivity.mActivity

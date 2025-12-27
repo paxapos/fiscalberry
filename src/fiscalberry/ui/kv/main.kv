@@ -396,11 +396,13 @@ ScreenManager:
             ScrollView:
                 id: main_scroll_view
                 do_scroll_x: False
+                scroll_y: 0  # 0 = fondo (logs más recientes)
                 TextInput:
                     id: main_log_output
                     text: app.logs
+                    on_text: main_scroll_view.scroll_y = 0  # Auto-scroll al final cuando hay nuevos logs
                     readonly: True
-                    font_size: '11sp'
+                    font_size: '14sp'
                     background_color: 0, 0, 0, 0
                     foreground_color: 0.8, 0.9, 0.8, 1
                     size_hint_y: None

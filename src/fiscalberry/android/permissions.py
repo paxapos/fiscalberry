@@ -28,11 +28,11 @@ try:
     try:
         BuildVersion = autoclass('android.os.Build$VERSION')
         ANDROID_API_LEVEL = BuildVersion.SDK_INT
-        logger.info(f"Módulo de permisos Android disponible - API Level: {ANDROID_API_LEVEL}")
+        logger.debug(f"Módulo de permisos Android disponible - API Level: {ANDROID_API_LEVEL}")
     except Exception as e:
         logger.warning(f"No se pudo obtener API Level: {e}")
         ANDROID_API_LEVEL = 23  # Asumir API 23 (Android 6.0) como mínimo
-        logger.info(f"Usando API Level por defecto: {ANDROID_API_LEVEL}")
+        logger.debug(f"Usando API Level por defecto: {ANDROID_API_LEVEL}")
 except ImportError:
     logger.debug("android.permissions no disponible - no es Android")
 
@@ -245,7 +245,7 @@ def request_all_permissions(callback_on_complete: Optional[Callable] = None):
         return True
     
     try:
-        logger.info(f"Solicitando permisos de Android para API {ANDROID_API_LEVEL}...")
+        logger.debug(f"Solicitando permisos de Android para API {ANDROID_API_LEVEL}...")
         required_permissions = get_required_permissions()
         
         # Filtrar solo los permisos que no están otorgados
@@ -254,7 +254,7 @@ def request_all_permissions(callback_on_complete: Optional[Callable] = None):
             try:
                 if not check_permission(permission):
                     missing_permissions.append(permission)
-                    logger.info(f"Permiso faltante: {permission}")
+                    logger.debug(f"Permiso faltante: {permission}")
             except:
                 missing_permissions.append(permission)
         
@@ -264,15 +264,15 @@ def request_all_permissions(callback_on_complete: Optional[Callable] = None):
             
             # Método 1: Usar request_permissions de python-for-android
             try:
-                logger.info("Intentando solicitar permisos con request_permissions()...")
+                logger.debug("Intentando solicitar permisos con request_permissions()...")
                 request_permissions(missing_permissions)
-                logger.info("✓ request_permissions() ejecutado")
+                logger.debug("✓ request_permissions() ejecutado")
             except Exception as e1:
                 logger.warning(f"request_permissions() falló: {e1}")
                 
                 # Método 2: Usar ActivityCompat directamente
                 try:
-                    logger.info("Intentando con ActivityCompat...")
+                    logger.debug("Intentando con ActivityCompat...")
                     _request_permissions_via_activity_compat(missing_permissions)
                 except Exception as e2:
                     logger.error(f"ActivityCompat también falló: {e2}")
@@ -285,7 +285,7 @@ def request_all_permissions(callback_on_complete: Optional[Callable] = None):
             
             return True
         else:
-            logger.info("Todos los permisos ya están otorgados")
+            logger.debug("Todos los permisos ya están otorgados")
             if callback_on_complete:
                 callback_on_complete(True)
             return True
@@ -340,7 +340,7 @@ def _request_permissions_via_activity_compat(permissions):
             logger.error("No se pudo obtener PythonActivity")
             return
         
-        logger.info(f"Activity obtenida: {activity}")
+        logger.debug(f"Activity obtenida: {activity}")
         
         # Usar ActivityCompat para solicitar permisos
         ActivityCompat = autoclass('androidx.core.app.ActivityCompat')
@@ -349,7 +349,7 @@ def _request_permissions_via_activity_compat(permissions):
         String = autoclass('java.lang.String')
         permissions_array = [String(p) for p in permissions]
         
-        logger.info(f"Solicitando {len(permissions_array)} permisos vía ActivityCompat...")
+        logger.debug(f"Solicitando {len(permissions_array)} permisos vía ActivityCompat...")
         
         # Request code arbitrario
         REQUEST_CODE = 1001
@@ -361,7 +361,7 @@ def _request_permissions_via_activity_compat(permissions):
             REQUEST_CODE
         )
         
-        logger.info("✓ ActivityCompat.requestPermissions() ejecutado")
+        logger.debug("✓ ActivityCompat.requestPermissions() ejecutado")
         logger.info("⚠️ El usuario debe aprobar los permisos en el diálogo que apareció")
         
     except Exception as e:
@@ -381,7 +381,7 @@ def request_storage_permissions():
         
         missing = [p for p in permissions if not check_permission(p)]
         if missing:
-            logger.info("Solicitando permisos de almacenamiento...")
+            logger.debug("Solicitando permisos de almacenamiento...")
             request_permissions(missing)
         return True
     except Exception as e:
@@ -403,7 +403,7 @@ def request_network_permissions():
         
         missing = [p for p in permissions if not check_permission(p)]
         if missing:
-            logger.info("Solicitando permisos de red...")
+            logger.debug("Solicitando permisos de red...")
             request_permissions(missing)
         return True
     except Exception as e:
@@ -431,15 +431,15 @@ def request_bluetooth_permissions():
         
         missing = [p for p in permissions if not check_permission(p)]
         if missing:
-            logger.info(f"⚠️ Solicitando {len(missing)} permisos de Bluetooth...")
-            logger.info("Lista de permisos faltantes:")
+            logger.debug(f"⚠️ Solicitando {len(missing)} permisos de Bluetooth...")
+            logger.debug("Lista de permisos faltantes:")
             for p in missing:
-                logger.info(f"  - {p}")
+                logger.debug(f"  - {p}")
             
             # Intentar ambos métodos
             try:
                 request_permissions(missing)
-                logger.info("✓ request_permissions() ejecutado para Bluetooth")
+                logger.debug("✓ request_permissions() ejecutado para Bluetooth")
             except Exception as e:
                 logger.warning(f"request_permissions() falló: {e}")
                 try:
@@ -447,7 +447,7 @@ def request_bluetooth_permissions():
                 except Exception as e2:
                     logger.error(f"ActivityCompat también falló: {e2}")
         else:
-            logger.info("✓ Todos los permisos de Bluetooth ya otorgados")
+            logger.debug("✓ Todos los permisos de Bluetooth ya otorgados")
             
         return True
     except Exception as e:
