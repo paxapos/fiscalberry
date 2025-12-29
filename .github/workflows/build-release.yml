@@ -3,106 +3,259 @@ name: Build and Release Fiscalberry
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
 
 jobs:
+  # ============================================
+  # LINUX BUILDS (GUI + CLI)
+  # ============================================
   build-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
-          
+          python-version: "3.11"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libcups2-dev xvfb
-          
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -r requirements.kivy.txt
           pip install pyinstaller
-          
+
       - name: Build Linux GUI
         run: |
           PYTHONPATH=src pyinstaller fiscalberry-gui.spec
-          
-      - name: Package Linux Binary
+
+      - name: Build Linux CLI
+        run: |
+          PYTHONPATH=src pyinstaller fiscalberry-cli.spec
+
+      - name: Package Linux Binaries
         run: |
           cd dist
           tar -czf fiscalberry-linux-gui.tar.gz fiscalberry-gui
-          
-      - name: Upload Linux Artifact
-        uses: actions/upload-artifact@v3
+          tar -czf fiscalberry-linux-cli.tar.gz fiscalberry-cli
+
+      - name: Upload Linux GUI Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: fiscalberry-linux
+          name: fiscalberry-linux-gui
           path: dist/fiscalberry-linux-gui.tar.gz
 
+      - name: Upload Linux CLI Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fiscalberry-linux-cli
+          path: dist/fiscalberry-linux-cli.tar.gz
+
+  # ============================================
+  # WINDOWS BUILDS (GUI + CLI)
+  # ============================================
   build-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
-          
+          python-version: "3.11"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -r requirements.kivy.txt
           pip install pyinstaller
-          
+
       - name: Build Windows GUI
         run: |
           $env:PYTHONPATH="src"
-          pyinstaller fiscalberry-windows.spec
-          
-      - name: Setup Inno Setup
-        run: |
-          choco install innosetup -y
-          
-      - name: Build Windows Installer
-        run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" fiscalberry-installer.iss
-          
-      - name: Upload Windows Installer
-        uses: actions/upload-artifact@v3
-        with:
-          name: fiscalberry-windows
-          path: output/FiscalberrySetup.exe
+          pyinstaller fiscalberry-gui.spec
 
+      - name: Build Windows CLI
+        run: |
+          $env:PYTHONPATH="src"
+          pyinstaller fiscalberry-cli.spec
+
+      - name: Package Windows Binaries
+        run: |
+          cd dist
+          Compress-Archive -Path fiscalberry-gui.exe -DestinationPath fiscalberry-windows-gui.zip
+          Compress-Archive -Path fiscalberry-cli.exe -DestinationPath fiscalberry-windows-cli.zip
+
+      - name: Upload Windows GUI Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fiscalberry-windows-gui
+          path: dist/fiscalberry-windows-gui.zip
+
+      - name: Upload Windows CLI Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fiscalberry-windows-cli
+          path: dist/fiscalberry-windows-cli.zip
+
+  # ============================================
+  # ANDROID GUI BUILD (con caché y signing)
+  # ============================================
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      # ==========================================
+      # CACHÉ: Guarda las descargas de Buildozer
+      # Esto incluye SDK, NDK, y dependencias compiladas
+      # Ahorra ~20-30 minutos en builds subsecuentes
+      # ==========================================
+      - name: Cache Buildozer global directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer
+          key: buildozer-global-${{ hashFiles('buildozer.ui.android.spec') }}
+          restore-keys: |
+            buildozer-global-
+
+      - name: Cache Buildozer project directory
+        uses: actions/cache@v4
+        with:
+          path: .buildozer
+          key: buildozer-project-${{ hashFiles('buildozer.ui.android.spec') }}-${{ hashFiles('src/**/*.py') }}
+          restore-keys: |
+            buildozer-project-${{ hashFiles('buildozer.ui.android.spec') }}-
+            buildozer-project-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            git \
+            zip \
+            unzip \
+            openjdk-17-jdk \
+            autoconf \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            libtinfo5 \
+            cmake \
+            libffi-dev \
+            libssl-dev \
+            automake
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK components
+        run: |
+          sdkmanager "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+
+      - name: Install Buildozer and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install buildozer cython virtualenv
+
+      - name: Build Android APK
+        run: |
+          buildozer android debug -s buildozer.ui.android.spec
+
+      - name: Find and rename APK
+        id: find_apk
+        run: |
+          APK_PATH=$(find . -name "*.apk" -type f | head -1)
+          echo "APK found: $APK_PATH"
+          cp "$APK_PATH" ./fiscalberry-android-gui.apk
+
+      - name: Upload Android Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fiscalberry-android-gui
+          path: ./fiscalberry-android-gui.apk
+
+  # ============================================
+  # CREATE GITHUB RELEASE
+  # ============================================
   create-release:
-    needs: [build-linux, build-windows]
+    needs: [build-linux, build-windows, build-android]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Download Linux Artifact
-        uses: actions/download-artifact@v3
+
+      - name: Download Linux GUI Artifact
+        uses: actions/download-artifact@v4
         with:
-          name: fiscalberry-linux
+          name: fiscalberry-linux-gui
           path: ./artifacts/
-          
-      - name: Download Windows Artifact
-        uses: actions/download-artifact@v3
+
+      - name: Download Linux CLI Artifact
+        uses: actions/download-artifact@v4
         with:
-          name: fiscalberry-windows
+          name: fiscalberry-linux-cli
           path: ./artifacts/
-          
+
+      - name: Download Windows GUI Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: fiscalberry-windows-gui
+          path: ./artifacts/
+
+      - name: Download Windows CLI Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: fiscalberry-windows-cli
+          path: ./artifacts/
+
+      - name: Download Android Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: fiscalberry-android-gui
+          path: ./artifacts/
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
             ./artifacts/fiscalberry-linux-gui.tar.gz
-            ./artifacts/FiscalberrySetup.exe
+            ./artifacts/fiscalberry-linux-cli.tar.gz
+            ./artifacts/fiscalberry-windows-gui.zip
+            ./artifacts/fiscalberry-windows-cli.zip
+            ./artifacts/fiscalberry-android-gui.apk
           draft: false
           prerelease: false
           generate_release_notes: true
