@@ -84,15 +84,36 @@ class EscPComandos():
     
     printer = None
 
-    def __init__(self, printer):
+    # Columnas por defecto según ancho de papel:
+    # 58mm = 32 columnas
+    # 80mm = 48 columnas (default)
+    DEFAULT_COLUMNS = 48
+
+    def __init__(self, printer, columns=None):
         self.printer = printer
         
-        self.total_cols = 40
-        self.price_cols = 12
-        self.cant_cols = 6
+        # Usar columns del parámetro, o default 48 (80mm)
+        self.total_cols = int(columns) if columns else self.DEFAULT_COLUMNS
+        
+        # Log informativo cuando se usa columns personalizado
+        if columns:
+            logger.info(f"Usando tamaño de {self.total_cols} caracteres (papel {'58mm' if self.total_cols <= 32 else '80mm'})")
+        
+        # Calcular proporciones de columnas según el total
+        # Para 48 cols: price=12, cant=6, desc=30
+        # Para 32 cols: price=10, cant=4, desc=18
+        if self.total_cols <= 32:
+            self.price_cols = 10
+            self.cant_cols = 4
+        else:
+            self.price_cols = 12
+            self.cant_cols = 6
+        
         self.desc_cols = self.total_cols - self.cant_cols - self.price_cols
         self.desc_cols_ext = self.total_cols - self.price_cols
         self.signo = "$"
+        
+        logger.debug(f"EscPComandos inicializado: total_cols={self.total_cols}, price={self.price_cols}, cant={self.cant_cols}, desc={self.desc_cols}")
 
     def run(self, jsonTicket):
         try:

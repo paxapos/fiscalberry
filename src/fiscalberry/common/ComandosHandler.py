@@ -343,13 +343,16 @@ def runTraductor(jsonTicket, queue):
         except Exception as e:
             raise DriverError(f"Error loading driver {driverName}: {e}")
 
+    # Extraer columns antes de crear el driver (no es un parámetro del driver)
+    columns = driverOps.pop('columns', None)
+    
     try:
         driver = driver_class(**driverOps)
     except Exception as e:
         raise DriverError(f"Error creando driver {driverName}: {e}")
 
     try:
-        comando = EscPComandos(driver)
+        comando = EscPComandos(driver, columns=columns)
         result = comando.run(jsonTicket)
         
         analyze_printer_response(result, printerName)
