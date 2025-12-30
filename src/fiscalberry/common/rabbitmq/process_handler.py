@@ -63,21 +63,37 @@ class RabbitMQProcessHandler:
         }
 
     def start(self, message_queue):
-        """Arranca el consumidor en un hilo daemon (no bloqueante)."""
+        """
+        Arranca el consumidor en un hilo daemon (no bloqueante).
+        
+        NOTA: user y password vienen de active_credentials (memoria),
+        no de config.ini, por seguridad.
+        """
         if self._thread and self._thread.is_alive():
             logger.warning("RabbitMQ thread ya en ejecución.")
             return
 
+        # host/port/vhost de config, user/password de memoria (active_credentials)
         host = self.config.get("RabbitMq", "host")
         port = self.config.get("RabbitMq", "port")
-        user = self.config.get("RabbitMq", "user")
-        password = self.config.get("RabbitMq", "password")
         
-        # Actualizar credenciales activas
-        self._update_active_credentials(host, port, user, password)
+        # Credenciales sensibles solo desde memoria
+        user = None
+        password = None
+        if self.active_credentials:
+            user = self.active_credentials.get('user')
+            password = self.active_credentials.get('password')
         
-        # TODO deberia usarse esto: queue_name = self.config.get("RabbitMq", "queue")
+        if not user or not password:
+            print("\n============================================================")
+            print("[ERROR] Credenciales RabbitMQ incompletas en memoria")
+            print("        (user o password faltante)")
+            print("============================================================\n")
+            logger.error("Credenciales RabbitMQ incompletas en memoria (user o password faltante)")
+            return
+        
         queue_name = self.config.get("SERVIDOR", "uuid")
+        
         self._stop_event.clear()
         self._thread = threading.Thread(
             target=self._run_consumer,
@@ -215,11 +231,9 @@ class RabbitMQProcessHandler:
         """
         rabbit_cfg = data.get('RabbitMq', {})
         
-        # Leer valores actuales de config.ini
+        # Leer valores actuales de config.ini (excepto user/password que son solo memoria)
         curr_host = self.config.get("RabbitMq", "host", fallback="")
         curr_port = self.config.get("RabbitMq", "port", fallback="")
-        curr_user = self.config.get("RabbitMq", "user", fallback="")
-        curr_pwd = self.config.get("RabbitMq", "password", fallback="")
         curr_vhost = self.config.get("RabbitMq", "vhost", fallback="")
         curr_queue = self.config.get("RabbitMq", "queue", fallback="")
         
@@ -249,27 +263,19 @@ class RabbitMQProcessHandler:
         else:
             final_config["port"] = curr_port
             
-        # USER
-        if not curr_user or not str(curr_user).strip():
-            new_user = rabbit_cfg.get("user", "guest")
-            if new_user:
-                updates["user"] = new_user
-                final_config["user"] = new_user
-            else:
-                final_config["user"] = "guest"
+        # USER - Solo memoria, NUNCA persistir a config.ini
+        new_user = rabbit_cfg.get("user", "guest")
+        if new_user:
+            final_config["user"] = new_user
         else:
-            final_config["user"] = curr_user
+            final_config["user"] = "guest"
             
-        # PASSWORD
-        if not curr_pwd or not str(curr_pwd).strip():
-            new_pwd = rabbit_cfg.get("password", "guest")
-            if new_pwd:
-                updates["password"] = new_pwd
-                final_config["password"] = new_pwd
-            else:
-                final_config["password"] = "guest"
+        # PASSWORD - Solo memoria, NUNCA persistir a config.ini
+        new_pwd = rabbit_cfg.get("password", "guest")
+        if new_pwd:
+            final_config["password"] = new_pwd
         else:
-            final_config["password"] = curr_pwd
+            final_config["password"] = "guest"
             
         # VHOST
         if not curr_vhost or not str(curr_vhost).strip():
@@ -322,6 +328,16 @@ class RabbitMQProcessHandler:
         if pax_updates:
             self.config.set("Paxaprinter", pax_updates)
 
+        # Guardar credenciales sensibles SOLO en memoria
+        vhost = final_config.get('vhost', '/')
+        self._update_active_credentials(
+            final_config['host'],
+            final_config['port'],
+            final_config['user'],
+            final_config['password'],
+            vhost
+        )
+        
         # Reinicia hilo con la configuración actual
         if self._thread and self._thread.is_alive():
             self.stop(timeout=5)
