@@ -3,7 +3,7 @@ REM ============================================================
 REM  FISCALBERRY CLI - Script de compilación para Windows
 REM ============================================================
 REM  Ejecutar este script desde la carpeta raíz de fiscalberry
-REM  Requisitos: Python 3.8+ instalado
+REM  Requisitos: Python 3.8+ instalado y en el PATH
 REM ============================================================
 
 echo.
@@ -13,30 +13,62 @@ echo ============================================================
 echo.
 
 REM Verificar que Python está instalado
-python --version >nul 2>&1
+where python >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] Python no encontrado. Instalalo desde https://python.org
+    echo [ERROR] Python no encontrado en el PATH.
+    echo         Instalalo desde https://python.org
+    echo         IMPORTANTE: Marca la opcion "Add Python to PATH" al instalar
     pause
     exit /b 1
 )
 
+echo [INFO] Python encontrado:
+python --version
+
+echo.
 echo [1/4] Creando entorno virtual...
 if not exist "venv.cli" (
     python -m venv venv.cli
+    if errorlevel 1 (
+        echo [ERROR] No se pudo crear el entorno virtual
+        pause
+        exit /b 1
+    )
 )
 
-echo [2/4] Activando entorno virtual e instalando dependencias...
-call venv.cli\Scripts\activate.bat
+echo [2/4] Instalando dependencias...
+REM Usar rutas completas en lugar de activar el venv
+venv.cli\Scripts\python.exe -m pip install --upgrade pip -q
+if errorlevel 1 (
+    echo [ERROR] No se pudo actualizar pip
+    pause
+    exit /b 1
+)
 
-pip install --upgrade pip -q
-pip install -r requirements.cli.txt -q
-pip install pyinstaller -q
+venv.cli\Scripts\pip.exe install -r requirements.txt -q
+if errorlevel 1 (
+    echo [ERROR] No se pudieron instalar las dependencias
+    pause
+    exit /b 1
+)
+
+venv.cli\Scripts\pip.exe install pyinstaller -q
+if errorlevel 1 (
+    echo [ERROR] No se pudo instalar pyinstaller
+    pause
+    exit /b 1
+)
 
 echo [3/4] Compilando fiscalberry-cli.exe...
-pyinstaller fiscalberry-cli.spec --clean -y
+venv.cli\Scripts\pyinstaller.exe fiscalberry-cli.spec --clean -y
+if errorlevel 1 (
+    echo [ERROR] La compilacion fallo
+    pause
+    exit /b 1
+)
 
 echo [4/4] Limpiando archivos temporales...
-rmdir /s /q build\fiscalberry-cli 2>nul
+if exist "build\fiscalberry-cli" rmdir /s /q build\fiscalberry-cli
 
 echo.
 echo ============================================================
