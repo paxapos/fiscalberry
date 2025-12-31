@@ -27,17 +27,34 @@ python --version
 
 echo.
 echo [1/4] Creando entorno virtual...
-if not exist "venv.cli" (
+
+REM Verificar si el venv existe y es válido
+if exist "venv.cli\Scripts\python.exe" (
+    echo [INFO] Entorno virtual ya existe y es valido
+) else (
+    REM Borrar venv corrupto si existe
+    if exist "venv.cli" (
+        echo [INFO] Borrando entorno virtual corrupto...
+        rmdir /s /q venv.cli
+    )
+    
+    echo [INFO] Creando nuevo entorno virtual...
     python -m venv venv.cli
     if errorlevel 1 (
         echo [ERROR] No se pudo crear el entorno virtual
         pause
         exit /b 1
     )
+    
+    REM Verificar que se creó correctamente
+    if not exist "venv.cli\Scripts\python.exe" (
+        echo [ERROR] El entorno virtual no se creo correctamente
+        pause
+        exit /b 1
+    )
 )
 
 echo [2/4] Instalando dependencias...
-REM Usar rutas completas en lugar de activar el venv
 venv.cli\Scripts\python.exe -m pip install --upgrade pip -q
 if errorlevel 1 (
     echo [ERROR] No se pudo actualizar pip
