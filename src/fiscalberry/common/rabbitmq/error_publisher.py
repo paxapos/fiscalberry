@@ -302,15 +302,14 @@ def publish_error(error_type: str, error_message: str,
     """
     Función de conveniencia para publicar errores.
     
+    DESHABILITADO: Esta funcionalidad está deshabilitada para evitar 
+    delays por conexión fallida a RabbitMQ.
+    
     Args:
         error_type: Tipo de error (ej: "PRINTER_ERROR", "JSON_PARSE_ERROR")
         error_message: Mensaje descriptivo del error
         context: Contexto adicional (datos del comando, configuración, etc.)
         exception: Excepción original si está disponible
     """
-    try:
-        publisher = get_error_publisher()
-        publisher.publish_error(error_type, error_message, context, exception)
-    except Exception as e:
-        logger.error("publish_error: Critical failure - %s", e)
-        logger.debug(traceback.format_exc())
+    # ErrorPublisher DESHABILITADO - no hacer nada
+    return
