@@ -73,23 +73,35 @@ class RabbitMQProcessHandler:
             logger.warning("RabbitMQ thread ya en ejecución.")
             return
 
-        # host/port/vhost de config, user/password de memoria (active_credentials)
+        # host/port/vhost de config
         host = self.config.get("RabbitMq", "host")
         port = self.config.get("RabbitMq", "port")
         
-        # Credenciales sensibles solo desde memoria
+        # Credenciales: primero memoria (active_credentials), luego config.ini como fallback
         user = None
         password = None
+        
+        # 1. Primero intentar desde memoria (active_credentials - vienen de SocketIO)
         if self.active_credentials:
             user = self.active_credentials.get('user')
             password = self.active_credentials.get('password')
         
+        # 2. Fallback: leer de config.ini si no están en memoria
+        if not user:
+            user = self.config.get("RabbitMq", "user", fallback=None)
+            if user:
+                logger.info("RabbitMQ user: usando fallback de config.ini")
+        if not password:
+            password = self.config.get("RabbitMq", "password", fallback=None)
+            if password:
+                logger.info("RabbitMQ password: usando fallback de config.ini")
+        
         if not user or not password:
             print("\n============================================================")
-            print("[ERROR] Credenciales RabbitMQ incompletas en memoria")
-            print("        (user o password faltante)")
+            print("[ERROR] Credenciales RabbitMQ incompletas")
+            print("        (user o password faltante en memoria y config.ini)")
             print("============================================================\n")
-            logger.error("Credenciales RabbitMQ incompletas en memoria (user o password faltante)")
+            logger.error("Credenciales RabbitMQ incompletas (user o password faltante en memoria y config.ini)")
             return
         
         queue_name = self.config.get("SERVIDOR", "uuid")
