@@ -6,24 +6,18 @@
     orientation: 'vertical'
     
     canvas.before:
+        Color:
+            rgba: 0.95, 0.95, 0.97, 1  # Gris claro
         Rectangle:
             pos: self.pos
             size: self.size
-            source: app.background_image
-    
+
 
     BoxLayout:
         orientation: 'vertical'
         padding: 10
 
-        Image:
-            source: app.logo_image
-            size_hint_y: None
-            height: 96
-            allow_stretch: True
-            keep_ratio: True
-            color: 1, 1, 1, 1
-            margin_bottom: 10
+        # Logo eliminado - UI minimalista
 
         Label:
             id: title_label

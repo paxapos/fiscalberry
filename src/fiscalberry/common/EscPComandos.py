@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 import datetime
+import logging
 from math import ceil
 import json
 import base64
 from fiscalberry.common.fiscalberry_logger import getLogger
+from fiscalberry.common.rabbitmq.error_publisher import publish_error
+from fiscalberry.common.printer_error_detector import PrinterErrorDetector, analyze_printer_response
 from escpos.escpos import EscposIO
 from escpos.constants import QR_ECLEVEL_H,CD_KICK_2
 
@@ -81,41 +84,103 @@ class EscPComandos():
     
     printer = None
 
-    def __init__(self, printer):
+    # Columnas por defecto según ancho de papel:
+    # 58mm = 32 columnas
+    # 80mm = 48 columnas (default)
+    DEFAULT_COLUMNS = 48
+
+    def __init__(self, printer, columns=None):
         self.printer = printer
         
-        self.total_cols = 40
-        self.price_cols = 12 #12 espacios permiten hasta 9,999,999.99
-        self.cant_cols = 6   #4 no admitiría decimales, 6 sería mejor
-        self.desc_cols =  self.total_cols - self.cant_cols - self.price_cols
+        # Usar columns del parámetro, o default 48 (80mm)
+        self.total_cols = int(columns) if columns else self.DEFAULT_COLUMNS
+        
+        # Log informativo cuando se usa columns personalizado
+        if columns:
+            logger.info(f"Usando tamaño de {self.total_cols} caracteres (papel {'58mm' if self.total_cols <= 32 else '80mm'})")
+        
+        # Calcular proporciones de columnas según el total
+        # Para 48 cols: price=12, cant=6, desc=30
+        # Para 32 cols: price=10, cant=4, desc=18
+        if self.total_cols <= 32:
+            self.price_cols = 10
+            self.cant_cols = 4
+        else:
+            self.price_cols = 12
+            self.cant_cols = 6
+        
+        self.desc_cols = self.total_cols - self.cant_cols - self.price_cols
         self.desc_cols_ext = self.total_cols - self.price_cols
-        self.signo = "$" # Agregar el signo $ opcionalmente o espacio.
+        self.signo = "$"
+        
+        logger.debug(f"EscPComandos inicializado: total_cols={self.total_cols}, price={self.price_cols}, cant={self.cant_cols}, desc={self.desc_cols}")
 
     def run(self, jsonTicket):
-        with EscposIO(self.printer, autocut=False,autoclose=True) as escpos:
-            actions = jsonTicket.keys()
-            rta = []
-            for action in actions:
-                fnAction = getattr(self, action, None)
+        try:
+            with EscposIO(self.printer, autocut=False, autoclose=True) as escpos:
+                actions = jsonTicket.keys()
+                rta = []
+                
+                for action in actions:
+                    fnAction = getattr(self, action, None)
 
-                if fnAction:
-                    params = jsonTicket[action]
+                    if fnAction:
+                        params = jsonTicket[action]
 
-                    if isinstance(params, list):
-                        res = fnAction(escpos, *params)
-                    elif isinstance(params, dict):
-                        res = fnAction(escpos, **params)
+                        try:
+                            if isinstance(params, list):
+                                res = fnAction(escpos, *params)
+                            elif isinstance(params, dict):
+                                res = fnAction(escpos, **params)
+                            else:
+                                res = fnAction(escpos, params)
+
+                            rta.append({"action": action, "rta": res})
+                        except Exception as e:
+                            logger.error(f"Error '{action}': {e}")
+                            
+                            try:
+                                PrinterErrorDetector.detect_and_publish_error(
+                                    error_message=str(e),
+                                    exception=e,
+                                    context={"action": action}
+                                )
+                            except:
+                                pass
+                            
+                            rta.append({"action": action, "rta": f"Error: {e}"})
                     else:
-                        res = fnAction(escpos, params)
+                        logger.error(f"Función '{action}' no encontrada")
+                        rta.append({"action": action, "rta": "Function not found"})
 
-                    rta.append({"action": action, "rta": res})
-                else:
-                    rta.append({"action": action, "rta": "Function not found"})
-
-            return rta
+                for item in rta:
+                    if isinstance(item, dict) and 'rta' in item:
+                        analyze_printer_response(item['rta'], "current_printer")
+                
+                return rta
+                
+        except Exception as e:
+            error_msg = f"Error crítico en EscPComandos.run: {e}"
+            logger.error(error_msg, exc_info=True)
+            
+            # Detectar tipo específico de error crítico y publicar
+            try:
+                PrinterErrorDetector.detect_and_publish_error(
+                    error_message=error_msg,
+                    exception=e,
+                    context={
+                        "jsonTicket": jsonTicket,
+                        "exception_type": type(e).__name__
+                    }
+                )
+            except Exception as publish_err:
+                logger.error(f"Error publicando error crítico a RabbitMQ: {publish_err}")
+            
+            raise PrinterException(f"Error ejecutando comandos: {e}")
 
 
     def _sendCommand(self, comando, skipStatusErrors=False):
+        logger.debug(f"Enviando comando a impresora: {comando}")
         try:
             ret = self.printer.sendCommand(comando, skipStatusErrors)
             return ret
@@ -159,8 +224,40 @@ class EscPComandos():
             raise ValueError("No bytes provided to print")
         
 
-    def openDrawer(self, escpos: EscposIO, **kwargs):
-        escpos.printer.cashdraw(CD_KICK_2)
+    def openDrawer(self, escpos: EscposIO, *args, **kwargs):
+        """
+        Abre el cajón de dinero.
+        Acepta argumentos adicionales para compatibilidad con diferentes formatos de llamada.
+        """
+        try:
+            # Intenta abrir el cajón con el comando estándar
+            escpos.printer.cashdraw(CD_KICK_2)
+            return {"status": "success", "message": "Cajón abierto correctamente"}
+        except Exception as e:
+            # Si falla, intenta con comandos alternativos
+            try:
+                # Comando alternativo para impresoras que requieren secuencia diferente
+                escpos.printer.control("\x1b\x70\x00\x19\x19")
+                return {"status": "success", "message": "Cajón abierto con comando alternativo"}
+            except Exception as e2:
+                error_msg = f"Error al abrir cajón: {e}, comando alternativo falló: {e2}"
+                logger.error(error_msg)
+                
+                # Publicar error de cajón a RabbitMQ
+                try:
+                    publish_error(
+                        error_type="CASH_DRAWER_ERROR",
+                        error_message=error_msg,
+                        context={
+                            "primary_error": str(e),
+                            "secondary_error": str(e2),
+                            "exception_types": [type(e).__name__, type(e2).__name__]
+                        }
+                    )
+                except Exception as publish_err:
+                    logger.error(f"Error publicando error de cajón a RabbitMQ: {publish_err}")
+                
+                return {"status": "error", "message": error_msg}
 
 
     def printPedido(self, escpos: EscposIO, **kwargs):

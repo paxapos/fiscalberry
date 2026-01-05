@@ -22,8 +22,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'fiscalberry_cli=fiscalberry.cli:main',
-            'fiscalberry_gui=fiscalberry.gui:main',
+            'fiscalberry_cli=fiscalberry.cli.main:main',
+            'fiscalberry_gui=fiscalberry.desktop.main:main',
         ],
     },
 )

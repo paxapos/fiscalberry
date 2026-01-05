@@ -1,6 +1,5 @@
 # Fiscalberry CLI Dependencies
-# Última actualización: 2025-07-19
-# Usa las últimas versiones estables de todas las dependencias
+# Archivo requerido por setup.py
 
 # Core dependencies
 python-escpos[all]

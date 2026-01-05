@@ -3,12 +3,15 @@
 import sys
 import json
 import threading
+import time
+import queue
 from fiscalberry.common.FiscalberryComandos import FiscalberryComandos
 from fiscalberry.common.Configberry import Configberry
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.EscPComandos import EscPComandos
+from fiscalberry.common.rabbitmq.error_publisher import publish_error
+from fiscalberry.common.printer_error_detector import PrinterErrorDetector, analyze_printer_response
 from escpos import printer
-from fiscalberry.common.fiscalberry_logger import getLogger
 from queue import Queue
 import traceback
 
@@ -44,85 +47,224 @@ class TraductorException(Exception):
     pass
 
 
-# Cola de trabajos de impresión con un tamaño máximo
-print_queue = Queue(maxsize=100)  # Limitar a 100 trabajos encolados
+# Cola de trabajos de impresión optimizada - mayor capacidad y procesamiento más rápido  
+print_queue = Queue(maxsize=500)  # Aumentar capacidad para mayor throughput
 
-# Añadir un mecanismo de informes periódicos sobre la cola
+# Worker threads pool para procesamiento paralelo
+worker_threads = []
+MAX_WORKERS = 3  # Número de workers concurrentes
 def report_queue_status():
+    """Monitorea el estado de la cola y alerta sobre problemas de acumulación"""
     qsize = print_queue.qsize()
-    if qsize > 10:  # Solo informar si hay muchos trabajos
-        logging.warning(f"Print queue size: {qsize} jobs waiting")
-    threading.Timer(60.0, report_queue_status).start()  # Programar próximo informe
+    
+    # Alertar sobre cola ocupada (más de 50 comandas)
+    if qsize > 50:
+        logging.warning(f"Print queue busy: {qsize} jobs waiting")
+        
+        if qsize > 100:
+            logging.error(f"Print queue overloaded: {qsize} jobs waiting")
+            
+            # Publicar alerta crítica de cola sobrecargada
+            publish_error(
+                error_type="QUEUE_OVERLOADED",
+                error_message=f"Print queue has {qsize} pending jobs (capacity: 500)",
+                context={
+                    "queue_size": qsize,
+                    "max_capacity": 500,
+                    "utilization_percent": (qsize / 500) * 100,
+                    "active_workers": MAX_WORKERS
+                }
+            )
+        
+        elif qsize > 200:
+            # Alerta crítica - cola cerca de capacidad máxima
+            logging.critical(f"Print queue CRITICAL: {qsize} jobs waiting (near capacity)")
+            
+            publish_error(
+                error_type="QUEUE_NEAR_CAPACITY",
+                error_message=f"Print queue critically overloaded with {qsize} jobs",
+                context={
+                    "queue_size": qsize,
+                    "max_capacity": 500,
+                    "utilization_percent": (qsize / 500) * 100,
+                    "warning": "Queue may start rejecting new jobs soon"
+                }
+            )
+    
+    threading.Timer(30.0, report_queue_status).start()  # Reportar cada 30 segundos
+
+def process_print_jobs(worker_id=0):
+    """Worker optimizado para procesar trabajos de impresión con detección de comandas trabadas"""
+
+    
+    # Umbral de tiempo para considerar una comanda como trabada
+    STUCK_JOB_THRESHOLD = 30.0  # 30 segundos
+    
+    while True:
+        try:
+            # Obtener trabajo con timeout para permitir shutdown limpio
+            job_data = print_queue.get(timeout=1.0)
+            if job_data is None:
+                logger.info(f"Worker {worker_id} received shutdown signal")
+                break
+            
+            jsonTicket, q = job_data
+            printer_name = jsonTicket.get('printerName', 'unknown')
+            
+            start_time = time.time()
+            try:
+                result = runTraductor(jsonTicket, q)
+                processing_time = time.time() - start_time
+                
+                # Respuesta optimizada sin nested dicts innecesarios
+                q.put({"success": True, "result": result, "processing_time": processing_time})
+                
+                # Detectar trabajos lentos (pueden indicar problemas)
+                if processing_time > 5.0:
+                    logger.warning(f"Slow print job completed in {processing_time:.2f}s by worker {worker_id} for printer '{printer_name}'")
+                    
+                    # Alertar si el trabajo está cerca de trabarse
+                    if processing_time > 15.0:
+                        publish_error(
+                            error_type="SLOW_PRINT_JOB",
+                            error_message=f"Print job took {processing_time:.2f}s to complete",
+                            context={
+                                "worker_id": worker_id,
+                                "printer_name": printer_name,
+                                "processing_time": processing_time,
+                                "queue_size": print_queue.qsize()
+                            }
+                        )
+                
+                # Detectar comandas trabadas (timeout excedido)
+                elif processing_time > STUCK_JOB_THRESHOLD:
+                    logger.error(f"STUCK JOB DETECTED: Print job took {processing_time:.2f}s (threshold: {STUCK_JOB_THRESHOLD}s)")
+                    
+                    publish_error(
+                        error_type="STUCK_PRINT_JOB",
+                        error_message=f"Print job got stuck for {processing_time:.2f}s",
+                        context={
+                            "worker_id": worker_id,
+                            "printer_name": printer_name,
+                            "processing_time": processing_time,
+                            "threshold": STUCK_JOB_THRESHOLD,
+                            "queue_size": print_queue.qsize()
+                        }
+                    )
+                    
+            except Exception as e:
+                processing_time = time.time() - start_time
+                error_msg = str(e)
+                logger.error(f"Worker {worker_id} print job failed in {processing_time:.2f}s: {error_msg}")
+                
+                # Publicar error de trabajo fallido
+                publish_error(
+                    error_type="PRINT_JOB_FAILED",
+                    error_message=f"Print job failed: {error_msg}",
+                    context={
+                        "worker_id": worker_id,
+                        "printer_name": printer_name,
+                        "processing_time": processing_time,
+                        "error": error_msg
+                    },
+                    exception=e
+                )
+                
+                q.put({"success": False, "error": error_msg, "processing_time": processing_time})
+
+            print_queue.task_done()
+            
+        except queue.Empty:
+            # Timeout normal, continuar loop
+            continue
+        except Exception as e:
+            logger.error(f"Worker {worker_id} unexpected error: {e}")
+            
+            publish_error(
+                error_type="WORKER_CRITICAL_ERROR",
+                error_message=f"Worker {worker_id} encountered critical error",
+                context={"worker_id": worker_id},
+                exception=e
+            )
+            continue
+
+# Iniciar workers optimizados
+for i in range(MAX_WORKERS):
+    worker = threading.Thread(target=process_print_jobs, args=(i,), daemon=True)
+    worker.start()
+    worker_threads.append(worker)
 
 # Iniciar el informe periódico
 report_queue_status()
-
-def process_print_jobs():
-    while True:
-        job_data = print_queue.get()
-        if job_data is None:
-            break
-        
-        jsonTicket, q = job_data
-        
-        try:
-            result = runTraductor(jsonTicket, q)
-            # Poner el resultado en la cola para informar al consumidor
-            q.put({"success": True, "result": result})
-        except Exception as e:
-            logging.error(f"Error al procesar el trabajo de impresión: {e}")
-            logging.error(traceback.format_exc())
-            # Informar del error
-            q.put({"success": False, "error": str(e)})
-
-        print_queue.task_done()
-
-# Iniciar el hilo que procesa la cola de trabajos de impresión
-threading.Thread(target=process_print_jobs, daemon=True).start()
 
 
 
 
 def runTraductor(jsonTicket, queue):
-    # extraigo el printerName del jsonTicket
     printerName = jsonTicket.pop('printerName')
 
     try:
         dictSectionConf = configberry.get_config_for_printer(printerName)
     except KeyError as e:
-        logger.error(f"En el archivo de configuracion no existe la impresora: '{printerName}' :: {e}")
+        error_msg = f"Printer not found in configuration: '{printerName}'"
+        logger.error(error_msg)
+        
+        # Publicar error a RabbitMQ
+        publish_error(
+            error_type="PRINTER_NOT_FOUND",
+            error_message=error_msg,
+            context={
+                "printer_name": printerName,
+                "command": jsonTicket
+            },
+            exception=e
+        )
+        
         return {"error": f"Impresora no encontrada: {printerName}"}
     except Exception as e:
-        logger.error(f"Error al leer la configuracion de la impresora: '{printerName}' :: {e}")
+        error_msg = f"Error reading printer configuration: '{printerName}' - {str(e)}"
+        logger.error(error_msg)
+        
+        # Publicar error a RabbitMQ
+        publish_error(
+            error_type="PRINTER_CONFIG_ERROR",
+            error_message=error_msg,
+            context={
+                "printer_name": printerName,
+                "command": jsonTicket
+            },
+            exception=e
+        )
+        
         return {"error": f"Error de configuración: {str(e)}"}
 
 
     driverName = dictSectionConf.pop("driver", "Dummy")
-    # convertir a lowercase
     driverName = driverName.lower()
 
     driverOps = dictSectionConf
 
     if driverName == "Fiscalberry".lower():
-        # proxy pass to FiscalberryComandos
-        comando = FiscalberryComandos()
-        host = driverOps.get('host', 'localhost')
-        printerName = driverOps.get('printerName', printerName)
-        jsonTicket['printerName'] = printerName
-        return queue.put(comando.run(host, jsonTicket))
+        try:
+            comando = FiscalberryComandos()
+            host = driverOps.get('host', 'localhost')
+            printerName = driverOps.get('printerName', printerName)
+            jsonTicket['printerName'] = printerName
+            result = comando.run(host, jsonTicket)
+            return queue.put(result)
+        except Exception as e:
+            logger.error(f"Error FiscalberryComandos: {e}")
+            return queue.put({"error": f"Error en FiscalberryComandos: {str(e)}"})
 
     if driverName == "Win32Raw".lower():
-        # printer.Win32Raw(printer_name='', *args, **kwargs)[source]
         driverName = "Win32Raw"
         driver = printer.Win32Raw
 
         if not driver.is_usable():
-            raise DriverError(f"Driver {driverName} not usable")
+            raise DriverError(f"Driver {driverName} no disponible")
 
 
     elif driverName == "Usb".lower():
-        
-        # printer.Usb(idVendor=None, idProduct=None, usb_args={}, timeout=0, in_ep=130, out_ep=1, *args, **kwargs)
         driverName = "Usb"
 
         # convertir de string eJ: 0x82 a int
@@ -145,6 +287,24 @@ def runTraductor(jsonTicket, queue):
     elif driverName == "Serial".lower():
         # printer.Serial(devfile='', baudrate=9600, bytesize=8, timeout=1, parity=None, stopbits=None, xonxoff=False, dsrdtr=True, *args, **kwargs)
         driverName = "Serial"
+
+    elif driverName == "Bluetooth".lower():
+        # Bluetooth printer for Android
+        # BluetoothPrinter(mac_address='XX:XX:XX:XX:XX:XX', timeout=10)
+
+        
+        # Validar MAC address
+        if 'mac_address' not in driverOps and 'macAddress' not in driverOps:
+            raise DriverError("MAC address requerida para Bluetooth: use 'mac_address' en config")
+        
+        # Normalizar nombre de parámetro
+        if 'macAddress' in driverOps:
+            driverOps['mac_address'] = driverOps.pop('macAddress')
+        
+        # Importar driver Bluetooth custom
+        from fiscalberry.common.bluetooth_printer import BluetoothPrinter
+        driver_class = BluetoothPrinter
+        driverName = "Bluetooth"
 
     elif driverName == "File".lower():
         # (devfile='', auto_flush=True
@@ -169,32 +329,51 @@ def runTraductor(jsonTicket, queue):
     else:
         raise DriverError(f"Invalid driver: {driver}")
     
-    try:
-        driver_class = getattr(printer, driverName)
-        if not callable(driver_class):
-            raise DriverError(f"Driver {driverName} is not callable")
-    except AttributeError:
-        raise DriverError(f"Driver {driverName} not found in printer module")
-    except Exception as e:
-        raise DriverError(f"Error loading driver {driverName}: {e}")
+    # Manejar drivers custom (ej: Bluetooth) que ya tienen driver_class asignado
+    if driverName == "Bluetooth":
+        # Ya está configurado arriba con BluetoothPrinter
+        pass
+    else:
+        try:
+            driver_class = getattr(printer, driverName)
+            if not callable(driver_class):
+                raise DriverError(f"Driver {driverName} is not callable")
+        except AttributeError:
+            raise DriverError(f"Driver {driverName} not found in printer module")
+        except Exception as e:
+            raise DriverError(f"Error loading driver {driverName}: {e}")
 
+    # Extraer columns antes de crear el driver (no es un parámetro del driver)
+    columns = driverOps.pop('columns', None)
+    
     try:
-        # crear el driver
         driver = driver_class(**driverOps)
     except Exception as e:
-        raise DriverError(f"Error creating driver {driverName}: {e}")
-
-    comando = EscPComandos(driver)
-    logging.info(f"Imprimiendo en: {printerName}")
-    logging.info(f"Driver: {driverName}")
-    logging.info(f"DriverOps: {driverOps}")
-    logging.info(f"Comando:\n%s" % jsonTicket) 
+        raise DriverError(f"Error creando driver {driverName}: {e}")
 
     try:
+        comando = EscPComandos(driver, columns=columns)
         result = comando.run(jsonTicket)
+        
+        analyze_printer_response(result, printerName)
+        
         return {"message": "Impresión exitosa", "result": result}
     except Exception as e:
-        logging.error(f"Error durante la impresión: {e}")
+        error_msg = f"Print error: {str(e)}"
+        logging.error(error_msg)
+        
+        # Detectar tipo específico de error y publicar
+        error_type, description = PrinterErrorDetector.detect_and_publish_error(
+            error_message=error_msg,
+            exception=e,
+            context={
+                "printer_name": printerName,
+                "driver": driverName,
+                "driver_ops": driverOps,
+                "command": jsonTicket
+            }
+        )
+        
         raise e
 
 
@@ -206,38 +385,73 @@ class ComandosHandler:
 
     def send_command(self, comando):
         response = {}
-                
+        
         try:
             if isinstance(comando, str):
                 jsonMes = json.loads(comando, strict=False)
-            #si es un diccionario o json, no hacer nada
             elif isinstance(comando, dict):
                 jsonMes = comando
-            #si es del typo class bytes, convertir a string y luego a json
             elif isinstance(comando, bytes):
                 jsonMes = json.loads(comando.decode("utf-8"), strict=False)
             else:
-                raise TypeError("Tipo de dato no soportado")
+                raise TypeError(f"Tipo no soportado: {type(comando).__name__}")
             
             response = self.__json_to_comando(jsonMes)
+            
         except TypeError as e:
-            errtxt = "Error parseando el JSON %s" % e
+            errtxt = "Invalid command data type: %s" % e
             logger.exception(errtxt)
             response["err"] = errtxt
+            
+            # Publicar error a RabbitMQ
+            publish_error(
+                error_type="INVALID_COMMAND_ERROR",
+                error_message=errtxt,
+                context={"comando": str(comando)[:500]},
+                exception=e
+            )
+            
         except TraductorException as e:
-            errtxt = "Traductor Comandos: %s" % str(e)
+            errtxt = "Command translation error: %s" % str(e)
             logger.exception(errtxt)
             response["err"] = errtxt
+            
+            # Publicar error a RabbitMQ
+            publish_error(
+                error_type="TRANSLATOR_ERROR",
+                error_message=errtxt,
+                context={"comando": str(comando)[:500]},
+                exception=e
+            )
+            
         except KeyError as e:
-            errtxt = "El comando no es valido para ese tipo de impresora: %s" % e
+            errtxt = "Invalid command for printer type: %s" % e
             logger.exception(errtxt)
             response["err"] = errtxt
+            
+            # Publicar error a RabbitMQ
+            publish_error(
+                error_type="INVALID_COMMAND_ERROR",
+                error_message=errtxt,
+                context={"comando": str(comando)[:500]},
+                exception=e
+            )
+            
         except Exception as e:
-            errtxt = "Error desconocido: " + repr(e) + "- " + str(e)
+            errtxt = "Unknown error: " + repr(e) + " - " + str(e)
             logger.exception(errtxt)
             response["err"] = errtxt
+            
+            # Publicar error a RabbitMQ
+            publish_error(
+                error_type="UNKNOWN_ERROR",
+                error_message=errtxt,
+                context={"comando": str(comando)[:500]},
+                exception=e
+            )
 
-        logger.info("Command Response \n <- %s" % response)
+        if "err" in response:
+            logger.error(f"Error: {response.get('err')}")
         return response
 
     def __json_to_comando(self, jsonTicket):
@@ -252,22 +466,100 @@ class ComandosHandler:
             # si no se pasa el nombre de la impresora, se toma la primera# seleccionar impresora
             # esto se debe ejecutar antes que cualquier otro comando
             if 'printerName' in jsonTicket:
-                logger.info("Imprimiendo en: \"%s\"" % jsonTicket.get('printerName'))
+                printer_name = jsonTicket.get('printerName')
+                # Log con JSON compacto del ticket
+                ticket_copy = {k: v for k, v in jsonTicket.items() if k != 'printerName'}
+                logger.info(f"Imprimiendo: '{printer_name}' {json.dumps(ticket_copy, ensure_ascii=False)}")
 
-                # run multiprocessing
+                # Procesamiento optimizado con cola de alta velocidad
                 q = Queue()
-                print_queue.put((jsonTicket, q))
                 
-                # Esperar a que el trabajo de impresión se complete con timeout
+                # Verificar capacidad de cola antes de agregar
+                current_queue_size = print_queue.qsize()
+                if current_queue_size > 400:  # 80% de capacidad
+                    logger.warning(f"Print queue near capacity: {current_queue_size}/500")
+                
                 try:
-                    result = q.get(timeout=30)  # Añade un timeout razonable
-                    if isinstance(result, dict) and result.get("success") == False:
-                        rta["err"] = result.get("error", "Error desconocido en la impresión")
+                    # Agregar trabajo sin bloqueo
+                    print_queue.put_nowait((jsonTicket, q))
+                    
+                    # Timeout de 30 segundos para detectar comandas trabadas
+                    result = q.get(timeout=30)
+                    
+                    if isinstance(result, dict):
+                        if not result.get("success", True):
+                            error_msg = result.get("error", "Error desconocido en la impresión")
+                            logger.error(f"Print job failed: {error_msg}")
+                            
+                            # Publicar error de impresión fallida
+                            publish_error(
+                                error_type="PRINT_JOB_ERROR",
+                                error_message=error_msg,
+                                context={
+                                    "printer_name": printer_name,
+                                    "processing_time": result.get("processing_time", 0)
+                                }
+                            )
+                            
+                            rta["err"] = error_msg
+                        else:
+                            processing_time = result.get("processing_time", 0)
+                            if processing_time > 0:
+                                logger.info(f"Print OK: '{printer_name}' ({processing_time:.2f}s)")
+                            else:
+                                logger.info(f"Print OK: '{printer_name}'")
+                            rta["rta"] = result.get("result", result)
                     else:
+                        logger.info(f"Print OK: '{printer_name}'")
                         rta["rta"] = result
+                        
+                except queue.Full:
+                    error_msg = f"Print queue full ({current_queue_size}/500). Cannot queue job for '{printer_name}'"
+                    logger.error(error_msg)
+                    
+                    # Publicar alerta de cola llena
+                    publish_error(
+                        error_type="QUEUE_FULL",
+                        error_message=error_msg,
+                        context={
+                            "printer_name": printer_name,
+                            "queue_size": current_queue_size,
+                            "max_capacity": 500
+                        }
+                    )
+                    
+                    rta["err"] = error_msg
+                    
+                except queue.Empty:
+                    error_msg = f"Print TIMEOUT for '{printer_name}' (30s) - Job may be stuck"
+                    logger.error(error_msg)
+                    
+                    # Publicar alerta de timeout (comanda trabada)
+                    publish_error(
+                        error_type="PRINT_TIMEOUT",
+                        error_message=error_msg,
+                        context={
+                            "printer_name": printer_name,
+                            "timeout_seconds": 30,
+                            "queue_size": print_queue.qsize()
+                        }
+                    )
+                    
+                    rta["err"] = error_msg
+                    
                 except Exception as e:
-                    logger.error(f"Error esperando resultado de impresión: {e}")
-                    rta["err"] = f"Timeout o error en la impresión: {str(e)}"
+                    error_msg = f"Print queue error: {e}"
+                    logger.error(error_msg, exc_info=True)
+                    
+                    # Publicar error de cola
+                    publish_error(
+                        error_type="QUEUE_ERROR",
+                        error_message=error_msg,
+                        context={"printer_name": printer_name},
+                        exception=e
+                    )
+                    
+                    rta["err"] = error_msg
 
             
 

@@ -1,0 +1,53 @@
+# Dockerfile para compilar Fiscalberry Android
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y \
+    openjdk-17-jdk \
+    python3.13 \
+    python3.13-venv \
+    python3.13-dev \
+    python3-pip \
+    git \
+    zip \
+    unzip \
+    autoconf \
+    libtool \
+    pkg-config \
+    zlib1g-dev \
+    libncurses-dev \
+    cmake \
+    libffi-dev \
+    libssl-dev \
+    build-essential \
+    ccache \
+    libltdl-dev \
+    adb \
+    && rm -rf /var/lib/apt/lists/*
+
+# Crear usuario no root
+RUN useradd -ms /bin/bash fiscalberry
+USER fiscalberry
+WORKDIR /home/fiscalberry
+
+# Copiar el proyecto
+COPY --chown=fiscalberry . /home/fiscalberry
+
+# Crear y activar entorno virtual
+RUN python3.13 -m venv venv.buildozer && \
+    . venv.buildozer/bin/activate && \
+    pip install --upgrade pip && \
+    pip install buildozer cython setuptools
+
+# Variables de entorno para buildozer
+ENV ANDROID_HOME=/home/fiscalberry/.buildozer/android/platform/android-sdk
+ENV ANDROID_SDK_ROOT=$ANDROID_HOME
+ENV PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/tools:$ANDROID_HOME/tools/bin"
+
+# Script de entrada para compilar
+COPY --chown=fiscalberry docker-entrypoint.sh /home/fiscalberry/docker-entrypoint.sh
+RUN chmod +x /home/fiscalberry/docker-entrypoint.sh
+
+ENTRYPOINT ["/home/fiscalberry/docker-entrypoint.sh"]

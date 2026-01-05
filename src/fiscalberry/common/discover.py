@@ -29,7 +29,7 @@ def send_discover():
     host = configberry.config.get("SERVIDOR", "sio_host", fallback="")
 
     discoverUrl = host + "/discover.json"
-    logger.info(f"DISCOVER:: URL: {discoverUrl}")
+    logger.debug(f"DISCOVER:: URL: {discoverUrl}")
     ret = None
 
     if discoverUrl:
@@ -46,7 +46,7 @@ def send_discover():
             logger.error(f"No es posible conectarse con el Discover en {discoverUrl}. El error dice: {str(e)}")
 
     else:
-        logger.info("No hay sio_host configurado, no tengo el host donde hacer el discover")
+        logger.debug("No hay sio_host configurado, no tengo el host donde hacer el discover")
 
     return None
 

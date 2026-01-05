@@ -1,8 +1,10 @@
 import os, pika, traceback
 import queue
+import time
 
 from fiscalberry.common.ComandosHandler import ComandosHandler, TraductorException
 from fiscalberry.common.fiscalberry_logger import getLogger
+from fiscalberry.common.rabbitmq.error_publisher import publish_error
 from typing import Optional
 
 
@@ -23,6 +25,10 @@ class RabbitMQConsumer:
         message_queue: Optional[queue.Queue] = None,
         vhost: str = "/"
     ) -> None:
+        self.logger = getLogger("RabbitMQ.Consumer")
+        
+        self.logger.info(f"RabbitMQ Consumer: {host}:{port} queue={queue_name}")
+        
         self.host = host
         self.port = port
         self.user = user
@@ -40,144 +46,166 @@ class RabbitMQConsumer:
         else:
             sioLogger = False
 
-        self.logger = getLogger()
         
-    
     def connect(self):
         """Conecta al servidor RabbitMQ."""
-        self.logger.info(f"Connecting to RabbitMQ server: {self.host}:{self.port}")
-
-        # Use connection parameters with shorter timeouts for faster failure detection
-        params = pika.ConnectionParameters(
-            host=self.host, 
-            port=self.port, 
-            virtual_host=self.vhost, 
-            credentials=pika.PlainCredentials(self.user, self.password),
-            heartbeat=600,
-            blocked_connection_timeout=300,
-            socket_timeout=10,  # Timeout más corto para detectar errores de red rápidamente
-            connection_attempts=1,  # Solo un intento, el retry lo maneja process_handler
-            retry_delay=1  # Delay corto entre intentos
-        )
-        self.connection = pika.BlockingConnection(params)
-        self.channel = self.connection.channel()
-        self.logger.info(f"Blockin channel creado")
-        # Manejo del exchange
         try:
-            self.logger.info(f"Probando si existe exchange")
-            # Verificar si el exchange existe sin intentar modificarlo
-            self.channel.exchange_declare(
-                exchange=self.STREAM_NAME,
-                passive=True  # Solo verifica si existe, no intenta declararlo
+            params = pika.ConnectionParameters(
+                host=self.host, 
+                port=self.port, 
+                virtual_host=self.vhost, 
+                credentials=pika.PlainCredentials(self.user, self.password),
+                heartbeat=30,
+                blocked_connection_timeout=15,
+                socket_timeout=5,
+                connection_attempts=1,
+                retry_delay=0.5
             )
-            self.logger.info(f"Exchange {self.STREAM_NAME} ya existe")
-        except pika.exceptions.ChannelClosedByBroker:
-            self.logger.info(f"bloquin contection magic pufff")
-            # Si el exchange no existe, reconectamos y lo creamos
+            
             self.connection = pika.BlockingConnection(params)
             self.channel = self.connection.channel()
             
-            self.channel.exchange_declare(
-                exchange=self.STREAM_NAME,
-                exchange_type='direct',  # Usar direct como tipo predeterminado
-                durable=True
-            )
-            self.logger.info(f"Exchange {self.STREAM_NAME} creado como direct")
-        
-        self.logger.info(f"Conectado con RabbitMQ, ahora ... Conectando a cola: {self.queue}")
+            # Exchange
+            try:
+                self.channel.exchange_declare(exchange=self.STREAM_NAME, passive=True)
+            except pika.exceptions.ChannelClosedByBroker:
+                self.connection = pika.BlockingConnection(params)
+                self.channel = self.connection.channel()
+                self.channel.exchange_declare(exchange=self.STREAM_NAME, exchange_type='direct', durable=True)
+            
+        except Exception as e:
+            self.logger.error(f"Error RabbitMQ: {e}")
+            raise
 
-        # Manejo de la cola - verificar primero si existe
+        # Cola
         try:
-            # Verificar si la cola existe sin intentar modificarla
-            self.channel.queue_declare(
-                queue=self.queue,
-                passive=True  # Solo verifica si existe, no intenta declararla
-            )
-            self.logger.info(f"Cola {self.queue} ya existe, usando configuración existente")
+            self.channel.queue_declare(queue=self.queue, passive=True)
         except pika.exceptions.ChannelClosedByBroker:
-            # Si la cola no existe o hay problemas con el canal, reconectamos
             self.connection = pika.BlockingConnection(params)
             self.channel = self.connection.channel()
-            
-            # Declarar la cola ahora que sabemos que no existe o fue eliminada
-            self.channel.queue_declare(
-                queue=self.queue, 
-                durable=True  # Crear como durable si es una nueva cola
-            )
-            self.logger.info(f"Cola {self.queue} creada como durable")
+            self.channel.queue_declare(queue=self.queue, durable=True)
         
-        # Binding - intentar con la cola como routing key
+        # Binding
         try:
-            self.channel.queue_bind(
-                exchange=self.STREAM_NAME, 
-                queue=self.queue, 
-                routing_key=self.queue  # Usar el nombre de la cola como routing key
-            )
-            self.logger.info(f"Cola {self.queue} enlazada a exchange {self.STREAM_NAME}")
+            self.channel.queue_bind(exchange=self.STREAM_NAME, queue=self.queue, routing_key=self.queue)
         except pika.exceptions.ChannelClosedByBroker as e:
-            self.logger.error(f"Error al enlazar cola: {e}")
-            # Reconectar para seguir operando
+            self.logger.error(f"Error bind: {e}")
             self.connection = pika.BlockingConnection(params)
             self.channel = self.connection.channel()
         
-        self.logger.info(f"Connected to RabbitMQ and bound queue {self.queue} to exchange {self.STREAM_NAME}")
+        self.logger.info(f"RabbitMQ conectado: queue={self.queue}")
 
 
     def start(self):
         self.connect()
 
         def callback(ch, method, properties, body):
-            self.logger.info(f"Received message in queue {self.queue}")
+            start_time = time.time()
 
             try:
-                # Parse the message body - it might be bytes and need decoding
+                # Parsing optimizado del mensaje
                 if isinstance(body, bytes):
                     body_str = body.decode('utf-8')
                 else:
                     body_str = body
 
-                # Log the raw message for debugging
-                self.logger.info(f"Message content: {body_str[:100]}...")  # Log first 100 chars
+                # Log optimizado - solo para debug y truncado
 
-                # Try to parse as JSON if needed
+                # Parse JSON más eficiente
                 try:
                     import json
                     json_data = json.loads(body_str)
-                    self.logger.info("Successfully parsed message as JSON")
                 except json.JSONDecodeError:
-                    self.logger.warning("Message is not valid JSON, passing as raw string")
+                    self.logger.warning("Non-JSON message, processing as string")
                     json_data = body_str
 
-                # Process the message
+                # Procesar mensaje de forma optimizada
                 comandoHandler = ComandosHandler()
                 result = comandoHandler.send_command(json_data)
                 
-                # Verificar si hay un error en la respuesta
+                processing_time = time.time() - start_time
+                
+                # Verificar errores y acknowledment más rápido
                 if "err" in result:
-                    self.logger.error(f"Error in command handler: {result['err']}")
+                    error_msg = result['err']
+                    self.logger.error("Command execution failed: %s", error_msg)
+                    
+                    # Publicar error a RabbitMQ
+                    publish_error(
+                        error_type="COMMAND_EXECUTION_ERROR",
+                        error_message=error_msg,
+                        context={
+                            "command": json_data,
+                            "result": result,
+                            "queue": self.queue
+                        }
+                    )
+                    
                     # Si es un error recuperable, podríamos reintentar o poner en una cola de espera
                     # Por ahora, consideramos que es un error y no reconocemos el mensaje
                     ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                     return
                     
-                self.logger.info(f"Command handler result: {result}")
 
                 # Acknowledge the message ONLY after successful processing
                 ch.basic_ack(delivery_tag=method.delivery_tag)
+                
+                # Log optimizado solo para trabajos lentos
+                if processing_time > 1.0:
+                    self.logger.warning(f"Slow message processed in {processing_time:.2f}s")
 
             except TraductorException as e:
-                self.logger.error(f"TraductorException Error: {e}")
+                self.logger.error("Translation error: %s", e)
+                
+                # Publicar error a RabbitMQ
+                publish_error(
+                    error_type="TRANSLATOR_ERROR",
+                    error_message=str(e),
+                    context={
+                        "command": body_str[:500] if isinstance(body_str, str) else str(body)[:500],
+                        "queue": self.queue
+                    },
+                    exception=e
+                )
+                
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-                self.logger.error(traceback.format_exc())
+                
+            except json.JSONDecodeError as e:
+                self.logger.error("JSON decode error: %s", e)
+                
+                # Publicar error a RabbitMQ
+                publish_error(
+                    error_type="JSON_DECODE_ERROR",
+                    error_message=f"Invalid JSON format: {str(e)}",
+                    context={
+                        "raw_body": body_str[:500] if isinstance(body_str, str) else str(body)[:500],
+                        "queue": self.queue
+                    },
+                    exception=e
+                )
+                
+                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+                
             except Exception as e:
-                self.logger.error(f"Error processing message: {e}")
-                self.logger.error(traceback.format_exc())
+                self.logger.error("Message processing error: %s", e)
+                
+                # Publicar error a RabbitMQ
+                publish_error(
+                    error_type="PROCESSING_ERROR",
+                    error_message=f"Error processing message: {str(e)}",
+                    context={
+                        "raw_body": body_str[:500] if 'body_str' in locals() else str(body)[:500],
+                        "queue": self.queue
+                    },
+                    exception=e
+                )
+                
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                 
                 
                 
-        # Set prefetch count to process one message at a time
-        self.channel.basic_qos(prefetch_count=1)
+        # Configurar QoS para procesamiento más rápido - permitir más mensajes concurrentes
+        self.channel.basic_qos(prefetch_count=5)  # Aumentado de 1 a 5 para mayor throughput
         self.channel.basic_consume(queue=self.queue, on_message_callback=callback, auto_ack=False)
         self.logger.info(f"Waiting for messages in queue: {self.queue}")
 

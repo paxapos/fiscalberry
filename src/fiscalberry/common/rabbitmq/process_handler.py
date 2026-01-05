@@ -20,6 +20,23 @@ class RabbitMQProcessHandler:
                 cls._instance = super().__new__(cls)
                 cls._instance._initialized = False
             return cls._instance
+    
+    @classmethod
+    def reset_singleton(cls):
+        """
+        Resetea el estado del singleton para permitir reinicialización.
+        CRÍTICO para Android cuando la app se cierra y reabre.
+        """
+        with cls._lock:
+            if cls._instance:
+                # Limpiar stop_event si existe
+                if hasattr(cls._instance, '_stop_event'):
+                    cls._instance._stop_event.clear()
+                # Marcar como no inicializado
+                cls._instance._initialized = False
+                # Limpiar referencias a threads muertos
+                if hasattr(cls._instance, '_thread'):
+                    cls._instance._thread = None
 
     def __init__(self):
         if self._initialized:
@@ -27,21 +44,68 @@ class RabbitMQProcessHandler:
         self._thread = None
         self._stop_event = threading.Event()
         self.config = Configberry()
+        # Credenciales activas del RabbitMQ Consumer
+        self.active_credentials = None
         self._initialized = True
 
+    def get_active_rabbitmq_credentials(self):
+        """Retorna las credenciales activas del RabbitMQ Consumer."""
+        return self.active_credentials
+    
+    def _update_active_credentials(self, host, port, user, password, vhost="/"):
+        """Actualiza las credenciales activas."""
+        self.active_credentials = {
+            'host': host,
+            'port': port,
+            'user': user,
+            'password': password,
+            'vhost': vhost
+        }
+
     def start(self, message_queue):
-        """Arranca el consumidor en un hilo daemon (no bloqueante)."""
+        """
+        Arranca el consumidor en un hilo daemon (no bloqueante).
+        
+        NOTA: user y password vienen de active_credentials (memoria),
+        no de config.ini, por seguridad.
+        """
         if self._thread and self._thread.is_alive():
             logger.warning("RabbitMQ thread ya en ejecución.")
             return
 
+        # host/port/vhost de config
         host = self.config.get("RabbitMq", "host")
         port = self.config.get("RabbitMq", "port")
-        user = self.config.get("RabbitMq", "user")
-        password = self.config.get("RabbitMq", "password")
         
-        # TODO deberia usarse esto: queue_name = self.config.get("RabbitMq", "queue")
+        # Credenciales: primero memoria (active_credentials), luego config.ini como fallback
+        user = None
+        password = None
+        
+        # 1. Primero intentar desde memoria (active_credentials - vienen de SocketIO)
+        if self.active_credentials:
+            user = self.active_credentials.get('user')
+            password = self.active_credentials.get('password')
+        
+        # 2. Fallback: leer de config.ini si no están en memoria
+        if not user:
+            user = self.config.get("RabbitMq", "user", fallback=None)
+            if user:
+                logger.info("RabbitMQ user: usando fallback de config.ini")
+        if not password:
+            password = self.config.get("RabbitMq", "password", fallback=None)
+            if password:
+                logger.info("RabbitMQ password: usando fallback de config.ini")
+        
+        if not user or not password:
+            print("\n============================================================")
+            print("[ERROR] Credenciales RabbitMQ incompletas")
+            print("        (user o password faltante en memoria y config.ini)")
+            print("============================================================\n")
+            logger.error("Credenciales RabbitMQ incompletas (user o password faltante en memoria y config.ini)")
+            return
+        
         queue_name = self.config.get("SERVIDOR", "uuid")
+        
         self._stop_event.clear()
         self._thread = threading.Thread(
             target=self._run_consumer,
@@ -173,78 +237,120 @@ class RabbitMQProcessHandler:
     def configure_and_restart(self, data: dict, message_queue):
         """
         Recibe el JSON, actualiza Configberry si cambia y reinicia el hilo.
-        data debe traer keys 'RabbitMq' y 'Paxaprinter' como en tu interfaz HiDto.
         
-        LÓGICA: Para cada campo, si tiene contenido en config.ini, usar ese valor.
-        Solo usar valores de SocketIO para completar campos vacíos en config.
+        LÓGICA ABSOLUTA: config.ini NUNCA se sobrescribe.
+        Solo se usan valores de SocketIO para campos que estén vacíos en config.ini.
         """
         rabbit_cfg = data.get('RabbitMq', {})
         
-        def get_config_or_message_value(config_key, message_key, default_value=""):
-            """
-            Obtiene valor del config.ini si existe y no está vacío, sino del mensaje SocketIO.
-            Prioridad: config.ini -> mensaje SocketIO -> valor por defecto
-            """
-            config_value = self.config.get("RabbitMq", config_key, fallback="")
-            if config_value and str(config_value).strip():
-                logger.info(f"{config_key}: usando config.ini -> {config_value}")
-                return config_value
+        # Leer valores actuales de config.ini (excepto user/password que son solo memoria)
+        curr_host = self.config.get("RabbitMq", "host", fallback="")
+        curr_port = self.config.get("RabbitMq", "port", fallback="")
+        curr_vhost = self.config.get("RabbitMq", "vhost", fallback="")
+        curr_queue = self.config.get("RabbitMq", "queue", fallback="")
+        
+        # Solo usar SocketIO para rellenar campos vacíos
+        updates = {}
+        final_config = {}
+        
+        # HOST
+        if not curr_host or not str(curr_host).strip():
+            new_host = rabbit_cfg.get("host", "")
+            if new_host:
+                updates["host"] = new_host
+                final_config["host"] = new_host
             else:
-                message_value = rabbit_cfg.get(message_key, default_value)
-                logger.info(f"{config_key}: config.ini vacío, usando SocketIO -> {message_value}")
-                return message_value
-        
-        logger.info("=== Configuración RabbitMQ - Prioridad config.ini ===")
-        
-        # Aplicar la lógica a todos los parámetros
-        host = get_config_or_message_value("host", "host")
-        port_str = get_config_or_message_value("port", "port", "5672")
-        user = get_config_or_message_value("user", "user", "guest")
-        pwd = get_config_or_message_value("password", "password", "guest")
-        vhost = get_config_or_message_value("vhost", "vhost", "/")
-        queue = get_config_or_message_value("queue", "queue", "")
-        
-        # Convertir puerto a entero
-        try:
-            port = int(port_str)
-        except (ValueError, TypeError):
-            logger.warning(f"Puerto inválido '{port_str}', usando 5672 por defecto")
-            port = 5672
-        
-        # compara con lo actual
-        curr = {
-            "host": self.config.get("RabbitMq", "host"),
-            "port": self.config.get("RabbitMq", "port"),
-            "user": self.config.get("RabbitMq", "user"),
-            "password": self.config.get("RabbitMq", "password"),
-            "vhost": self.config.get("RabbitMq", "vhost"),
-            "queue": self.config.get("RabbitMq", "queue"),
-        }
-        new = {"host": host, "port": port, "user": user, "password": pwd, "vhost": vhost, "queue": queue}
-        
-        # Verificar si hay cambios en la configuración
-        if curr != new:
-            self.config.set("RabbitMq", new)
-            logger.info("Configuración de RabbitMQ actualizada en disk con valores prioritarios del config.ini")
+                final_config["host"] = ""
         else:
-            logger.info("Configuración de RabbitMQ sin cambios")
+            final_config["host"] = curr_host
             
-        # compara con lo actual de Paxaprinter
+        # PORT
+        if not curr_port or not str(curr_port).strip():
+            new_port = rabbit_cfg.get("port", "5672")
+            if new_port:
+                updates["port"] = new_port
+                final_config["port"] = new_port
+            else:
+                final_config["port"] = "5672"
+        else:
+            final_config["port"] = curr_port
+            
+        # USER - Solo memoria, NUNCA persistir a config.ini
+        new_user = rabbit_cfg.get("user", "guest")
+        if new_user:
+            final_config["user"] = new_user
+        else:
+            final_config["user"] = "guest"
+            
+        # PASSWORD - Solo memoria, NUNCA persistir a config.ini
+        new_pwd = rabbit_cfg.get("password", "guest")
+        if new_pwd:
+            final_config["password"] = new_pwd
+        else:
+            final_config["password"] = "guest"
+            
+        # VHOST
+        if not curr_vhost or not str(curr_vhost).strip():
+            new_vhost = rabbit_cfg.get("vhost", "/")
+            if new_vhost:
+                updates["vhost"] = new_vhost
+                final_config["vhost"] = new_vhost
+            else:
+                final_config["vhost"] = "/"
+        else:
+            final_config["vhost"] = curr_vhost
+            
+        # QUEUE
+        if not curr_queue or not str(curr_queue).strip():
+            new_queue = rabbit_cfg.get("queue", "")
+            if new_queue:
+                updates["queue"] = new_queue
+                final_config["queue"] = new_queue
+            else:
+                final_config["queue"] = ""
+        else:
+            final_config["queue"] = curr_queue
+        
+        # Log de configuración final (compacto)
+        logger.info(f"RabbitMQ: {final_config['host']}:{final_config['port']} vhost={final_config['vhost']}")
+        
+        # SOLO escribir en config.ini si había campos vacíos que rellenamos
+        if updates:
+            self.config.set("RabbitMq", updates)
+            logger.warning(f"Config rellenada desde SocketIO: {list(updates.keys())}")
+            
+        # Hacer lo mismo con Paxaprinter
         pax_cfg = data.get('Paxaprinter', {})
-        alias = pax_cfg.get('alias')
-        tenant = pax_cfg.get('tenant')
-        site_name = pax_cfg.get('site_name')
-        curr_pax = {
-            "alias": self.config.get("Paxaprinter", "alias"),
-            "tenant": self.config.get("Paxaprinter", "tenant"),
-            "site_name": self.config.get("Paxaprinter", "site_name")
-        }
-        new_pax = {"alias": alias, "tenant": tenant, "site_name": site_name}
-        if curr_pax != new_pax:
-            self.config.set("Paxaprinter", new_pax)
-            logger.info("Configuración de Paxaprinter actualizada en disk.")
+        pax_updates = {}
+        
+        curr_alias = self.config.get("Paxaprinter", "alias", fallback="")
+        curr_tenant = self.config.get("Paxaprinter", "tenant", fallback="")
+        curr_site = self.config.get("Paxaprinter", "site_name", fallback="")
+        
+        if not curr_alias or not str(curr_alias).strip():
+            if pax_cfg.get('alias'):
+                pax_updates["alias"] = pax_cfg.get('alias')
+        if not curr_tenant or not str(curr_tenant).strip():
+            if pax_cfg.get('tenant'):
+                pax_updates["tenant"] = pax_cfg.get('tenant')
+        if not curr_site or not str(curr_site).strip():
+            if pax_cfg.get('site_name'):
+                pax_updates["site_name"] = pax_cfg.get('site_name')
+                
+        if pax_updates:
+            self.config.set("Paxaprinter", pax_updates)
 
-        # guarda en config y reinicia hilo
+        # Guardar credenciales sensibles SOLO en memoria
+        vhost = final_config.get('vhost', '/')
+        self._update_active_credentials(
+            final_config['host'],
+            final_config['port'],
+            final_config['user'],
+            final_config['password'],
+            vhost
+        )
+        
+        # Reinicia hilo con la configuración actual
         if self._thread and self._thread.is_alive():
             self.stop(timeout=5)
         self.start(message_queue)

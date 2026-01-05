@@ -1,6 +1,0 @@
-python-escpos[image,qrcode,usb,serial]==3.1
-python-socketio[client]==5.11.4
-requests==2.32.3
-platformdirs==4.2.2
-pika
-kivy[base]==2.3.1

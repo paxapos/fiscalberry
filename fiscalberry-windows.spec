@@ -1,30 +1,39 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+block_cipher = None
 
 a = Analysis(
-    ['src/fiscalberry/desktop/main.py'],
+    ['src/fiscalberry/gui.py'],
     pathex=[],
     binaries=[],
     datas=[
-        ('./capabilities.json', 'escpos'),
-        ('src/fiscalberry/ui/kv', 'fiscalberry/ui/kv'),
-        ('src/fiscalberry/ui/assets/fiscalberry.ico', 'fiscalberry/ui/assets/'),
-        ('src/fiscalberry/ui/assets', 'fiscalberry/ui/assets')
+        ('src/fiscalberry/ui/assets', 'fiscalberry/ui/assets'),
+        ('src/fiscalberry/common/assets', 'fiscalberry/common/assets'),
     ],
-    hiddenimports=[],
+    hiddenimports=[
+        'kivy.garden',
+        'fiscalberry.ui.fiscalberry_app',
+        'fiscalberry.common.Configberry',
+        'fiscalberry.common.fiscalberry_logger',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
     noarchive=False,
-    optimize=0,
+    upx=False,
 )
-pyz = PYZ(a.pure)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
     pyz,
     a.scripts,
     a.binaries,
+    a.zipfiles,
     a.datas,
     [],
     name='fiscalberry-gui',
@@ -32,18 +41,12 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
-    argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['src/fiscalberry/ui/assets/fiscalberry.ico'],
+    icon='assets/fiscalberry.ico',
     version='file_version_info.txt',
-    uac_admin=False,
-    # Configuraciones adicionales para evitar falsos positivos
-    manifest=None,
-    resources=[],
 )

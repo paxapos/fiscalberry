@@ -8,8 +8,8 @@ from fiscalberry.common.discover import send_discover_in_thread
 from fiscalberry.common.Configberry import Configberry
 import time
 import threading
-from fiscalberry.common.fiscalberry_logger import getLogger
-logger = getLogger()
+
+logger = getLogger("ServiceController")
 
 class ServiceController:
     """
@@ -30,6 +30,36 @@ class ServiceController:
             cls._instance = super(ServiceController, cls).__new__(cls)
         return cls._instance
     
+    @classmethod
+    def reset_singleton(cls):
+        """
+        Resetea el estado del singleton para permitir reinicialización.
+        
+        CRÍTICO para Android: Cuando la app se cierra y reabre, el proceso Python
+        puede sobrevivir y el singleton mantiene estado previo (_stop_event.set(),
+        initialized=True) causando que el servicio no reinicie.
+        
+        Debe llamarse desde FiscalberryApp.__init__() en Android.
+        """
+        if cls._instance:
+            # Limpiar el evento de stop para permitir reinicio
+            if hasattr(cls._instance, '_stop_event'):
+                cls._instance._stop_event.clear()
+            # Marcar como no inicializado para forzar re-init completo
+            if hasattr(cls._instance, 'initialized'):
+                cls._instance.initialized = False
+            # Limpiar referencias a threads muertos
+            if hasattr(cls._instance, 'socketio_thread'):
+                cls._instance.socketio_thread = None
+            if hasattr(cls._instance, 'discover_thread'):
+                cls._instance.discover_thread = None
+        # Resetear también el singleton de FiscalberrySio
+        try:
+            from fiscalberry.common.fiscalberry_sio import FiscalberrySio
+            FiscalberrySio.reset_singleton()
+        except Exception:
+            pass
+    
     def __init__(self):
         if hasattr(self, 'initialized'):
             return
@@ -37,21 +67,27 @@ class ServiceController:
         self.initialized = True
         self.socketio_thread = None
         self.discover_thread = None
-        self.configberry = Configberry()
-        self._stop_event = threading.Event() # Evento para detener limpiamente
-        self.initial_retries = 0 # Contador para chequeo inicial de UUID
+        
+        try:
+            self.configberry = Configberry()
+            self._stop_event = threading.Event()
+            self.initial_retries = 0
 
-        sio_host = self.configberry.get("SERVIDOR", "sio_host")
-        if not sio_host:
-            logger.error("sio_host no configurado. Abortando.")
-            os._exit(1)
+            sio_host = self.configberry.get("SERVIDOR", "sio_host")
+            if not sio_host:
+                logger.error("sio_host no configurado")
+                os._exit(1)
 
-        # --- Bucle de chequeo inicial de UUID ---
-        uuidval = self.configberry.get("SERVIDOR", "uuid", fallback="")
+            uuidval = self.configberry.get("SERVIDOR", "uuid", fallback="")
+            
+        except Exception as e:
+            logger.error(f"Error ServiceController init: {e}")
+            raise
         if not uuidval:
-            logger.error(f"UUID NO encontrado en config file: {uuidval}")
+            logger.error("UUID no encontrado")
             os._exit(1)
 
+        logger.info(f"ServiceController: {sio_host} uuid={uuidval[:8]}...")
         self.sio = FiscalberrySio(sio_host, uuidval)
         
         # Configurar manejo de señales
@@ -69,13 +105,13 @@ class ServiceController:
         
     def _signal_handler(self, sig, frame):
         """Manejador de señales para cierre graceful."""
-        logger.info(f"Recibida señal {signal.Signals(sig).name}. Deteniendo servicios...")
+        logger.debug(f"Recibida señal {signal.Signals(sig).name}. Deteniendo servicios...")
         
         # Solicitar detención limpia (sin sys.exit)
         self._stop_services_only()
         
         # Terminar inmediatamente después de la limpieza
-        logger.info("Terminando aplicación...")
+        logger.debug("Terminando aplicación...")
         os._exit(0)  # Terminar de forma inmediata y definitiva
 
     def is_service_running(self):
@@ -100,10 +136,10 @@ class ServiceController:
     def toggle_service(self):
         """Alterna el estado del servicio."""
         if self.is_service_running():
-            logger.info("Deteniendo el servicio...")
+            logger.debug("Deteniendo el servicio...")
             return self.stop()
         else:
-            logger.info("Iniciando el servicio...")
+            logger.debug("Iniciando el servicio...")
             return self.start()
 
     def _run_sio_instance(self):
@@ -120,9 +156,9 @@ class ServiceController:
                     sio_internal_thread.join(timeout=1.0)
                 
                 if self._stop_event.is_set() and sio_internal_thread.is_alive():
-                    logger.info("Stop event detected during SIO internal thread join")
+                    logger.debug("Stop event detected during SIO internal thread join")
                 else:
-                    logger.info("FiscalberrySio internal thread finished.")
+                    logger.debug("FiscalberrySio internal thread finished.")
             else:
                 logger.warning("self.start() did not return a running thread to wait for.")
 
@@ -131,7 +167,7 @@ class ServiceController:
         except Exception as e:
             logger.error(f"Unhandled Exception in SIO instance thread: {e}", exc_info=True)
         finally:
-            logger.info("Exiting _run_sio_instance.")
+            logger.debug("Exiting _run_sio_instance.")
 
     def start(self):
         """Inicia y mantiene vivo el proceso de conexión SIO."""
@@ -140,40 +176,35 @@ class ServiceController:
         self.initial_retries = 0
 
         if self._stop_event.is_set():
-            logger.info("Stop requested during initial UUID check.")
-            return # Salir si se pidió detener
+            logger.debug("Stop requested during initial check.")
+            return
 
-        # Enviar el discover al servidor la primera vez
+        # Enviar el discover al servidor
         self.discover_thread = send_discover_in_thread()
         self.discover_thread.start()
 
-        # --- Bucle principal de reconexión ---
+        # Bucle principal de reconexión
         while not self._stop_event.is_set():
-            # Creamos un hilo que ejecutará _run_sio_instance
             self.socketio_thread = threading.Thread(
                 target=self._run_sio_instance,
-                daemon=True # Daemon para que no bloquee la salida si el principal muere
+                daemon=True
             )
-            logger.info("* * * * * SocketIO thread start.")
+            logger.debug("SocketIO thread start.")
             self.socketio_thread.start()
             
-            # En lugar de un join simple que puede bloquear indefinidamente,
-            # usamos un join con timeout para verificar periódicamente el estado
             while self.socketio_thread.is_alive() and not self._stop_event.is_set():
                 self.socketio_thread.join(timeout=1.0)
             
-            logger.info("* * * * * SocketIO thread finished or stop requested.")
+            logger.debug("SocketIO thread finished or stop requested.")
 
-            # Si el hilo terminó, verificamos si fue por una señal de stop
             if self._stop_event.is_set():
-                logger.info("Stop event received. Exiting SIO loop.")
-                break # Salir del bucle while
+                logger.debug("Stop event received. Exiting SIO loop.")
+                break
 
-            # Si no fue por stop, asumimos desconexión/error y reintentamos
             logger.warning("SIO thread terminated. Reconnecting in 5 seconds...")
             time.sleep(5)
 
-        logger.info("Fiscalberry SIO Service Loop finished.")
+        logger.debug("Fiscalberry SIO Service Loop finished.")
 
     def _is_gui_mode(self):
         """Detecta si la aplicación está ejecutándose en modo GUI."""
@@ -200,7 +231,7 @@ class ServiceController:
 
     def stop_for_cli(self):
         """Detiene el bucle de servicios específicamente para modo CLI."""
-        logger.info("# # # Requesting SIO services stop (CLI mode)...")
+        logger.debug("Requesting SIO services stop (CLI mode)...")
         self._stop_event.set()
         
         self.sio.stop()
@@ -215,18 +246,18 @@ class ServiceController:
             if self.socketio_thread.is_alive():
                 logger.warning("SIO thread did not stop within the timeout period.")
         else:
-            logger.info("SIO thread already stopped or not started.")
+            logger.debug("SIO thread already stopped or not started.")
                 
         # Detener el hilo de discover si está activo
         if self.discover_thread and self.discover_thread.is_alive():
-            logger.info("Stopping discover thread...")
+            logger.debug("Stopping discover thread...")
             self.discover_thread.join(timeout=2)
             if self.discover_thread.is_alive():
                 logger.warning("Discover thread did not stop within the timeout period.")
         else:
-            logger.info("Discover thread already stopped or not started.")
+            logger.debug("Discover thread already stopped or not started.")
                 
-        logger.info("SIO services stopped (CLI mode).")
+        logger.debug("SIO services stopped (CLI mode).")
         
         # Para CLI usamos sys.exit(0)
         sys.exit(0)
@@ -235,7 +266,7 @@ class ServiceController:
 
     def stop_for_gui(self):
         """Detiene el bucle de servicios específicamente para modo GUI."""
-        logger.info("# # # Requesting SIO services stop (GUI mode)...")
+        logger.debug("Requesting SIO services stop (GUI mode)...")
         self._stop_event.set()
         
         self.sio.stop()
@@ -250,18 +281,18 @@ class ServiceController:
             if self.socketio_thread.is_alive():
                 logger.warning("SIO thread did not stop within the timeout period.")
         else:
-            logger.info("SIO thread already stopped or not started.")
+            logger.debug("SIO thread already stopped or not started.")
                 
         # Detener el hilo de discover si está activo
         if self.discover_thread and self.discover_thread.is_alive():
-            logger.info("Stopping discover thread...")
+            logger.debug("Stopping discover thread...")
             self.discover_thread.join(timeout=2)
             if self.discover_thread.is_alive():
                 logger.warning("Discover thread did not stop within the timeout period.")
         else:
-            logger.info("Discover thread already stopped or not started.")
+            logger.debug("Discover thread already stopped or not started.")
                 
-        logger.info("SIO services stopped (GUI mode).")
+        logger.debug("SIO services stopped (GUI mode).")
         
         # Para GUI NO intentar cerrar Kivy desde aquí - evitar recursión
         # La aplicación GUI debe manejar su propio cierre desde on_stop()
@@ -269,7 +300,7 @@ class ServiceController:
 
     def _stop_services_only(self):
         """Detiene solo los servicios sin llamar a sys.exit() - para uso interno."""
-        logger.info("# # # Requesting SIO services stop...")
+        logger.debug("Requesting SIO services stop...")
         self._stop_event.set()
         
         self.sio.stop()
@@ -284,18 +315,18 @@ class ServiceController:
             if self.socketio_thread.is_alive():
                 logger.warning("SIO thread did not stop within the timeout period.")
         else:
-            logger.info("SIO thread already stopped or not started.")
+            logger.debug("SIO thread already stopped or not started.")
                 
         # Detener el hilo de discover si está activo
         if self.discover_thread and self.discover_thread.is_alive():
-            logger.info("Stopping discover thread...")
+            logger.debug("Stopping discover thread...")
             self.discover_thread.join(timeout=2)
             if self.discover_thread.is_alive():
                 logger.warning("Discover thread did not stop within the timeout period.")
         else:
-            logger.info("Discover thread already stopped or not started.")
+            logger.debug("Discover thread already stopped or not started.")
                 
-        logger.info("SIO services stopped.")
+        logger.debug("SIO services stopped.")
         
         return True
 

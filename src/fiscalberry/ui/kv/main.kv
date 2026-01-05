@@ -9,38 +9,185 @@ ScreenManager:
 <AdoptScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: 20
-        spacing: 15
+        padding: dp(20)
+        spacing: dp(20)
         canvas.before:
             Color:
-                rgba: 0.9, 0.9, 1, 1  # Fondo celeste casi blanco
+                rgba: 0.95, 0.95, 1, 1  # Fondo celeste claro
             Rectangle:
                 pos: self.pos
                 size: self.size
 
-        Image:
-            source: app.logo_image
+        # Logo y título
+        BoxLayout:
+            orientation: 'vertical'
             size_hint_y: None
-            height: 96
-            allow_stretch: True
-            keep_ratio: True
-            color: 1, 1, 1, 1
-            margin_bottom: 10
-        AsyncImage:
-            source: root.qrCodeLink
+            height: dp(120)
+            spacing: dp(10)
+            
+            
+            # Logo (string vacío - no se mostrará)
+            Image:
+                source: app.logo_image
+                size_hint_y: None
+                height: dp(60)
+                allow_stretch: True
+                keep_ratio: True
+                
+            Label:
+                text: "Vincula tu dispositivo con Paxapos"
+                font_size: '18sp'
+                bold: True
+                color: 0.1, 0.2, 0.5, 1
+                size_hint_y: None
+                height: dp(40)
+                halign: 'center'
+        
+        # Contenido principal
+        BoxLayout:
+            orientation: 'horizontal'
+            spacing: dp(40)
             size_hint_y: None
-            height: 96
-            allow_stretch: True
-            keep_ratio: True
-            color: 1, 1, 1, 1
-            margin_bottom: 10
-        Button:
-            text: "Hace click aquí para vincular el dispositivo"
+            height: dp(280)
+            
+            # Lado izquierdo - Botón
+            BoxLayout:
+                orientation: 'vertical'
+                size_hint_x: 0.5
+                spacing: dp(15)
+                
+                Label:
+                    text: "Usar navegador"
+                    font_size: '16sp'
+                    bold: True
+                    color: 0.2, 0.2, 0.2, 1
+                    size_hint_y: None
+                    height: dp(30)
+                    halign: 'center'
+                
+                Button:
+                    text: "Abrir vinculación"
+                    size_hint_y: None
+                    height: dp(60)
+                    background_color: 0.2, 0.4, 0.8, 1
+                    color: 1, 1, 1, 1
+                    font_size: '15sp'
+                    on_press: root.open_adoption_link()
+                
+                Label:
+                    text: "Se abrirá la página\nde vinculación"
+                    font_size: '12sp'
+                    color: 0.5, 0.5, 0.5, 1
+                    size_hint_y: None
+                    height: dp(40)
+                    halign: 'center'
+                    text_size: self.width, None
+                
+                Widget:
+            
+            # Lado derecho - QR
+            BoxLayout:
+                orientation: 'vertical'
+                size_hint_x: 0.5
+                spacing: dp(15)
+                
+                Label:
+                    text: "Escanear QR"
+                    font_size: '16sp'
+                    bold: True
+                    color: 0.2, 0.2, 0.2, 1
+                    size_hint_y: None
+                    height: dp(30)
+                    halign: 'center'
+                
+                # Contenedor del QR sin fondo
+                BoxLayout:
+                    orientation: 'vertical'
+                    size_hint_y: None
+                    height: dp(180)
+                    
+                    AsyncImage:
+                        source: root.qrCodeLink
+                        size_hint: None, None
+                        size: dp(160), dp(160)
+                        pos_hint: {'center_x': 0.5, 'center_y': 0.5}
+                        allow_stretch: True
+                        keep_ratio: True
+                        
+                    # Loading fallback
+                    Label:
+                        text: "📱 Cargando QR..."
+                        font_size: '14sp'
+                        color: 0.6, 0.6, 0.6, 1
+                        halign: 'center'
+                        pos_hint: {'center_x': 0.5, 'center_y': 0.5}
+                        opacity: 0
+                
+                Label:
+                    text: "Escanea con tu celular"
+                    font_size: '12sp'
+                    color: 0.5, 0.5, 0.5, 1
+                    size_hint_y: None
+                    height: dp(20)
+                    halign: 'center'
+                
+                Widget:
+        
+        # Botón de verificación manual
+        BoxLayout:
+            orientation: 'vertical'
             size_hint_y: None
-            height: 40
-            background_color: 0.8, 0.5, 0.2, 1  # Naranja suave
-            color: 1, 1, 1, 1
-            on_press: import webbrowser; webbrowser.open(root.adoptarLink)
+            height: dp(70)
+            padding: [dp(40), 0]
+            spacing: dp(10)
+            
+            Button:
+                text: "Ya completé la vinculación - Verificar"
+                size_hint_y: None
+                height: dp(50)
+                background_color: 0.3, 0.7, 0.3, 1
+                color: 1, 1, 1, 1
+                font_size: '14sp'
+                on_press: root.manual_check_adoption()
+            
+            # Indicador de monitoreo
+            Label:
+                text: "🔄 Monitoreando adopción automáticamente..." if root.is_monitoring else ""
+                font_size: '11sp'
+                size_hint_y: None
+                height: dp(20)
+                color: 0.5, 0.5, 0.5, 1
+                halign: 'center'
+        
+        # Texto explicativo
+        BoxLayout:
+            orientation: 'vertical'
+            size_hint_y: None
+            height: dp(90)
+            spacing: dp(10)
+            padding: [dp(20), 0]
+            
+            Label:
+                text: "¿Qué es esto?"
+                font_size: '14sp'
+                bold: True
+                color: 0.2, 0.2, 0.2, 1
+                size_hint_y: None
+                height: dp(25)
+                halign: 'center'
+            
+            Label:
+                text: "Esta vinculación conecta y habilita el servicio de impresión (Paxaprinter)\ncon tu comercio, permitiendo imprimir tickets y facturas automáticamente\ndesde el sistema Paxapos."
+                font_size: '12sp'
+                color: 0.4, 0.4, 0.4, 1
+                size_hint_y: None
+                height: dp(55)
+                halign: 'center'
+                text_size: self.width - dp(40), None
+                valign: 'middle'
+        
+        # Espaciador flexible
+        Widget:
 
 <LoginScreen>:
     BoxLayout:
@@ -54,14 +201,13 @@ ScreenManager:
                 pos: self.pos
                 size: self.size
 
+        # Logo eliminado - UI minimalista
         Image:
             source: app.logo_image
             size_hint_y: None
             height: 96
             allow_stretch: True
             keep_ratio: True
-            color: 1, 1, 1, 1
-            margin_bottom: 10
 
 
         Label:
@@ -129,172 +275,179 @@ ScreenManager:
 <MainScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(20)
-        spacing: dp(15)
+        padding: dp(25)
+        spacing: dp(20)
         canvas.before:
             Color:
-                rgba: 0.95, 0.95, 1, 1 # Slightly lighter blue background
+                rgba: 0.96, 0.96, 1, 1 # Fondo más claro y limpio
             Rectangle:
                 pos: self.pos
                 size: self.size
 
-        # Header: Logo, Title, Overall Status Icon
+        # Header mejorado con mejor diseño
         BoxLayout:
             orientation: 'horizontal'
             size_hint_y: None
-            height: dp(48) # Fixed height for the header
-            spacing: dp(10)
+            height: dp(60)
+            spacing: dp(15)
+            canvas.before:
+                Color:
+                    rgba: 1, 1, 1, 0.8 # Fondo blanco semi-transparente
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [dp(10)]
+            padding: dp(15)
+            
+            
+            # Logo (string vacío - no se mostrará)
             Image:
                 source: app.logo_image
-                size_hint: None, None # Use explicit size
-                size: dp(48), dp(48)
+                size_hint: None, None
+                size: dp(40), dp(40)
                 allow_stretch: True
                 keep_ratio: True
+                
             Label:
-                text: app.name # Consider using app.name if available
-                font_size: '20sp'
-                halign: 'center'
+                text: "Fiscalberry - Servidor de Impresión"
+                font_size: '18sp'
+                bold: True
+                halign: 'left'
                 valign: 'middle'
-                color: 0.1, 0.2, 0.5, 1 # Dark blue text
-                size_hint_x: 1 # Allow label to expand horizontally
-            Image:
-                # Show overall status based on cloud connection primarily
-                source: root.connected_image if app.sioConnected else root.disconnected_image
-                size_hint: None, None # Use explicit size
-                size: dp(32), dp(32)
+                color: 0.1, 0.2, 0.5, 1
+                size_hint_x: 1
+                
 
-        Separator:
-            height: dp(1) # Use the defined Separator
 
-        # Status Information Area
+        # Panel de información del comercio mejorado
         BoxLayout:
             orientation: 'vertical'
-            size_hint_y: None # Size based on content
-            height: self.minimum_height # Calculate height automatically
+            size_hint_y: None
+            height: dp(100)
             spacing: dp(10)
+            canvas.before:
+                Color:
+                    rgba: 1, 1, 1, 0.9
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [dp(10)]
+                Color:
+                    rgba: 0.8, 0.8, 0.9, 1
+                Line:
+                    rounded_rectangle: (self.pos[0], self.pos[1], self.size[0], self.size[1], dp(10))
+                    width: 1
+            padding: dp(15)
 
             Label:
-                text: "Estado de Conexión"
-                font_size: '18sp'
+                text: "INFORMACIÓN DEL COMERCIO"
+                font_size: '14sp'
+                bold: True
                 color: 0.1, 0.2, 0.5, 1
                 size_hint_y: None
-                height: self.texture_size[1] # Fit height to text
+                height: dp(20)
+                halign: 'center'
 
-            # Cloud Status (SocketIO)
             BoxLayout:
                 orientation: 'horizontal'
-                size_hint_y: None
-                height: dp(24) # Fixed height for status line
-                spacing: dp(5)
-                Image:
-                    source: root.connected_image if app.sioConnected else root.disconnected_image
-                    size_hint: None, None
-                    size: dp(24), dp(24)
+                spacing: dp(20)
+                
                 Label:
-                    # Display text and color based on connection status
-                    text: "Nube (Sync): " + ("Conectado" if app.sioConnected else "Desconectado")
-                    color: (0.2, 0.8, 0.2, 1) if app.sioConnected else (0.8, 0.2, 0.2, 1) # Green/Red
+                    text: f"Comercio: {app.siteName or 'No configurado'}"
+                    font_size: '13sp'
+                    color: 0.3, 0.3, 0.3, 1
                     halign: 'left'
                     valign: 'middle'
-                    text_size: self.width, None # Enable text wrapping if needed
-                    size_hint_x: 1
+                    text_size: self.width, None
+                    size_hint_x: 0.6
 
-            # Queue Status (RabbitMQ)
-            BoxLayout:
-                orientation: 'horizontal'
-                size_hint_y: None
-                height: dp(24) # Fixed height for status line
-                spacing: dp(5)
-                Image:
-                    # Assumes root has appropriate images for connection status
-                    source: root.connected_image if app.rabbitMqConnected else root.disconnected_image
-                    size_hint: None, None
-                    size: dp(24), dp(24)
                 Label:
-                    # Display text and color based on connection status
-                    text: "Cola Local (Cmds): " + ("Conectado" if app.rabbitMqConnected else "Desconectado")
-                    color: (0.2, 0.8, 0.2, 1) if app.rabbitMqConnected else (0.8, 0.2, 0.2, 1) # Green/Red
+                    text: f"Dispositivo: {app.siteAlias or 'Sin alias'}"
+                    font_size: '13sp'
+                    color: 0.3, 0.3, 0.3, 1
                     halign: 'left'
                     valign: 'middle'
-                    text_size: self.width, None # Enable text wrapping
-                    size_hint_x: 1
+                    text_size: self.width, None
+                    size_hint_x: 0.4
 
-        Separator:
-            height: dp(1)
-
-        # Site Information Area
+        # Panel de logs en tiempo real
         BoxLayout:
             orientation: 'vertical'
-            size_hint_y: None # Size based on content
-            height: self.minimum_height # Calculate height automatically
             spacing: dp(5)
+            canvas.before:
+                Color:
+                    rgba: 0.1, 0.1, 0.15, 1
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [dp(10)]
+            padding: dp(10)
 
             Label:
-                text: "Información del Sitio"
-                font_size: '18sp'
-                color: 0.1, 0.2, 0.5, 1
+                text: "REGISTRO DE ACTIVIDAD"
+                font_size: '12sp'
+                bold: True
+                color: 0.7, 0.7, 0.8, 1
                 size_hint_y: None
-                height: self.texture_size[1]
-
-            Label:
-                text: f"Comercio: {app.siteName}"
-                font_size: '14sp'
-                color: 0.3, 0.3, 0.3, 1 # Dark gray text
+                height: dp(20)
                 halign: 'left'
-                valign: 'middle'
-                text_size: self.width, None # Enable wrapping
-                size_hint_y: None
-                height: self.texture_size[1] # Fit height to text
+                text_size: self.size
 
-            Label:
-                text: f"Dispositivo: {app.siteAlias}"
-                font_size: '14sp'
-                color: 0.3, 0.3, 0.3, 1
-                halign: 'left'
-                valign: 'middle'
-                text_size: self.width, None
-                size_hint_y: None
-                height: self.texture_size[1]
+            ScrollView:
+                id: main_scroll_view
+                do_scroll_x: False
+                scroll_y: 0  # 0 = fondo (logs más recientes)
+                TextInput:
+                    id: main_log_output
+                    text: app.logs
+                    on_text: main_scroll_view.scroll_y = 0  # Auto-scroll al final cuando hay nuevos logs
+                    readonly: True
+                    font_size: '14sp'
+                    background_color: 0, 0, 0, 0
+                    foreground_color: 0.8, 0.9, 0.8, 1
+                    size_hint_y: None
+                    height: max(self.minimum_height, main_scroll_view.height)
+                    multiline: True
+                    cursor_color: 0, 0, 0, 0
 
-        # Spacer widget to push subsequent elements to the bottom
-        Widget:
-
-        # Action Button
-        Button:
-            text: "Ver Logs del Servicio"
-            size_hint_y: None # Fixed height
-            height: dp(50)
-            background_color: 0.1, 0.2, 0.5, 1 # Consistent button blue
-            color: 1, 1, 1, 1 # White text
-            on_press: app.root.current = "logs" # Navigate to LogScreen
-
-        # Footer Information (UUID, Version, Host)
+        # Footer mejorado
         BoxLayout:
             orientation: 'horizontal'
             size_hint_y: None
-            height: dp(20) # Compact footer height
-            spacing: dp(10)
+            height: dp(25)
+            spacing: dp(15)
+            canvas.before:
+                Color:
+                    rgba: 0.9, 0.9, 0.9, 0.7
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [dp(5)]
+            padding: dp(10)
+            
             Label:
-                text: f"UUID: {app.uuid[:8]}"
-                font_size: '10sp' # Smaller font for footer details
-                color: 0.5, 0.5, 0.5, 1 # Gray text
+                text: f"ID: {app.uuid[:8] if app.uuid else 'No ID'}"
+                font_size: '10sp'
+                color: 0.4, 0.4, 0.4, 1
                 halign: "left"
                 valign: "middle"
-                size_hint_x: 0.4 # Allocate space
+                size_hint_x: 0.35
+                
             Label:
-                text: f"v{app.version}"
+                text: f"v{app.version if app.version else '1.0'}"
                 font_size: '10sp'
-                color: 0.5, 0.5, 0.5, 1
+                color: 0.4, 0.4, 0.4, 1
                 halign: "center"
                 valign: "middle"
-                size_hint_x: 0.2
+                size_hint_x: 0.3
+                
             Label:
-                text: f"Host: {app.host}"
+                text: f"{app.host if app.host else 'Paxapos'}"
                 font_size: '10sp'
-                color: 0.5, 0.5, 0.5, 1
+                color: 0.4, 0.4, 0.4, 1
                 halign: "right"
                 valign: "middle"
-                size_hint_x: 0.4
+                size_hint_x: 0.35
             
 <LogScreen>:
     BoxLayout:
