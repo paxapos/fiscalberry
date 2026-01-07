@@ -557,9 +557,17 @@ class EscPComandos():
         escpos.writelines(f'TOTAL: {self.signo}{round(total,2):,.2f}', bold=True, align='center', height=2, width=2, double_height=True, double_width=True)
         printer.ln();
 
-
+        # 8- TRANSPARENCIA FISCAL AL CONSUMIDOR (Ley 27.743)
+        # Solo para facturas A, M y B (no C)
+        # Códigos: A=001, B=006, M=051 (excluye C=011)
+        tiposTransparenciaString = ["Factura A", "Factura B", "Factura M", "Factura \"A\"", "Factura \"B\"", "Factura \"M\""]
+        tiposTransparenciaCod = ["001", "006", "051"]
+        if tipoComprobante in tiposTransparenciaString or tipoCmp in tiposTransparenciaCod:
+            otros_impuestos = kwargs.get("otros_impuestos", 0)
+            self._printTransparenciaFiscal(escpos, encabezado, ivas, otros_impuestos)
 
         # NC si hay que firmar
+
         printer.set(font='b', bold=False, width=1, height=1, align='left', normal_textsize=True)
 
         if tipoComprobante in tiposNC or tipoCmp in tiposNC:
@@ -815,7 +823,50 @@ class EscPComandos():
 
             printer.ln()
 
+    def _printTransparenciaFiscal(self, escpos: EscposIO, encabezado, ivas, otros_impuestos=0):
+        """Imprime sección Transparencia Fiscal al Consumidor (Ley 27.743)
+        
+        Según Resolución General N° 5614/2024 de ARCA, los comprobantes deben
+        mostrar el IVA contenido y otros impuestos nacionales indirectos.
+        Solo para facturas A, M y B (no C).
+        """
+        printer = escpos.printer
+        
+        # Calcular IVA contenido
+        iva_contenido = 0
+        if ivas:
+            for iva in ivas:
+                iva_contenido += float(iva.get("importe", 0))
+        elif encabezado.get("importe_iva"):
+            iva_contenido = float(encabezado.get("importe_iva"))
+        
+        # Convertir otros_impuestos
+        otros_imp = float(otros_impuestos) if otros_impuestos else 0
+        
+        # Solo imprimir si hay algún impuesto
+        if iva_contenido > 0 or otros_imp > 0:
+            printer.set(font='a', height=1, align='left', normal_textsize=True)
+            printer.text("-" * self.total_cols + "\n")
+            
+            printer.set(font='b', bold=True, align='center', normal_textsize=True)
+            printer.text("Transparencia Fiscal (Ley 27.743)\n")
+            
+            printer.set(font='a', height=1, align='left', normal_textsize=True)
+            
+            if iva_contenido > 0:
+                ds_iva = pad("IVA Contenido:", self.desc_cols_ext - 1, " ", "l")
+                imp_iva = pad(f"{iva_contenido:,.2f}", self.price_cols, " ", "r")
+                printer.text(f"{ds_iva}{self.signo}{imp_iva}\n")
+            
+            if otros_imp > 0:
+                ds_otros = pad("Otros Imp. Nac. Indirectos:", self.desc_cols_ext - 1, " ", "l")
+                imp_otros = pad(f"{otros_imp:,.2f}", self.price_cols, " ", "r")
+                printer.text(f"{ds_otros}{self.signo}{imp_otros}\n")
+            
+            printer.text("\n")
+
     def printComanda(self, escpos: EscposIO, comanda, setHeader=None, setTrailer=None):
+
         """id,observacion, entradas{observacion, cant, nombre, sabores}, platos{observacion, cant, nombre, sabores}"""
 
         printer = escpos.printer
