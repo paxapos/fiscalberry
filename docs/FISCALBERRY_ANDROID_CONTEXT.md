@@ -9,7 +9,7 @@
 ## 📍 Ubicación del Proyecto
 
 ```
-/home/santiago/fiscalberry
+.
 ```
 
 ---
@@ -81,7 +81,7 @@ fiscalberry/
 
 ## 🔧 Configuración de Buildozer (Android UI)
 
-### Archivo: [buildozer.ui.android.spec](file:///home/santiago/fiscalberry/buildozer.ui.android.spec)
+### Archivo: [buildozer.ui.android.spec](buildozer.ui.android.spec)
 
 #### Identificadores
 
@@ -135,14 +135,14 @@ services = fiscalberryservice:fiscalberry/android/app/service.py:foreground:stic
 
 ### 1. Entry Points
 
-#### [src/main.py](file:///home/santiago/fiscalberry/src/main.py) - Android UI
+#### [src/main.py](src/main.py) - Android UI
 
 ```python
 # Redirige a fiscalberry.android.app.main
 runpy.run_module('fiscalberry.android.app.main', run_name='__main__')
 ```
 
-#### [src/main_headless.py](file:///home/santiago/fiscalberry/src/main_headless.py) - Android CLI
+#### [src/main_headless.py](src/main_headless.py) - Android CLI
 
 ```python
 # Redirige a fiscalberry.android.headless.main
@@ -151,7 +151,7 @@ runpy.run_module('fiscalberry.android.headless.main', run_name='__main__')
 
 ### 2. Sistema de Permisos
 
-#### [permissions.py](file:///home/santiago/fiscalberry/src/fiscalberry/android/permissions.py)
+#### [permissions.py](src/fiscalberry/android/permissions.py)
 
 Maneja permisos runtime según versión de Android:
 
@@ -170,7 +170,7 @@ Maneja permisos runtime según versión de Android:
 
 ### 3. Servicio Foreground
 
-#### [android/app/service.py](file:///home/santiago/fiscalberry/src/fiscalberry/android/app/service.py) - UI
+#### [android/app/service.py](src/fiscalberry/android/app/service.py) - UI
 
 **Funciones críticas**:
 
@@ -179,13 +179,13 @@ Maneja permisos runtime según versión de Android:
 - `request_battery_exemption()` - Evita Doze mode
 - `run_service_logic()` - Loop principal con `ServiceController`
 
-#### [android/headless/service.py](file:///home/santiago/fiscalberry/src/fiscalberry/android/headless/service.py) - CLI
+#### [android/headless/service.py](src/fiscalberry/android/headless/service.py) - CLI
 
 Similar pero más simple, delega a `headless/main.py`.
 
 ### 4. FiscalberryApp (UI Kivy)
 
-#### [fiscalberry_app.py](file:///home/santiago/fiscalberry/src/fiscalberry/ui/fiscalberry_app.py)
+#### [fiscalberry_app.py](src/fiscalberry/ui/fiscalberry_app.py)
 
 **Propiedades reactivas** (StringProperty):
 
@@ -273,14 +273,14 @@ BluetoothSocket = autoclass('android.bluetooth.BluetoothSocket')
 ### Build UI (con Kivy)
 
 ```bash
-cd /home/santiago/fiscalberry
+cd .
 buildozer -v android debug -c buildozer.ui.android.spec
 ```
 
 ### Build CLI (headless)
 
 ```bash
-cd /home/santiago/fiscalberry
+cd .
 buildozer -v android debug -c buildozer.cli.android.spec
 ```
 
@@ -319,7 +319,7 @@ adb logcat | grep -E "(python|fiscalberry|kivy)"
 
 ### 4. Kivy crash con Python 3.12
 
-- **Documentado en**: [PROBLEMA_KIVY_PYTHON312_ANDROID.md](file:///home/santiago/fiscalberry/docs/PROBLEMA_KIVY_PYTHON312_ANDROID.md)
+- **Documentado en**: [PROBLEMA_KIVY_PYTHON312_ANDROID.md](docs/PROBLEMA_KIVY_PYTHON312_ANDROID.md)
 - **Solución**: Recipes customizados en `my_recipes/`
 
 ---
@@ -328,10 +328,10 @@ adb logcat | grep -E "(python|fiscalberry|kivy)"
 
 | Documento                                                                                                           | Descripción          |
 | ------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| [GUIA_COMPLETA_COMPILACION_ANDROID.md](file:///home/santiago/fiscalberry/docs/GUIA_COMPLETA_COMPILACION_ANDROID.md) | 60KB guía exhaustiva |
-| [ANDROID_BACKGROUND_EXECUTION.md](file:///home/santiago/fiscalberry/docs/ANDROID_BACKGROUND_EXECUTION.md)           | Servicios background |
-| [KNOWLEDGE_BASE.md](file:///home/santiago/fiscalberry/docs/KNOWLEDGE_BASE.md)                                       | Base de conocimiento |
-| [Comandos_Basicos.md](file:///home/santiago/fiscalberry/docs/Comandos_Basicos.md)                                   | Comandos rápidos     |
+| [GUIA_COMPLETA_COMPILACION_ANDROID.md](docs/GUIA_COMPLETA_COMPILACION_ANDROID.md) | 60KB guía exhaustiva |
+| [ANDROID_BACKGROUND_EXECUTION.md](docs/ANDROID_BACKGROUND_EXECUTION.md)           | Servicios background |
+| [KNOWLEDGE_BASE.md](docs/KNOWLEDGE_BASE.md)                                       | Base de conocimiento |
+| [Comandos_Basicos.md](docs/Comandos_Basicos.md)                                   | Comandos rápidos     |
 
 ---
 
@@ -341,27 +341,27 @@ Al trabajar en Fiscalberry Android, estos son los archivos más importantes:
 
 ### Entry Points
 
-- [src/main.py](file:///home/santiago/fiscalberry/src/main.py)
-- [src/main_headless.py](file:///home/santiago/fiscalberry/src/main_headless.py)
+- [src/main.py](src/main.py)
+- [src/main_headless.py](src/main_headless.py)
 
 ### Android Específico
 
-- [android/app/service.py](file:///home/santiago/fiscalberry/src/fiscalberry/android/app/service.py)
-- [android/headless/service.py](file:///home/santiago/fiscalberry/src/fiscalberry/android/headless/service.py)
-- [android/permissions.py](file:///home/santiago/fiscalberry/src/fiscalberry/android/permissions.py)
+- [android/app/service.py](src/fiscalberry/android/app/service.py)
+- [android/headless/service.py](src/fiscalberry/android/headless/service.py)
+- [android/permissions.py](src/fiscalberry/android/permissions.py)
 
 ### UI (Kivy)
 
-- [ui/fiscalberry_app.py](file:///home/santiago/fiscalberry/src/fiscalberry/ui/fiscalberry_app.py)
-- [ui/kv/](file:///home/santiago/fiscalberry/src/fiscalberry/ui/kv)
+- [ui/fiscalberry_app.py](src/fiscalberry/ui/fiscalberry_app.py)
+- [ui/kv/](src/fiscalberry/ui/kv)
 
 ### Core (compartido)
 
-- [common/service_controller.py](file:///home/santiago/fiscalberry/src/fiscalberry/common/service_controller.py)
-- [common/Configberry.py](file:///home/santiago/fiscalberry/src/fiscalberry/common/Configberry.py)
-- [common/bluetooth_printer.py](file:///home/santiago/fiscalberry/src/fiscalberry/common/bluetooth_printer.py)
+- [common/service_controller.py](src/fiscalberry/common/service_controller.py)
+- [common/Configberry.py](src/fiscalberry/common/Configberry.py)
+- [common/bluetooth_printer.py](src/fiscalberry/common/bluetooth_printer.py)
 
 ### Configuración Build
 
-- [buildozer.ui.android.spec](file:///home/santiago/fiscalberry/buildozer.ui.android.spec)
-- [buildozer.cli.android.spec](file:///home/santiago/fiscalberry/buildozer.cli.android.spec)
+- [buildozer.ui.android.spec](buildozer.ui.android.spec)
+- [buildozer.cli.android.spec](buildozer.cli.android.spec)
