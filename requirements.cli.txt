@@ -2,7 +2,7 @@
 # Archivo requerido por setup.py
 
 # Core dependencies
-python-escpos[all]
+python-escpos[all]>=3.0
 python-socketio[client]
 requests
 aiohttp

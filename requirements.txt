@@ -3,7 +3,7 @@
 # Usa las últimas versiones estables de todas las dependencias
 
 # Core dependencies
-python-escpos[all]
+python-escpos[all]>=3.0
 python-socketio[client]
 requests
 aiohttp
