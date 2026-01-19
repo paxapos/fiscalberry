@@ -97,7 +97,7 @@ class EscPComandos():
         
         # Log informativo cuando se usa columns personalizado
         if columns:
-            logger.info(f"Usando tamaño de {self.total_cols} caracteres (papel {'58mm' if self.total_cols <= 32 else '80mm'})")
+            logger.debug(f"Usando tamaño de {self.total_cols} caracteres (papel {'58mm' if self.total_cols <= 32 else '80mm'})")
         
         # Calcular proporciones de columnas según el total
         # Para 48 cols: price=12, cant=6, desc=30

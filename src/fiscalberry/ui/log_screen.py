@@ -42,6 +42,11 @@ class LogScreen(Screen):
         """Lee el archivo de logs y actualiza la propiedad `logs`."""
         self.logFilePath = getLogFilePath()
         
+        # Si no hay archivo de log configurado, mostrar mensaje
+        if not self.logFilePath:
+            self.logs = "No hay archivo de log configurado.\nLos logs se muestran solo en consola."
+            return
+        
         try:
             with open(self.logFilePath, "r") as log_file:
                 log_data = log_file.read()  # Leer contenido del log

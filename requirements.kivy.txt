@@ -1,9 +1,10 @@
 # Fiscalberry GUI (Kivy) Dependencies
-# Última actualización: 2025-07-19
-# Usa las últimas versiones estables de todas las dependencias
+# Última actualización: 2026-01-19
+# NOTA: Se recomienda Python 3.12 para mejor compatibilidad con Kivy
+# Python 3.14 puede tener problemas con el parser de archivos .kv
 
 # GUI Framework
-kivy[base]
+kivy[base]>=2.2.0,<2.4.0
 
 # Core dependencies (from CLI)
 python-escpos[all]

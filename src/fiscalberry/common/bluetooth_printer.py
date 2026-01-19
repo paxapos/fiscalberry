@@ -110,7 +110,7 @@ class BluetoothConnection:
             self.input_stream = self.socket.getInputStream()
             
             self.connected = True
-            logger.info(f"✓ Conectado exitosamente a {self.mac_address}")
+            logger.debug(f"✓ Conectado exitosamente a {self.mac_address}")
             
             return True
             
@@ -382,7 +382,7 @@ def pair_bluetooth_device(mac_address):
         result = device.createBond()
         
         if result:
-            logger.info(f"✓ Emparejamiento iniciado para {mac_address}")
+            logger.debug(f"✓ Emparejamiento iniciado para {mac_address}")
             return True
         else:
             logger.warning(f"No se pudo iniciar emparejamiento para {mac_address}")

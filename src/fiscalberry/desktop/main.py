@@ -7,8 +7,8 @@ logger = getLogger("GUI")
 def main():
     """Función principal que ejecuta la interfaz gráfica de Fiscalberry."""
     logger.info("=== Iniciando Fiscalberry GUI ===")
-    logger.info(f"Versión de Python: {sys.version}")
-    logger.info(f"Plataforma: {sys.platform}")
+    logger.debug(f"Versión de Python: {sys.version}")
+    logger.debug(f"Plataforma: {sys.platform}")
     
     try:
         logger.info("Creando aplicación Kivy...")

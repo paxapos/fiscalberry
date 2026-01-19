@@ -183,7 +183,7 @@ class PrinterErrorDetector:
                 context=full_context,
                 exception=exception
             )
-            logger.info(f"Error detectado y publicado: {error_type} [{severity}]")
+            logger.debug(f"Error detectado y publicado: {error_type} [{severity}]")
         except Exception as e:
             logger.error(f"Error al publicar error detectado: {e}")
         
