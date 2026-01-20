@@ -7,7 +7,7 @@ import os
 import subprocess
 class LogScreen(Screen):
     logs = StringProperty("")  # Propiedad para almacenar los logs
-    logFilePath = StringProperty("")  # Propiedad para almacenar la ruta del log
+    logFilePath = StringProperty("", allownone=True)  # Propiedad para almacenar la ruta del log
   
     def on_kv_post(self, base_widget):
         # Se garantiza que los ids están disponibles
@@ -16,7 +16,8 @@ class LogScreen(Screen):
 
     def open_log_file(self):
         """Abre el archivo de log en el editor de texto predeterminado."""
-        if self.logFilePath:
+        # Verificar que hay una ruta válida (no None ni vacía)
+        if self.logFilePath and self.logFilePath.strip():
 
             try:
                 system = platform.system()
@@ -40,7 +41,11 @@ class LogScreen(Screen):
 
     def update_logs(self, dt):
         """Lee el archivo de logs y actualiza la propiedad `logs`."""
-        self.logFilePath = getLogFilePath()
+        # Obtener ruta del log (puede ser None)
+        log_path = getLogFilePath()
+        
+        # Convertir None a string vacío para evitar crash con StringProperty
+        self.logFilePath = log_path if log_path else ""
         
         # Si no hay archivo de log configurado, mostrar mensaje
         if not self.logFilePath:

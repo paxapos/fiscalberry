@@ -65,10 +65,8 @@ class PermissionsScreen(Screen):
             
             if self.permissions_granted:
                 self.permissions_message = f"✅ Todos los permisos otorgados ({self.total_count}/{self.total_count})"
-                logger.debug("Todos los permisos están otorgados")
             else:
                 self.permissions_message = f"⚠️ Faltan {self.missing_count} de {self.total_count} permisos"
-                logger.warning(f"⚠️ Faltan {self.missing_count} permisos")
                 logger.warning(f"Permisos faltantes: {self.missing_permissions}")
                 
         except Exception as e:
@@ -79,7 +77,6 @@ class PermissionsScreen(Screen):
     def request_all_permissions(self):
         """Solicita todos los permisos necesarios"""
         if not self._is_android:
-            logger.debug("No es Android - permisos no necesarios")
             return
         
         try:
@@ -105,7 +102,6 @@ class PermissionsScreen(Screen):
     def open_app_settings(self):
         """Abre la configuración de la app en Android"""
         if not self._is_android:
-            logger.debug("No es Android - no hay configuración de app")
             return
         
         try:
@@ -127,7 +123,6 @@ class PermissionsScreen(Screen):
             intent.setData(uri)
             
             activity.startActivity(intent)
-            logger.debug("Configuración de app abierta")
             
         except Exception as e:
             logger.error(f"Error abriendo configuración: {e}", exc_info=True)
