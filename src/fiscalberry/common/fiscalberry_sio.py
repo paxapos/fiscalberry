@@ -94,7 +94,7 @@ class FiscalberrySio:
 
         @self.sio.event(namespace=ns)
         def connect():
-            logger.info(f"SocketIO conectado (SID: {self.sio.sid})")
+            logger.debug(f"SocketIO conectado (SID: {self.sio.sid})")
 
         @self.sio.event(namespace=ns)
         def connect_error(err):
@@ -119,7 +119,7 @@ class FiscalberrySio:
             try:
                 self.rabbit_handler.stop()
                 self.config.delete_section("Paxaprinter")
-                logger.info("Adopt: RabbitMQ detenido, config limpiada")
+                logger.debug("Adopt: RabbitMQ detenido, config limpiada")
             except Exception as e:
                 logger.error(f"Error en adopt: {e}")
             
@@ -172,7 +172,7 @@ class FiscalberrySio:
 
         @self.sio.event(namespace=ns)
         def start_rabbit(cfg: dict):
-            logger.info("Evento start_rabbit recibido")
+            logger.debug("Evento start_rabbit recibido")
             try:
                 self.rabbitmq_thread = threading.Thread(
                     target=self.rabbit_handler.configure_and_restart,
@@ -207,7 +207,7 @@ class FiscalberrySio:
 
     def _run(self):
         try:
-            logger.info(f"SIO run: {self.server_url}")
+            logger.debug(f"SIO run: {self.server_url}")
             self.sio.connect(self.server_url, namespaces=self.namespaces, headers={'x-uuid': self.uuid})
             self.sio.wait()
         except Exception as e:
@@ -224,7 +224,7 @@ class FiscalberrySio:
         return self.thread
 
     def stop(self, timeout=2):
-        logger.info("SIO STOP")
+        logger.debug("SIO STOP")
         self.stop_event.set()
         try:
             self.sio.disconnect() # detenemios socketio
@@ -232,13 +232,13 @@ class FiscalberrySio:
         except Exception as e:
             logger.error("Error al desconectar SIO o detener RabbitMQ: %s", e)
         finally:
-            logger.info("SIO y RabbitMQ disconnected OK")
+            logger.debug("SIO y RabbitMQ disconnected OK")
             
         if self.thread and self.thread.is_alive():
             logger.info(f"SIO es STILL LIVE!! no deberia, Waiting for SIO thread to stop, timeout={timeout} seconds.")
             self.thread.join(timeout)
             if self.thread.is_alive():
-                logger.warning(f"SIO thread did not stop within the timeout period of {timeout} seconds.")
+                logger.debug(f"SIO thread did not stop within the timeout period of {timeout} seconds.")
         self.thread = None
         
         if self.rabbitmq_thread and self.rabbitmq_thread.is_alive():
@@ -247,6 +247,6 @@ class FiscalberrySio:
             if self.rabbitmq_thread.is_alive():
                 logger.warning(f"RabbitMQ thread did not stop within the timeout period of {timeout} seconds.")
         self.rabbitmq_thread = None
-        logger.info("SIO y RabbitMQ disconnected OK")
+        logger.debug("SIO y RabbitMQ disconnected OK")
         
         return True

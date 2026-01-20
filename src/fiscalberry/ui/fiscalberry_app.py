@@ -301,12 +301,37 @@ class FiscalberryApp(App):
             logger.debug("Comercio no adoptado. Enviando discover...")
             
             # CRÍTICO: Enviar discover ANTES de mostrar adopt screen
-            try:
-                from fiscalberry.common.discover import send_discover
-                send_discover()
-                logger.debug("Discover enviado")
-            except Exception as e:
-                logger.error(f"Error al enviar discover: {e}")
+            # Esperar confirmación del servidor con reintentos
+            from fiscalberry.common.discover import send_discover
+            
+            max_retries = 3
+            discover_success = False
+            
+            for attempt in range(1, max_retries + 1):
+                try:
+                    logger.debug(f"Discover intento {attempt}/{max_retries}...")
+                    discover_success = send_discover()
+                    if discover_success:
+                        logger.info("Dispositivo registrado correctamente en el servidor")
+                        # Dar tiempo al servidor para completar el commit a DB
+                        import time
+                        time.sleep(1.5)
+                        break
+                    else:
+                        if attempt < max_retries:
+                            logger.warning(f"Discover falló, reintentando ({attempt}/{max_retries})...")
+                            import time
+                            time.sleep(2)
+                except Exception as e:
+                    logger.error(f"Error al enviar discover: {e}")
+                    if attempt < max_retries:
+                        logger.warning(f"Reintentando ({attempt}/{max_retries})...")
+                        import time
+                        time.sleep(2)
+            
+            if not discover_success:
+                logger.error("No se pudo registrar el dispositivo en el servidor después de varios intentos")
+                # Continuamos de todas formas para permitir reintentos manuales
             
             # NUEVO: Iniciar SocketIO para recibir configuración de adopción
             logger.debug("Iniciando SocketIO para adopción...")
@@ -808,6 +833,8 @@ class FiscalberryApp(App):
         try:
             from fiscalberry.common.fiscalberry_logger import getLogFilePath
             log_path = getLogFilePath()
+            if not log_path:
+                return  # No hay archivo de log configurado
             with open(log_path, "r") as log_file:
                 self.logs = log_file.read()
         except Exception:

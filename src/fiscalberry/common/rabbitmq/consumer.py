@@ -27,7 +27,7 @@ class RabbitMQConsumer:
     ) -> None:
         self.logger = getLogger("RabbitMQ.Consumer")
         
-        self.logger.info(f"RabbitMQ Consumer: {host}:{port} queue={queue_name}")
+        self.logger.debug(f"RabbitMQ Consumer: {host}:{port} queue={queue_name}")
         
         self.host = host
         self.port = port
@@ -93,7 +93,7 @@ class RabbitMQConsumer:
             self.connection = pika.BlockingConnection(params)
             self.channel = self.connection.channel()
         
-        self.logger.info(f"RabbitMQ conectado: queue={self.queue}")
+        self.logger.debug(f"RabbitMQ conectado: queue={self.queue}")
 
 
     def start(self):

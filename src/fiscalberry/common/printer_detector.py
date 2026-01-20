@@ -18,7 +18,7 @@ try:
     from jnius import autoclass
     from jnius import cast
     ANDROID = True
-    logger.info("Ejecutando en Android - usando detección USB con pyjnius")
+    logger.debug("Ejecutando en Android - usando detección USB con pyjnius")
 except ImportError:
     logger.debug("pyjnius no disponible - no es Android")
 
@@ -98,7 +98,7 @@ def get_android_usb_printers():
                     'has_permission': usb_manager.hasPermission(device)
                 }
                 printers.append(printer_info)
-                logger.info(f"Impresora USB encontrada: {printer_info['name']} - Permiso: {printer_info['has_permission']}")
+                logger.debug(f"Impresora USB encontrada: {printer_info['name']} - Permiso: {printer_info['has_permission']}")
         
         return printers
         
@@ -149,7 +149,7 @@ def request_android_usb_permission(device_name=None):
                 continue
             
             if not usb_manager.hasPermission(device):
-                logger.info(f"Solicitando permiso USB para: {device.getDeviceName()}")
+                logger.debug(f"Solicitando permiso USB para: {device.getDeviceName()}")
                 
                 permission_intent = Intent(ACTION_USB_PERMISSION)
                 pending_intent = PendingIntent.getBroadcast(
@@ -178,7 +178,7 @@ def listar_impresoras():
 
     # Detección específica para Android
     if ANDROID:
-        logger.info("Detectando impresoras en Android...")
+        logger.debug("Detectando impresoras en Android...")
         
         # Detectar USB
         usb_printers = get_android_usb_printers()
@@ -186,18 +186,18 @@ def listar_impresoras():
         # Detectar Bluetooth
         try:
             from fiscalberry.common.bluetooth_printer import scan_bluetooth_printers
-            logger.info("Escaneando impresoras Bluetooth...")
+            logger.debug("Escaneando impresoras Bluetooth...")
             bt_printers = scan_bluetooth_printers(timeout=5)
             
             if bt_printers:
-                logger.info(f"Encontradas {len(bt_printers)} impresoras Bluetooth")
+                logger.debug(f"Encontradas {len(bt_printers)} impresoras Bluetooth")
                 impresoras.extend(bt_printers)
         except Exception as e:
             logger.error(f"Error escaneando Bluetooth: {e}")
             bt_printers = []
         
         if usb_printers:
-            logger.info(f"Encontradas {len(usb_printers)} impresoras USB")
+            logger.debug(f"Encontradas {len(usb_printers)} impresoras USB")
             impresoras.extend(usb_printers)
         
         if impresoras:
@@ -208,12 +208,12 @@ def listar_impresoras():
     
     # Linux (incluyendo Raspberry Pi)
     elif sistema_operativo == "Linux":
-        logger.info("Detectando impresoras en Linux...")
+        logger.debug("Detectando impresoras en Linux...")
         try:
             import subprocess
             resultado = subprocess.run(['lpstat', '-e'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             impresoras = resultado.stdout.decode('utf-8').splitlines()
-            logger.info(f"Encontradas {len(impresoras)} impresoras en Linux")
+            logger.debug(f"Encontradas {len(impresoras)} impresoras en Linux")
         except FileNotFoundError:
             logger.warning("Comando 'lpstat' no encontrado. Instala CUPS: sudo apt install cups")
         except Exception as e:
@@ -221,11 +221,11 @@ def listar_impresoras():
     
     # Windows
     elif sistema_operativo == "Windows":
-        logger.info("Detectando impresoras en Windows...")
+        logger.debug("Detectando impresoras en Windows...")
         try:
             import win32print
             impresoras = [printer[2] for printer in win32print.EnumPrinters(2)]
-            logger.info(f"Encontradas {len(impresoras)} impresoras en Windows")
+            logger.debug(f"Encontradas {len(impresoras)} impresoras en Windows")
         except ImportError:
             logger.error("pywin32 no instalado. Instala con: pip install pywin32")
         except Exception as e:

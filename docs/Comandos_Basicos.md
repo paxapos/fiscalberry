@@ -29,3 +29,13 @@ adb kill-server
 adb start-server
 
 
+
+---------------------------------------------------------
+
+# Activar entorno virtual
+source venv.cli/bin/activate
+
+# Ejecutar main.py
+python -m fiscalberry.cli.main
+
+

@@ -87,7 +87,7 @@ class ServiceController:
             logger.error("UUID no encontrado")
             os._exit(1)
 
-        logger.info(f"ServiceController: {sio_host} uuid={uuidval[:8]}...")
+        logger.debug(f"ServiceController: {sio_host} uuid={uuidval[:8]}...")
         self.sio = FiscalberrySio(sio_host, uuidval)
         
         # Configurar manejo de señales
@@ -111,7 +111,7 @@ class ServiceController:
         self._stop_services_only()
         
         # Terminar inmediatamente después de la limpieza
-        logger.debug("Terminando aplicación...")
+        logger.info("Terminando aplicación...")
         os._exit(0)  # Terminar de forma inmediata y definitiva
 
     def is_service_running(self):
@@ -171,7 +171,7 @@ class ServiceController:
 
     def start(self):
         """Inicia y mantiene vivo el proceso de conexión SIO."""
-        logger.info("Iniciando Fiscalberry SIO Service Loop")
+        logger.debug("Iniciando Fiscalberry SIO Service Loop")
         self._stop_event.clear()
         self.initial_retries = 0
 
@@ -189,7 +189,7 @@ class ServiceController:
                 target=self._run_sio_instance,
                 daemon=True
             )
-            logger.debug("SocketIO thread start.")
+            logger.info("* * * * * SocketIO thread start.")
             self.socketio_thread.start()
             
             while self.socketio_thread.is_alive() and not self._stop_event.is_set():
@@ -257,7 +257,7 @@ class ServiceController:
         else:
             logger.debug("Discover thread already stopped or not started.")
                 
-        logger.debug("SIO services stopped (CLI mode).")
+        logger.info("SIO services stopped (CLI mode).")
         
         # Para CLI usamos sys.exit(0)
         sys.exit(0)
@@ -292,7 +292,7 @@ class ServiceController:
         else:
             logger.debug("Discover thread already stopped or not started.")
                 
-        logger.debug("SIO services stopped (GUI mode).")
+        logger.info("SIO services stopped (GUI mode).")
         
         # Para GUI NO intentar cerrar Kivy desde aquí - evitar recursión
         # La aplicación GUI debe manejar su propio cierre desde on_stop()

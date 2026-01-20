@@ -9,7 +9,7 @@ Hemos implementado una lógica de prioridad robusta en el archivo `process_handl
 Para cada campo (`host`, `port`, `user`, `password`, `vhost`, `queue`):
 
 1. **Primera prioridad**: Valor en `config.ini` (si existe y no está vacío)
-2. **Segunda prioridad**: Valor del mensaje SocketIO 
+2. **Segunda prioridad**: Valor del mensaje SocketIO
 3. **Tercera prioridad**: Valor por defecto
 
 ### 📄 Código Implementado
@@ -49,41 +49,48 @@ queue = get_config_or_message_value("queue", "queue", "")
 ### 🧪 Casos de Prueba Verificados
 
 #### Caso 1: Config.ini completo
+
 ```ini
 [RabbitMq]
 host = localhost
 port = 5672
 user = admin
-password = secret
+password = mi_password
 vhost = /prod
 queue = my_queue
 ```
+
 **Resultado**: Se usan TODOS los valores del `config.ini`, ignorando SocketIO.
 
 #### Caso 2: Config.ini parcial
+
 ```ini
 [RabbitMq]
 host = localhost
-port = 
+port =
 user = admin
-password = 
+password =
 vhost = /prod
-queue = 
+queue =
 ```
-**Resultado**: 
+
+**Resultado**:
+
 - `host`, `user`, `vhost` → del `config.ini`
 - `port`, `password`, `queue` → del mensaje SocketIO
 
 #### Caso 3: Config.ini vacío
+
 ```ini
 [RabbitMq]
-host = 
-port = 
-user = 
-password = 
-vhost = 
-queue = 
+host =
+port =
+user =
+password =
+vhost =
+queue =
 ```
+
 **Resultado**: Se usan TODOS los valores del mensaje SocketIO.
 
 ### 🔧 Herramientas de Diagnóstico
@@ -97,6 +104,7 @@ Se han creado scripts de prueba para verificar la lógica:
 ### 💡 Uso Práctico
 
 **Para forzar un valor específico:**
+
 ```bash
 # Editar config.ini
 vim ~/.config/Fiscalberry/config.ini
@@ -107,10 +115,11 @@ host = mi-servidor-rabbitmq.com
 ```
 
 **Para permitir configuración remota:**
+
 ```bash
 # Dejar campo vacío en config.ini
 [RabbitMq]
-host = 
+host =
 # Este valor vendrá del mensaje SocketIO
 ```
 

@@ -50,10 +50,8 @@ class ErrorPublisher:
                 self.tenant = self.config.get("Paxaprinter", "tenant", fallback="")
                 if self.tenant:
                     self.error_queue_name = f"{self.tenant}_errors"
-                    logger.info("ErrorPublisher initialized - Tenant: %s, Queue: %s", 
+                    logger.debug("ErrorPublisher initialized - Tenant: %s, Queue: %s", 
                                self.tenant, self.error_queue_name)
-                else:
-                    logger.warning("ErrorPublisher: Tenant not configured in Paxaprinter section")
             else:
                 logger.debug("ErrorPublisher: Paxaprinter section not found - error publishing disabled")
         except Exception as e:
@@ -127,7 +125,6 @@ class ErrorPublisher:
                 return True
                 
             if not self.tenant or not self.error_queue_name:
-                logger.warning("ErrorPublisher: Cannot connect - tenant not configured")
                 return False
                 
             try:
@@ -179,7 +176,7 @@ class ErrorPublisher:
                 )
                 
                 self._is_connected = True
-                logger.info("ErrorPublisher connected - Tenant: %s, Queue: %s, Exchange: %s",
+                logger.debug("ErrorPublisher connected - Tenant: %s, Queue: %s, Exchange: %s",
                            self.tenant, self.error_queue_name, error_exchange)
                 return True
                 
@@ -222,7 +219,6 @@ class ErrorPublisher:
             if not self._is_connected:
                 logger.debug("ErrorPublisher: Not connected, attempting connection...")
                 if not self.connect():
-                    logger.warning("ErrorPublisher: Failed to connect - error not published")
                     return
             
             # Preparar payload del error
@@ -264,10 +260,8 @@ class ErrorPublisher:
                         )
                     )
                     
-                    logger.info("Error published to RabbitMQ - Type: %s, Tenant: %s, Queue: %s",
+                    logger.debug("Error published to RabbitMQ - Type: %s, Tenant: %s, Queue: %s",
                                error_type, self.tenant, self.error_queue_name)
-                else:
-                    logger.warning("ErrorPublisher: RabbitMQ channel unavailable - error not published")
                     
         except Exception as e:
             logger.error("ErrorPublisher: Failed to publish error - %s", e)

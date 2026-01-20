@@ -89,12 +89,8 @@ class RabbitMQProcessHandler:
         # 2. Fallback: leer de config.ini si no están en memoria
         if not user:
             user = self.config.get("RabbitMq", "user", fallback=None)
-            if user:
-                logger.info("RabbitMQ user: usando fallback de config.ini")
         if not password:
             password = self.config.get("RabbitMq", "password", fallback=None)
-            if password:
-                logger.info("RabbitMQ password: usando fallback de config.ini")
         
         if not user or not password:
             print("\n============================================================")
@@ -161,7 +157,7 @@ class RabbitMQProcessHandler:
                 consumer.start()
                 # Si llegamos aquí, la conexión fue exitosa, resetear contador
                 retry_count = 0
-                logger.info("Conexión RabbitMQ establecida exitosamente")
+                logger.debug("Conexión RabbitMQ establecida exitosamente")
                 # consumer.start() sólo retorna al desconectarse o error.
             except socket.gaierror as ex:
                 retry_count += 1
@@ -221,13 +217,13 @@ class RabbitMQProcessHandler:
     def stop(self, timeout: float = 1):
         """Detiene el hilo y espera su finalización."""
         if self._thread and self._thread.is_alive():
-            logger.info("Deteniendo RabbitMQConsumer...")
+            logger.debug("Deteniendo RabbitMQConsumer...")
             self._stop_event.set()
             self._thread.join(timeout)
             if self._thread.is_alive():
                 logger.warning("RabbitMQConsumer no se detuvo a tiempo.")
             else:
-                logger.info("RabbitMQConsumer detenido correctamente.")
+                logger.debug("RabbitMQConsumer detenido correctamente.")
         else:
             logger.warning("No hay hilo de RabbitMQConsumer en ejecución.")
         self._thread = None
@@ -312,7 +308,7 @@ class RabbitMQProcessHandler:
             final_config["queue"] = curr_queue
         
         # Log de configuración final (compacto)
-        logger.info(f"RabbitMQ: {final_config['host']}:{final_config['port']} vhost={final_config['vhost']}")
+        logger.debug(f"RabbitMQ: {final_config['host']}:{final_config['port']} vhost={final_config['vhost']}")
         
         # SOLO escribir en config.ini si había campos vacíos que rellenamos
         if updates:
