@@ -11,11 +11,13 @@ from fiscalberry.common.service_controller import ServiceController
 from kivy.lang import Builder
 from kivy.properties import StringProperty, BooleanProperty
 from fiscalberry.ui.log_screen import LogScreen
+from fiscalberry.ui.kivy_log_handler import KivyLogHandler
 from threading import Thread
 import time
 import sys
 import os
 import signal
+import logging
 
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.version import VERSION
@@ -53,7 +55,6 @@ class FiscalberryApp(App):
     logs = StringProperty("")  # Logs en tiempo real para MainScreen
     
     def __init__(self, **kwargs):
-        logger.debug("Inicializando FiscalberryApp...")
         super().__init__(**kwargs)
         
         try:
@@ -61,71 +62,58 @@ class FiscalberryApp(App):
             self.message_queue = queue.Queue()
             self._stopping = False
             self._is_android = False
-            logger.debug("Variables básicas inicializadas")
             
-            # Detectar si estamos en Android de forma segura
+            # Configurar handler de logs para captura en tiempo real
+            self.log_handler = KivyLogHandler(max_lines=200)
+            self.log_handler.set_app(self)
+            logging.getLogger().addHandler(self.log_handler)
+            self.log_handler.setLevel(logging.DEBUG)
+            
             try:
                 self._is_android = self._detect_android()
-                logger.debug(f"Detección de Android: {self._is_android}")
             except Exception as e:
                 logger.warning(f"Error detectando Android: {e}")
                 self._is_android = False
             
-            # CRÍTICO: Resetear singletons en Android para evitar estado corrupto
-            # Cuando la app se cierra y reabre, el proceso Python puede sobrevivir
-            # y los singletons mantienen estado previo causando freeze
             if self._is_android:
                 try:
                     from fiscalberry.common import service_controller as sc_module
                     sc_module.ServiceController.reset_singleton()
-                    logger.debug("Singletons reseteados para reinicio Android")
                 except Exception as e:
                     logger.warning(f"Error reseteando singletons: {e}")
             
-            # Solicitar permisos de Android de forma segura
             if self._is_android:
-                logger.debug("✓ Ejecutando en Android")
                 try:
                     self._request_android_permissions()
                 except Exception as e:
                     logger.error(f"Error solicitando permisos Android: {e}")
             
-            # Inicializar controladores de forma segura
             try:
                 self._service_controller = ServiceController()
-                logger.debug("ServiceController inicializado")
             except Exception as e:
                 logger.error(f"Error inicializando ServiceController: {e}")
                 self._service_controller = None
             
             try:
                 self._configberry = Configberry()
-                logger.debug("Configberry inicializado")
             except Exception as e:
                 logger.error(f"Error inicializando Configberry: {e}")
                 self._configberry = None
 
-            # Actualizar propiedades de configuración de forma segura
             try:
                 self.updatePropertiesWithConfig()
-                logger.debug("Propiedades de configuración actualizadas")
             except Exception as e:
                 logger.error(f"Error actualizando propiedades: {e}")
             
-            # Programar verificación de estado de forma segura
             try:
                 Clock.schedule_interval(self._check_sio_status, 5)
                 Clock.schedule_interval(self._check_rabbit_status, 5)
-                Clock.schedule_interval(self._update_logs, 1)  # Actualizar logs cada segundo
-                logger.debug("Schedulers de verificación de estado configurados")
             except Exception as e:
                 logger.error(f"Error configurando schedulers: {e}")
 
-            # Configurar manejadores de señales (solo en escritorio)
             if not self._is_android:
                 try:
                     self._setup_signal_handlers()
-                    logger.debug("Manejadores de señales configurados")
                 except Exception as e:
                     logger.warning(f"Error configurando manejadores de señales: {e}")
             
@@ -156,37 +144,19 @@ class FiscalberryApp(App):
     def _request_android_permissions(self):
         """Solicita todos los permisos necesarios en Android automáticamente"""
         try:
-            logger.debug("Solicitando permisos de Android...")
+            from fiscalberry.common.android_permissions import (
+                request_all_permissions,
+                check_all_permissions
+            )
             
-            # Importar módulos de permisos de forma segura
-            try:
-                from fiscalberry.common.android_permissions import (
-                    request_all_permissions,
-                    check_all_permissions
-                )
-                logger.debug("✓ Módulos de permisos importados correctamente")
-            except ImportError as e:
-                logger.warning(f"No se pudieron importar módulos de permisos: {e}")
-                return
-            
-            # Verificar estado actual de permisos
-            try:
-                status = check_all_permissions()
-                logger.debug(f"Permisos: {status['total_permissions']} requeridos, {status['missing_count']} faltantes")
-                
-                if not status['all_granted']:
-                    logger.debug("Solicitando permisos faltantes...")
-                    request_all_permissions(callback_on_complete=self._on_permissions_result)
-                else:
-                    logger.debug("Todos los permisos ya otorgados")
+            status = check_all_permissions()
+            if not status['all_granted']:
+                request_all_permissions(callback_on_complete=self._on_permissions_result)
                     
-            except Exception as e:
-                logger.warning(f"Error verificando permisos: {e}")
-            
-
-            
+        except ImportError:
+            pass  # Módulos de permisos no disponibles
         except Exception as e:
-            logger.error(f"Error general verificando permisos Android: {e}", exc_info=True)
+            logger.error(f"Error verificando permisos Android: {e}")
     
     def _start_android_service(self):
         """
@@ -226,11 +196,9 @@ class FiscalberryApp(App):
     
     def build(self):
         """Construye la aplicación de forma optimizada."""
-        logger.debug("Construyendo interfaz de usuario...")
         
         # Detectar plataforma
         is_android = 'ANDROID_STORAGE' in os.environ or 'ANDROID_ARGUMENT' in os.environ
-        logger.debug(f"Plataforma: {'Android' if is_android else 'Desktop'}")
         
         # Configurar título y icono
         self.title = "Servidor de Impresión"
@@ -241,28 +209,19 @@ class FiscalberryApp(App):
                 icon_path = os.path.join(self.assetpath, "fiscalberry.ico")
                 if os.path.exists(icon_path):
                     self.icon = icon_path
-                    logger.debug(f"Icono configurado: {icon_path}")
-                    
-                    # Configuración específica para Windows
                     if sys.platform == 'win32':
                         self._set_windows_icon(icon_path)
                 else:
-                    # Fallback a PNG si ICO no existe
                     png_icon = os.path.join(self.assetpath, "fiscalberry.png")
                     if os.path.exists(png_icon):
                         self.icon = png_icon
-                        logger.debug(f"Usando icono PNG fallback: {png_icon}")
             except Exception as e:
                 logger.error(f"Error configurando icono: {e}")
-        else:
-            logger.debug("Android detectado - configuración de icono omitida")
         
-        # Cargar el archivo KV de forma optimizada
         try:
             kv_path = os.path.join(os.path.dirname(__file__), "kv", "main.kv")
             if os.path.exists(kv_path):
                 Builder.load_file(kv_path)
-                logger.debug("Archivo KV cargado")
         except Exception as e:
             logger.error(f"Error cargando archivo KV: {e}")
         
@@ -414,19 +373,12 @@ class FiscalberryApp(App):
     
     def on_start(self):
         """Se ejecuta después de que la aplicación inicie."""
-        logger.debug("Aplicación iniciada")
-        
-        # Detectar si estamos en Android
         is_android = 'ANDROID_STORAGE' in os.environ or 'ANDROID_ARGUMENT' in os.environ
         
         if is_android:
-            logger.debug("Android detectado - configurando permisos y servicios...")
-            
-            # CRÍTICO: Verificar Battery Exemption PRIMERO (antes de permisos regulares)
-            # Sin esto, Doze mode matará el servicio en background
+            # CRÍTICO: Verificar Battery Exemption PRIMERO
             self._check_and_request_battery_exemption()
             
-            # Verificar y solicitar permisos regulares en Android
             try:
                 from fiscalberry.android.permissions import (
                     check_all_permissions, 
@@ -435,22 +387,13 @@ class FiscalberryApp(App):
                 
                 perms = check_all_permissions()
                 if not perms['all_granted']:
-                    logger.warning("No todos los permisos están otorgados")
                     request_all_permissions()
             except Exception as e:
                 logger.error(f"Error gestionando permisos Android: {e}")
-            
-            # NOTA: El servicio Android YA NO se inicia aquí.
-            # Se inicia DESPUÉS de la adopción en:
-            # - build() si ya está adoptado
-            # - adopt_screen._go_to_main() después de adoptar
         else:
-            # Configuración de icono para Desktop (Windows)
-            logger.debug("Desktop detectado - configurando icono...")
             try:
                 icon_path = os.path.join(self.assetpath, "fiscalberry.ico")
                 if os.path.exists(icon_path) and sys.platform == 'win32':
-                    # Esperar un poco para que la ventana esté completamente inicializada
                     Clock.schedule_once(lambda dt: self._set_windows_icon_delayed(icon_path), 1)
             except Exception as e:
                 logger.error(f"Error en on_start configurando icono: {e}")
@@ -475,9 +418,7 @@ class FiscalberryApp(App):
             # NOTA: En jnius, clases internas de Java se acceden con $ (Build$VERSION)
             BuildVersion = autoclass('android.os.Build$VERSION')
             
-            # Solo necesario en API 23+ (Android 6.0+)
             if BuildVersion.SDK_INT < 23:
-                logger.debug("API < 23 - Battery exemption no requerida")
                 return
             
             activity = PythonActivity.mActivity
@@ -491,12 +432,10 @@ class FiscalberryApp(App):
             power_manager = cast(PowerManager, power_manager)
             
             if power_manager.isIgnoringBatteryOptimizations(package_name):
-                logger.debug("App ya excluida de optimización de batería")
                 return
             
-            # Mostrar warning al usuario
-            logger.critical("⚠️ App NO excluida de optimización de batería")
-            logger.critical("⚠️ El servicio puede ser terminado por Android en background")
+            # App no excluida - warning y solicitar
+            logger.warning("⚠️ App NO excluida de optimización de batería - servicio puede ser terminado")
             
             # Solicitar exclusión via Intent del sistema
             intent = Intent()
@@ -512,7 +451,7 @@ class FiscalberryApp(App):
                 self._show_battery_exemption_warning()
                 
         except ImportError:
-            logger.debug("jnius no disponible - no es Android")
+            pass  # jnius no disponible
         except Exception as e:
             logger.error(f"Error verificando battery exemption: {e}", exc_info=True)
     
@@ -623,65 +562,44 @@ class FiscalberryApp(App):
             from kivy.core.window import Window
             from kivy.cache import Cache
             
-            # PASO 1: Limpiar caches de Kivy
-            # Cuando SDL destruye la surface, las texturas en cache apuntan a memoria inválida
-            logger.debug("Limpiando caches de Kivy...")
+            # Limpiar caches de Kivy (texturas inválidas después de destruir surface)
+            for cache_name in ['kv.texture', 'kv.image', 'kv.atlas']:
+                try:
+                    Cache.remove(cache_name)
+                except:
+                    pass
             
-            try:
-                Cache.remove('kv.texture')
-                logger.debug("Cache kv.texture limpiada")
-            except:
-                pass
+            logger.debug("Caches de Kivy limpiados")
             
-            try:
-                Cache.remove('kv.image')
-                logger.debug("Cache kv.image limpiada")
-            except:
-                pass
-            
-            try:
-                Cache.remove('kv.atlas')
-                logger.debug("Cache kv.atlas limpiada")
-            except:
-                pass
-            
-            # PASO 2: Forzar actualización de ventana
+            # Forzar actualización de ventana
             Window.canvas.ask_update()
-            logger.debug("Canvas de ventana actualizado")
             
-            # PASO 3: Programar refrescos diferidos para asegurar recreación
+            # Refrescos diferidos para asegurar recreación
             def refresh_ui(dt):
                 try:
                     Window.canvas.ask_update()
                     if self.root and hasattr(self.root, 'canvas'):
                         self.root.canvas.ask_update()
-                    logger.debug("UI refrescada")
                 except Exception as e:
                     logger.error(f"Error refrescando UI: {e}")
             
-            # Múltiples refreshes para asegurar éxito
             Clock.schedule_once(refresh_ui, 0.1)
             Clock.schedule_once(refresh_ui, 0.3)
             Clock.schedule_once(refresh_ui, 0.5)
             
-            # PASO 4: Lógica específica de adopción
+            # Lógica de adopción post-resume
             if not hasattr(self, 'root') or not self.root:
                 logger.warning("on_resume: self.root no disponible")
                 return
             
             current_screen = self.root.current
-            logger.debug(f"Pantalla actual: {current_screen}")
-            
             if current_screen == 'adopt':
-                logger.debug("Verificando adopción después de resumir...")
                 screen = self.root.get_screen('adopt')
                 if hasattr(screen, 'manual_check_adoption'):
                     Clock.schedule_once(
                         lambda dt: screen.manual_check_adoption(), 
                         0.5
                     )
-            
-            logger.debug("Recuperación de contexto OpenGL completada")
             
         except Exception as e:
             logger.error(f"Error en on_resume: {e}", exc_info=True)
@@ -740,12 +658,7 @@ class FiscalberryApp(App):
 
     def _on_permissions_result(self, success):
         """Callback cuando se completa la solicitud de permisos"""
-        if success:
-            logger.debug("Todos los permisos otorgados")
-        else:
-            logger.warning("⚠️ Algunos permisos fueron denegados")
-            logger.warning("La aplicación puede tener funcionalidad limitada")
-            # Mostrar toast o notificación en la UI actual
+        if not success:
             self._show_permission_warning()
     
     def _show_permission_warning(self):
@@ -783,8 +696,7 @@ class FiscalberryApp(App):
 
     def _on_permissions_denied(self, missing_permissions):
         """Callback cuando el usuario deniega permisos (legacy - no usado)"""
-        logger.warning(f"Usuario denegó {len(missing_permissions)} permisos")
-        logger.warning(f"Permisos faltantes: {missing_permissions}")
+        logger.warning(f"Permisos denegados: {missing_permissions}")
 
     def _check_sio_status(self, dt):
         """Verifica el estado de la conexión SocketIO de forma optimizada."""
