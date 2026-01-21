@@ -4,12 +4,11 @@ import time
 import logging
 from fiscalberry.common.Configberry import Configberry
 from fiscalberry.common.rabbitmq.consumer import RabbitMQConsumer
-import pika.exceptions
 
 logger = logging.getLogger(__name__)
 
 class RabbitMQProcessHandler:
-    """Administra el hilo de RabbitMQConsumer: arranque, paro y reintentos."""
+    """Administra el hilo del Consumer MQTT: arranque, paro y reintentos."""
 
     _instance = None
     _lock = threading.Lock()
@@ -44,12 +43,12 @@ class RabbitMQProcessHandler:
         self._thread = None
         self._stop_event = threading.Event()
         self.config = Configberry()
-        # Credenciales activas del RabbitMQ Consumer
+        # Credenciales activas del MQTT Consumer
         self.active_credentials = None
         self._initialized = True
 
     def get_active_rabbitmq_credentials(self):
-        """Retorna las credenciales activas del RabbitMQ Consumer."""
+        """Retorna las credenciales activas del MQTT Consumer."""
         return self.active_credentials
     
     def _update_active_credentials(self, host, port, user, password, vhost="/"):
@@ -59,21 +58,21 @@ class RabbitMQProcessHandler:
             'port': port,
             'user': user,
             'password': password,
-            'vhost': vhost
+            'vhost': vhost  # Se mantiene por compatibilidad, pero no se usa en MQTT
         }
 
     def start(self, message_queue):
         """
-        Arranca el consumidor en un hilo daemon (no bloqueante).
+        Arranca el consumidor MQTT en un hilo daemon (no bloqueante).
         
         NOTA: user y password vienen de active_credentials (memoria),
         no de config.ini, por seguridad.
         """
         if self._thread and self._thread.is_alive():
-            logger.warning("RabbitMQ thread ya en ejecución.")
+            logger.warning("MQTT thread ya en ejecución.")
             return
 
-        # host/port/vhost de config
+        # host/port de config
         host = self.config.get("RabbitMq", "host")
         port = self.config.get("RabbitMq", "port")
         
@@ -94,10 +93,10 @@ class RabbitMQProcessHandler:
         
         if not user or not password:
             print("\n============================================================")
-            print("[ERROR] Credenciales RabbitMQ incompletas")
+            print("[ERROR] Credenciales MQTT incompletas")
             print("        (user o password faltante en memoria y config.ini)")
             print("============================================================\n")
-            logger.error("Credenciales RabbitMQ incompletas (user o password faltante en memoria y config.ini)")
+            logger.error("Credenciales MQTT incompletas (user o password faltante en memoria y config.ini)")
             return
         
         queue_name = self.config.get("SERVIDOR", "uuid")
@@ -109,10 +108,10 @@ class RabbitMQProcessHandler:
             daemon=True
         )
         self._thread.start()
-        logger.info("RabbitMQ thread iniciado.")
+        logger.info("MQTT thread iniciado.")
 
     def _check_network_connectivity(self, host, port, timeout=5):
-        """Verifica la conectividad de red básica antes de intentar conectar con RabbitMQ."""
+        """Verifica la conectividad de red básica antes de intentar conectar con MQTT."""
         try:
             # Primero verificar resolución DNS
             socket.getaddrinfo(host, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
@@ -131,7 +130,7 @@ class RabbitMQProcessHandler:
             return False
 
     def _run_consumer(self, host, port, user, password, queue_name, message_queue):
-        """Loop de conexión/reconexión al servidor RabbitMQ con backoff exponencial."""
+        """Loop de conexión/reconexión al broker MQTT con backoff exponencial."""
         retry_count = 0
         max_retries_before_backoff = 3
         base_delay = 5  # segundos
@@ -139,7 +138,7 @@ class RabbitMQProcessHandler:
         
         while not self._stop_event.is_set():
             try:
-                # Verificar conectividad básica antes de intentar conexión RabbitMQ
+                # Verificar conectividad básica antes de intentar conexión MQTT
                 if not self._check_network_connectivity(host, int(port)):
                     retry_count += 1
                     logger.warning(f"Conectividad de red falló para {host}:{port}")
@@ -157,31 +156,16 @@ class RabbitMQProcessHandler:
                 consumer.start()
                 # Si llegamos aquí, la conexión fue exitosa, resetear contador
                 retry_count = 0
-                logger.debug("Conexión RabbitMQ establecida exitosamente")
+                logger.debug("Conexión MQTT establecida exitosamente")
                 # consumer.start() sólo retorna al desconectarse o error.
             except socket.gaierror as ex:
                 retry_count += 1
                 logger.error(f"Error de resolución DNS para '{host}': {ex}")
                 logger.error("Posibles soluciones:")
-                logger.error("1. Verificar que el hostname 'rabbitmq' esté configurado correctamente")
+                logger.error("1. Verificar que el hostname esté configurado correctamente")
                 logger.error("2. Verificar conectividad de red")
-                logger.error("3. Verificar que el servidor RabbitMQ esté ejecutándose")
+                logger.error("3. Verificar que el broker MQTT esté ejecutándose")
                 logger.error("4. Considerar usar una IP directa en lugar del hostname")
-                self._handle_retry(retry_count, max_retries_before_backoff, base_delay, max_delay)
-            except pika.exceptions.AMQPConnectionError as ex:
-                retry_count += 1
-                logger.error(f"Error de conexión AMQP a {host}:{port}: {ex}")
-                logger.error("Verificar que el servidor RabbitMQ esté ejecutándose y accesible")
-                self._handle_retry(retry_count, max_retries_before_backoff, base_delay, max_delay)
-            except pika.exceptions.ProbableAuthenticationError as ex:
-                retry_count += 1
-                logger.error(f"Error de autenticación con RabbitMQ: {ex}")
-                logger.error(f"Verificar credenciales - Usuario: {user}, VHost: {self.config.get('RabbitMq', 'vhost', '/')}")
-                self._handle_retry(retry_count, max_retries_before_backoff, base_delay, max_delay)
-            except pika.exceptions.ProbableAccessDeniedError as ex:
-                retry_count += 1
-                logger.error(f"Acceso denegado a RabbitMQ: {ex}")
-                logger.error(f"Verificar permisos del usuario '{user}' en vhost '{self.config.get('RabbitMq', 'vhost', '/')}'")
                 self._handle_retry(retry_count, max_retries_before_backoff, base_delay, max_delay)
             except ConnectionError as ex:
                 retry_count += 1
@@ -190,7 +174,7 @@ class RabbitMQProcessHandler:
                 self._handle_retry(retry_count, max_retries_before_backoff, base_delay, max_delay)
             except Exception as ex:
                 retry_count += 1
-                logger.error(f"Error inesperado en RabbitMQConsumer: {ex}", exc_info=True)
+                logger.error(f"Error inesperado en MQTT Consumer: {ex}", exc_info=True)
                 self._handle_retry(retry_count, max_retries_before_backoff, base_delay, max_delay)
                 
         logger.info("Salida del bucle de RabbitMQProcessHandler.")
@@ -217,15 +201,15 @@ class RabbitMQProcessHandler:
     def stop(self, timeout: float = 1):
         """Detiene el hilo y espera su finalización."""
         if self._thread and self._thread.is_alive():
-            logger.debug("Deteniendo RabbitMQConsumer...")
+            logger.debug("Deteniendo MQTT Consumer...")
             self._stop_event.set()
             self._thread.join(timeout)
             if self._thread.is_alive():
-                logger.warning("RabbitMQConsumer no se detuvo a tiempo.")
+                logger.warning("MQTT Consumer no se detuvo a tiempo.")
             else:
-                logger.debug("RabbitMQConsumer detenido correctamente.")
+                logger.debug("MQTT Consumer detenido correctamente.")
         else:
-            logger.warning("No hay hilo de RabbitMQConsumer en ejecución.")
+            logger.warning("No hay hilo de MQTT Consumer en ejecución.")
         self._thread = None
         self._stop_event.clear()
         logger.info("RabbitMQProcessHandler detenido.")
@@ -260,14 +244,14 @@ class RabbitMQProcessHandler:
         else:
             final_config["host"] = curr_host
             
-        # PORT
+        # PORT (ahora usa puerto MQTT por defecto: 1883)
         if not curr_port or not str(curr_port).strip():
-            new_port = rabbit_cfg.get("port", "5672")
+            new_port = rabbit_cfg.get("port", "1883")
             if new_port:
                 updates["port"] = new_port
                 final_config["port"] = new_port
             else:
-                final_config["port"] = "5672"
+                final_config["port"] = "1883"
         else:
             final_config["port"] = curr_port
             
@@ -285,7 +269,7 @@ class RabbitMQProcessHandler:
         else:
             final_config["password"] = "guest"
             
-        # VHOST
+        # VHOST (mantenido por compatibilidad, pero no se usa en MQTT)
         if not curr_vhost or not str(curr_vhost).strip():
             new_vhost = rabbit_cfg.get("vhost", "/")
             if new_vhost:
@@ -308,7 +292,7 @@ class RabbitMQProcessHandler:
             final_config["queue"] = curr_queue
         
         # Log de configuración final (compacto)
-        logger.debug(f"RabbitMQ: {final_config['host']}:{final_config['port']} vhost={final_config['vhost']}")
+        logger.debug(f"MQTT: {final_config['host']}:{final_config['port']}")
         
         # SOLO escribir en config.ini si había campos vacíos que rellenamos
         if updates:

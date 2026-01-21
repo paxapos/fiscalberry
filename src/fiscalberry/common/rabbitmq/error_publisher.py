@@ -1,7 +1,7 @@
 """
-Sistema de publicación de errores por tenant en RabbitMQ.
+Sistema de publicación de errores por tenant usando MQTT.
 
-Este módulo maneja la publicación de logs de errores a subcolas específicas
+Este módulo maneja la publicación de logs de errores a topics específicos
 para cada tenant/comercio, permitiendo monitoreo remoto de errores.
 """
 
@@ -11,8 +11,7 @@ import time
 import traceback
 from datetime import datetime
 from typing import Optional, Dict, Any
-import pika
-import pika.exceptions
+import paho.mqtt.client as mqtt
 
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.Configberry import Configberry
@@ -22,23 +21,24 @@ logger = getLogger()
 
 class ErrorPublisher:
     """
-    Publicador de errores a subcolas específicas por tenant.
+    Publicador de errores a topics MQTT específicos por tenant.
     
     Funcionalidades:
-    - Publica errores a subcolas con formato: {tenant}_errors
+    - Publica errores a topics con formato: fiscalberry/errors/{tenant}
     - Mantiene una conexión persistente pero resiliente
     - Maneja reconexiones automáticas
     - Formatea los errores con metadata útil
     """
     
+    MQTT_PORT_DEFAULT = 1883
+    
     def __init__(self):
         self.config = Configberry()
-        self.connection = None
-        self.channel = None
+        self.client = None
         self.tenant = None
-        self.error_queue_name = None
+        self.error_topic = None
         self._lock = threading.Lock()
-        self._is_connected = False
+        self._connected = False
         
         # Configurar información del tenant
         self._setup_tenant_info()
@@ -49,17 +49,17 @@ class ErrorPublisher:
             if self.config.config.has_section("Paxaprinter"):
                 self.tenant = self.config.get("Paxaprinter", "tenant", fallback="")
                 if self.tenant:
-                    self.error_queue_name = f"{self.tenant}_errors"
-                    logger.debug("ErrorPublisher initialized - Tenant: %s, Queue: %s", 
-                               self.tenant, self.error_queue_name)
+                    self.error_topic = f"fiscalberry/errors/{self.tenant}"
+                    logger.debug("ErrorPublisher initialized - Tenant: %s, Topic: %s", 
+                               self.tenant, self.error_topic)
             else:
                 logger.debug("ErrorPublisher: Paxaprinter section not found - error publishing disabled")
         except Exception as e:
             logger.error("ErrorPublisher: Failed to setup tenant info - %s", e)
             logger.debug(traceback.format_exc())
             
-    def _get_rabbitmq_config(self) -> Dict[str, Any]:
-        """Obtiene la configuración de RabbitMQ."""
+    def _get_mqtt_config(self) -> Dict[str, Any]:
+        """Obtiene la configuración de MQTT."""
         try:
             # Primero intentar obtener credenciales del RabbitMQ Consumer activo
             try:
@@ -68,8 +68,13 @@ class ErrorPublisher:
                 active_creds = process_handler.get_active_rabbitmq_credentials()
                 
                 if active_creds:
-                    logger.debug("ErrorPublisher: Using active RabbitMQ consumer credentials")
-                    return active_creds
+                    logger.debug("ErrorPublisher: Using active MQTT consumer credentials")
+                    return {
+                        'host': active_creds.get('host', 'localhost'),
+                        'port': int(active_creds.get('port', self.MQTT_PORT_DEFAULT)),
+                        'user': active_creds.get('user', 'guest'),
+                        'password': active_creds.get('password', 'guest')
+                    }
             except Exception as e:
                 logger.debug("ErrorPublisher: Could not obtain active credentials, using config - %s", e)
             
@@ -77,122 +82,126 @@ class ErrorPublisher:
             if self.config.config.has_section("Paxaprinter"):
                 return {
                     'host': self.config.get("Paxaprinter", "rabbitmq_host", fallback="localhost"),
-                    'port': int(self.config.get("Paxaprinter", "rabbitmq_port", fallback="5672")),
+                    'port': int(self.config.get("Paxaprinter", "rabbitmq_port", fallback=str(self.MQTT_PORT_DEFAULT))),
                     'user': self.config.get("Paxaprinter", "rabbitmq_user", fallback="guest"),
-                    'password': self.config.get("Paxaprinter", "rabbitmq_password", fallback="guest"),
-                    'vhost': self.config.get("Paxaprinter", "rabbitmq_vhost", fallback="/")
+                    'password': self.config.get("Paxaprinter", "rabbitmq_password", fallback="guest")
                 }
             
             # Fallback a configuración RabbitMq
             if self.config.config.has_section("RabbitMq"):
                 return {
                     'host': self.config.get("RabbitMq", "host", fallback="localhost"),
-                    'port': int(self.config.get("RabbitMq", "port", fallback="5672")),
+                    'port': int(self.config.get("RabbitMq", "port", fallback=str(self.MQTT_PORT_DEFAULT))),
                     'user': self.config.get("RabbitMq", "user", fallback="guest"),
-                    'password': self.config.get("RabbitMq", "password", fallback="guest"),
-                    'vhost': self.config.get("RabbitMq", "vhost", fallback="/")
+                    'password': self.config.get("RabbitMq", "password", fallback="guest")
                 }
                 
             return {
                 'host': 'localhost',
-                'port': 5672,
+                'port': self.MQTT_PORT_DEFAULT,
                 'user': 'guest',
-                'password': 'guest',
-                'vhost': '/'
+                'password': 'guest'
             }
             
         except Exception as e:
-            logger.error("ErrorPublisher: Failed to get RabbitMQ config - %s", e)
+            logger.error("ErrorPublisher: Failed to get MQTT config - %s", e)
             logger.debug(traceback.format_exc())
             return {
                 'host': 'localhost',
-                'port': 5672,
+                'port': self.MQTT_PORT_DEFAULT,
                 'user': 'guest',
-                'password': 'guest',
-                'vhost': '/'
+                'password': 'guest'
             }
+    
+    def _on_connect(self, client, userdata, flags, rc):
+        """Callback cuando se conecta al broker MQTT."""
+        if rc == 0:
+            self._connected = True
+            logger.debug("ErrorPublisher: MQTT conectado")
+        else:
+            self._connected = False
+            logger.error("ErrorPublisher: Error de conexión MQTT (rc=%s)", rc)
+            
+    def _on_disconnect(self, client, userdata, rc):
+        """Callback cuando se desconecta del broker MQTT."""
+        self._connected = False
+        if rc != 0:
+            logger.debug("ErrorPublisher: Desconexión inesperada (rc=%s)", rc)
+            
+    def _on_publish(self, client, userdata, mid):
+        """Callback cuando se publica un mensaje."""
+        logger.debug("ErrorPublisher: Mensaje publicado (mid=%s)", mid)
     
     def connect(self) -> bool:
         """
-        Establece conexión con RabbitMQ y configura el exchange y cola de errores.
+        Establece conexión con el broker MQTT.
         
         Returns:
             bool: True si la conexión fue exitosa, False en caso contrario
         """
         with self._lock:
-            if self._is_connected and self.connection and not self.connection.is_closed:
+            if self._connected and self.client:
                 logger.debug("ErrorPublisher: Already connected")
                 return True
                 
-            if not self.tenant or not self.error_queue_name:
+            if not self.tenant or not self.error_topic:
                 return False
                 
             try:
-                config = self._get_rabbitmq_config()
+                config = self._get_mqtt_config()
                 
-                logger.debug("ErrorPublisher: Connecting to RabbitMQ - Host: %s:%s, VHost: %s, User: %s",
-                           config['host'], config['port'], config['vhost'], config['user'])
+                logger.debug("ErrorPublisher: Connecting to MQTT - Host: %s:%s, User: %s",
+                           config['host'], config['port'], config['user'])
                 
-                credentials = pika.PlainCredentials(config['user'], config['password'])
-                parameters = pika.ConnectionParameters(
-                    host=config['host'],
-                    port=config['port'],
-                    virtual_host=config['vhost'],
-                    credentials=credentials,
-                    socket_timeout=10,
-                    connection_attempts=1,
-                    retry_delay=1
+                # Crear cliente MQTT
+                self.client = mqtt.Client(
+                    client_id=f"fiscalberry-errors-{self.tenant}",
+                    clean_session=True,  # Para errores no necesitamos sesión persistente
+                    protocol=mqtt.MQTTv311
                 )
                 
-                # Establecer conexión
-                self.connection = pika.BlockingConnection(parameters)
-                self.channel = self.connection.channel()
+                # Configurar credenciales
+                self.client.username_pw_set(config['user'], config['password'])
                 
-                logger.debug("ErrorPublisher: RabbitMQ connection established")
+                # Configurar callbacks
+                self.client.on_connect = self._on_connect
+                self.client.on_disconnect = self._on_disconnect
+                self.client.on_publish = self._on_publish
                 
-                # Declarar exchange para errores
-                error_exchange = "fiscalberry_errors"
-                self.channel.exchange_declare(
-                    exchange=error_exchange,
-                    exchange_type='direct',
-                    durable=True
-                )
+                # Conectar
+                self.client.connect(config['host'], config['port'], keepalive=60)
                 
-                logger.debug("ErrorPublisher: Exchange declared - %s (direct)", error_exchange)
+                # Iniciar loop en segundo plano
+                self.client.loop_start()
                 
-                # Declarar cola específica del tenant
-                self.channel.queue_declare(
-                    queue=self.error_queue_name,
-                    durable=True
-                )
+                # Esperar conexión con timeout
+                timeout = 5
+                start = time.time()
+                while not self._connected and (time.time() - start) < timeout:
+                    time.sleep(0.1)
                 
-                logger.debug("ErrorPublisher: Queue declared - %s (tenant)", self.error_queue_name)
-                
-                # Enlazar cola del tenant al exchange directo
-                self.channel.queue_bind(
-                    exchange=error_exchange,
-                    queue=self.error_queue_name,
-                    routing_key=self.tenant
-                )
-                
-                self._is_connected = True
-                logger.debug("ErrorPublisher connected - Tenant: %s, Queue: %s, Exchange: %s",
-                           self.tenant, self.error_queue_name, error_exchange)
-                return True
+                if self._connected:
+                    logger.debug("ErrorPublisher connected - Tenant: %s, Topic: %s",
+                               self.tenant, self.error_topic)
+                    return True
+                else:
+                    logger.error("ErrorPublisher: Connection timeout")
+                    return False
                 
             except Exception as e:
                 logger.error("ErrorPublisher: Connection failed - %s", e)
                 logger.debug(traceback.format_exc())
-                self._is_connected = False
+                self._connected = False
                 return False
     
     def disconnect(self):
-        """Cierra la conexión con RabbitMQ."""
+        """Cierra la conexión con el broker MQTT."""
         with self._lock:
             try:
-                if self.connection and not self.connection.is_closed:
-                    self.connection.close()
-                self._is_connected = False
+                if self.client:
+                    self.client.loop_stop()
+                    self.client.disconnect()
+                self._connected = False
                 logger.debug("ErrorPublisher disconnected")
             except Exception as e:
                 logger.error("ErrorPublisher: Disconnect failed - %s", e)
@@ -202,7 +211,7 @@ class ErrorPublisher:
                      context: Optional[Dict[str, Any]] = None, 
                      exception: Optional[Exception] = None):
         """
-        Publica un error a la subcola del tenant.
+        Publica un error al topic MQTT del tenant.
         
         Args:
             error_type: Tipo de error (ej: "PRINTER_ERROR", "JSON_PARSE_ERROR")
@@ -212,11 +221,11 @@ class ErrorPublisher:
         """
         if not self.tenant:
             logger.debug("ErrorPublisher: No tenant configured, skipping error publication")
-            return  # No hay tenant configurado
+            return
             
         try:
             # Reconectar si es necesario
-            if not self._is_connected:
+            if not self._connected:
                 logger.debug("ErrorPublisher: Not connected, attempting connection...")
                 if not self.connect():
                     return
@@ -245,29 +254,23 @@ class ErrorPublisher:
             logger.debug("ErrorPublisher: Publishing error - Type: %s, Context keys: %s",
                         error_type, list(context.keys()) if context else [])
             
-            # Publicar al exchange directo (para el tenant específico)
+            # Publicar al topic MQTT con QoS 1 para garantizar entrega
             with self._lock:
-                if self.channel and not self.channel.is_closed:
-                    # Publicar al exchange directo del tenant
-                    self.channel.basic_publish(
-                        exchange="fiscalberry_errors",
-                        routing_key=self.tenant,
-                        body=json.dumps(error_data, ensure_ascii=False),
-                        properties=pika.BasicProperties(
-                            delivery_mode=2,  # Hacer el mensaje persistente
-                            content_type='application/json',
-                            timestamp=int(time.time())
-                        )
+                if self.client and self._connected:
+                    result = self.client.publish(
+                        self.error_topic,
+                        json.dumps(error_data, ensure_ascii=False),
+                        qos=1  # At least once delivery
                     )
                     
-                    logger.debug("Error published to RabbitMQ - Type: %s, Tenant: %s, Queue: %s",
-                               error_type, self.tenant, self.error_queue_name)
+                    logger.debug("Error published to MQTT - Type: %s, Tenant: %s, Topic: %s, mid: %s",
+                               error_type, self.tenant, self.error_topic, result.mid)
                     
         except Exception as e:
             logger.error("ErrorPublisher: Failed to publish error - %s", e)
             logger.debug(traceback.format_exc())
             # Marcar como desconectado para forzar reconexión
-            self._is_connected = False
+            self._connected = False
 
 
 # Singleton global para el publisher de errores
@@ -297,7 +300,7 @@ def publish_error(error_type: str, error_message: str,
     Función de conveniencia para publicar errores.
     
     DESHABILITADO: Esta funcionalidad está deshabilitada para evitar 
-    delays por conexión fallida a RabbitMQ.
+    delays por conexión fallida a MQTT.
     
     Args:
         error_type: Tipo de error (ej: "PRINTER_ERROR", "JSON_PARSE_ERROR")

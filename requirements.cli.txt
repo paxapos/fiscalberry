@@ -11,8 +11,8 @@ aiohttp
 appdirs
 platformdirs
 
-# Message broker
-pika
+# Message broker (MQTT)
+paho-mqtt>=1.6.0
 
 # Windows-specific dependencies
 pywin32; sys_platform == 'win32'

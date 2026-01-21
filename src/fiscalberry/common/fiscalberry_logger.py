@@ -24,7 +24,7 @@ else:
     sioLogger = False
 
 # Silenciar logs de librerías externas
-logging.getLogger("pika").setLevel(logging.WARNING)
+logging.getLogger("paho").setLevel(logging.WARNING)
 logging.getLogger("socketio").setLevel(logging.WARNING)
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)

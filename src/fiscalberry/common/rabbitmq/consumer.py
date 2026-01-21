@@ -1,19 +1,34 @@
-import os, pika, traceback
-import queue
+"""
+MQTT Consumer para Fiscalberry.
+
+Este módulo maneja la conexión MQTT con RabbitMQ (plugin MQTT habilitado)
+para recibir comandos de impresión.
+"""
+
+import json
 import time
+import traceback
+import paho.mqtt.client as mqtt
 
 from fiscalberry.common.ComandosHandler import ComandosHandler, TraductorException
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.rabbitmq.error_publisher import publish_error
 from typing import Optional
+import queue
 
 
 class RabbitMQConsumer:
+    """
+    Consumidor MQTT para recibir comandos de impresión desde RabbitMQ.
     
-    STREAM_NAME = "paxaprinter"
+    Usa el plugin MQTT de RabbitMQ en lugar de AMQP (pika).
+    Características:
+    - clean_session=False: Sesión persistente para no perder mensajes
+    - QoS 1: ACK automático cuando on_message termina sin errores
+    - Reconexión automática
+    """
     
-    # 5GB
-    STREAM_RETENTION = 5000000000
+    MQTT_PORT_DEFAULT = 1883
     
     def __init__(
         self,
@@ -25,202 +40,199 @@ class RabbitMQConsumer:
         message_queue: Optional[queue.Queue] = None,
         vhost: str = "/"
     ) -> None:
-        self.logger = getLogger("RabbitMQ.Consumer")
+        self.logger = getLogger("MQTT.Consumer")
         
-        self.logger.debug(f"RabbitMQ Consumer: {host}:{port} queue={queue_name}")
+        # El topic es el UUID de la impresora
+        self.topic = queue_name
+        
+        self.logger.debug(f"MQTT Consumer: {host}:{port} topic={self.topic}")
         
         self.host = host
-        self.port = port
+        self.port = int(port) if port else self.MQTT_PORT_DEFAULT
         self.user = user
-        self.vhost = vhost
         self.password = password
-        self.connection = None
-        self.channel = None
-        self.queue = queue_name
         self.message_queue = message_queue
         
-        # Configuro logger según ambiente
-        environment = os.getenv('ENVIRONMENT', 'production')
-        if environment == 'development':
-            sioLogger = True
-        else:
-            sioLogger = False
-
+        # Cliente MQTT
+        self.client = None
+        self._connected = False
+        self._subscribed = False
+        self._stop_requested = False
         
-    def connect(self):
-        """Conecta al servidor RabbitMQ."""
+    def _on_connect(self, client, userdata, flags, rc):
+        """Callback cuando se conecta al broker MQTT."""
+        if rc == 0:
+            self.logger.info("MQTT conectado exitosamente")
+            self._connected = True
+            # Suscribirse al topic con QoS 1 para ACK automático
+            client.subscribe(self.topic, qos=1)
+            self.logger.info(f"Suscrito a topic: {self.topic}")
+        else:
+            error_messages = {
+                1: "Protocolo incorrecto",
+                2: "Identificador de cliente inválido",
+                3: "Servidor no disponible",
+                4: "Usuario/contraseña incorrectos",
+                5: "No autorizado"
+            }
+            error_msg = error_messages.get(rc, f"Error desconocido (código {rc})")
+            self.logger.error(f"Error de conexión MQTT: {error_msg}")
+            self._connected = False
+            
+    def _on_disconnect(self, client, userdata, rc):
+        """Callback cuando se desconecta del broker MQTT."""
+        self._connected = False
+        self._subscribed = False
+        if rc != 0:
+            self.logger.warning(f"Desconexión inesperada de MQTT (rc={rc})")
+        else:
+            self.logger.debug("MQTT desconectado correctamente")
+            
+    def _on_subscribe(self, client, userdata, mid, granted_qos):
+        """Callback cuando la suscripción es confirmada."""
+        self._subscribed = True
+        self.logger.debug(f"Suscripción confirmada (QoS: {granted_qos})")
+        
+    def _on_message(self, client, userdata, msg):
+        """
+        Callback cuando llega un mensaje MQTT.
+        
+        Con QoS 1, el ACK se envía automáticamente cuando esta función
+        termina sin errores. Si hay una excepción, el mensaje quedará
+        en la cola para reintentar.
+        """
+        start_time = time.time()
+        body_str = None
+        
         try:
-            params = pika.ConnectionParameters(
-                host=self.host, 
-                port=self.port, 
-                virtual_host=self.vhost, 
-                credentials=pika.PlainCredentials(self.user, self.password),
-                heartbeat=30,
-                blocked_connection_timeout=15,
-                socket_timeout=5,
-                connection_attempts=1,
-                retry_delay=0.5
+            # Decodificar payload
+            if isinstance(msg.payload, bytes):
+                body_str = msg.payload.decode('utf-8')
+            else:
+                body_str = msg.payload
+                
+            # Parse JSON
+            try:
+                json_data = json.loads(body_str)
+            except json.JSONDecodeError:
+                self.logger.warning("Mensaje no es JSON válido, procesando como string")
+                json_data = body_str
+                
+            # Procesar comando
+            comandoHandler = ComandosHandler()
+            result = comandoHandler.send_command(json_data)
+            
+            processing_time = time.time() - start_time
+            
+            # Verificar errores en el resultado
+            if "err" in result:
+                error_msg = result['err']
+                self.logger.error("Error ejecutando comando: %s", error_msg)
+                
+                # Publicar error
+                publish_error(
+                    error_type="COMMAND_EXECUTION_ERROR",
+                    error_message=error_msg,
+                    context={
+                        "command": json_data,
+                        "result": result,
+                        "topic": self.topic
+                    }
+                )
+                # Con QoS 1, el mensaje se marca como procesado aunque haya error
+                # porque la lógica de negocio lo procesó (no queremos reintento infinito)
+                return
+                
+            # Log solo para trabajos lentos
+            if processing_time > 1.0:
+                self.logger.warning(f"Mensaje procesado lentamente: {processing_time:.2f}s")
+                
+        except TraductorException as e:
+            self.logger.error("Error de traducción: %s", e)
+            publish_error(
+                error_type="TRANSLATOR_ERROR",
+                error_message=str(e),
+                context={
+                    "command": body_str[:500] if body_str else "",
+                    "topic": self.topic
+                },
+                exception=e
             )
             
-            self.connection = pika.BlockingConnection(params)
-            self.channel = self.connection.channel()
-            
-            # Exchange
-            try:
-                self.channel.exchange_declare(exchange=self.STREAM_NAME, passive=True)
-            except pika.exceptions.ChannelClosedByBroker:
-                self.connection = pika.BlockingConnection(params)
-                self.channel = self.connection.channel()
-                self.channel.exchange_declare(exchange=self.STREAM_NAME, exchange_type='direct', durable=True)
+        except json.JSONDecodeError as e:
+            self.logger.error("Error decodificando JSON: %s", e)
+            publish_error(
+                error_type="JSON_DECODE_ERROR",
+                error_message=f"Formato JSON inválido: {str(e)}",
+                context={
+                    "raw_body": body_str[:500] if body_str else "",
+                    "topic": self.topic
+                },
+                exception=e
+            )
             
         except Exception as e:
-            self.logger.error(f"Error RabbitMQ: {e}")
+            self.logger.error("Error procesando mensaje: %s", e)
+            publish_error(
+                error_type="PROCESSING_ERROR",
+                error_message=f"Error procesando mensaje: {str(e)}",
+                context={
+                    "raw_body": body_str[:500] if body_str else "",
+                    "topic": self.topic
+                },
+                exception=e
+            )
+    
+    def connect(self):
+        """Conecta al broker MQTT."""
+        try:
+            # Crear cliente MQTT con sesión persistente
+            self.client = mqtt.Client(
+                client_id=f"fiscalberry-{self.topic}",
+                clean_session=False,  # CRÍTICO: Sesión persistente
+                protocol=mqtt.MQTTv311
+            )
+            
+            # Configurar credenciales
+            self.client.username_pw_set(self.user, self.password)
+            
+            # Configurar callbacks
+            self.client.on_connect = self._on_connect
+            self.client.on_disconnect = self._on_disconnect
+            self.client.on_subscribe = self._on_subscribe
+            self.client.on_message = self._on_message
+            
+            # Conectar
+            self.client.connect(self.host, self.port, keepalive=60)
+            
+            self.logger.debug(f"Conectando a MQTT: {self.host}:{self.port}")
+            
+        except Exception as e:
+            self.logger.error(f"Error conectando a MQTT: {e}")
             raise
-
-        # Cola
-        try:
-            self.channel.queue_declare(queue=self.queue, passive=True)
-        except pika.exceptions.ChannelClosedByBroker:
-            self.connection = pika.BlockingConnection(params)
-            self.channel = self.connection.channel()
-            self.channel.queue_declare(queue=self.queue, durable=True)
-        
-        # Binding
-        try:
-            self.channel.queue_bind(exchange=self.STREAM_NAME, queue=self.queue, routing_key=self.queue)
-        except pika.exceptions.ChannelClosedByBroker as e:
-            self.logger.error(f"Error bind: {e}")
-            self.connection = pika.BlockingConnection(params)
-            self.channel = self.connection.channel()
-        
-        self.logger.debug(f"RabbitMQ conectado: queue={self.queue}")
-
-
+            
     def start(self):
+        """Inicia el loop de consumo de mensajes MQTT."""
         self.connect()
-
-        def callback(ch, method, properties, body):
-            start_time = time.time()
-
-            try:
-                # Parsing optimizado del mensaje
-                if isinstance(body, bytes):
-                    body_str = body.decode('utf-8')
-                else:
-                    body_str = body
-
-                # Log optimizado - solo para debug y truncado
-
-                # Parse JSON más eficiente
-                try:
-                    import json
-                    json_data = json.loads(body_str)
-                except json.JSONDecodeError:
-                    self.logger.warning("Non-JSON message, processing as string")
-                    json_data = body_str
-
-                # Procesar mensaje de forma optimizada
-                comandoHandler = ComandosHandler()
-                result = comandoHandler.send_command(json_data)
-                
-                processing_time = time.time() - start_time
-                
-                # Verificar errores y acknowledment más rápido
-                if "err" in result:
-                    error_msg = result['err']
-                    self.logger.error("Command execution failed: %s", error_msg)
-                    
-                    # Publicar error a RabbitMQ
-                    publish_error(
-                        error_type="COMMAND_EXECUTION_ERROR",
-                        error_message=error_msg,
-                        context={
-                            "command": json_data,
-                            "result": result,
-                            "queue": self.queue
-                        }
-                    )
-                    
-                    # Si es un error recuperable, podríamos reintentar o poner en una cola de espera
-                    # Por ahora, consideramos que es un error y no reconocemos el mensaje
-                    ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-                    return
-                    
-
-                # Acknowledge the message ONLY after successful processing
-                ch.basic_ack(delivery_tag=method.delivery_tag)
-                
-                # Log optimizado solo para trabajos lentos
-                if processing_time > 1.0:
-                    self.logger.warning(f"Slow message processed in {processing_time:.2f}s")
-
-            except TraductorException as e:
-                self.logger.error("Translation error: %s", e)
-                
-                # Publicar error a RabbitMQ
-                publish_error(
-                    error_type="TRANSLATOR_ERROR",
-                    error_message=str(e),
-                    context={
-                        "command": body_str[:500] if isinstance(body_str, str) else str(body)[:500],
-                        "queue": self.queue
-                    },
-                    exception=e
-                )
-                
-                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-                
-            except json.JSONDecodeError as e:
-                self.logger.error("JSON decode error: %s", e)
-                
-                # Publicar error a RabbitMQ
-                publish_error(
-                    error_type="JSON_DECODE_ERROR",
-                    error_message=f"Invalid JSON format: {str(e)}",
-                    context={
-                        "raw_body": body_str[:500] if isinstance(body_str, str) else str(body)[:500],
-                        "queue": self.queue
-                    },
-                    exception=e
-                )
-                
-                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-                
-            except Exception as e:
-                self.logger.error("Message processing error: %s", e)
-                
-                # Publicar error a RabbitMQ
-                publish_error(
-                    error_type="PROCESSING_ERROR",
-                    error_message=f"Error processing message: {str(e)}",
-                    context={
-                        "raw_body": body_str[:500] if 'body_str' in locals() else str(body)[:500],
-                        "queue": self.queue
-                    },
-                    exception=e
-                )
-                
-                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-                
-                
-                
-        # Configurar QoS para procesamiento más rápido - permitir más mensajes concurrentes
-        self.channel.basic_qos(prefetch_count=5)  # Aumentado de 1 a 5 para mayor throughput
-        self.channel.basic_consume(queue=self.queue, on_message_callback=callback, auto_ack=False)
-        self.logger.info(f"Waiting for messages in queue: {self.queue}")
-
+        
+        self.logger.info(f"Esperando mensajes en topic: {self.topic}")
+        
         try:
-            self.channel.start_consuming()
+            # Loop bloqueante - procesa mensajes hasta que se llame stop()
+            self.client.loop_forever()
         except Exception as e:
-            self.logger.error(f"Error in consumer: {e}")
+            self.logger.error(f"Error en consumer MQTT: {e}")
             self.logger.error(traceback.format_exc())
-            # Try to reconnect
             self.stop()
             raise
-
-
+            
     def stop(self):
-        """Detiene la conexión."""
-        if self.connection:
-            self.connection.close()
-
+        """Detiene la conexión MQTT."""
+        self._stop_requested = True
+        if self.client:
+            try:
+                self.client.loop_stop()
+                self.client.disconnect()
+                self.logger.debug("MQTT desconectado")
+            except Exception as e:
+                self.logger.error(f"Error desconectando MQTT: {e}")
