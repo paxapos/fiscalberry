@@ -76,27 +76,26 @@ class RabbitMQProcessHandler:
         host = self.config.get("RabbitMq", "host")
         port = self.config.get("RabbitMq", "port")
         
-        # Credenciales: primero memoria (active_credentials), luego config.ini como fallback
+        # Credenciales: primero config.ini, luego memoria (active_credentials) como fallback
         user = None
         password = None
         
-        # 1. Primero intentar desde memoria (active_credentials - vienen de SocketIO)
-        if self.active_credentials:
-            user = self.active_credentials.get('user')
-            password = self.active_credentials.get('password')
+        # 1. Primero intentar desde config.ini (tiene prioridad absoluta si está escrito)
+        user = self.config.get("RabbitMq", "user", fallback=None)
+        password = self.config.get("RabbitMq", "password", fallback=None)
         
-        # 2. Fallback: leer de config.ini si no están en memoria
-        if not user:
-            user = self.config.get("RabbitMq", "user", fallback=None)
-        if not password:
-            password = self.config.get("RabbitMq", "password", fallback=None)
+        # 2. Fallback: usar memoria (active_credentials de SocketIO) solo si config.ini está vacío
+        if (not user or not user.strip()) and self.active_credentials:
+            user = self.active_credentials.get('user')
+        if (not password or not password.strip()) and self.active_credentials:
+            password = self.active_credentials.get('password')
         
         if not user or not password:
             print("\n============================================================")
             print("[ERROR] Credenciales MQTT incompletas")
-            print("        (user o password faltante en memoria y config.ini)")
+            print("        (user o password faltante en config.ini y memoria)")
             print("============================================================\n")
-            logger.error("Credenciales MQTT incompletas (user o password faltante en memoria y config.ini)")
+            logger.error("Credenciales MQTT incompletas (user o password faltante en config.ini y memoria)")
             return
         
         queue_name = self.config.get("SERVIDOR", "uuid")
