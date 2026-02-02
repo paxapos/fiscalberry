@@ -59,6 +59,83 @@ class RabbitMQConsumer:
         self._subscribed = False
         self._stop_requested = False
         
+        # Constantes para binding AMQP
+        self.AMQP_PORT = 5672
+        self.EXCHANGE_NAME = 'paxaprinter'
+        
+    def _ensure_amqp_binding(self):
+        """
+        Crea el binding entre el exchange AMQP 'paxaprinter' y la cola MQTT.
+        
+        Este método resuelve el gap entre:
+        - Backend CakePHP que publica via AMQP al exchange 'paxaprinter'
+        - Fiscalberry que consume via MQTT
+        
+        El binding se crea usando una conexión AMQP temporal, luego
+        Fiscalberry continúa consumiendo via MQTT normalmente.
+        
+        El binding es idempotente: si ya existe, no falla.
+        """
+        try:
+            import pika
+            
+            self.logger.info("Creando binding AMQP para exchange '%s' -> topic '%s'", 
+                           self.EXCHANGE_NAME, self.topic)
+            
+            # Conectar via AMQP (puerto 5672, no MQTT 1883)
+            credentials = pika.PlainCredentials(self.user, self.password)
+            connection = pika.BlockingConnection(
+                pika.ConnectionParameters(
+                    host=self.host,
+                    port=self.AMQP_PORT,
+                    credentials=credentials,
+                    socket_timeout=10,
+                    connection_attempts=2
+                )
+            )
+            channel = connection.channel()
+            
+            # Declarar exchange (idempotente - si ya existe, no falla)
+            channel.exchange_declare(
+                exchange=self.EXCHANGE_NAME,
+                exchange_type='direct',
+                durable=True
+            )
+            
+            # Nombre de cola MQTT: RabbitMQ crea colas con este formato
+            # para clientes MQTT con clean_session=False y QoS 1
+            mqtt_queue_name = f"mqtt-subscription-fiscalberry-{self.topic}qos1"
+            
+            # Declarar cola durable (debe coincidir con la que crea MQTT)
+            channel.queue_declare(
+                queue=mqtt_queue_name,
+                durable=True
+            )
+            
+            # Crear binding: exchange -> cola con routing_key = machine_uuid
+            channel.queue_bind(
+                exchange=self.EXCHANGE_NAME,
+                queue=mqtt_queue_name,
+                routing_key=self.topic  # = machine_uuid del paxaprinter
+            )
+            
+            connection.close()
+            
+            self.logger.info("Binding AMQP creado: %s -> %s (routing_key=%s)",
+                           self.EXCHANGE_NAME, mqtt_queue_name, self.topic)
+            return True
+            
+        except ImportError:
+            self.logger.warning("pika no disponible - binding AMQP no creado. "
+                              "Asegurate que el binding existe en RabbitMQ.")
+            return False
+            
+        except Exception as e:
+            # No es fatal: el binding puede ya existir o ser creado manualmente
+            self.logger.warning("No se pudo crear binding AMQP: %s. "
+                              "Verificar que el binding existe en RabbitMQ.", e)
+            return False
+        
     def _on_connect(self, client, userdata, flags, rc):
         """Callback cuando se conecta al broker MQTT."""
         if rc == 0:
@@ -186,7 +263,12 @@ class RabbitMQConsumer:
     def connect(self):
         """Conecta al broker MQTT."""
         try:
-            # Crear cliente MQTT con sesión persistente
+            # PASO 1: Asegurar que existe el binding AMQP -> MQTT
+            # Esto crea el "puente" entre el exchange paxaprinter (AMQP)
+            # y la cola MQTT que vamos a consumir
+            self._ensure_amqp_binding()
+            
+            # PASO 2: Crear cliente MQTT con sesión persistente
             self.client = mqtt.Client(
                 client_id=f"fiscalberry-{self.topic}",
                 clean_session=False,  # CRÍTICO: Sesión persistente
@@ -202,7 +284,7 @@ class RabbitMQConsumer:
             self.client.on_subscribe = self._on_subscribe
             self.client.on_message = self._on_message
             
-            # Conectar
+            # Conectar via MQTT
             self.client.connect(self.host, self.port, keepalive=60)
             
             self.logger.debug(f"Conectando a MQTT: {self.host}:{self.port}")

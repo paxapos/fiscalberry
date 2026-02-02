@@ -12,8 +12,9 @@ aiohttp
 appdirs
 platformdirs
 
-# Message broker (MQTT)
+# Message broker (MQTT + AMQP binding)
 paho-mqtt>=1.6.0
+pika>=1.3.0  # Para crear binding AMQP inicial
 
 # Windows-specific dependencies
 pywin32; sys_platform == 'win32'
