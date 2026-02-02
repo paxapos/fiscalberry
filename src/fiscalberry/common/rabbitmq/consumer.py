@@ -95,12 +95,16 @@ class RabbitMQConsumer:
             )
             channel = connection.channel()
             
-            # Declarar exchange (idempotente - si ya existe, no falla)
-            channel.exchange_declare(
-                exchange=self.EXCHANGE_NAME,
-                exchange_type='direct',
-                durable=True
-            )
+            # Exchange 'paxaprinter' debe existir previamente en RabbitMQ.
+            # No intentamos crearlo para evitar requerir permisos de 'configure'.
+            # Esta es la misma estrategia que usa v1.0.26 correctamente.
+            # El exchange ya está configurado en el servidor RabbitMQ.
+            #
+            # channel.exchange_declare(
+            #     exchange=self.EXCHANGE_NAME,
+            #     exchange_type='direct',
+            #     durable=True
+            # )
             
             # Nombre de cola MQTT: RabbitMQ crea colas con este formato
             # para clientes MQTT con clean_session=False y QoS 1
