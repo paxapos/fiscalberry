@@ -243,15 +243,15 @@ class RabbitMQProcessHandler:
         else:
             final_config["host"] = curr_host
             
-        # PORT (ahora usa puerto MQTT por defecto: 1883)
+        # PORT - FORZADO A 1883 (MQTT) PARA v3.0.x
+        # DESARROLLO EXPRESS: Ignorar completamente el puerto del backend
         if not curr_port or not str(curr_port).strip():
-            new_port = rabbit_cfg.get("port", "1883")
-            if new_port:
-                updates["port"] = new_port
-                final_config["port"] = new_port
-            else:
-                final_config["port"] = "1883"
+            new_port = "1883"  # MQTT sin TLS (hardcoded para v3.0.x)
+            updates["port"] = new_port
+            final_config["port"] = new_port
+            logger.info("Puerto forzado a 1883 (MQTT) para v3.0.x")
         else:
+            # Si ya existe en config.ini, respetarlo (permite override manual)
             final_config["port"] = curr_port
             
         # USER - Solo memoria, NUNCA persistir a config.ini
