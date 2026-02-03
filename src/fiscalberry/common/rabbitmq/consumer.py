@@ -53,14 +53,85 @@ class RabbitMQConsumer:
         self.password = password
         self.message_queue = message_queue
         
+        
         # Cliente MQTT
         self.client = None
         self._connected = False
         self._subscribed = False
         self._stop_requested = False
+        self._binding_created = False
         
-
+        # Configuración AMQP para crear binding
+        self.AMQP_PORT = 5672
+        self.EXCHANGE_NAME = 'paxaprinter'
         
+    def _create_queue_binding(self):
+        """
+        Crea el binding entre el exchange AMQP 'paxaprinter' y la cola MQTT.
+        
+        IMPORTANTE: Este método se ejecuta DESPUÉS de que el cliente MQTT se conecta,
+        porque la cola MQTT se crea automáticamente cuando el cliente se conecta con
+        clean_session=False.
+        
+        El orden correcto es:
+        1. Cliente MQTT se conecta → RabbitMQ crea la cola automáticamente
+        2. Este método crea el binding exchange → cola
+        
+        Si este binding falla, los mensajes del backend NO llegarán a la cola.
+        Por lo tanto, este error es FATAL.
+        
+        Returns:
+            bool: True si el binding se creó exitosamente, False si falló
+        """
+        try:
+            import pika
+            
+            # Nombre de la cola que MQTT ya creó
+            mqtt_queue_name = f"mqtt-subscription-fiscalberry-{self.topic}qos1"
+            
+            self.logger.info("Creando binding AMQP: exchange '%s' → queue '%s' (routing_key='%s')", 
+                           self.EXCHANGE_NAME, mqtt_queue_name, self.topic)
+            
+            # Conectar via AMQP temporalmente solo para crear el binding
+            credentials = pika.PlainCredentials(self.user, self.password)
+            connection = pika.BlockingConnection(
+                pika.ConnectionParameters(
+                    host=self.host,
+                    port=self.AMQP_PORT,
+                    credentials=credentials,
+                    socket_timeout=10,
+                    connection_attempts=2
+                )
+            )
+            channel = connection.channel()
+            
+            # El exchange 'paxaprinter' ya existe en RabbitMQ (creado server-side)
+            # La cola MQTT ya fue creada por el cliente MQTT
+            # Solo necesitamos crear el binding entre ellos
+            
+            channel.queue_bind(
+                exchange=self.EXCHANGE_NAME,
+                queue=mqtt_queue_name,
+                routing_key=self.topic  # routing_key = UUID de la impresora
+            )
+            
+            connection.close()
+            
+            self.logger.info("✓ Binding creado exitosamente: %s → %s", 
+                           self.EXCHANGE_NAME, mqtt_queue_name)
+            self._binding_created = True
+            return True
+            
+        except ImportError:
+            self.logger.error("ERROR FATAL: pika no está instalado. No se puede crear el binding AMQP.")
+            self.logger.error("Los mensajes del backend NO llegarán a esta impresora.")
+            return False
+            
+        except Exception as e:
+            self.logger.error("ERROR FATAL creando binding AMQP: %s", e)
+            self.logger.error("Los mensajes del backend NO llegarán a esta impresora.")
+            self.logger.error("Verifica los permisos del usuario 'fiscalberry' en RabbitMQ.")
+            return False
     def _on_connect(self, client, userdata, flags, rc):
         """Callback cuando se conecta al broker MQTT."""
         if rc == 0:
@@ -91,9 +162,21 @@ class RabbitMQConsumer:
             self.logger.debug("MQTT desconectado correctamente")
             
     def _on_subscribe(self, client, userdata, mid, granted_qos):
-        """Callback cuando la suscripción es confirmada."""
+        """
+        Callback cuando la suscripción es confirmada.
+        
+        En este punto, la cola MQTT ya fue creada por RabbitMQ.
+        Ahora creamos el binding exchange → queue para que los mensajes lleguen.
+        """
         self._subscribed = True
         self.logger.debug(f"Suscripción confirmada (QoS: {granted_qos})")
+        
+        # Ahora que la cola MQTT existe, crear el binding
+        if not self._binding_created:
+            success = self._create_queue_binding()
+            if not success:
+                self.logger.error("ATENCIÓN: Fiscalberry está conectado pero NO recibirá mensajes.")
+                self.logger.error("Solución: Crear el binding manualmente en RabbitMQ o verificar permisos.")
         
     def _on_message(self, client, userdata, msg):
         """
