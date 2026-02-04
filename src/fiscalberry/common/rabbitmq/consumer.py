@@ -89,7 +89,7 @@ class RabbitMQConsumer:
             # Nombre de la cola que MQTT ya creó
             mqtt_queue_name = f"mqtt-subscription-fiscalberry-{self.topic}qos1"
             
-            self.logger.info("Creando binding AMQP: exchange '%s' → queue '%s' (routing_key='%s')", 
+            self.logger.debug("Creando binding AMQP: exchange '%s' → queue '%s' (routing_key='%s')", 
                            self.EXCHANGE_NAME, mqtt_queue_name, self.topic)
             
             # Conectar via AMQP temporalmente solo para crear el binding
@@ -117,7 +117,7 @@ class RabbitMQConsumer:
             
             connection.close()
             
-            self.logger.info("✓ Binding creado exitosamente: %s → %s", 
+            self.logger.debug("✓ Binding creado exitosamente: %s → %s", 
                            self.EXCHANGE_NAME, mqtt_queue_name)
             self._binding_created = True
             return True
@@ -135,11 +135,11 @@ class RabbitMQConsumer:
     def _on_connect(self, client, userdata, flags, rc):
         """Callback cuando se conecta al broker MQTT."""
         if rc == 0:
-            self.logger.info("MQTT conectado exitosamente")
+            self.logger.debug("MQTT conectado exitosamente")
             self._connected = True
             # Suscribirse al topic con QoS 1 para ACK automático
             client.subscribe(self.topic, qos=1)
-            self.logger.info(f"Suscrito a topic: {self.topic}")
+            self.logger.debug(f"Suscrito a topic: {self.topic}")
         else:
             error_messages = {
                 1: "Protocolo incorrecto",
