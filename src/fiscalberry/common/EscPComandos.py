@@ -85,14 +85,14 @@ class EscPComandos():
     printer = None
 
     # Columnas por defecto según ancho de papel:
-    # 58mm = 32 columnas
-    # 80mm = 48 columnas (default)
-    DEFAULT_COLUMNS = 48
+    # 58mm = 32 columnas (formato compacto)
+    # 80mm = 40 columnas (valores originales v1.0.26)
+    DEFAULT_COLUMNS = 40
 
     def __init__(self, printer, columns=None):
         self.printer = printer
         
-        # Usar columns del parámetro, o default 48 (80mm)
+        # Usar columns del parámetro, o default 40 (80mm según v1.0.26)
         self.total_cols = int(columns) if columns else self.DEFAULT_COLUMNS
         
         # Log informativo cuando se usa columns personalizado
@@ -100,12 +100,14 @@ class EscPComandos():
             logger.debug(f"Usando tamaño de {self.total_cols} caracteres (papel {'58mm' if self.total_cols <= 32 else '80mm'})")
         
         # Calcular proporciones de columnas según el total
-        # Para 48 cols: price=12, cant=6, desc=30
-        # Para 32 cols: price=10, cant=4, desc=18
+        # Para 40 cols (80mm v1.0.26): price=12, cant=6, desc=22
+        # Para 32 cols (58mm compacto): price=10, cant=4, desc=18
         if self.total_cols <= 32:
+            # Configuración compacta para 58mm
             self.price_cols = 10
             self.cant_cols = 4
         else:
+            # Configuración original v1.0.26 para 80mm
             self.price_cols = 12
             self.cant_cols = 6
         
