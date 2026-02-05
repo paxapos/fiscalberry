@@ -28,6 +28,13 @@ class RabbitMQProcessHandler:
         """
         with cls._lock:
             if cls._instance:
+                # Limpiar consumer activo antes de reset
+                if hasattr(cls._instance, '_current_consumer') and cls._instance._current_consumer:
+                    try:
+                        cls._instance._current_consumer.stop()
+                    except Exception:
+                        pass
+                    cls._instance._current_consumer = None
                 # Limpiar stop_event si existe
                 if hasattr(cls._instance, '_stop_event'):
                     cls._instance._stop_event.clear()
@@ -36,6 +43,9 @@ class RabbitMQProcessHandler:
                 # Limpiar referencias a threads muertos
                 if hasattr(cls._instance, '_thread'):
                     cls._instance._thread = None
+                # Limpiar credenciales en memoria
+                if hasattr(cls._instance, 'active_credentials'):
+                    cls._instance.active_credentials = None
 
     def __init__(self):
         if self._initialized:
@@ -45,6 +55,9 @@ class RabbitMQProcessHandler:
         self.config = Configberry()
         # Credenciales activas del MQTT Consumer
         self.active_credentials = None
+        # Referencia al consumer activo para poder detenerlo
+        self._current_consumer = None
+        self._consumer_lock = threading.Lock()
         self._initialized = True
 
     def get_active_rabbitmq_credentials(self):
@@ -65,12 +78,24 @@ class RabbitMQProcessHandler:
         """
         Arranca el consumidor MQTT en un hilo daemon (no bloqueante).
         
+        Garantiza limpieza del thread/consumer anterior antes de crear uno nuevo.
+        
         NOTA: user y password vienen de active_credentials (memoria),
         no de config.ini, por seguridad.
         """
+        # Verificar si hay un thread activo
         if self._thread and self._thread.is_alive():
-            logger.warning("MQTT thread ya en ejecución.")
-            return
+            logger.warning("MQTT thread ya en ejecución. Esperando que termine...")
+            # Dar una oportunidad de terminar limpiamente
+            self._stop_event.set()
+            self._cleanup_current_consumer()
+            self._thread.join(timeout=3)
+            if self._thread.is_alive():
+                logger.warning("MQTT thread no terminó a tiempo, forzando continuación")
+        
+        # Limpiar cualquier consumer zombie
+        self._cleanup_current_consumer()
+        self._thread = None
 
         # host/port de config
         host = self.config.get("RabbitMq", "host")
@@ -129,20 +154,38 @@ class RabbitMQProcessHandler:
             return False
 
     def _run_consumer(self, host, port, user, password, queue_name, message_queue):
-        """Loop de conexión/reconexión al broker MQTT con backoff exponencial."""
+        """
+        Loop de conexión/reconexión al broker MQTT con backoff exponencial.
+        
+        Maneja múltiples tipos de errores de red de forma robusta:
+        - DNS: socket.gaierror
+        - Conexión rechazada: ConnectionRefusedError
+        - Timeout: socket.timeout, TimeoutError
+        - Red inalcanzable: OSError (varios códigos)
+        - Errores MQTT específicos
+        """
         retry_count = 0
         max_retries_before_backoff = 3
         base_delay = 5  # segundos
         max_delay = 300  # 5 minutos máximo
+        consecutive_errors = 0
         
         while not self._stop_event.is_set():
             try:
                 # Verificar conectividad básica antes de intentar conexión MQTT
                 if not self._check_network_connectivity(host, int(port)):
                     retry_count += 1
-                    logger.warning(f"Conectividad de red falló para {host}:{port}")
+                    consecutive_errors += 1
+                    if consecutive_errors <= 3:
+                        logger.warning(f"Conectividad de red falló para {host}:{port}")
+                    elif consecutive_errors % 10 == 0:
+                        # Reducir spam de logs después de muchos errores
+                        logger.warning(f"Sin conectividad a {host}:{port} ({consecutive_errors} intentos)")
                     self._handle_retry(retry_count, max_retries_before_backoff, base_delay, max_delay)
                     continue
+                
+                # Limpiar consumer anterior si existe (importante para evitar "fantasmas")
+                self._cleanup_current_consumer()
                 
                 consumer = RabbitMQConsumer(
                     host=host,
@@ -152,32 +195,81 @@ class RabbitMQProcessHandler:
                     queue_name=queue_name,
                     message_queue=message_queue
                 )
+                
+                # Guardar referencia al consumer para poder detenerlo desde stop()
+                with self._consumer_lock:
+                    self._current_consumer = consumer
+                
+                # Resetear contadores al intentar conexión
+                if consecutive_errors > 0:
+                    logger.info(f"Conectividad restaurada después de {consecutive_errors} errores")
+                consecutive_errors = 0
+                
                 consumer.start()
-                # Si llegamos aquí, la conexión fue exitosa, resetear contador
+                
+                # Si llegamos aquí sin excepción, consumer.start() retornó normalmente
+                # (desconexión controlada o timeout de reconexión)
                 retry_count = 0
-                logger.debug("Conexión MQTT establecida exitosamente")
-                # consumer.start() sólo retorna al desconectarse o error.
+                logger.debug("Consumer MQTT terminó, reintentando conexión...")
+                
             except socket.gaierror as ex:
                 retry_count += 1
-                logger.error(f"Error de resolución DNS para '{host}': {ex}")
-                logger.error("Posibles soluciones:")
-                logger.error("1. Verificar que el hostname esté configurado correctamente")
-                logger.error("2. Verificar conectividad de red")
-                logger.error("3. Verificar que el broker MQTT esté ejecutándose")
-                logger.error("4. Considerar usar una IP directa en lugar del hostname")
+                consecutive_errors += 1
+                if consecutive_errors <= 3:
+                    logger.error(f"Error de resolución DNS para '{host}': {ex}")
+                    logger.error("Verificar hostname o usar IP directa")
                 self._handle_retry(retry_count, max_retries_before_backoff, base_delay, max_delay)
-            except ConnectionError as ex:
+                
+            except ConnectionRefusedError as ex:
                 retry_count += 1
-                logger.error(f"Error de conexión de red a {host}:{port}: {ex}")
-                logger.error("Verificar conectividad de red y que el puerto esté abierto")
+                consecutive_errors += 1
+                if consecutive_errors <= 3:
+                    logger.error(f"Conexión rechazada por {host}:{port}: {ex}")
+                    logger.error("Verificar que el broker MQTT esté ejecutándose y el puerto correcto")
                 self._handle_retry(retry_count, max_retries_before_backoff, base_delay, max_delay)
+                
+            except (socket.timeout, TimeoutError) as ex:
+                retry_count += 1
+                consecutive_errors += 1
+                if consecutive_errors <= 3:
+                    logger.error(f"Timeout conectando a {host}:{port}: {ex}")
+                self._handle_retry(retry_count, max_retries_before_backoff, base_delay, max_delay)
+                
+            except OSError as ex:
+                # Manejar errores de red específicos
+                retry_count += 1
+                consecutive_errors += 1
+                error_codes = {
+                    101: "Red inalcanzable",
+                    111: "Conexión rechazada",
+                    113: "Host inalcanzable",
+                    110: "Timeout de conexión",
+                }
+                error_desc = error_codes.get(ex.errno, f"Error de sistema ({ex.errno})")
+                if consecutive_errors <= 3:
+                    logger.error(f"{error_desc} para {host}:{port}: {ex}")
+                self._handle_retry(retry_count, max_retries_before_backoff, base_delay, max_delay)
+                
             except Exception as ex:
                 retry_count += 1
+                consecutive_errors += 1
                 logger.error(f"Error inesperado en MQTT Consumer: {ex}", exc_info=True)
                 self._handle_retry(retry_count, max_retries_before_backoff, base_delay, max_delay)
                 
         logger.info("Salida del bucle de RabbitMQProcessHandler.")
     
+    def _cleanup_current_consumer(self):
+        """Limpia el consumer actual si existe."""
+        with self._consumer_lock:
+            if self._current_consumer:
+                try:
+                    self._current_consumer.stop()
+                    logger.debug("Consumer anterior limpiado correctamente")
+                except Exception as e:
+                    logger.debug(f"Error limpiando consumer anterior: {e}")
+                finally:
+                    self._current_consumer = None
+
     def _handle_retry(self, retry_count, max_retries_before_backoff, base_delay, max_delay):
         """Maneja la lógica de reintento con backoff exponencial."""
         if self._stop_event.is_set():
@@ -197,11 +289,15 @@ class RabbitMQProcessHandler:
                 break
             time.sleep(1)
 
-    def stop(self, timeout: float = 1):
+    def stop(self, timeout: float = 5):
         """Detiene el hilo y espera su finalización."""
         if self._thread and self._thread.is_alive():
             logger.debug("Deteniendo MQTT Consumer...")
             self._stop_event.set()
+            
+            # Detener el consumer activo primero (esto desbloquea el thread)
+            self._cleanup_current_consumer()
+            
             self._thread.join(timeout)
             if self._thread.is_alive():
                 logger.warning("MQTT Consumer no se detuvo a tiempo.")
