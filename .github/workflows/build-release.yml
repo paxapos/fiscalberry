@@ -41,12 +41,15 @@ jobs:
           pip install pyinstaller
 
       - name: Build Linux GUI
+        env:
+          KIVY_NO_CONSOLELOG: 1
+          KIVY_NO_ARGS: 1
         run: |
-          PYTHONPATH=src pyinstaller fiscalberry-gui.spec
+          PYTHONPATH=src xvfb-run -a pyinstaller fiscalberry-gui.spec
 
       - name: Build Linux CLI
         run: |
-          PYTHONPATH=src pyinstaller fiscalberry-cli.spec
+          PYTHONPATH=src xvfb-run -a pyinstaller fiscalberry-cli.spec
 
       - name: Package Linux Binaries
         run: |
@@ -172,7 +175,6 @@ jobs:
             zlib1g-dev \
             libncurses5-dev \
             libncursesw5-dev \
-            libtinfo5 \
             cmake \
             libffi-dev \
             libssl-dev \
