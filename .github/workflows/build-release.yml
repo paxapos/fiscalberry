@@ -208,7 +208,7 @@ jobs:
 
       - name: Build Android APK
         run: |
-          buildozer -c buildozer.ui.android.spec android debug
+          buildozer -v android debug -c buildozer.ui.android.spec
 
       - name: Find and rename APK
         id: find_apk
