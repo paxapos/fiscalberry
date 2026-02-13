@@ -104,6 +104,14 @@ jobs:
           $env:PYTHONPATH="src"
           pyinstaller fiscalberry-cli.spec
 
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y
+
+      - name: Create Windows Installer with Inno Setup
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+
       - name: Package Windows Binaries
         run: |
           cd dist
@@ -121,6 +129,12 @@ jobs:
         with:
           name: fiscalberry-windows-cli
           path: dist/fiscalberry-windows-cli.zip
+
+      - name: Upload Windows Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: fiscalberry-windows-installer
+          path: installer/fiscalberry-*-setup.exe
 
   # ============================================
   # ANDROID GUI BUILD (con caché y signing)
@@ -247,6 +261,12 @@ jobs:
           name: fiscalberry-android-gui
           path: ./artifacts/
 
+      - name: Download Windows Installer
+        uses: actions/download-artifact@v4
+        with:
+          name: fiscalberry-windows-installer
+          path: ./artifacts/
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -255,6 +275,7 @@ jobs:
             ./artifacts/fiscalberry-linux-cli.tar.gz
             ./artifacts/fiscalberry-windows-gui.zip
             ./artifacts/fiscalberry-windows-cli.zip
+            ./artifacts/fiscalberry-*-setup.exe
             ./artifacts/fiscalberry-android-gui.apk
           draft: false
           prerelease: false
