@@ -533,7 +533,10 @@ class EscPComandos():
 
         # 6- DETALLE IVAS (INSCRIPTO)
         # si tiene el array de ivas tiene items, se detallan los IVAs
-        if ivas:
+        # SOLO para Factura A y M (Inscriptos) - Para B se usa Transparencia Fiscal
+        es_inscripto = tipoComprobante in tiposInscriptoString or tipoCmp in tiposInscriptoCod
+        
+        if ivas and es_inscripto:
             dsTotal = pad("SUBTOTAL:", self.desc_cols_ext - 1, " ", "l")
             importeTotal = pad(f"{round(float(total),2):,.2f}",self.price_cols, " ", "r")
             escpos.writelines(f'{dsTotal}{self.signo}{importeTotal}', bold=True, align='left', height=2, width=2)
@@ -560,10 +563,10 @@ class EscPComandos():
         printer.ln();
 
         # 8- TRANSPARENCIA FISCAL AL CONSUMIDOR (Ley 27.743)
-        # Solo para facturas A, M y B (no C)
-        # Códigos: A=001, B=006, M=051 (excluye C=011)
-        tiposTransparenciaString = ["Factura A", "Factura B", "Factura M", "Factura \"A\"", "Factura \"B\"", "Factura \"M\""]
-        tiposTransparenciaCod = ["001", "006", "051"]
+        # Solo para facturas B (no A, M ni C)
+        # Códigos: B=006 (excluye A=001, M=051, C=011)
+        tiposTransparenciaString = ["Factura B", "Factura \"B\""]
+        tiposTransparenciaCod = ["006"]
         if tipoComprobante in tiposTransparenciaString or tipoCmp in tiposTransparenciaCod:
             otros_impuestos = kwargs.get("otros_impuestos", 0)
             self._printTransparenciaFiscal(escpos, encabezado, ivas, otros_impuestos)
