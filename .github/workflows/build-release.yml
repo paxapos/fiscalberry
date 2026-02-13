@@ -98,11 +98,19 @@ jobs:
           pip install pyinstaller
 
       - name: Build Windows GUI
+        env:
+          KIVY_NO_CONSOLELOG: 1
+          KIVY_NO_ARGS: 1
+          KIVY_GL_BACKEND: mock
         run: |
           $env:PYTHONPATH="src"
           pyinstaller fiscalberry-gui.spec
 
       - name: Build Windows CLI
+        env:
+          KIVY_NO_CONSOLELOG: 1
+          KIVY_NO_ARGS: 1
+          KIVY_GL_BACKEND: mock
         run: |
           $env:PYTHONPATH="src"
           pyinstaller fiscalberry-cli.spec
@@ -200,7 +208,7 @@ jobs:
 
       - name: Build Android APK
         run: |
-          buildozer android debug -s buildozer.ui.android.spec
+          buildozer -c buildozer.ui.android.spec android debug
 
       - name: Find and rename APK
         id: find_apk
