@@ -40,7 +40,9 @@ class LogScreen(Screen):
 
     def update_logs(self, dt):
         """Lee el archivo de logs y actualiza la propiedad `logs`."""
-        self.logFilePath = getLogFilePath()
+        # DEFENSIVE: StringProperty no acepta None, convertir a string vacío
+        log_path = getLogFilePath()
+        self.logFilePath = log_path if log_path else ""
         
         # Si no hay archivo de log configurado, mostrar mensaje
         if not self.logFilePath:
