@@ -41,8 +41,39 @@ def getLogger(name=None):
 
 def getLogFilePath():
     """
-    Devuelve la ruta del archivo de log.
-    Nota: En esta versión simplificada no hay archivo de log,
-    pero mantenemos la función para compatibilidad con la GUI.
+    Devuelve la ruta del archivo de log actual de Kivy.
+    
+    Kivy genera automáticamente logs en ~/.kivy/logs/kivy_*.txt
+    Esta función retorna el archivo de log más reciente.
     """
-    return None
+    try:
+        # Intentar obtener la ruta del log desde Kivy Logger
+        # Importamos aquí para evitar dependencia dura si no se usa GUI
+        from kivy.logger import Logger as KivyLogger
+        
+        # Kivy guarda la ruta del log actual en Logger.logfile
+        if hasattr(KivyLogger, 'logfile') and KivyLogger.logfile:
+            return KivyLogger.logfile
+            
+        # Fallback: buscar el archivo más reciente en ~/.kivy/logs/
+        # Esto sirve si Kivy aún no inicializó completamente el Logger
+        import glob
+        import os
+        
+        kivy_log_dir = os.path.expanduser("~/.kivy/logs")
+        
+        if not os.path.exists(kivy_log_dir):
+            return None
+        
+        log_files = glob.glob(os.path.join(kivy_log_dir, "kivy_*.txt"))
+        if not log_files:
+            return None
+        
+        # Retornar el archivo más reciente
+        latest_log = max(log_files, key=os.path.getmtime)
+        return latest_log
+        
+    except Exception as e:
+        # Si falla (ej: no instalado kivy), retornamos None
+        # El caller (GUI) debe manejar el None
+        return None
