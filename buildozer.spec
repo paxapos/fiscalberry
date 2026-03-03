@@ -55,7 +55,7 @@ version.filename = %(source.dir)s/fiscalberry/version.py
 # NOTA: SQLite3 viene integrado con python3, no se especifica separadamente
 
 # GUI MODE (default) - CON Kivy:
-requirements = hostpython3,python3,kivy,python-escpos,python-barcode,appdirs,argcomplete,importlib-resources,pyyaml,setuptools,six,qrcode,pillow,pyserial,pyusb,python-socketio[client],python-engineio,bidict,simple-websocket,wsproto,h11,requests,urllib3,certifi,idna,chardet,platformdirs,pyjnius,pika,filetype
+requirements = hostpython3,python3,kivy,python-escpos,python-barcode,appdirs,argcomplete,importlib-resources,pyyaml,setuptools,six,qrcode,pillow,pyserial,pyusb,python-socketio[client],python-engineio,bidict,simple-websocket,wsproto,h11,requests,urllib3,certifi,idna,chardet,platformdirs,pyjnius,pika,filetype,paho-mqtt
 
 # CLI MODE - SIN Kivy (descomentar y comentar línea arriba):
 # APK resultante: ~12-15 MB vs ~49 MB (GUI)
