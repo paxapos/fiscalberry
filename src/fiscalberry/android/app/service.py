@@ -15,6 +15,13 @@ import sys
 from fiscalberry.common.fiscalberry_logger import getLogger
 logger = getLogger("AndroidService")
 
+# UDS Log Emitter — canal IPC exclusivo Android (no afecta desktop)
+try:
+    from fiscalberry.android.uds_log_emitter import init_emitter, close_emitter, attach_to_root_logger
+    _UDS_AVAILABLE = True
+except ImportError:
+    _UDS_AVAILABLE = False
+
 from fiscalberry.common.service_controller import ServiceController
 from fiscalberry.common.Configberry import Configberry
 
@@ -202,7 +209,14 @@ service_controller = None
 def run_service_logic():
     """Lógica principal del servicio en segundo plano."""
     global service_controller
-    
+
+    # Inicializar UDS Log Emitter ANTES de cualquier log,
+    # para que todos los mensajes de esta sesión lleguen a la UI
+    if _UDS_AVAILABLE:
+        if init_emitter():
+            attach_to_root_logger()
+            logger.debug("[UDS] Canal de logs UI↔Servicio activo")
+
     logger.info("=== Iniciando Fiscalberry Android Service ===")
     logger.debug(f"API Level: {ANDROID_API_LEVEL}")
     
@@ -252,6 +266,11 @@ def run_service_logic():
                 logger.error(f"Error al detener: {e}")
         
         release_hardware_locks()
+
+        # Cerrar el canal UDS limpiamente
+        if _UDS_AVAILABLE:
+            close_emitter()
+
         logger.info("=== Finalizando Fiscalberry Android Service ===")
 
 
