@@ -226,40 +226,12 @@ class EscPComandos():
             raise ValueError("No bytes provided to print")
         
 
-    def openDrawer(self, escpos: EscposIO, *args, **kwargs):
+    def openDrawer(self, escpos: EscposIO, **kwargs):
         """
         Abre el cajón de dinero.
-        Acepta argumentos adicionales para compatibilidad con diferentes formatos de llamada.
+        Implementación idéntica a v1.0.26 (testeada y estable).
         """
-        try:
-            # Intenta abrir el cajón con el comando estándar
-            escpos.printer.cashdraw(CD_KICK_2)
-            return {"status": "success", "message": "Cajón abierto correctamente"}
-        except Exception as e:
-            # Si falla, intenta con comandos alternativos
-            try:
-                # Comando alternativo para impresoras que requieren secuencia diferente
-                escpos.printer.control("\x1b\x70\x00\x19\x19")
-                return {"status": "success", "message": "Cajón abierto con comando alternativo"}
-            except Exception as e2:
-                error_msg = f"Error al abrir cajón: {e}, comando alternativo falló: {e2}"
-                logger.error(error_msg)
-                
-                # Publicar error de cajón a RabbitMQ
-                try:
-                    publish_error(
-                        error_type="CASH_DRAWER_ERROR",
-                        error_message=error_msg,
-                        context={
-                            "primary_error": str(e),
-                            "secondary_error": str(e2),
-                            "exception_types": [type(e).__name__, type(e2).__name__]
-                        }
-                    )
-                except Exception as publish_err:
-                    logger.error(f"Error publicando error de cajón a RabbitMQ: {publish_err}")
-                
-                return {"status": "error", "message": error_msg}
+        escpos.printer.cashdraw(CD_KICK_2)
 
 
     def printPedido(self, escpos: EscposIO, **kwargs):
