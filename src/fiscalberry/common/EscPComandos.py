@@ -129,6 +129,9 @@ class EscPComandos():
                     if fnAction:
                         params = jsonTicket[action]
 
+                        if action == "openDrawer":
+                            logger.info("Comando openDrawer recibido en Fiscalberry")
+
                         try:
                             if isinstance(params, list):
                                 res = fnAction(escpos, *params)
