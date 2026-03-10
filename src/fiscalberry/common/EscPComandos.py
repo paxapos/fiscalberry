@@ -232,11 +232,36 @@ class EscPComandos():
     def openDrawer(self, escpos: EscposIO, *args, **kwargs):
         """
         Abre el cajón de dinero.
-        NOTA: *args es necesario porque run() despacha con fnAction(escpos, params) 
+        NOTA: *args es necesario porque run() despacha con fnAction(escpos, params)
         cuando params no es list ni dict (ej: {"openDrawer": true} → params=True).
         Sin *args, True se convierte en argumento posicional extra → TypeError.
         """
-        escpos.printer.cashdraw(CD_KICK_2)
+        try:
+            escpos.printer.cashdraw(CD_KICK_2)
+            return {"status": "success", "message": "Cajón abierto correctamente"}
+        except Exception as e:
+            # Fallback: comando ESC/POS directo para impresoras que requieren secuencia diferente
+            try:
+                escpos.printer.control("\x1b\x70\x00\x19\x19")
+                return {"status": "success", "message": "Cajón abierto con comando alternativo"}
+            except Exception as e2:
+                error_msg = f"Error al abrir cajón: {e}, comando alternativo falló: {e2}"
+                logger.error(error_msg)
+
+                try:
+                    publish_error(
+                        error_type="CASH_DRAWER_ERROR",
+                        error_message=error_msg,
+                        context={
+                            "primary_error": str(e),
+                            "secondary_error": str(e2),
+                            "exception_types": [type(e).__name__, type(e2).__name__]
+                        }
+                    )
+                except Exception as publish_err:
+                    logger.error(f"Error publicando error de cajón a RabbitMQ: {publish_err}")
+
+                return {"status": "error", "message": error_msg}
 
 
     def printPedido(self, escpos: EscposIO, **kwargs):
