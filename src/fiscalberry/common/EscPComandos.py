@@ -226,10 +226,12 @@ class EscPComandos():
             raise ValueError("No bytes provided to print")
         
 
-    def openDrawer(self, escpos: EscposIO, **kwargs):
+    def openDrawer(self, escpos: EscposIO, *args, **kwargs):
         """
         Abre el cajón de dinero.
-        Implementación idéntica a v1.0.26 (testeada y estable).
+        NOTA: *args es necesario porque run() despacha con fnAction(escpos, params) 
+        cuando params no es list ni dict (ej: {"openDrawer": true} → params=True).
+        Sin *args, True se convierte en argumento posicional extra → TypeError.
         """
         escpos.printer.cashdraw(CD_KICK_2)
 
