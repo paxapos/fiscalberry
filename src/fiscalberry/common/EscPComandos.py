@@ -229,22 +229,8 @@ class EscPComandos():
             raise ValueError("No bytes provided to print")
         
 
-    def openDrawer(self, escpos: EscposIO, *args, **kwargs):
-        """
-        Abre el cajón de dinero electrónico.
-
-        El frontend paxapos envía {"openDrawer": true, "printerName": "..."}.
-        run() despacha fnAction(escpos, True) → *args absorbe el bool posicional.
-
-        cashdraw(2): API correcta de python-escpos v3.x (entero 2 o 5).
-        NO usar cashdraw(CD_KICK_2): CD_KICK_2 son bytes → va al else-branch
-        de cashdraw() → CashDrawerError.
-        """
-        try:
-            escpos.printer.cashdraw(2)
-        except Exception:
-            # Fallback: enviar bytes ESC/POS directamente
-            escpos.printer._raw(CD_KICK_2)
+    def openDrawer(self, escpos: EscposIO, **kwargs):
+        escpos.printer.cashdraw(CD_KICK_2)
 
 
     def printPedido(self, escpos: EscposIO, **kwargs):
