@@ -130,7 +130,8 @@ class EscPComandos():
                         params = jsonTicket[action]
 
                         if action == "openDrawer":
-                            logger.info("Comando openDrawer recibido en Fiscalberry")
+                            # LOG 1: JSON completo que llega a fiscalberry
+                            logger.info("[CAJON] JSON recibido en fiscalberry: %s" % jsonTicket)
 
                         try:
                             if isinstance(params, list):
@@ -140,8 +141,14 @@ class EscPComandos():
                             else:
                                 res = fnAction(escpos, params)
 
+                            # LOG 3: El JSON se convirtio en comando correctamente
+                            if action == "openDrawer":
+                                logger.info("[CAJON] openDrawer ejecutado correctamente. Resultado: %s" % res)
                             rta.append({"action": action, "rta": res})
                         except Exception as e:
+                            # LOG 2: Donde se produce el error
+                            if action == "openDrawer":
+                                logger.error("[CAJON] ERROR al ejecutar openDrawer. Tipo: %s | Detalle: %s" % (type(e).__name__, e))
                             logger.error(f"Error '{action}': {e}")
                             
                             try:
