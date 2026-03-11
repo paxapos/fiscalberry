@@ -231,37 +231,60 @@ class EscPComandos():
 
     def openDrawer(self, escpos: EscposIO, *args, **kwargs):
         """
-        Abre el cajón de dinero.
-        NOTA: *args es necesario porque run() despacha con fnAction(escpos, params)
-        cuando params no es list ni dict (ej: {"openDrawer": true} → params=True).
-        Sin *args, True se convierte en argumento posicional extra → TypeError.
+        Abre el cajón de dinero electrónico mediante pulso ESC/POS.
+
+        NOTAS DE COMPATIBILIDAD:
+        - *args es obligatorio: run() llama fnAction(escpos, params) cuando params
+          no es list ni dict (ej: {"openDrawer": true} → params=True). Sin *args
+          ese argumento posicional extra genera TypeError.
+        - Primero intenta cashdraw(2) que es la API correcta en python-escpos v3.x.
+          (CD_KICK_2 es bytes, el método espera el entero 2 ó 5).
+        - Fallback 1: _raw(CD_KICK_2) — envía bytes crudos directamente.
+        - Fallback 2: _raw con timing extendido, útil en impresoras lentas.
+        - control() NO es válido aquí: es para LF/CR/TAB, no para cajón.
         """
         try:
-            escpos.printer.cashdraw(CD_KICK_2)
+            # API correcta v3.x: pasar entero 2 (pin 2)
+            escpos.printer.cashdraw(2)
             return {"status": "success", "message": "Cajón abierto correctamente"}
         except Exception as e:
-            # Fallback: comando ESC/POS directo para impresoras que requieren secuencia diferente
+            # Fallback 1: enviar bytes ESC/POS crudos del pin 2
             try:
-                escpos.printer.control("\x1b\x70\x00\x19\x19")
-                return {"status": "success", "message": "Cajón abierto con comando alternativo"}
+                escpos.printer._raw(CD_KICK_2)
+                return {"status": "success", "message": "Cajón abierto con _raw(CD_KICK_2)"}
             except Exception as e2:
-                error_msg = f"Error al abrir cajón: {e}, comando alternativo falló: {e2}"
-                logger.error(error_msg)
-
+                # Fallback 2: bytes con timing extendido (250ms) para impresoras lentas
                 try:
-                    publish_error(
-                        error_type="CASH_DRAWER_ERROR",
-                        error_message=error_msg,
-                        context={
-                            "primary_error": str(e),
-                            "secondary_error": str(e2),
-                            "exception_types": [type(e).__name__, type(e2).__name__]
-                        }
+                    escpos.printer._raw(b"\x1b\x70\x00\x19\xfa")
+                    return {"status": "success", "message": "Cajón abierto con pulso extendido"}
+                except Exception as e3:
+                    error_msg = (
+                        f"Error abriendo cajón — "
+                        f"cashdraw(2): {e} | "
+                        f"_raw(CD_KICK_2): {e2} | "
+                        f"_raw(extendido): {e3}"
                     )
-                except Exception as publish_err:
-                    logger.error(f"Error publicando error de cajón a RabbitMQ: {publish_err}")
+                    logger.error(error_msg)
 
-                return {"status": "error", "message": error_msg}
+                    try:
+                        publish_error(
+                            error_type="CASH_DRAWER_ERROR",
+                            error_message=error_msg,
+                            context={
+                                "cashdraw_error": str(e),
+                                "raw_kick2_error": str(e2),
+                                "raw_extended_error": str(e3),
+                                "exception_types": [
+                                    type(e).__name__,
+                                    type(e2).__name__,
+                                    type(e3).__name__,
+                                ]
+                            }
+                        )
+                    except Exception as publish_err:
+                        logger.error(f"Error publicando error de cajón a RabbitMQ: {publish_err}")
+
+                    return {"status": "error", "message": error_msg}
 
 
     def printPedido(self, escpos: EscposIO, **kwargs):

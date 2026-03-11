@@ -6,7 +6,14 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[('./capabilities.json', 'escpos')],
-    hiddenimports=[],
+    hiddenimports=[
+        # Windows: driver Win32Raw requiere win32print para enviar bytes crudos
+        # Si falta, cashdraw() falla silenciosamente en el binario PyInstaller
+        'win32print',
+        'win32api',
+        'win32con',
+        'pywintypes',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
