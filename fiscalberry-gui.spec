@@ -1,5 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
-from kivy_deps import sdl2, glew
+import sys
+
+# Dependencias exclusivas de Windows (SDL2, GLEW)
+kivy_deps_trees = []
+if sys.platform == 'win32':
+    from kivy_deps import sdl2, glew
+    kivy_deps_trees = [Tree(p) for p in (sdl2.dep_bins + glew.dep_bins)]
 
 a = Analysis(
     ['src/fiscalberry/desktop/main.py'],
@@ -38,7 +44,7 @@ exe = EXE(
     a.scripts,
     a.binaries,
     a.datas,
-    *[Tree(p) for p in (sdl2.dep_bins + glew.dep_bins)],
+    *kivy_deps_trees,
     [],
     name='fiscalberry-gui',
     debug=False,
