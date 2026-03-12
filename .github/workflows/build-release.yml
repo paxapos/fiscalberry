@@ -45,11 +45,11 @@ jobs:
           KIVY_NO_CONSOLELOG: 1
           KIVY_NO_ARGS: 1
         run: |
-          PYTHONPATH=src xvfb-run -a pyinstaller fiscalberry-gui.spec
+          PYTHONPATH=src xvfb-run -a pyinstaller --clean -y fiscalberry-gui.spec
 
       - name: Build Linux CLI
         run: |
-          PYTHONPATH=src xvfb-run -a pyinstaller fiscalberry-cli.spec
+          PYTHONPATH=src xvfb-run -a pyinstaller --clean -y fiscalberry-cli.spec
 
       - name: Package Linux Binaries
         run: |
@@ -104,7 +104,7 @@ jobs:
           KIVY_GL_BACKEND: mock
         run: |
           $env:PYTHONPATH="src"
-          pyinstaller fiscalberry-gui.spec
+          pyinstaller --clean -y fiscalberry-gui.spec
 
       - name: Build Windows CLI
         env:
@@ -113,7 +113,7 @@ jobs:
           KIVY_GL_BACKEND: mock
         run: |
           $env:PYTHONPATH="src"
-          pyinstaller fiscalberry-cli.spec
+          pyinstaller --clean -y fiscalberry-cli.spec
 
       - name: Package Windows Binaries
         run: |
