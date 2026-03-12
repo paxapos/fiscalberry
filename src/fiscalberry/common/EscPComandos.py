@@ -236,7 +236,7 @@ class EscPComandos():
             raise ValueError("No bytes provided to print")
         
 
-    def openDrawer(self, escpos: EscposIO, **kwargs):
+    def openDrawer(self, escpos: EscposIO, params=None, **kwargs):
         escpos.printer.cashdraw(CD_KICK_2)
 
 

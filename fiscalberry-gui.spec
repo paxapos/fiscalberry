@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-
+from kivy_deps import sdl2, glew
 
 a = Analysis(
     ['src/fiscalberry/desktop/main.py'],
@@ -18,6 +18,11 @@ a = Analysis(
         'win32api',
         'win32con',
         'pywintypes',
+        'pkg_resources.py2_warn',
+        'fiscalberry.ui.fiscalberry_app',
+        'fiscalberry.common.Configberry',
+        'fiscalberry.common.fiscalberry_logger',
+        'pywin32',
     ],
     hookspath=[],
     hooksconfig={},
@@ -33,6 +38,7 @@ exe = EXE(
     a.scripts,
     a.binaries,
     a.datas,
+    *[Tree(p) for p in (sdl2.dep_bins + glew.dep_bins)],
     [],
     name='fiscalberry-gui',
     debug=False,
