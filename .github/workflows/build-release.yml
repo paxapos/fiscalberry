@@ -56,7 +56,7 @@ jobs:
   # ============================================
   build-linux:
     needs: version
-    if: needs.version.outputs.exists == 'false'
+    if: needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -120,7 +120,7 @@ jobs:
   # ============================================
   build-windows:
     needs: version
-    if: needs.version.outputs.exists == 'false'
+    if: needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -186,7 +186,7 @@ jobs:
   # ============================================
   build-android:
     needs: version
-    if: needs.version.outputs.exists == 'false'
+    if: needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
