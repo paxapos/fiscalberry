@@ -351,6 +351,26 @@ def runTraductor(jsonTicket, queue):
     except Exception as e:
         raise DriverError(f"Error creando driver {driverName}: {e}")
 
+    # ---- Modo RAW: el backend manda bytes ESC/POS ya renderizados ----
+    # Permite cambiar cualquier formato (arqueo, comanda, etc.) deployando solo el
+    # backend, sin actualizar los Fiscalberry de la calle. El cliente solo escupe
+    # los bytes a la impresora vía _raw(); no interpreta el contenido.
+    raw_cmd = jsonTicket.get("printRaw")
+    if not raw_cmd and jsonTicket.get("type") == "raw":
+        raw_cmd = jsonTicket  # variante: envelope plano {type:raw,data,encoding}
+    if raw_cmd:
+        import base64, gzip
+        data = base64.b64decode(raw_cmd["data"])
+        if (raw_cmd.get("encoding") or "gzip+base64") in ("gzip", "gzip+base64"):
+            data = gzip.decompress(data)
+        driver._raw(data)
+        try:
+            driver.close()
+        except Exception:
+            pass
+        logger.info(f"Impresión RAW OK en '{printerName}' ({len(data)} bytes)")
+        return {"message": "Impresion RAW exitosa", "result": "ok", "bytes": len(data)}
+
     try:
         comando = EscPComandos(driver, columns=columns)
         result = comando.run(jsonTicket)
@@ -376,6 +396,31 @@ def runTraductor(jsonTicket, queue):
         
         raise e
 
+
+# ---------------------------------------------------------------------------
+# Spooler durable (cola persistente en disco) para el camino MQTT.
+# Desacopla "recibi de la nube" de "imprimi": el ACK se hace al PERSISTIR, y la
+# impresion se reintenta hasta lograrse (tolerante a impresora caida / reinicios
+# / mala conectividad). Deduplica reentregas QoS1 por job_id.
+# ---------------------------------------------------------------------------
+_print_spooler = None
+_print_spooler_lock = threading.Lock()
+
+
+def _spooler_print_fn(ticket):
+    """Imprime un ticket ya persistido. Lanza excepcion si falla (-> reintento)."""
+    return runTraductor(dict(ticket), Queue())
+
+
+def get_print_spooler():
+    """Spooler durable (singleton, lazy)."""
+    global _print_spooler
+    if _print_spooler is None:
+        with _print_spooler_lock:
+            if _print_spooler is None:
+                from fiscalberry.common.print_spooler import DurablePrintSpooler
+                _print_spooler = DurablePrintSpooler(_spooler_print_fn)
+    return _print_spooler
 
 
 class ComandosHandler:
