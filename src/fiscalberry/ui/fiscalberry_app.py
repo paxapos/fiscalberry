@@ -48,7 +48,17 @@ class FiscalberryApp(App):
     
     sioConnected: bool = BooleanProperty(False)
     rabbitMqConnected: bool = BooleanProperty(False)
-    
+
+    # Estado del servicio local (Desktop) / foreground (Android).
+    # Reactivo para que el botón Iniciar/Detener refleje el estado real.
+    serviceRunning: bool = BooleanProperty(False)
+
+    # Nivel global de salud para la UI status-centric:
+    #   'ok'    -> ambos canales conectados (verde)
+    #   'warn'  -> solo uno conectado (ámbar)
+    #   'error' -> ningún canal conectado (rojo)
+    status_level = StringProperty("error")
+
     status_message = StringProperty("Esperando conexión...")
     logs = StringProperty("")  # Logs en tiempo real para MainScreen
     
@@ -792,41 +802,63 @@ class FiscalberryApp(App):
             previous_status = self.sioConnected
             # Check más eficiente sin llamadas costosas innecesarias
             new_status = self._service_controller.isSocketIORunning()
-            
+
             if previous_status != new_status:
                 self.sioConnected = new_status
                 if new_status:
                     logger.info("SocketIO conectado")
-                    self.status_message = "Conectado - Listo para imprimir"
                 else:
                     logger.warning("SocketIO desconectado")
-                    self.status_message = "Desconectado - Verificando conexión..."
-                    
+                self._recompute_status()
+
         except Exception as e:
             # Manejo de errores silencioso para evitar spam en logs
             if self.sioConnected:  # Solo log si cambia de conectado a error
                 logger.error(f"Error verificando SocketIO: {e}")
             self.sioConnected = False
-            self.status_message = "Error de conexión"
-            
+            self._recompute_status()
+
     def _check_rabbit_status(self, dt):
-        """Verifica el estado de la conexión RabbitMQ de forma optimizada.""" 
+        """Verifica el estado de la conexión RabbitMQ de forma optimizada."""
         try:
             previous_status = self.rabbitMqConnected
             new_status = self._service_controller.isRabbitRunning()
-            
+
             if previous_status != new_status:
                 self.rabbitMqConnected = new_status
                 if new_status:
                     logger.info("RabbitMQ conectado")
                 else:
                     logger.warning("RabbitMQ desconectado")
-                    
+                self._recompute_status()
+
         except Exception as e:
             # Manejo de errores silencioso para evitar spam en logs
             if self.rabbitMqConnected:  # Solo log si cambia de conectado a error
                 logger.error(f"Error verificando RabbitMQ: {e}")
             self.rabbitMqConnected = False
+            self._recompute_status()
+
+    def _recompute_status(self):
+        """
+        Recalcula el nivel global de salud y el mensaje para la UI
+        status-centric, en base al estado de ambos canales (Socket.IO + RabbitMQ).
+        """
+        sio = self.sioConnected
+        rabbit = self.rabbitMqConnected
+
+        if sio and rabbit:
+            self.status_level = "ok"
+            self.status_message = "Listo para imprimir"
+        elif sio and not rabbit:
+            self.status_level = "warn"
+            self.status_message = "Conectado - esperando cola de impresión..."
+        elif rabbit and not sio:
+            self.status_level = "warn"
+            self.status_message = "Cola activa - reconectando con el servidor..."
+        else:
+            self.status_level = "error"
+            self.status_message = "Sin conexión - verificando..."
     
     def _update_logs(self, dt):
         """Actualiza la propiedad logs leyendo el archivo de logs."""
@@ -897,6 +929,7 @@ class FiscalberryApp(App):
             # El servicio foreground (service.py) tiene su propio ServiceController
             # que maneja SocketIO/RabbitMQ independientemente
             logger.debug("Android: delegando a servicio foreground")
+            self.serviceRunning = True
             self.status_message = "Servicio activo (foreground)"
             # El servicio Android ya fue iniciado en build() o _go_to_main()
             # No necesitamos hacer nada más aquí
@@ -904,9 +937,11 @@ class FiscalberryApp(App):
             # En Desktop: Iniciar el ServiceController local
             if not self._service_controller.is_service_running():
                 logger.debug("Desktop: Iniciando servicios desde GUI...")
+                self.serviceRunning = True
                 self.status_message = "Iniciando servicios..."
                 Thread(target=self._service_controller.start, daemon=True).start()
             else:
+                self.serviceRunning = True
                 logger.debug("Desktop: Servicio ya en ejecución, omitiendo inicio")
 
 
@@ -922,7 +957,7 @@ class FiscalberryApp(App):
             logger.debug("Android: No se puede detener el servicio foreground desde UI")
             self.status_message = "Servicio foreground activo"
             return
-        
+
         # Desktop: Detener el ServiceController local
         logger.debug("Desktop: Deteniendo servicios desde GUI...")
         self.status_message = "Deteniendo servicios..."
@@ -934,7 +969,8 @@ class FiscalberryApp(App):
             else:
                 # Fallback al método más seguro
                 self._service_controller._stop_services_only()
-            
+
+            self.serviceRunning = False
             self.status_message = "Servicios detenidos"
             logger.debug("Servicios detenidos desde GUI")
         except Exception as e:

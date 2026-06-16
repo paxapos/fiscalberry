@@ -10,8 +10,9 @@ Descarga la última versión socketio para windows
 Para Linux
 [fiscalberry-lin]([https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-lin))
 
-Para Raspberry pi
-[fiscalberry-lin]([https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-pi))
+Para Raspberry pi (ARM) no hay binario precompilado (PyInstaller no hace
+cross-compile a ARM): se instala desde código y se corre el CLI.
+Ver [docs/INSTALACION_RASPBERRY.md](docs/INSTALACION_RASPBERRY.md).
 
 # Como comenzar (solo developers del proyecto)
 

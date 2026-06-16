@@ -1,10 +1,6 @@
-ScreenManager:
-    LoginScreen:
-        name: "login"
-    MainScreen:
-        name: "main"
-    LogScreen: # Add LogScreen here
-        name: "logs" # Give it a name for navigation
+# NOTA: el ScreenManager y sus pantallas se crean en FiscalberryApp.build()
+# (incluyendo AdoptScreen). No declarar acá un root ScreenManager o las
+# pantallas se instancian dos veces.
 
 <AdoptScreen>:
     BoxLayout:
@@ -272,167 +268,147 @@ ScreenManager:
             pos: self.x, self.center_y - dp(0.5) # Center the line vertically
             size: self.width, dp(1) # Make it 1dp thick
 
+# ── Indicador circular grande de estado (verde / ámbar / rojo) ──────
+<StatusDot@Widget>:
+    dot_color: 0.86, 0.25, 0.25, 1
+    canvas:
+        Color:
+            rgba: 1, 1, 1, 0.25
+        Ellipse:
+            pos: self.center_x - dp(86), self.center_y - dp(86)
+            size: dp(172), dp(172)
+        Color:
+            rgba: self.dot_color
+        Ellipse:
+            pos: self.center_x - dp(78), self.center_y - dp(78)
+            size: dp(156), dp(156)
+
 <MainScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(25)
-        spacing: dp(20)
+        padding: dp(28)
+        spacing: dp(14)
         canvas.before:
             Color:
-                rgba: 0.96, 0.96, 1, 1 # Fondo más claro y limpio
+                rgba: 0.96, 0.97, 1, 1
             Rectangle:
                 pos: self.pos
                 size: self.size
 
-        # Header
+        # Header minimalista
+        Label:
+            text: "Fiscalberry · Servidor de Impresión"
+            font_size: '15sp'
+            bold: True
+            color: 0.1, 0.2, 0.5, 1
+            size_hint_y: None
+            height: dp(28)
+            halign: 'left'
+            valign: 'middle'
+            text_size: self.size
+
+        # Espaciador superior flexible
+        Widget:
+
+        # ── Señal central de estado ──────────────────────────────────
+        AnchorLayout:
+            anchor_x: 'center'
+            anchor_y: 'center'
+            size_hint_y: None
+            height: dp(190)
+
+            StatusDot:
+                dot_color: (0.16, 0.72, 0.36, 1) if app.status_level == 'ok' else ((0.95, 0.66, 0.15, 1) if app.status_level == 'warn' else (0.86, 0.25, 0.25, 1))
+
+            Label:
+                text: "OK" if app.status_level == 'ok' else ("!" if app.status_level == 'warn' else "OFF")
+                font_size: '44sp'
+                bold: True
+                color: 1, 1, 1, 1
+                halign: 'center'
+                valign: 'middle'
+
+        # Mensaje de estado grande
+        Label:
+            text: app.status_message
+            font_size: '20sp'
+            bold: True
+            color: (0.12, 0.5, 0.25, 1) if app.status_level == 'ok' else ((0.6, 0.42, 0.05, 1) if app.status_level == 'warn' else (0.6, 0.12, 0.12, 1))
+            size_hint_y: None
+            height: dp(34)
+            halign: 'center'
+            valign: 'middle'
+            text_size: self.width, None
+
+        # Sub-chips de canales (Socket.IO + RabbitMQ)
         BoxLayout:
             orientation: 'horizontal'
             size_hint_y: None
-            height: dp(60)
-            spacing: dp(15)
-            canvas.before:
-                Color:
-                    rgba: 1, 1, 1, 0.8
-                RoundedRectangle:
-                    pos: self.pos
-                    size: self.size
-                    radius: [dp(10)]
-            padding: dp(15)
+            height: dp(26)
+            spacing: dp(24)
+            padding: [dp(30), 0]
 
             Label:
-                text: "Fiscalberry - Servidor de Impresion"
-                font_size: '18sp'
-                bold: True
-                halign: 'left'
-                valign: 'middle'
-                color: 0.1, 0.2, 0.5, 1
-                size_hint_x: 1
-
-
-        # Panel de información del comercio mejorado
-        BoxLayout:
-            orientation: 'vertical'
-            size_hint_y: None
-            height: dp(100)
-            spacing: dp(10)
-            canvas.before:
-                Color:
-                    rgba: 1, 1, 1, 0.9
-                RoundedRectangle:
-                    pos: self.pos
-                    size: self.size
-                    radius: [dp(10)]
-                Color:
-                    rgba: 0.8, 0.8, 0.9, 1
-                Line:
-                    rounded_rectangle: (self.pos[0], self.pos[1], self.size[0], self.size[1], dp(10))
-                    width: 1
-            padding: dp(15)
-
-            Label:
-                text: "INFORMACIÓN DEL COMERCIO"
+                markup: True
+                text: "[b]Socket.IO[/b]   " + ("conectado" if app.sioConnected else "desconectado")
                 font_size: '14sp'
-                bold: True
-                color: 0.1, 0.2, 0.5, 1
-                size_hint_y: None
-                height: dp(20)
+                color: (0.16, 0.55, 0.3, 1) if app.sioConnected else (0.6, 0.2, 0.2, 1)
                 halign: 'center'
-
-            BoxLayout:
-                orientation: 'horizontal'
-                spacing: dp(20)
-                
-                Label:
-                    text: f"Comercio: {app.siteName or 'No configurado'}"
-                    font_size: '13sp'
-                    color: 0.3, 0.3, 0.3, 1
-                    halign: 'left'
-                    valign: 'middle'
-                    text_size: self.width, None
-                    size_hint_x: 0.6
-
-                Label:
-                    text: f"Dispositivo: {app.siteAlias or 'Sin alias'}"
-                    font_size: '13sp'
-                    color: 0.3, 0.3, 0.3, 1
-                    halign: 'left'
-                    valign: 'middle'
-                    text_size: self.width, None
-                    size_hint_x: 0.4
-
-        # ── Panel de estado de conexión ──────────────────────────────────
-        BoxLayout:
-            orientation: 'vertical'
-            size_hint_y: None
-            height: dp(120)
-            spacing: dp(8)
-            canvas.before:
-                Color:
-                    rgba: 1, 1, 1, 0.9
-                RoundedRectangle:
-                    pos: self.pos
-                    size: self.size
-                    radius: [dp(10)]
-                Color:
-                    rgba: 0.8, 0.8, 0.9, 1
-                Line:
-                    rounded_rectangle: (self.pos[0], self.pos[1], self.size[0], self.size[1], dp(10))
-                    width: 1
-            padding: [dp(15), dp(10)]
-
-            Label:
-                text: "ESTADO DE CONEXIÓN"
-                font_size: '12sp'
-                bold: True
-                color: 0.1, 0.2, 0.5, 1
-                size_hint_y: None
-                height: dp(18)
-                halign: 'center'
+                valign: 'middle'
                 text_size: self.size
 
-            # Chips de estado lado a lado
-            BoxLayout:
-                orientation: 'horizontal'
-                spacing: dp(10)
-                size_hint_y: None
-                height: dp(40)
+            Label:
+                markup: True
+                text: "[b]RabbitMQ[/b]   " + ("conectado" if app.rabbitMqConnected else "desconectado")
+                font_size: '14sp'
+                color: (0.16, 0.55, 0.3, 1) if app.rabbitMqConnected else (0.6, 0.2, 0.2, 1)
+                halign: 'center'
+                valign: 'middle'
+                text_size: self.size
 
-                # ── Chip Socket.IO ──
-                BoxLayout:
-                    orientation: 'horizontal'
-                    spacing: dp(6)
-                    padding: [dp(10), dp(5)]
-                    canvas.before:
-                        Color:
-                            rgba: (0.85, 1, 0.85, 1) if app.sioConnected else (1, 0.85, 0.85, 1)
-                        RoundedRectangle:
-                            pos: self.pos
-                            size: self.size
-                            radius: [dp(8)]
-                        Color:
-                            rgba: (0.1, 0.6, 0.1, 0.6) if app.sioConnected else (0.7, 0.1, 0.1, 0.6)
-                        Line:
-                            rounded_rectangle: (self.pos[0], self.pos[1], self.size[0], self.size[1], dp(8))
-                            width: 1
+        # Espaciador inferior flexible
+        Widget:
 
-                    Label:
-                        text: ("Socket.IO\nCONECTADO" if app.sioConnected else "Socket.IO\nDESCONECTADO")
-                        font_size: '11sp'
-                        bold: True
-                        color: (0.05, 0.45, 0.05, 1) if app.sioConnected else (0.55, 0.05, 0.05, 1)
-                        halign: 'center'
-                        valign: 'middle'
-                        text_size: self.size
+        # Datos del comercio (línea compacta)
+        Label:
+            text: (app.siteName or 'Sin comercio') + "   ·   " + (app.siteAlias or 'Sin alias') + "   ·   v" + (app.version or '')
+            font_size: '13sp'
+            color: 0.4, 0.4, 0.45, 1
+            size_hint_y: None
+            height: dp(24)
+            halign: 'center'
+            valign: 'middle'
+            text_size: self.width, None
 
-            # ── Botón Ver Logs ──
+        # ── Botonera ──────────────────────────────────────────────────
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint_y: None
+            height: dp(54)
+            spacing: dp(14)
+
             Button:
-                text: "Ver Logs en Tiempo Real"
-                size_hint_y: None
-                height: dp(36)
-                font_size: '13sp'
+                text: "Detener servicio" if app.serviceRunning else "Iniciar servicio"
+                font_size: '15sp'
                 bold: True
                 background_normal: ''
-                background_color: 0.1, 0.2, 0.5, 1
+                background_color: 0, 0, 0, 0
+                color: 1, 1, 1, 1
+                on_press: root.toggle_service()
+                canvas.before:
+                    Color:
+                        rgba: (0.7, 0.25, 0.2, 1) if app.serviceRunning else (0.16, 0.55, 0.3, 1)
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [dp(10)]
+
+            Button:
+                text: "Ver Logs"
+                font_size: '15sp'
+                bold: True
+                background_normal: ''
+                background_color: 0, 0, 0, 0
                 color: 1, 1, 1, 1
                 on_press: app.root.current = 'logs'
                 canvas.before:
@@ -441,50 +417,19 @@ ScreenManager:
                     RoundedRectangle:
                         pos: self.pos
                         size: self.size
-                        radius: [dp(8)]
+                        radius: [dp(10)]
 
-        # Espaciador flexible: absorbe el espacio sobrante
-        Widget:
-
-        # Footer
-        BoxLayout:
-            orientation: 'horizontal'
+        # Footer minimalista
+        Label:
+            text: "ID " + (app.uuid[:8] if app.uuid else 'N/A') + "    ·    " + (app.host or 'Paxapos')
+            font_size: '10sp'
+            color: 0.55, 0.55, 0.6, 1
             size_hint_y: None
-            height: dp(25)
-            spacing: dp(15)
-            canvas.before:
-                Color:
-                    rgba: 0.9, 0.9, 0.9, 0.7
-                RoundedRectangle:
-                    pos: self.pos
-                    size: self.size
-                    radius: [dp(5)]
-            padding: dp(10)
-            
-            Label:
-                text: f"ID: {app.uuid[:8] if app.uuid else 'No ID'}"
-                font_size: '10sp'
-                color: 0.4, 0.4, 0.4, 1
-                halign: "left"
-                valign: "middle"
-                size_hint_x: 0.35
-                
-            Label:
-                text: f"v{app.version if app.version else '1.0'}"
-                font_size: '10sp'
-                color: 0.4, 0.4, 0.4, 1
-                halign: "center"
-                valign: "middle"
-                size_hint_x: 0.3
-                
-            Label:
-                text: f"{app.host if app.host else 'Paxapos'}"
-                font_size: '10sp'
-                color: 0.4, 0.4, 0.4, 1
-                halign: "right"
-                valign: "middle"
-                size_hint_x: 0.35
-            
+            height: dp(18)
+            halign: 'center'
+            valign: 'middle'
+            text_size: self.width, None
+
 <LogScreen>:
     BoxLayout:
         orientation: 'vertical'
