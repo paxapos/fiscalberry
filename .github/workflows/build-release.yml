@@ -254,11 +254,20 @@ jobs:
       - name: Install Buildozer and dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install buildozer cython virtualenv
+          # Toolchain PINEADO para matchear p4a v2024.01.21 (Python 3.11.x):
+          # buildozer 1.5.0 + cython 0.29.x. Sin pin se instalaba buildozer/p4a
+          # bleeding-edge (Python 3.14 + cython 3) y el build de Android rompía.
+          pip install "buildozer==1.5.0" "cython==0.29.36" virtualenv
 
       - name: Build Android APK
         run: |
           cp buildozer.ui.android.spec buildozer.spec
+          # El caché (restore-keys) puede traer un clon viejo de p4a (master/3.14) y
+          # builds para Python 3.14. Con el pin nuevo hay que limpiarlos para forzar
+          # re-clone de p4a v2024.01.21 y rebuild limpio. Se conservan SDK/NDK en
+          # ~/.buildozer (descargas caras).
+          rm -rf .buildozer/android/platform/python-for-android
+          rm -rf .buildozer/android/platform/build-*
           buildozer -v android debug
 
       - name: Find and rename APK

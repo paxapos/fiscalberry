@@ -154,7 +154,10 @@ android.private_storage = True
 #
 
 # (str) python-for-android branch to use, defaults to master
-# p4a.branch = master
+# PIN: el master de p4a default-ea a Python 3.14 y pyjnius 1.7.0 (no instalable),
+# rompiendo los recipes custom (pensados para 3.12). Fijamos el último release
+# estable (Python 3.11.x), donde kivy 2.3.1 + pyjnius compilan OK.
+p4a.branch = v2024.01.21
 
 # (str) The directory in which python-for-android should look for your own build recipes (if any)
 p4a.local_recipes = my_recipes
