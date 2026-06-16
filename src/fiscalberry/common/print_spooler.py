@@ -45,11 +45,15 @@ def default_db_path():
 
 
 class DurablePrintSpooler:
-    def __init__(self, print_fn, db_path=None, max_attempts=20,
+    def __init__(self, print_fn, db_path=None, max_attempts=1000,
                  base_delay=5.0, max_delay=300.0, idle_wait=5.0):
         """
         print_fn: callable(ticket_dict) -> imprime; lanza excepción si falla.
-        max_attempts: tras N intentos fallidos el job pasa a 'failed' (dead-letter).
+        max_attempts: tras N intentos el job pasa a 'failed' (dead-letter). Default alto
+            (1000) a propósito: con backoff tope 300s son ~3.5 días de reintentos, así una
+            impresora caída mucho tiempo NO pierde el ticket. Además, los 'failed' se
+            re-encolan al reiniciar el proceso (ver _recover_on_start), así que un
+            "apagar y prender" siempre recupera todo lo pendiente.
         """
         self._print_fn = print_fn
         self._db_path = db_path or default_db_path()
@@ -66,9 +70,42 @@ class DurablePrintSpooler:
         except Exception:
             pass
         self._init_db()
+        self._recover_on_start()
         self._worker = threading.Thread(target=self._run, name="print-spooler", daemon=True)
         self._worker.start()
         logger.info("Spooler durable iniciado (db=%s)", self._db_path)
+
+    def _recover_on_start(self):
+        """
+        Recuperación al arrancar: garantía de "nunca perder impresiones".
+
+        - Re-encola los dead-letter ('failed' -> 'pending') con presupuesto de
+          reintentos fresco: reiniciar el proceso siempre reintenta TODO.
+        - Adelanta a "ya" el next_attempt_at de los 'pending' que quedaron esperando
+          un backoff previo al cierre, para no demorar la recuperación tras un reinicio.
+        """
+        with self._lock:
+            recovered = self._conn.execute(
+                "UPDATE jobs SET status='pending', attempts=0, next_attempt_at=0 "
+                "WHERE status='failed'").rowcount
+            self._conn.execute(
+                "UPDATE jobs SET next_attempt_at=0 WHERE status='pending'")
+            self._conn.commit()
+        if recovered:
+            logger.warning(
+                "Spooler: %d job(s) en dead-letter re-encolados tras reinicio", recovered)
+
+    def requeue_failed(self):
+        """Vuelve a poner en cola los jobs 'failed' (dead-letter). Devuelve cuántos."""
+        with self._lock:
+            n = self._conn.execute(
+                "UPDATE jobs SET status='pending', attempts=0, next_attempt_at=0 "
+                "WHERE status='failed'").rowcount
+            self._conn.commit()
+        if n:
+            self._wake.set()
+            logger.info("Spooler: %d job(s) 'failed' re-encolados manualmente", n)
+        return n
 
     def _init_db(self):
         with self._lock:

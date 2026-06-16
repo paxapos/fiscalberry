@@ -41,7 +41,15 @@ def send_discover():
 
     try:
         headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
-        ret = requests.post(discoverUrl, headers=headers, data=json.dumps(senddata), timeout=30)
+        verify = configberry.get_ssl_verify()
+        if verify is False:
+            # Silenciar el warning de urllib3 cuando se desactiva verificación a propósito (dev)
+            try:
+                import urllib3
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            except Exception:
+                pass
+        ret = requests.post(discoverUrl, headers=headers, data=json.dumps(senddata), timeout=30, verify=verify)
 
         if ret.status_code == requests.codes.ok:
             logger.debug("DISCOVER:: Registro exitoso en el servidor")

@@ -243,7 +243,10 @@ class Configberry:
             "uuid": myUuid,
             "platform": f"{os.name} {platform.system()} {platform.release()} {platform.machine()}",
             "sio_host": "https://beta.paxapos.com",
-            "sio_password": ""
+            "sio_password": "",
+            # Verificación TLS. Poner en false (o definir ca_bundle) para backends con
+            # CA privada como dev2.paxapos.com. Default true para prod.
+            "verify_ssl": "true"
             })
         
         self.storeConfig()
@@ -392,6 +395,25 @@ class Configberry:
         with self._rlock:
             self.config.read( self.configFilePath )
             return self.config.get(section, key, fallback=fallback)
+
+    def get_ssl_verify(self):
+        """
+        Resuelve el valor de verificación TLS para requests / socketio.
+
+        Prioridad:
+          1) [SERVIDOR] ca_bundle = /ruta/ca.pem  -> verifica contra esa CA propia
+             (ideal para backends con CA privada como dev2). Aplica a requests.
+          2) [SERVIDOR] verify_ssl = false        -> desactiva la verificación
+             (solo entornos de desarrollo; ej. dev2 con CA no instalada).
+          3) por defecto True (CAs del sistema/certifi).
+
+        Devuelve str (ruta de bundle) o bool.
+        """
+        ca = self.get("SERVIDOR", "ca_bundle", fallback="")
+        if ca and str(ca).strip():
+            return str(ca).strip()
+        val = self.get("SERVIDOR", "verify_ssl", fallback="true")
+        return str(val).strip().lower() not in ("false", "0", "no", "off")
     
     def is_comercio_adoptado(self):
         """

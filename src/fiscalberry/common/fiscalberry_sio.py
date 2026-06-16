@@ -64,6 +64,19 @@ class FiscalberrySio:
         self.on_message = on_message
         
         try:
+            # Verificación TLS configurable (backends con CA privada como dev2).
+            # engineio/socketio aceptan ssl_verify como bool; si hay ca_bundle (str) la
+            # verificación de polling usa el sistema, así que en ese caso dejamos True.
+            _verify = Configberry().get_ssl_verify()
+            ssl_verify = _verify if isinstance(_verify, bool) else True
+            if ssl_verify is False:
+                logger.warning("SocketIO: verificación TLS DESACTIVADA (verify_ssl=false)")
+                try:
+                    import urllib3
+                    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                except Exception:
+                    pass
+
             self.sio = socketio.Client(
                 reconnection=True,
                 reconnection_attempts=0,
@@ -71,6 +84,7 @@ class FiscalberrySio:
                 reconnection_delay_max=10,  # Reducido para reconexión más rápida
                 logger=sioLogger,
                 engineio_logger=False,
+                ssl_verify=ssl_verify,
             )
             logger.debug("Cliente SocketIO creado exitosamente")
             
