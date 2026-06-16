@@ -20,8 +20,11 @@ aiohttp
 appdirs
 platformdirs
 
-# Message broker
-pika
+# Message broker (MQTT + AMQP binding)
+# CRÍTICO: paho-mqtt es el cliente MQTT real (consumer.py/error_publisher.py lo importan).
+# Sin esto la GUI rompe al arrancar el servicio. <2 porque el código usa la API v1 de paho.
+paho-mqtt>=1.6.0,<2
+pika>=1.3.0  # solo para crear el binding AMQP inicial
 
 # Windows-specific dependencies
 pywin32; sys_platform == 'win32'

@@ -1,5 +1,6 @@
 import configparser
 import os
+import threading
 import uuid
 import platformdirs
 import platform
@@ -12,10 +13,16 @@ class Configberry:
     config = configparser.ConfigParser()
     config.optionxform=str
     _instance = None
-    
+
     configFilePath = None
-    
+
     _listeners = []
+
+    # ConfigParser NO es thread-safe y get()/set() releen/reescriben el mismo objeto
+    # compartido desde varios hilos (SIO, consumer MQTT, discover, Clock de la GUI).
+    # Este lock reentrante serializa el acceso para evitar lecturas a medias y
+    # escrituras que se pisan. Reentrante porque set()->notify_listeners()->getJSON().
+    _rlock = threading.RLock()
 
     def __new__(cls):
 
@@ -47,12 +54,13 @@ class Configberry:
 
 
     def getJSON(self):
-        jsondata = {}
-        for s in self.sections():
-            jsondata.setdefault(s, {})
-            for (k, data) in self.config.items(s):
-                jsondata[s].setdefault(k, data)
-        return jsondata
+        with self._rlock:
+            jsondata = {}
+            for s in self.sections():
+                jsondata.setdefault(s, {})
+                for (k, data) in self.config.items(s):
+                    jsondata[s].setdefault(k, data)
+            return jsondata
 
     def items(self):
         return self.config.items()
@@ -81,20 +89,6 @@ class Configberry:
             return False
         
 
-    def writeKeyForSection(self, section, key, value):
-        self.config.read(self.configFilePath)
-        oldval = self.config.get(section, key, value)
-        if oldval == value:
-            return 0
-
-        self.config.set(section, key, value)
-        with open(self.configFilePath, 'w') as configfile:
-            self.config.write(configfile)
-            configfile.close()
-        self.config.read(self.configFilePath)
-        self.notify_listeners()
-        return 1
-
     def saveBackup(self):
         # Guardar backup del archivo
         with open(self.configFilePath, 'r') as file:
@@ -116,6 +110,10 @@ class Configberry:
         Returns:
             int: Returns Bool, True si se guardo ok, False si fallo
         """
+        with self._rlock:
+            return self._set_impl(section, kwargs)
+
+    def _set_impl(self, section: str, kwargs: dict):
         self.config.read(self.configFilePath)
         changes_made = False
         
@@ -210,6 +208,10 @@ class Configberry:
             return False
 
     def storeConfig(self):
+        with self._rlock:
+            return self._store_config_impl()
+
+    def _store_config_impl(self):
         print(f"Reinicializando config file: {self.configFilePath}")
         self.config.read(self.configFilePath)
         
@@ -372,23 +374,24 @@ class Configberry:
         return dictConf
 
     def delete_section(self, section):
-        
-        self.config.read(self.configFilePath)
-
-        if section in self.config.sections():
-            self.config.remove_section(section)
-            with open(self.configFilePath, 'w') as configfile:
-                self.config.write(configfile)
+        with self._rlock:
             self.config.read(self.configFilePath)
-            self.notify_listeners()
-            return True
-        else:
-            print(f"Section {section} does not exist.")
-            return False
-    
+
+            if section in self.config.sections():
+                self.config.remove_section(section)
+                with open(self.configFilePath, 'w') as configfile:
+                    self.config.write(configfile)
+                self.config.read(self.configFilePath)
+                self.notify_listeners()
+                return True
+            else:
+                print(f"Section {section} does not exist.")
+                return False
+
     def get(self, section, key, fallback=None):
-        self.config.read( self.configFilePath )
-        return self.config.get(section, key, fallback=fallback)
+        with self._rlock:
+            self.config.read( self.configFilePath )
+            return self.config.get(section, key, fallback=fallback)
     
     def is_comercio_adoptado(self):
         """
@@ -399,10 +402,13 @@ class Configberry:
         Retorna True si existe la sección Paxaprinter y tiene un tenant configurado,
         False en caso contrario.
         """
-        # Verificar si existe la sección Paxaprinter
-        if not self.config.has_section("Paxaprinter"):
-            return False
-        
+        # Releer bajo lock para no competir con un set()/delete_section() en curso.
+        with self._rlock:
+            self.config.read(self.configFilePath)
+            # Verificar si existe la sección Paxaprinter
+            if not self.config.has_section("Paxaprinter"):
+                return False
+
         # Verificar si tiene un tenant configurado
         tenant = self.get("Paxaprinter", "tenant", fallback="")
         

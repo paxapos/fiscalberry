@@ -174,26 +174,31 @@ class FiscalberrySio:
         def start_rabbit(cfg: dict):
             logger.debug("Evento start_rabbit recibido")
             try:
+                # En un hilo aparte y SIN join(): configure_and_restart hace stop()+start()
+                # del consumer (puede tardar varios segundos). Bloquear acá congelaría el
+                # loop de eventos de Socket.IO (no se procesarían command/disconnect/etc.).
                 self.rabbitmq_thread = threading.Thread(
                     target=self.rabbit_handler.configure_and_restart,
                     args=(cfg, self.message_queue),
                     daemon=True
                 )
                 self.rabbitmq_thread.start()
-                self.rabbitmq_thread.join()
-                logger.info("RabbitMQ iniciado")
+                logger.info("RabbitMQ (re)configurándose en segundo plano")
             except Exception as e:
                 logger.error(f"Error iniciando RabbitMQ: {e}")
             
     def isRabbitMQRunning(self):
         """
-        Verifica si el hilo de RabbitMQ está en ejecución.
+        Estado real del consumer MQTT.
+
+        OJO: NO usar self.rabbitmq_thread, que corre configure_and_restart y muere
+        enseguida tras lanzar el consumer real (vive en RabbitMQProcessHandler._thread).
+        Delegamos en el handler, que reporta hilo vivo + conexión MQTT efectiva.
         """
-        if self.rabbitmq_thread and self.rabbitmq_thread.is_alive():
-            return True
-        else:
+        try:
+            return self.rabbit_handler.is_running()
+        except Exception:
             return False
-        # Si no hay hilo, significa que RabbitMQ no está corriendo
     
     def isSioRunning(self):
         """

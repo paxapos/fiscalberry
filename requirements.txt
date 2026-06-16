@@ -13,7 +13,7 @@ appdirs
 platformdirs
 
 # Message broker (MQTT + AMQP binding)
-paho-mqtt>=1.6.0
+paho-mqtt>=1.6.0,<2  # <2: el código usa la API v1 de paho (Client(client_id=...), on_connect(rc)). paho 2.x rompe.
 pika>=1.3.0  # Para crear binding AMQP inicial
 
 # Windows-specific dependencies

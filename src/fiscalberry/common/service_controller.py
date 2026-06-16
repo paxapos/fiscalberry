@@ -76,16 +76,22 @@ class ServiceController:
             sio_host = self.configberry.get("SERVIDOR", "sio_host")
             if not sio_host:
                 logger.error("sio_host no configurado")
-                os._exit(1)
+                # No matar el proceso (rompería la GUI sin feedback). Propagar para
+                # que el caller (GUI/CLI) lo maneje.
+                raise RuntimeError("sio_host no configurado en config.ini")
 
             uuidval = self.configberry.get("SERVIDOR", "uuid", fallback="")
-            
+
         except Exception as e:
             logger.error(f"Error ServiceController init: {e}")
+            # Permitir re-init en el próximo intento (el singleton quedó marcado initialized)
+            if hasattr(self, 'initialized'):
+                del self.initialized
             raise
         if not uuidval:
             logger.error("UUID no encontrado")
-            os._exit(1)
+            del self.initialized
+            raise RuntimeError("UUID no configurado en config.ini")
 
         logger.debug(f"ServiceController: {sio_host} uuid={uuidval[:8]}...")
         self.sio = FiscalberrySio(sio_host, uuidval)

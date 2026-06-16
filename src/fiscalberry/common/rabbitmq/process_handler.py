@@ -63,6 +63,23 @@ class RabbitMQProcessHandler:
     def get_active_rabbitmq_credentials(self):
         """Retorna las credenciales activas del MQTT Consumer."""
         return self.active_credentials
+
+    def is_running(self):
+        """
+        Estado REAL del consumer MQTT para la UI/health checks.
+
+        True solo si el hilo del consumer está vivo Y el cliente MQTT está
+        efectivamente conectado al broker. Durante backoff/reconexión devuelve
+        False (que es lo correcto: no está recibiendo trabajos).
+        """
+        if not (self._thread and self._thread.is_alive()):
+            return False
+        consumer = self._current_consumer
+        if consumer is not None:
+            # _connected refleja el estado real de la conexión MQTT (paho on_connect/on_disconnect)
+            return bool(getattr(consumer, "_connected", False))
+        # Hilo vivo pero aún sin consumer instanciado: está arrancando.
+        return True
     
     def _update_active_credentials(self, host, port, user, password, vhost="/"):
         """Actualiza las credenciales activas."""
