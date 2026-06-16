@@ -280,7 +280,14 @@ jobs:
   create-release:
     needs: [version, build-linux, build-windows, build-android]
     runs-on: ubuntu-latest
-    if: needs.version.outputs.exists == 'false'
+    # Publicar el release aunque Android falle: con que Linux y Windows compilen,
+    # se publica con los binarios disponibles. Android es best-effort (su build es
+    # frágil) y NO debe bloquear el release del resto de plataformas.
+    if: >-
+      always() &&
+      needs.version.outputs.exists == 'false' &&
+      needs.build-linux.result == 'success' &&
+      needs.build-windows.result == 'success'
     steps:
       - uses: actions/checkout@v4
 
@@ -308,7 +315,10 @@ jobs:
           name: fiscalberry-windows-cli
           path: ./artifacts/
 
+      # Android es best-effort: si su build falló, el artifact no existe.
+      # continue-on-error evita que eso tumbe el release.
       - name: Download Android Artifact
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: fiscalberry-android-gui
@@ -321,6 +331,9 @@ jobs:
           tag_name: ${{ needs.version.outputs.tag }}
           name: ${{ needs.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
+          # fail_on_unmatched_files=false: si falta el APK de Android (build frágil),
+          # se publica igual con los binarios de Linux y Windows.
+          fail_on_unmatched_files: false
           files: |
             ./artifacts/fiscalberry-linux-gui.tar.gz
             ./artifacts/fiscalberry-linux-cli.tar.gz
