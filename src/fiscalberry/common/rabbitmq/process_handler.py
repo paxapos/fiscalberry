@@ -101,19 +101,21 @@ class RabbitMQProcessHandler:
         host = self.config.get("RabbitMq", "host")
         port = self.config.get("RabbitMq", "port")
         
-        # Credenciales: primero config.ini, luego memoria (active_credentials) como fallback
+        # Credenciales: MEMORIA (active_credentials de SocketIO) PRIMERO, por seguridad.
+        # La password del broker nunca se persiste en disco; config.ini es solo override manual.
         user = None
         password = None
-        
-        # 1. Primero intentar desde config.ini (tiene prioridad absoluta si está escrito)
-        user = self.config.get("RabbitMq", "user", fallback=None)
-        password = self.config.get("RabbitMq", "password", fallback=None)
-        
-        # 2. Fallback: usar memoria (active_credentials de SocketIO) solo si config.ini está vacío
-        if (not user or not user.strip()) and self.active_credentials:
+
+        # 1. Primero memoria: credenciales entregadas por la nube vía SocketIO (no tocan disco).
+        if self.active_credentials:
             user = self.active_credentials.get('user')
-        if (not password or not password.strip()) and self.active_credentials:
             password = self.active_credentials.get('password')
+
+        # 2. Fallback: config.ini, solo si fue configurado manualmente (instalaciones offline).
+        if not user or not str(user).strip():
+            user = self.config.get("RabbitMq", "user", fallback=None)
+        if not password or not str(password).strip():
+            password = self.config.get("RabbitMq", "password", fallback=None)
         
         if not user or not password:
             print("\n============================================================")
