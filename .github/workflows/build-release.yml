@@ -2,15 +2,61 @@ name: Build and Release Fiscalberry
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - v3.0.x
+    paths:
+      # El release se dispara cuando se bumpea la versión. Cambiar version.py
+      # (y pushear a v3.0.x) es la señal de "publicar release".
+      - "src/fiscalberry/version.py"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
+  # ============================================
+  # VERSION: lee la versión de version.py y decide si hay que releasear
+  # (solo si el tag vX.Y.Z todavía no existe → evita releases duplicados)
+  # ============================================
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get.outputs.version }}
+      tag: ${{ steps.get.outputs.tag }}
+      exists: ${{ steps.check.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from version.py
+        id: get
+        run: |
+          VERSION=$(grep -oP 'VERSION\s*=\s*["'\'']\K[^"'\'']+' src/fiscalberry/version.py)
+          if [ -z "$VERSION" ]; then
+            echo "::error::No pude leer VERSION de src/fiscalberry/version.py"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Versión detectada: $VERSION (tag v$VERSION)"
+
+      - name: Check if tag/release already exists
+        id: check
+        run: |
+          if git rev-parse "v${{ steps.get.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::El tag v${{ steps.get.outputs.version }} ya existe — se omite la creación del release. Bumpeá version.py para publicar uno nuevo."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "El tag v${{ steps.get.outputs.version }} no existe → se construirá y publicará."
+          fi
   # ============================================
   # LINUX BUILDS (GUI + CLI)
   # ============================================
   build-linux:
+    needs: version
+    if: needs.version.outputs.exists == 'false'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -73,6 +119,8 @@ jobs:
   # WINDOWS BUILDS (GUI + CLI)
   # ============================================
   build-windows:
+    needs: version
+    if: needs.version.outputs.exists == 'false'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -137,6 +185,8 @@ jobs:
   # ANDROID GUI BUILD (con caché y signing)
   # ============================================
   build-android:
+    needs: version
+    if: needs.version.outputs.exists == 'false'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -228,9 +278,9 @@ jobs:
   # CREATE GITHUB RELEASE
   # ============================================
   create-release:
-    needs: [build-linux, build-windows, build-android]
+    needs: [version, build-linux, build-windows, build-android]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: needs.version.outputs.exists == 'false'
     steps:
       - uses: actions/checkout@v4
 
@@ -267,6 +317,10 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          # Crea el tag vX.Y.Z (leído de version.py) apuntando al commit pusheado
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           files: |
             ./artifacts/fiscalberry-linux-gui.tar.gz
             ./artifacts/fiscalberry-linux-cli.tar.gz

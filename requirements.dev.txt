@@ -1,0 +1,6 @@
+# Herramientas de desarrollo (no se empaquetan en los binarios).
+# Instalar con: pip install -r requirements.dev.txt
+
+# Bump de versión: actualiza version.py + setup.py y commitea el release.
+# Uso: bump-my-version bump [patch|minor|major]
+bump-my-version

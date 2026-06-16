@@ -45,6 +45,57 @@ python src/cli.py
 lo mismo si se desea trabajar con interfaz kivy...
 
 
+# Cómo publicar una nueva versión (release)
+
+Los binarios (Linux, Windows y Android APK) los compila y publica
+automáticamente GitHub Actions (`.github/workflows/build-release.yml`).
+
+**El release se dispara cuando cambia la versión en `src/fiscalberry/version.py`
+y se pushea a la rama `v3.0.x`.** Commitear sin cambiar la versión NO publica nada
+(no se gasta CI). Tampoco se dispara desde `master`.
+
+## Pasos
+
+1. **Terminá y commiteá tus cambios** primero (el bump exige working tree limpio):
+
+   ```sh
+   git add -A
+   git commit -m "feat: lo que hayas hecho"
+   ```
+
+2. **Bumpeá la versión** con `bump-my-version` (actualiza `version.py` + `setup.py`
+   y crea un commit `chore(release): bump version X -> Y`). Elegí el tipo según el cambio:
+
+   ```sh
+   bump-my-version bump patch   # 3.1.0 -> 3.1.1  (fixes)
+   bump-my-version bump minor   # 3.1.0 -> 3.2.0  (features nuevas)
+   bump-my-version bump major   # 3.1.0 -> 4.0.0  (cambios incompatibles)
+   ```
+
+   > Instalación de la tool (una vez): `pipx install bump-my-version`
+   > (o `pip install -r requirements.dev.txt` dentro de un venv).
+
+3. **Pusheá** a la rama de release:
+
+   ```sh
+   git push origin v3.0.x
+   ```
+
+Listo. La Action detecta la nueva versión, compila los binarios y publica el
+GitHub Release con el tag `vX.Y.Z` y los archivos adjuntos. **El tag lo crea la
+Action**, no hace falta crearlo a mano.
+
+## Notas importantes
+
+- **Una versión = un release.** Si el tag `vX.Y.Z` ya existe, la Action se saltea
+  la publicación (evita releases duplicados). Para publicar de nuevo, bumpeá a una
+  versión nueva.
+- `version.py` es la **única fuente de verdad** de la versión; no la edites a mano,
+  usá `bump-my-version`.
+- También se puede disparar manualmente desde la pestaña **Actions → Build and
+  Release Fiscalberry → Run workflow** (`workflow_dispatch`).
+
+
 # ¿Qué es?
 
 Fiscalberry es un servidor de websockets desarrollado en Python pensado para que corra en una raspberry-pi (de ahí viene el nombre de este proyecto). **Pero funciona perfectamente en otros sistemas operativos.**

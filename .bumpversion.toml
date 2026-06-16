@@ -1,0 +1,22 @@
+[tool.bumpversion]
+current_version = "3.0.0"
+# Commitea el cambio de versión como un commit limpio de release.
+commit = true
+commit_args = "--no-verify"
+message = "chore(release): bump version {current_version} -> {new_version}"
+# NO crear el tag localmente: el tag vX.Y.Z lo crea la GitHub Action
+# (build-release.yml) al publicar el release. Así evitamos doble-tag.
+tag = false
+# Exigir working tree limpio: primero commiteá tus features, después bumpeá.
+allow_dirty = false
+
+# version.py es la fuente que lee la GitHub Action para decidir el release.
+[[tool.bumpversion.files]]
+filename = "src/fiscalberry/version.py"
+search = 'VERSION = "{current_version}"'
+replace = 'VERSION = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "setup.py"
+search = "version='{current_version}'"
+replace = "version='{new_version}'"
