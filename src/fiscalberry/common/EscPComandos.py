@@ -437,7 +437,7 @@ class EscPComandos():
         tipoCmp = encabezado.get('tipo_comprobante_codigo')
         nroComprobante = encabezado.get('numero_comprobante')
         fechaComprobante = encabezado.get('fecha_comprobante')
-        horaComprobante = encabezado.get('hora_comprobante')
+        horaComprobante = datatime.datatime.now().strftime("%H:%M")
         cae = encabezado.get("cae")
         caeVto = encabezado.get("cae_vto")
 
