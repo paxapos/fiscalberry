@@ -437,12 +437,13 @@ class EscPComandos():
         tipoCmp = encabezado.get('tipo_comprobante_codigo')
         nroComprobante = encabezado.get('numero_comprobante')
         fechaComprobante = encabezado.get('fecha_comprobante')
+        horaComprobante = encabezado.get('hora_comprobante')
         cae = encabezado.get("cae")
         caeVto = encabezado.get("cae_vto")
 
         printer.set(font='a', height=1, bold=True, align='center')
         printer.text(f"{ tipoComprobante } Nro. { nroComprobante }\n")
-        printer.text(f"Fecha { fechaComprobante }\n")
+        printer.text(f"Fecha { fechaComprobante } Hora {horaComprobante}\n")
         printer.set(font='a', height=1, align='center')
         printer.text("-" * self.total_cols + "\n")
 
