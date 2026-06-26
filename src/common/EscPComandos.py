@@ -271,6 +271,7 @@ class EscPComandos():
         tipoCmp = encabezado.get('tipo_comprobante_codigo')
         nroComprobante = encabezado.get('numero_comprobante')
         fechaComprobante = encabezado.get('fecha_comprobante')
+        horaComprobante = encabezado.get('hora_comprobante')
         cae = encabezado.get("cae")
         caeVto = encabezado.get("cae_vto")
 
@@ -485,6 +486,7 @@ class EscPComandos():
         printer.text("\n")
         printer.text(f"{caeTxt}    {caeVtoTxt}")
         printer.text("\n")
+        printer.text(f"Fecha y hora de impresion: {horaComprobante}\n")
 
         printer.set(font='a', height=1, bold=True, align='center')
         printer.text("\n** Software PAXAPOS **")
