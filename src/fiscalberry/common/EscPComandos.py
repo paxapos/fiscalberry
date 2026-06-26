@@ -443,10 +443,8 @@ class EscPComandos():
 
         printer.set(font='a', height=1, bold=True, align='center')
         printer.text(f"{ tipoComprobante } Nro. { nroComprobante }\n")
-        if horaComprobante:
-            printer.text(f"Fecha { fechaComprobante } Hora {horaComprobante}\n")
-        else:
-            printer.text(f"Fecha { fechaComprobante }\n")
+        printer.text(f"Fecha { fechaComprobante }\n")
+
         printer.set(font='a', height=1, align='center')
         printer.text("-" * self.total_cols + "\n")
 
@@ -666,6 +664,7 @@ class EscPComandos():
         printer.text("\n")
         printer.text(f"{caeTxt}    {caeVtoTxt}")
         printer.text("\n")
+        printer.text(f"Fecha y hora de impresion: {horaComprobante}\n")
 
         printer.set(font='a', height=1, bold=True, align='center')
         printer.text("\n** Software PAXAPOS **")
