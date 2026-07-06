@@ -91,15 +91,16 @@ class RabbitMQConsumer:
             bool: True si el binding se creó exitosamente, False si falló
         """
         for attempt in range(1, self.MAX_BINDING_RETRIES + 1):
+            connection = None
             try:
                 import pika
-                
+
                 # Nombre de la cola que MQTT ya creó
                 mqtt_queue_name = f"mqtt-subscription-fiscalberry-{self.topic}qos1"
-                
-                self.logger.debug("Creando binding AMQP (intento %d/%d): exchange '%s' → queue '%s'", 
+
+                self.logger.debug("Creando binding AMQP (intento %d/%d): exchange '%s' → queue '%s'",
                                attempt, self.MAX_BINDING_RETRIES, self.EXCHANGE_NAME, mqtt_queue_name)
-                
+
                 # Conectar via AMQP temporalmente solo para crear el binding
                 credentials = pika.PlainCredentials(self.user, self.password)
                 connection = pika.BlockingConnection(
@@ -113,36 +114,47 @@ class RabbitMQConsumer:
                     )
                 )
                 channel = connection.channel()
-                
+
                 channel.queue_bind(
                     exchange=self.EXCHANGE_NAME,
                     queue=mqtt_queue_name,
                     routing_key=self.topic
                 )
-                
-                connection.close()
-                
-                self.logger.debug("✓ Binding creado exitosamente: %s → %s", 
+
+                self.logger.debug("✓ Binding creado exitosamente: %s → %s",
                                self.EXCHANGE_NAME, mqtt_queue_name)
                 self._binding_created = True
                 return True
-                
+
             except ImportError:
                 self.logger.error("ERROR FATAL: pika no está instalado. No se puede crear el binding AMQP.")
                 return False
-                
+
             except Exception as e:
-                self.logger.warning("Error creando binding (intento %d/%d): %s", 
+                self.logger.warning("Error creando binding (intento %d/%d): %s",
                                   attempt, self.MAX_BINDING_RETRIES, e)
                 if attempt < self.MAX_BINDING_RETRIES:
                     # Backoff entre intentos
                     time.sleep(2 ** attempt)
                 else:
-                    self.logger.error("ERROR: No se pudo crear binding después de %d intentos.", 
+                    self.logger.error("ERROR: No se pudo crear binding después de %d intentos.",
                                     self.MAX_BINDING_RETRIES)
                     self.logger.error("Los mensajes del backend NO llegarán a esta impresora.")
                     return False
-        
+            finally:
+                # Cerrar SIEMPRE la conexión AMQP temporal, incluso si channel()/queue_bind()
+                # lanzan excepción. Sin esto, un fallo tras abrir la conexión la deja colgada;
+                # como este método corre en CADA reconexión MQTT (_on_disconnect resetea
+                # _binding_created), un binding intermitentemente fallido acumula conexiones
+                # AMQP en el broker en dispositivos con red inestable.
+                # Nota: en el camino de éxito, el return True dispara este finally ANTES de
+                # retornar, así que la conexión igual se cierra.
+                if connection is not None:
+                    try:
+                        connection.close()
+                    except Exception:
+                        pass
+
         return False
     def _on_connect(self, client, userdata, flags, rc):
         """Callback cuando se conecta al broker MQTT."""

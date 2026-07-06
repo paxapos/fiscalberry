@@ -92,7 +92,10 @@ class FiscalberrySio:
             self.thread = None
             self.config = Configberry()
             self.message_queue = queue.Queue()
-            
+            # Serializa/coalesce los start_rabbit: evita que dos eventos concurrentes
+            # lancen dos configure_and_restart compitiendo por el _thread del handler.
+            self._start_rabbit_lock = threading.Lock()
+
             self.rabbit_handler = RabbitMQProcessHandler()
             
             self._register_events()
@@ -187,19 +190,28 @@ class FiscalberrySio:
         @self.sio.event(namespace=ns)
         def start_rabbit(cfg: dict):
             logger.debug("Evento start_rabbit recibido")
-            try:
-                # En un hilo aparte y SIN join(): configure_and_restart hace stop()+start()
-                # del consumer (puede tardar varios segundos). Bloquear acá congelaría el
-                # loop de eventos de Socket.IO (no se procesarían command/disconnect/etc.).
-                self.rabbitmq_thread = threading.Thread(
-                    target=self.rabbit_handler.configure_and_restart,
-                    args=(cfg, self.message_queue),
-                    daemon=True
-                )
-                self.rabbitmq_thread.start()
-                logger.info("RabbitMQ (re)configurándose en segundo plano")
-            except Exception as e:
-                logger.error(f"Error iniciando RabbitMQ: {e}")
+            # El backend reenvía start_rabbit en CADA (re)conexión de Socket.IO con las mismas
+            # credenciales del broker. Si ya hay una reconfiguración en vuelo, no lanzamos otra:
+            # la que corre ya deja el consumer conectado, y dos configure_and_restart a la vez
+            # compiten por el _thread del handler (singleton) sin lock. Si las credenciales
+            # llegaran a rotar, el próximo start_rabbit (sin reconfig en curso) las aplica.
+            with self._start_rabbit_lock:
+                if self.rabbitmq_thread and self.rabbitmq_thread.is_alive():
+                    logger.debug("start_rabbit ignorado: reconfiguración de RabbitMQ ya en curso")
+                    return
+                try:
+                    # En un hilo aparte y SIN join(): configure_and_restart hace stop()+start()
+                    # del consumer (puede tardar varios segundos). Bloquear acá congelaría el
+                    # loop de eventos de Socket.IO (no se procesarían command/disconnect/etc.).
+                    self.rabbitmq_thread = threading.Thread(
+                        target=self.rabbit_handler.configure_and_restart,
+                        args=(cfg, self.message_queue),
+                        daemon=True
+                    )
+                    self.rabbitmq_thread.start()
+                    logger.info("RabbitMQ (re)configurándose en segundo plano")
+                except Exception as e:
+                    logger.error(f"Error iniciando RabbitMQ: {e}")
             
     def isRabbitMQRunning(self):
         """
