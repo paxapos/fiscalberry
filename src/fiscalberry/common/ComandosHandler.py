@@ -91,7 +91,9 @@ def report_queue_status():
                 }
             )
     
-    threading.Timer(30.0, report_queue_status).start()  # Reportar cada 30 segundos
+    _t = threading.Timer(30.0, report_queue_status)
+    _t.daemon = True  # no bloquear el cierre del proceso/tests
+    _t.start()  # Reportar cada 30 segundos
 
 def process_print_jobs(worker_id=0):
     """Worker optimizado para procesar trabajos de impresión con detección de comandas trabadas"""
@@ -188,14 +190,28 @@ def process_print_jobs(worker_id=0):
             )
             continue
 
-# Iniciar workers optimizados
-for i in range(MAX_WORKERS):
-    worker = threading.Thread(target=process_print_jobs, args=(i,), daemon=True)
-    worker.start()
-    worker_threads.append(worker)
+# Arranque LAZY de los workers legacy en memoria.
+# No se arrancan al importar el módulo: importar ComandosHandler no debe crear
+# threads ni timers de fondo (tests, discover, herramientas). Solo se inician si
+# se usa el camino síncrono legacy ([Paxaprinter] sync_print_commands=true).
+_legacy_workers_started = False
+_legacy_workers_lock = threading.Lock()
 
-# Iniciar el informe periódico
-report_queue_status()
+
+def _ensure_legacy_workers_started():
+    """Inicia una sola vez el pool de workers en memoria y el reporte periódico."""
+    global _legacy_workers_started
+    if _legacy_workers_started:
+        return
+    with _legacy_workers_lock:
+        if _legacy_workers_started:
+            return
+        for i in range(MAX_WORKERS):
+            worker = threading.Thread(target=process_print_jobs, args=(i,), daemon=True)
+            worker.start()
+            worker_threads.append(worker)
+        report_queue_status()
+        _legacy_workers_started = True
 
 
 
@@ -408,8 +424,32 @@ _print_spooler_lock = threading.Lock()
 
 
 def _spooler_print_fn(ticket):
-    """Imprime un ticket ya persistido. Lanza excepcion si falla (-> reintento)."""
-    return runTraductor(dict(ticket), Queue())
+    """Imprime un ticket ya persistido. Lanza excepcion si falla (-> reintento).
+
+    Integra el circuit breaker por impresora (Fase 8): si el circuito de esa
+    impresora esta abierto, no se toca el driver y se lanza CircuitOpenError para
+    que el spooler reprograme con backoff. Exito -> cierra circuito; fallo -> lo
+    registra (puede abrirlo tras varios fallos consecutivos).
+    """
+    from fiscalberry.common.printer_circuit_breaker import (
+        get_circuit_breaker, CircuitOpenError)
+
+    printer_name = ticket.get("printerName")
+    breaker = get_circuit_breaker()
+
+    if printer_name and not breaker.allow(printer_name):
+        raise CircuitOpenError(
+            f"Circuito abierto para '{printer_name}': impresora con fallos recientes")
+
+    try:
+        result = runTraductor(dict(ticket), Queue())
+        if printer_name:
+            breaker.record_success(printer_name)
+        return result
+    except Exception:
+        if printer_name:
+            breaker.record_failure(printer_name)
+        raise
 
 
 def get_print_spooler():
@@ -421,6 +461,36 @@ def get_print_spooler():
                 from fiscalberry.common.print_spooler import DurablePrintSpooler
                 _print_spooler = DurablePrintSpooler(_spooler_print_fn)
     return _print_spooler
+
+
+def _is_sync_print_mode():
+    """Modo legacy: responder de forma sincrona con el resultado real de impresion.
+
+    Por defecto False -> se usa el spooler durable (persiste y responde "aceptado",
+    imprime con reintentos, tolera impresora caida/reinicios). Activar solo si hay
+    clientes Socket.IO que dependan del resultado inmediato de impresion:
+        [Paxaprinter] sync_print_commands = true
+    """
+    try:
+        val = configberry.get("Paxaprinter", "sync_print_commands", fallback="false")
+    except Exception:
+        val = "false"
+    return str(val).strip().lower() in ("true", "1", "yes", "on")
+
+
+def _compute_job_id(jsonTicket):
+    """job_id estable para dedup en el spooler.
+
+    Usa 'jobId' si viene en el ticket; si no, un sha1 del payload normalizado.
+    Mismo criterio conceptual que RabbitMQConsumer._on_message() para que un mismo
+    ticket no se imprima dos veces.
+    """
+    import hashlib
+    jid = jsonTicket.get("jobId")
+    if jid:
+        return str(jid)
+    payload = json.dumps(jsonTicket, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
 
 
 class ComandosHandler:
@@ -515,6 +585,31 @@ class ComandosHandler:
                 # Log con JSON compacto del ticket
                 ticket_copy = {k: v for k, v in jsonTicket.items() if k != 'printerName'}
                 logger.info(f"Imprimiendo: '{printer_name}' {json.dumps(ticket_copy, ensure_ascii=False)}")
+
+                # Camino DURABLE por defecto: persistir en el spooler y responder
+                # "aceptado" de inmediato. La impresion real se hace con reintentos
+                # (tolera impresora caida / reinicios). Deduplica por job_id.
+                if not _is_sync_print_mode():
+                    job_id = _compute_job_id(jsonTicket)
+                    spooler = get_print_spooler()
+                    is_new = spooler.enqueue(job_id, jsonTicket, printer_name)
+                    rta["rta"] = {
+                        "accepted": True,
+                        "queued": True,
+                        "duplicate": not is_new,
+                        "job_id": job_id,
+                        "pending_count": spooler.pending_count(),
+                        "failed_count": spooler.failed_count(),
+                    }
+                    logger.info(
+                        "Encolado durable: '%s' job=%s (nuevo=%s, pending=%s, failed=%s)",
+                        printer_name, job_id, is_new,
+                        rta["rta"]["pending_count"], rta["rta"]["failed_count"])
+                    return rta
+
+                # Camino LEGACY sincrono ([Paxaprinter] sync_print_commands=true):
+                # workers en memoria + respuesta con el resultado real de impresion.
+                _ensure_legacy_workers_started()
 
                 # Procesamiento optimizado con cola de alta velocidad
                 q = Queue()
