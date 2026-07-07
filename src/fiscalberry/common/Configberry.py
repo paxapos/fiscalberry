@@ -24,6 +24,27 @@ class Configberry:
     # escrituras que se pisan. Reentrante porque set()->notify_listeners()->getJSON().
     _rlock = threading.RLock()
 
+    # Cache de lectura: evita releer el INI del disco en cada get(). Se invalida
+    # cuando cambia el mtime del archivo o tras un set()/delete que reescribe.
+    _last_mtime = None
+    _loaded = False
+
+    def _reload_if_changed(self):
+        """Relee el INI solo si aun no se cargo o si cambio su mtime. Bajo _rlock."""
+        try:
+            mtime = os.path.getmtime(self.configFilePath)
+        except OSError:
+            mtime = None
+        if (not self._loaded) or (mtime != self._last_mtime):
+            self.config.read(self.configFilePath)
+            self._loaded = True
+            self._last_mtime = mtime
+
+    def _invalidate_cache(self):
+        """Fuerza recarga en el proximo get() (llamar tras escribir el INI)."""
+        self._loaded = False
+
+
     def __new__(cls):
 
         if not cls._instance:
@@ -160,7 +181,8 @@ class Configberry:
                     
                     # Recargar la configuración después de escribir
                     self.config.read(self.configFilePath) 
-                    
+                    # Invalidar cache de get(): el archivo cambió en disco.
+                    self._invalidate_cache()
                     # Verificar si se guardó correctamente (opcional, pero bueno para robustez)
                     # for key, value in kwargs.items():
                     #     saved_value = self.config.get(section, key, fallback=None)
@@ -393,7 +415,7 @@ class Configberry:
 
     def get(self, section, key, fallback=None):
         with self._rlock:
-            self.config.read( self.configFilePath )
+            self._reload_if_changed()
             return self.config.get(section, key, fallback=fallback)
 
     def get_ssl_verify(self):
