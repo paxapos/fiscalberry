@@ -1,6 +1,35 @@
 # 🔒 Seguridad MQTT: Puerto 1883 vs 8883
 
-## ⚠️ Estado Actual: SIN ENCRIPTACIÓN
+> ✅ **TLS ya soportado (opt-in) en v3.0.x.** Se configura en la sección
+> `[RabbitMq]` de `config.ini` y lo aplica `common/rabbitmq/mqtt_compat.py`
+> (`read_mqtt_tls_config()` + `apply_tls()`), usado por el consumer, el
+> ErrorPublisher, el heartbeat y el diagnóstico.
+>
+> **Claves soportadas (sección `[RabbitMq]`):**
+>
+> | Clave          | Valores            | Default                | Descripción                              |
+> | -------------- | ------------------ | ---------------------- | ---------------------------------------- |
+> | `use_tls`      | `true` / `false`   | `false`                | Activa TLS.                              |
+> | `port`         | ej. `8883`         | `8883` si TLS, `1883` si no | Si se define, se respeta (override).  |
+> | `ca_cert`      | `/ruta/ca.pem`     | (vacío)                | CA propia (backend con CA privada).      |
+> | `tls_insecure` | `true` / `false`   | `false`                | No verificar cert. **Solo pruebas.**     |
+>
+> **Ejemplo (sin secretos):**
+> ```ini
+> [RabbitMq]
+> host = broker.midominio.com
+> use_tls = true
+> port = 8883
+> ca_cert = /etc/fiscalberry/ca.pem
+> ```
+> El default de puerto lo fija `process_handler.configure_and_restart()`:
+> `8883` si `use_tls=true`, `1883` si no, salvo que `port` ya esté en `config.ini`.
+> Verificar con: `python -m fiscalberry.diagnostics.rabbitmq_check --from-config`
+> (o `--tls --ca-cert /ruta/ca.pem`).
+>
+> ---
+
+## ⚠️ Estado Anterior: SIN ENCRIPTACIÓN
 
 **Puerto actual:** `1883` (MQTT sin TLS)
 

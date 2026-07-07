@@ -358,13 +358,17 @@ class RabbitMQProcessHandler:
         else:
             final_config["host"] = curr_host
             
-        # PORT - FORZADO A 1883 (MQTT) PARA v3.0.x
-        # DESARROLLO EXPRESS: Ignorar completamente el puerto del backend
+        # PORT (Fase 5): TLS opt-in. Si config.ini NO define port, el default
+        # depende de [RabbitMq] use_tls: 8883 con TLS, 1883 sin TLS. Si config.ini
+        # ya trae port, se respeta (permite override manual, incluido TLS custom).
         if not curr_port or not str(curr_port).strip():
-            new_port = "1883"  # MQTT sin TLS (hardcoded para v3.0.x)
+            use_tls = str(
+                self.config.get("RabbitMq", "use_tls", fallback="false")
+            ).strip().lower() in ("true", "1", "yes", "on")
+            new_port = "8883" if use_tls else "1883"
             updates["port"] = new_port
             final_config["port"] = new_port
-            logger.info("Puerto forzado a 1883 (MQTT) para v3.0.x")
+            logger.info("Puerto MQTT por defecto: %s (use_tls=%s)", new_port, use_tls)
         else:
             # Si ya existe en config.ini, respetarlo (permite override manual)
             final_config["port"] = curr_port

@@ -7,12 +7,15 @@ para recibir comandos de impresión.
 
 import json
 import time
+import threading
 import traceback
 import paho.mqtt.client as mqtt
 
 from fiscalberry.common.ComandosHandler import ComandosHandler, TraductorException
+from fiscalberry.common.Configberry import Configberry
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.rabbitmq.error_publisher import publish_error
+from fiscalberry.common.rabbitmq import mqtt_compat
 from typing import Optional
 import queue
 
@@ -64,13 +67,32 @@ class RabbitMQConsumer:
         self._subscribed = False
         self._stop_requested = False
         self._binding_created = False
-        
+
+        # Lifecycle basado en eventos (Fase 4): evita polling con time.sleep(0.5).
+        self._stop_event = threading.Event()
+
+        # Config local para TLS y binding AMQP (Fases 5 y 10).
+        self._configberry = Configberry()
+
         # Handler de comandos reutilizable (evita crear instancia por mensaje)
         self._comandos_handler = None
         
         # Configuración AMQP para crear binding
         self.AMQP_PORT = 5672
         self.EXCHANGE_NAME = 'paxaprinter'
+
+    def _amqp_binding_enabled(self):
+        """Fase 10: el binding AMQP legacy (pika) es configurable.
+
+        [RabbitMq] create_amqp_binding = true/false  (default true para no romper
+        instalaciones actuales). Si es false, no se importa pika ni se intenta AMQP.
+        """
+        try:
+            val = self._configberry.get("RabbitMq", "create_amqp_binding", fallback="true")
+        except Exception:
+            val = "true"
+        return str(val).strip().lower() in ("true", "1", "yes", "on")
+
         
     def _create_queue_binding(self):
         """
@@ -158,7 +180,7 @@ class RabbitMQConsumer:
         return False
     def _on_connect(self, client, userdata, flags, rc):
         """Callback cuando se conecta al broker MQTT."""
-        if rc == 0:
+        if mqtt_compat.rc_is_success(rc):
             self.logger.debug("MQTT conectado exitosamente")
             self._connected = True
             # Suscribirse al topic con QoS 1 para ACK automático
@@ -196,13 +218,32 @@ class RabbitMQConsumer:
         """
         self._subscribed = True
         self.logger.debug(f"Suscripción confirmada (QoS: {granted_qos})")
-        
-        # Ahora que la cola MQTT existe, crear el binding
-        if not self._binding_created:
+
+        # Fase 4/10: NO bloquear el network loop de MQTT dentro del callback.
+        # El binding AMQP legacy usa pika (bloqueante). Se ejecuta en un thread
+        # aparte y solo si está habilitado por config.
+        if self._binding_created:
+            return
+        if not self._amqp_binding_enabled():
+            self.logger.debug(
+                "Binding AMQP legacy OMITIDO por config ([RabbitMq] create_amqp_binding=false)")
+            return
+
+        t = threading.Thread(
+            target=self._run_binding_async, name="amqp-binding", daemon=True)
+        t.start()
+
+    def _run_binding_async(self):
+        """Crea el binding AMQP legacy fuera del callback MQTT (no bloquea el loop)."""
+        try:
             success = self._create_queue_binding()
             if not success:
                 self.logger.error("ATENCIÓN: Fiscalberry está conectado pero NO recibirá mensajes.")
                 self.logger.error("Solución: Crear el binding manualmente en RabbitMQ o verificar permisos.")
+        except Exception as e:
+            # Un fallo de binding nunca debe frenar el network loop MQTT.
+            self.logger.error("Fallo no fatal creando binding AMQP legacy: %s", e)
+
         
     def _on_message(self, client, userdata, msg):
         """
@@ -310,15 +351,26 @@ class RabbitMQConsumer:
     def connect(self):
         """Conecta al broker MQTT con configuración robusta para redes inestables."""
         try:
-            # Crear cliente MQTT con sesión persistente
-            self.client = mqtt.Client(
+            # Crear cliente MQTT con sesión persistente (compatible paho 1.x/2.x)
+            self.client = mqtt_compat.make_client(
                 client_id=f"fiscalberry-{self.topic}",
                 clean_session=False,  # CRÍTICO: Sesión persistente
-                protocol=mqtt.MQTTv311
+                protocol=mqtt.MQTTv311,
             )
             
             # Configurar credenciales
             self.client.username_pw_set(self.user, self.password)
+
+            # TLS opt-in (Fase 5). Sin config, no hace nada (MQTT plano en 1883).
+            try:
+                tls_cfg = mqtt_compat.read_mqtt_tls_config(self._configberry)
+                if mqtt_compat.apply_tls(self.client, tls_cfg):
+                    self.logger.info(
+                        "MQTT TLS habilitado (puerto config=%s, ca_cert=%s, insecure=%s)",
+                        tls_cfg["port"], tls_cfg["ca_cert"], tls_cfg["tls_insecure"])
+            except Exception as tls_err:
+                # Nunca romper la conexión por un problema de lectura de TLS.
+                self.logger.error("No se pudo aplicar TLS (se continúa sin TLS): %s", tls_err)
             
             # Habilitar reconexión automática con backoff (1s min, 120s max)
             self.client.reconnect_delay_set(min_delay=1, max_delay=120)
@@ -348,6 +400,7 @@ class RabbitMQConsumer:
         desde otro thread mediante stop().
         """
         self._stop_requested = False
+        self._stop_event.clear()
         self.connect()
         
         self.logger.info(f"Esperando mensajes en topic: {self.topic}")
@@ -357,11 +410,12 @@ class RabbitMQConsumer:
         MAX_DISCONNECT_SECONDS = 300  # 5 minutos máximo esperando reconexión
         
         try:
-            # Usar loop_start() (no bloqueante) + polling para poder interrumpir
+            # Usar loop_start() (no bloqueante) + espera por evento para poder interrumpir
             self.client.loop_start()
-            
-            # Polling loop - verifica periódicamente si debemos detenernos
-            while not self._stop_requested:
+
+            # Lifecycle basado en Event (Fase 4): stop() despierta esta espera de
+            # inmediato, sin depender de un time.sleep(0.5) de polling.
+            while not self._stop_event.is_set():
                 if not self._connected:
                     disconnected_seconds += 1
                     if disconnected_seconds >= MAX_DISCONNECT_SECONDS:
@@ -369,11 +423,14 @@ class RabbitMQConsumer:
                         break  # Salir para que process_handler reintente con nuevo consumer
                     if disconnected_seconds % 30 == 0:  # Log cada 30s
                         self.logger.warning(f"Esperando reconexión MQTT... ({disconnected_seconds}s)")
-                    time.sleep(1)
+                    # Espera interrumpible de 1s (stop() la corta al instante).
+                    if self._stop_event.wait(timeout=1):
+                        break
                     continue
                 else:
                     disconnected_seconds = 0  # Reset contador si estamos conectados
-                time.sleep(0.5)  # Check cada 500ms
+                # Espera interrumpible de 0.5s mientras estamos conectados.
+                self._stop_event.wait(timeout=0.5)
                 
         except Exception as e:
             self.logger.error(f"Error en consumer MQTT: {e}")
@@ -414,6 +471,8 @@ class RabbitMQConsumer:
         """
         self.logger.debug("Solicitando detención de MQTT consumer...")
         self._stop_requested = True
+        # Fase 4: despertar de inmediato la espera del loop de start().
+        self._stop_event.set()
         
         # Forzar desconexión inmediata
         if self.client:
