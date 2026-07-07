@@ -6,6 +6,7 @@ para cada tenant/comercio, permitiendo monitoreo remoto de errores.
 """
 
 import json
+import queue
 import threading
 import time
 import traceback
@@ -15,6 +16,7 @@ import paho.mqtt.client as mqtt
 
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.Configberry import Configberry
+from fiscalberry.common.rabbitmq import mqtt_compat
 
 logger = getLogger()
 
@@ -115,7 +117,7 @@ class ErrorPublisher:
     
     def _on_connect(self, client, userdata, flags, rc):
         """Callback cuando se conecta al broker MQTT."""
-        if rc == 0:
+        if mqtt_compat.rc_is_success(rc):
             self._connected = True
             logger.debug("ErrorPublisher: MQTT conectado")
         else:
@@ -153,15 +155,22 @@ class ErrorPublisher:
                 logger.debug("ErrorPublisher: Connecting to MQTT - Host: %s:%s, User: %s",
                            config['host'], config['port'], config['user'])
                 
-                # Crear cliente MQTT
-                self.client = mqtt.Client(
+                # Crear cliente MQTT (compatible paho 1.x/2.x)
+                self.client = mqtt_compat.make_client(
                     client_id=f"fiscalberry-errors-{self.tenant}",
                     clean_session=True,  # Para errores no necesitamos sesión persistente
-                    protocol=mqtt.MQTTv311
+                    protocol=mqtt.MQTTv311,
                 )
                 
                 # Configurar credenciales
                 self.client.username_pw_set(config['user'], config['password'])
+
+                # TLS opt-in (misma config local que el consumer).
+                try:
+                    tls_cfg = mqtt_compat.read_mqtt_tls_config(self.config)
+                    mqtt_compat.apply_tls(self.client, tls_cfg)
+                except Exception as tls_err:
+                    logger.debug("ErrorPublisher: no se pudo aplicar TLS: %s", tls_err)
                 
                 # Configurar callbacks
                 self.client.on_connect = self._on_connect
@@ -297,16 +306,110 @@ def publish_error(error_type: str, error_message: str,
                  context: Optional[Dict[str, Any]] = None, 
                  exception: Optional[Exception] = None):
     """
-    Función de conveniencia para publicar errores.
-    
-    DESHABILITADO: Esta funcionalidad está deshabilitada para evitar 
-    delays por conexión fallida a MQTT.
-    
-    Args:
-        error_type: Tipo de error (ej: "PRINTER_ERROR", "JSON_PARSE_ERROR")
-        error_message: Mensaje descriptivo del error
-        context: Contexto adicional (datos del comando, configuración, etc.)
-        exception: Excepción original si está disponible
+    Publica un error de forma NO BLOQUEANTE (Fase 6).
+
+    Encola el error y retorna de inmediato: la publicación real la hace un worker
+    de fondo. Nunca bloquea el hilo de impresión ni lanza excepciones aunque el
+    broker esté caído. Sanitiza el contexto (no expone credenciales) y aplica un
+    rate-limit por tipo de error para no spamear.
     """
-    # ErrorPublisher DESHABILITADO - no hacer nada
-    return
+    try:
+        _error_dispatcher.submit({
+            "error_type": error_type,
+            "error_message": error_message,
+            "context": _sanitize_context(context) if context else None,
+            "exception": exception,
+        })
+    except Exception:
+        # Reportar un error NUNCA debe romper el flujo principal (impresión).
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Despachador no bloqueante (Fase 6)
+# ---------------------------------------------------------------------------
+# Claves cuyo valor se enmascara antes de publicar (no exponer secretos).
+_SENSITIVE_KEYS = {
+    "password", "passwd", "pwd", "secret", "token", "authorization", "auth",
+    "apikey", "api_key", "credential", "credentials", "rabbitmq_password",
+}
+
+
+def _sanitize_context(obj, _depth=0):
+    """Enmascara valores sensibles en el contexto antes de publicarlo."""
+    if _depth > 6:
+        return "..."
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            if str(k).lower() in _SENSITIVE_KEYS:
+                out[k] = "***"
+            else:
+                out[k] = _sanitize_context(v, _depth + 1)
+        return out
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_context(v, _depth + 1) for v in obj]
+    return obj
+
+
+class _ErrorDispatcher:
+    """Cola acotada + worker de fondo para publicar errores sin bloquear.
+
+    - No arranca ningún thread hasta el primer error (import-safe).
+    - Si la cola se llena, descarta el más viejo (best-effort), nunca bloquea.
+    - Rate-limit por error_type para evitar tormentas de mensajes.
+    """
+
+    MAXSIZE = 100
+    MIN_INTERVAL = 5.0  # segundos entre errores del mismo tipo
+
+    def __init__(self):
+        self._q = queue.Queue(maxsize=self.MAXSIZE)
+        self._last_sent = {}
+        self._lock = threading.Lock()
+        self._started = False
+
+    def _ensure_worker(self):
+        if self._started:
+            return
+        with self._lock:
+            if self._started:
+                return
+            threading.Thread(
+                target=self._run, name="error-publisher", daemon=True).start()
+            self._started = True
+
+    def submit(self, item):
+        error_type = item.get("error_type", "")
+        now = time.time()
+        with self._lock:
+            last = self._last_sent.get(error_type, 0.0)
+            if now - last < self.MIN_INTERVAL:
+                return  # Descartar repetido reciente (rate-limit).
+            self._last_sent[error_type] = now
+        self._ensure_worker()
+        try:
+            self._q.put_nowait(item)
+        except queue.Full:
+            # Cola llena: soltar el más viejo y encolar el nuevo (best-effort).
+            try:
+                self._q.get_nowait()
+                self._q.put_nowait(item)
+            except Exception:
+                pass
+
+    def _run(self):
+        while True:
+            item = self._q.get()
+            try:
+                get_error_publisher().publish_error(
+                    error_type=item.get("error_type", "UNKNOWN"),
+                    error_message=item.get("error_message", ""),
+                    context=item.get("context"),
+                    exception=item.get("exception"),
+                )
+            except Exception as e:
+                logger.debug("ErrorPublisher dispatcher: fallo publicando (ignorado): %s", e)
+
+
+_error_dispatcher = _ErrorDispatcher()
