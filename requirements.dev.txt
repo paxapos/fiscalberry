@@ -4,3 +4,7 @@
 # Bump de versión: actualiza version.py + setup.py y commitea el release.
 # Uso: bump-my-version bump [patch|minor|major]
 bump-my-version
+
+# Tests unitarios (arnés de pruebas de src/fiscalberry/**).
+# Uso: python -m pytest tests
+pytest>=8.0
