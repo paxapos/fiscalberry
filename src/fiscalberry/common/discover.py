@@ -2,8 +2,9 @@ import threading
 import requests
 import json
 from fiscalberry.common.Configberry import Configberry
-from fiscalberry.common.fiscalberry_logger import getLogger 
+from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.printer_detector import listar_impresoras
+from fiscalberry.version import VERSION
 
 configberry = Configberry()
 
@@ -26,6 +27,9 @@ def send_discover():
     data["installed_printers"] = listar_impresoras()
     senddata = {
         "uuid":  configberry.config.get("SERVIDOR", "uuid"),
+        # Version del cliente: el backend la persiste y decide capacidades
+        # (ej. mandar trabajos 'printRaw' solo a clientes que los soportan).
+        "version": VERSION,
         "raw_data": json.dumps(data)
     }
 

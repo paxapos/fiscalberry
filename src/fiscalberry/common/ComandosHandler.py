@@ -218,6 +218,9 @@ def _ensure_legacy_workers_started():
 
 def runTraductor(jsonTicket, queue):
     printerName = jsonTicket.pop('printerName')
+    # jobId es metadata de dedup del spooler, no un comando: si quedara en el
+    # ticket, EscPComandos.run() lo tomaria como accion inexistente.
+    jsonTicket.pop('jobId', None)
 
     try:
         dictSectionConf = configberry.get_config_for_printer(printerName)

@@ -7,6 +7,7 @@ from fiscalberry.common.ComandosHandler import ComandosHandler, TraductorExcepti
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.Configberry import Configberry
 from fiscalberry.common.rabbitmq.process_handler import RabbitMQProcessHandler
+from fiscalberry.version import VERSION
 
 
 environment = os.getenv('ENVIRONMENT', 'production')
@@ -239,7 +240,7 @@ class FiscalberrySio:
     def _run(self):
         try:
             logger.debug(f"SIO run: {self.server_url}")
-            self.sio.connect(self.server_url, namespaces=self.namespaces, headers={'x-uuid': self.uuid})
+            self.sio.connect(self.server_url, namespaces=self.namespaces, headers={'x-uuid': self.uuid, 'x-version': VERSION})
             self.sio.wait()
         except Exception as e:
             logger.error(f"SIO Error al conectar: {e}")

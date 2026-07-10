@@ -116,3 +116,22 @@ def test_compute_job_id_stable_and_uses_jobid():
     a = CH._compute_job_id({"printerName": "p", "a": 1, "b": 2})
     b = CH._compute_job_id({"b": 2, "printerName": "p", "a": 1})
     assert a == b and len(a) == 40
+
+
+def test_jobid_is_stripped_before_translating(monkeypatch):
+    """El jobId (metadata de dedup del spooler) no debe llegar a EscPComandos
+    como si fuera una accion: generaba 'Function not found' en la respuesta."""
+
+    class FakeConfigberry:
+        def get_config_for_printer(self, name):
+            return {"driver": "Dummy"}
+
+    monkeypatch.setattr(CH, "configberry", FakeConfigberry())
+
+    ticket = {"printerName": "cocina", "jobId": "job-1", "printTexto": {"texto": "hola"}}
+    resp = CH.runTraductor(ticket, None)
+
+    actions = [item.get("action") for item in resp["result"]]
+    assert "printTexto" in actions
+    assert "jobId" not in actions
+    assert not any(item.get("rta") == "Function not found" for item in resp["result"])
