@@ -26,7 +26,7 @@ class ErrorPublisher:
     Publicador de errores a topics MQTT específicos por tenant.
     
     Funcionalidades:
-    - Publica errores a topics con formato: fiscalberry/errors/{tenant}
+    - Publica errores a topics con formato: fiscalberry/errors/{tenant}/{uuid}
     - Mantiene una conexión persistente pero resiliente
     - Maneja reconexiones automáticas
     - Formatea los errores con metadata útil
@@ -38,6 +38,7 @@ class ErrorPublisher:
         self.config = Configberry()
         self.client = None
         self.tenant = None
+        self.uuid = None
         self.error_topic = None
         self._lock = threading.Lock()
         self._connected = False
@@ -48,10 +49,14 @@ class ErrorPublisher:
     def _setup_tenant_info(self):
         """Configura la información del tenant desde la configuración."""
         try:
+            # El uuid identifica la cola/dispositivo (correlaciona con el panel admin).
+            self.uuid = self.config.get("SERVIDOR", "uuid", fallback="unknown")
             if self.config.config.has_section("Paxaprinter"):
                 self.tenant = self.config.get("Paxaprinter", "tenant", fallback="")
                 if self.tenant:
-                    self.error_topic = f"fiscalberry/errors/{self.tenant}"
+                    # Topic con tenant + uuid: permite al panel rutear por routing key
+                    # fiscalberry.errors.{tenant}.{uuid} sin depender del payload.
+                    self.error_topic = f"fiscalberry/errors/{self.tenant}/{self.uuid}"
                     logger.debug("ErrorPublisher initialized - Tenant: %s, Topic: %s", 
                                self.tenant, self.error_topic)
             else:
@@ -245,7 +250,7 @@ class ErrorPublisher:
                 'tenant': self.tenant,
                 'error_type': error_type,
                 'message': error_message,
-                'device_uuid': self.config.get("SERVIDOR", "uuid", fallback="unknown"),
+                'device_uuid': self.uuid or self.config.get("SERVIDOR", "uuid", fallback="unknown"),
                 'context': context or {}
             }
             
