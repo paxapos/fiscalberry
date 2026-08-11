@@ -578,10 +578,15 @@ class EscPComandos():
         printer.ln();
 
         # 8- TRANSPARENCIA FISCAL AL CONSUMIDOR (Ley 27.743)
-        # Solo para facturas A, M y B (no C)
-        # Códigos: A=001, B=006, M=051 (excluye C=011)
-        tiposTransparenciaString = ["Factura A", "Factura B", "Factura M", "Factura \"A\"", "Factura \"B\"", "Factura \"M\""]
-        tiposTransparenciaCod = ["001", "006", "051"]
+        # SOLO comprobantes clase B a consumidor final: Factura B (006),
+        # ND B (007) y NC B (008). RG 5614/2024 art. 2 pto. 7: el bloque
+        # (inciso g del Apartado B, Anexo II RG 1415) remite EXCLUSIVAMENTE
+        # al punto 2 (operaciones con CF/exentos/no alcanzados). Las clases
+        # A y M van por el punto 1 (discriminacion clasica del art. 37 Ley
+        # de IVA, en el cuerpo, SIN leyenda) y los monotributistas (C) estan
+        # excluidos por la FAQ oficial de ARCA (1/4/2025).
+        tiposTransparenciaString = ["Factura B", "Factura \"B\"", "NOTAS DE DEBITO B", "NOTAS DE DEBITO \"B\"", "NOTAS DE CREDITO B", "NOTAS DE CREDITO \"B\""]
+        tiposTransparenciaCod = ["006", "007", "008"]
         if tipoComprobante in tiposTransparenciaString or tipoCmp in tiposTransparenciaCod:
             otros_impuestos = kwargs.get("otros_impuestos", 0)
             self._printTransparenciaFiscal(escpos, encabezado, ivas, otros_impuestos)
