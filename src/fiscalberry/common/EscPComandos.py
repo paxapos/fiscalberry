@@ -423,6 +423,26 @@ class EscPComandos():
         printer.set(font='a', height=1, bold=True, align='center')
         printer.text(f"{ tipoComprobante } Nro. { nroComprobante }\n")
         printer.text(f"Fecha { fechaComprobante }\n")
+
+        # RG 1415: condicion de venta. Key opcional (servers nuevos, ago-2026):
+        # si el server no la manda, no se imprime nada — compat hacia atras.
+        condicionVenta = encabezado.get('condicion_venta')
+        if condicionVenta:
+            printer.text(f"Condicion de venta: {condicionVenta}\n")
+
+        # RG 4540: una NC referencia al comprobante que anula. Key opcional
+        # (el server solo la manda con contenido en notas de credito).
+        comprobanteAsociado = encabezado.get('comprobante_asociado')
+        if comprobanteAsociado:
+            printer.text("Comprobante asociado:\n")
+            printer.text(f"{comprobanteAsociado}\n")
+
+        # RG 1575: leyenda obligatoria en Factura M
+        tiposFacturaMString = ["Factura M", "Factura \"M\"", "FACTURAS M"]
+        if tipoComprobante in tiposFacturaMString or tipoCmp == "051":
+            printer.text("Operacion sujeta a retencion\n")
+            printer.text("RG (AFIP) 1575\n")
+
         printer.set(font='a', height=1, align='center')
         printer.text("-" * self.total_cols + "\n")
 
