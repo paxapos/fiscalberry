@@ -604,8 +604,10 @@ class EscPComandos():
         # 8- TRANSPARENCIA FISCAL AL CONSUMIDOR (Ley 27.743)
         # Factura B (006) y NC B (008) — mismo alcance que el facturador de
         # ARCA y que el render raw server-side (no A, M ni C)
-        tiposTransparenciaString = ["Factura B", "Factura \"B\"", "NOTAS DE CREDITO B", "NOTAS DE CREDITO \"B\""]
-        tiposTransparenciaCod = ["006", "008"]
+        tiposTransparenciaString = ["Factura B", "Factura \"B\"", "NOTAS DE DEBITO B", "NOTAS DE DEBITO \"B\"", "NOTAS DE CREDITO B", "NOTAS DE CREDITO \"B\""]
+        # 007 (ND B) incluida: las notas llevan la clase de la operacion que
+        # ajustan y comparten sus requisitos (Anexo II RG 1415 / RG 5614)
+        tiposTransparenciaCod = ["006", "007", "008"]
         if tipoComprobante in tiposTransparenciaString or tipoCmp in tiposTransparenciaCod:
             otros_impuestos = kwargs.get("otros_impuestos", 0)
             self._printTransparenciaFiscal(escpos, encabezado, ivas, otros_impuestos)
