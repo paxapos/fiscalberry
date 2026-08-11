@@ -445,6 +445,25 @@ class EscPComandos():
         printer.text(f"{ tipoComprobante } Nro. { nroComprobante }\n")
         printer.text(f"Fecha { fechaComprobante }\n")
 
+        # RG 1415: condicion de venta. Key opcional (servers nuevos, ago-2026):
+        # si el server no la manda, no se imprime nada — compat hacia atras.
+        condicionVenta = encabezado.get('condicion_venta')
+        if condicionVenta:
+            printer.text(f"Condicion de venta: {condicionVenta}\n")
+
+        # RG 4540: una NC referencia al comprobante que anula. Key opcional
+        # (el server solo la manda con contenido en notas de credito).
+        comprobanteAsociado = encabezado.get('comprobante_asociado')
+        if comprobanteAsociado:
+            printer.text("Comprobante asociado:\n")
+            printer.text(f"{comprobanteAsociado}\n")
+
+        # RG 1575: leyenda obligatoria en Factura M
+        tiposFacturaMString = ["Factura M", "Factura \"M\"", "FACTURAS M"]
+        if tipoComprobante in tiposFacturaMString or tipoCmp == "051":
+            printer.text("Operacion sujeta a retencion\n")
+            printer.text("RG (AFIP) 1575\n")
+
         printer.set(font='a', height=1, align='center')
         printer.text("-" * self.total_cols + "\n")
 
@@ -583,10 +602,10 @@ class EscPComandos():
         printer.ln();
 
         # 8- TRANSPARENCIA FISCAL AL CONSUMIDOR (Ley 27.743)
-        # Solo para facturas B (no A, M ni C)
-        # Códigos: B=006 (excluye A=001, M=051, C=011)
-        tiposTransparenciaString = ["Factura B", "Factura \"B\""]
-        tiposTransparenciaCod = ["006"]
+        # Factura B (006) y NC B (008) — mismo alcance que el facturador de
+        # ARCA y que el render raw server-side (no A, M ni C)
+        tiposTransparenciaString = ["Factura B", "Factura \"B\"", "NOTAS DE CREDITO B", "NOTAS DE CREDITO \"B\""]
+        tiposTransparenciaCod = ["006", "008"]
         if tipoComprobante in tiposTransparenciaString or tipoCmp in tiposTransparenciaCod:
             otros_impuestos = kwargs.get("otros_impuestos", 0)
             self._printTransparenciaFiscal(escpos, encabezado, ivas, otros_impuestos)
