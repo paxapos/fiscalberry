@@ -67,3 +67,36 @@ def test_dispatcher_drops_when_full_without_blocking(monkeypatch):
     for i in range(500):
         d.submit({"error_type": f"T{i}", "error_message": str(i), "context": None})
     assert (time.time() - t0) < 2.0  # no se colgó
+
+
+def test_client_id_incluye_tenant_y_uuid(monkeypatch):
+    # El client id MQTT debe llevar tenant Y uuid del dispositivo: solo el
+    # tenant colisiona cuando un comercio tiene mas de un fiscalberry y el
+    # broker entra en un loop de desconexiones mutuas por duplicate id.
+    captured = {}
+
+    class FakeClient:
+        def username_pw_set(self, *a, **k):
+            pass
+
+        def connect(self, *a, **k):
+            raise ConnectionRefusedError("sin broker en el test")
+
+        def loop_start(self):
+            pass
+
+    def fake_make_client(client_id, clean_session=True, protocol=None):
+        captured["client_id"] = client_id
+        return FakeClient()
+
+    monkeypatch.setattr(ep.mqtt_compat, "make_client", fake_make_client)
+
+    pub = ep.ErrorPublisher()
+    pub.tenant = "palote_pastas"
+    pub.uuid = "b7b6c00f-ae49-48b0-a6c2-8876c97f27d2"
+    pub.error_topic = "fiscalberry/errors/palote_pastas/b7b6c00f-ae49-48b0-a6c2-8876c97f27d2"
+    pub.connect()
+
+    assert captured["client_id"] == (
+        "fiscalberry-errors-palote_pastas-b7b6c00f-ae49-48b0-a6c2-8876c97f27d2"
+    )

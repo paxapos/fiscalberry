@@ -161,8 +161,11 @@ class ErrorPublisher:
                            config['host'], config['port'], config['user'])
                 
                 # Crear cliente MQTT (compatible paho 1.x/2.x)
+                # El client id lleva el uuid del dispositivo: solo el tenant colisiona
+                # cuando un comercio tiene más de un fiscalberry (el broker patea al
+                # conectado y ambos entran en un loop infinito de reconexión mutua).
                 self.client = mqtt_compat.make_client(
-                    client_id=f"fiscalberry-errors-{self.tenant}",
+                    client_id=f"fiscalberry-errors-{self.tenant}-{self.uuid}",
                     clean_session=True,  # Para errores no necesitamos sesión persistente
                     protocol=mqtt.MQTTv311,
                 )
