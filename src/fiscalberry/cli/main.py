@@ -107,9 +107,17 @@ def wait_for_adoption(uuid_value, host):
 def main():
     """Función principal que ejecuta el controlador de servicios."""
     global cantRetries
-    
+
     print("Iniciando Fiscalberry Server")
-    
+
+    # Instancia única por máquina: dos fiscalberry con el mismo config.ini
+    # comparten client id MQTT y se patean mutuamente contra el broker.
+    from fiscalberry.common.single_instance import acquire_single_instance_lock
+    if not acquire_single_instance_lock():
+        print("ERROR: ya hay otro Fiscalberry corriendo en esta maquina.")
+        print("Detene el que esta corriendo (ej: systemctl stop fiscalberry) y volve a intentar.")
+        sys.exit(1)
+
     # Verificar si el comercio está adoptado
     configberry = Configberry()
     

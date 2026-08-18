@@ -178,6 +178,17 @@ class ServiceController:
     def start(self):
         """Inicia y mantiene vivo el proceso de conexión SIO."""
         logger.debug("Iniciando Fiscalberry SIO Service Loop")
+
+        # Instancia única por máquina: dos fiscalberry con el mismo config.ini
+        # comparten client id MQTT y se patean mutuamente contra el broker.
+        # Re-entrante: si el entry point (cli/main) ya tomó el candado, pasa.
+        from fiscalberry.common.single_instance import acquire_single_instance_lock
+        if not acquire_single_instance_lock():
+            raise RuntimeError(
+                "Ya hay otro Fiscalberry corriendo en esta maquina; "
+                "detene el otro proceso antes de iniciar este."
+            )
+
         self._stop_event.clear()
         self.initial_retries = 0
 
