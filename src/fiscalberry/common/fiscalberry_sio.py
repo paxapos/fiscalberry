@@ -7,6 +7,7 @@ from fiscalberry.common.ComandosHandler import ComandosHandler, TraductorExcepti
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.Configberry import Configberry
 from fiscalberry.common.rabbitmq.process_handler import RabbitMQProcessHandler
+from fiscalberry.common.live_log_stream import get_live_log_stream_manager
 from fiscalberry.version import VERSION
 
 
@@ -130,6 +131,35 @@ class FiscalberrySio:
         def start_sio():
             logger.info("Recibido evento start_sio")
 
+        @self.sio.on("paxaprinter:logs:start", namespace=ns)
+        def start_live_logs(data):
+            if not isinstance(data, dict) or data.get("uuid") != self.uuid:
+                return
+            tenant = self.config.get("Paxaprinter", "tenant", fallback="") or ""
+            get_live_log_stream_manager().start_session(
+                session_id=data.get("sessionId"),
+                tenant=tenant,
+                uuid=self.uuid,
+                publisher=self.rabbit_handler.publish_message,
+                expires_at=data.get("expiresAt"),
+                min_level=data.get("minLevel", "DEBUG"),
+                snapshot_lines=data.get("snapshotLines", 200),
+            )
+
+        @self.sio.on("paxaprinter:logs:renew", namespace=ns)
+        def renew_live_logs(data):
+            if not isinstance(data, dict) or data.get("uuid") != self.uuid:
+                return
+            get_live_log_stream_manager().renew_session(
+                data.get("sessionId"), data.get("expiresAt")
+            )
+
+        @self.sio.on("paxaprinter:logs:stop", namespace=ns)
+        def stop_live_logs(data):
+            if not isinstance(data, dict) or data.get("uuid") != self.uuid:
+                return
+            get_live_log_stream_manager().stop_session(data.get("sessionId"))
+
         @self.sio.event(namespace=ns)
         def adopt(data):
             """Eliminar de configberry la info de la seccion paxaprinter"""
@@ -240,7 +270,14 @@ class FiscalberrySio:
     def _run(self):
         try:
             logger.debug(f"SIO run: {self.server_url}")
-            self.sio.connect(self.server_url, namespaces=self.namespaces, headers={'x-uuid': self.uuid, 'x-version': VERSION})
+            self.sio.connect(
+                self.server_url,
+                namespaces=self.namespaces,
+                headers={
+                    'x-uuid': self.uuid,
+                    'x-version': VERSION,
+                },
+            )
             self.sio.wait()
         except Exception as e:
             logger.error(f"SIO Error al conectar: {e}")
@@ -258,6 +295,7 @@ class FiscalberrySio:
     def stop(self, timeout=2):
         logger.debug("SIO STOP")
         self.stop_event.set()
+        get_live_log_stream_manager().stop_all_sessions()
         try:
             self.sio.disconnect() # detenemios socketio
             self.rabbit_handler.stop() # detenemos RabbitMQ también

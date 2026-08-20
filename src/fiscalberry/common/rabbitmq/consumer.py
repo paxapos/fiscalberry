@@ -208,6 +208,14 @@ class RabbitMQConsumer:
             self.logger.warning(f"Desconexión inesperada de MQTT (rc={rc}). Se intentará reconectar automáticamente.")
         else:
             self.logger.debug("MQTT desconectado correctamente")
+
+    def publish_message(self, topic, payload, qos=0):
+        """Publica telemetria usando la conexion MQTT ya activa."""
+        client = self.client
+        if client is None or not self._connected:
+            return False
+        result = client.publish(topic, payload, qos=qos)
+        return result.rc == mqtt.MQTT_ERR_SUCCESS
             
     def _on_subscribe(self, client, userdata, mid, granted_qos):
         """

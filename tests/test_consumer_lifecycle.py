@@ -19,6 +19,9 @@ from fiscalberry.common.rabbitmq.consumer import RabbitMQConsumer
 
 
 class FakeClient:
+    def __init__(self):
+        self.published = []
+
     def loop_start(self):
         pass
 
@@ -27,6 +30,14 @@ class FakeClient:
 
     def disconnect(self):
         pass
+
+    def publish(self, topic, payload, qos=0):
+        self.published.append((topic, payload, qos))
+
+        class Result:
+            rc = 0
+
+        return Result()
 
 
 def _make_consumer():
@@ -87,3 +98,23 @@ def test_on_connect_sets_connected_on_success():
     c2 = _make_consumer()
     c2._on_connect(Cli(), None, {}, 5)  # 5 = no autorizado
     assert c2._connected is False
+
+
+def test_publish_message_reuses_connected_client():
+    consumer = _make_consumer()
+    consumer.client = FakeClient()
+    consumer._connected = True
+
+    assert consumer.publish_message("fiscalberry/logs/resto/uuid-test", "{}", qos=0) is True
+    assert consumer.client.published == [
+        ("fiscalberry/logs/resto/uuid-test", "{}", 0)
+    ]
+
+
+def test_publish_message_rejects_disconnected_client():
+    consumer = _make_consumer()
+    consumer.client = FakeClient()
+    consumer._connected = False
+
+    assert consumer.publish_message("topic", "{}") is False
+    assert consumer.client.published == []

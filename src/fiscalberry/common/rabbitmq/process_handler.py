@@ -80,6 +80,14 @@ class RabbitMQProcessHandler:
             return bool(getattr(consumer, "_connected", False))
         # Hilo vivo pero aún sin consumer instanciado: está arrancando.
         return True
+
+    def publish_message(self, topic, payload, qos=0):
+        """Publica por el cliente MQTT activo sin crear otra conexion."""
+        with self._consumer_lock:
+            consumer = self._current_consumer
+        if consumer is None:
+            return False
+        return consumer.publish_message(topic, payload, qos=qos)
     
     def _update_active_credentials(self, host, port, user, password, vhost="/"):
         """Actualiza las credenciales activas."""

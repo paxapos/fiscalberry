@@ -162,7 +162,7 @@ class ErrorPublisher:
                 
                 # Crear cliente MQTT (compatible paho 1.x/2.x)
                 self.client = mqtt_compat.make_client(
-                    client_id=f"fiscalberry-errors-{self.tenant}",
+                    client_id=f"fiscalberry-errors-{self.tenant}-{self.uuid}",
                     clean_session=True,  # Para errores no necesitamos sesión persistente
                     protocol=mqtt.MQTTv311,
                 )

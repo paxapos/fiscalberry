@@ -33,6 +33,11 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 # Logger global
 Logger = logging.getLogger()
 
+# Conserva un contexto corto de logs y habilita streaming remoto solo bajo demanda.
+from fiscalberry.common.live_log_stream import install_live_log_capture
+
+install_live_log_capture()
+
 def getLogger(name=None):
     """Obtiene el logger global o uno específico por nombre."""
     if name:
