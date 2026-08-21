@@ -12,6 +12,7 @@ Ubicación: fiscalberry/android/headless/service.py
 """
 import os
 import sys
+from time import sleep, monotonic
 
 
 from fiscalberry.common.fiscalberry_logger import getLogger
@@ -305,19 +306,33 @@ def run_service():
     # 3. Solicitar battery exemption (puede fallar sin Activity)
     request_battery_exemption()
     
-    # 4. Delegar a CLI main
+    # 4. Delegar a CLI main, con retry + backoff.
+    # Un servicio de impresión no puede morir por un error transitorio (red
+    # caída al arrancar, config a medias): si el proceso Python termina, queda
+    # la notificación "Fiscalberry Activo" sin nada corriendo detrás.
     logger.info("Delegando a fiscalberry_cli.main...")
-    
+
+    backoff = 5
     try:
-        from fiscalberry.android.headless.main import main
-        main()  # Blocking call - retorna solo cuando se detiene
-    except Exception as e:
-        logger.critical(f"CLI main crashed: {type(e).__name__}: {e}", exc_info=True)
-        raise  # Re-raise para que crash reporter lo capture
+        while True:
+            started_at = monotonic()
+            try:
+                from fiscalberry.android.headless.main import main
+                main()  # Blocking call - retorna solo cuando se detiene
+                logger.warning("CLI main retornó inesperadamente")
+            except Exception as e:
+                logger.critical(f"CLI main crashed: {type(e).__name__}: {e}", exc_info=True)
+
+            if monotonic() - started_at > 600:
+                backoff = 5
+            logger.warning(f"Reiniciando servicios en {backoff}s...")
+            sleep(backoff)
+            backoff = min(backoff * 2, 300)
     finally:
         # Liberar hardware locks al salir
         release_hardware_locks()
-    
+
+
     logger.critical("="*70)
     logger.critical("FISCALBERRY CLI ANDROID SERVICE - STOPPED")
     logger.critical("="*70)

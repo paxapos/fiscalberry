@@ -100,7 +100,7 @@ android.presplash_color = purple
 # - ACCESS_BACKGROUND_LOCATION: Escaneo BT cuando la app está en segundo plano (API 29+)
 # - SCHEDULE_EXACT_ALARM, USE_EXACT_ALARM: Para reconexiones programadas (API 31+)
 # Nota: Los permisos específicos de versión se manejan en runtime
-android.permissions = INTERNET,FOREGROUND_SERVICE,FOREGROUND_SERVICE_DATA_SYNC,FOREGROUND_SERVICE_CONNECTED_DEVICE,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,WAKE_LOCK,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_SCAN,BLUETOOTH_CONNECT,ACCESS_COARSE_LOCATION,ACCESS_FINE_LOCATION,ACCESS_BACKGROUND_LOCATION,REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,RECEIVE_BOOT_COMPLETED,POST_NOTIFICATIONS,SCHEDULE_EXACT_ALARM,USE_EXACT_ALARM
+android.permissions = INTERNET,FOREGROUND_SERVICE,FOREGROUND_SERVICE_DATA_SYNC,FOREGROUND_SERVICE_CONNECTED_DEVICE,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,WAKE_LOCK,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_SCAN,BLUETOOTH_CONNECT,ACCESS_COARSE_LOCATION,ACCESS_FINE_LOCATION,ACCESS_BACKGROUND_LOCATION,REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,RECEIVE_BOOT_COMPLETED,POST_NOTIFICATIONS,SCHEDULE_EXACT_ALARM,USE_EXACT_ALARM,CHANGE_WIFI_STATE,CHANGE_NETWORK_STATE
 
 # (list) features (adds uses-feature tags to manifest)
 # Habilitar soporte para impresoras USB y Bluetooth
@@ -108,8 +108,10 @@ android.permissions = INTERNET,FOREGROUND_SERVICE,FOREGROUND_SERVICE_DATA_SYNC,F
 # android.features = android.hardware.usb.host,android.hardware.bluetooth
 
 # (int) Target Android API, should be as high as possible.
-# Android 13 = API 33 (evita requisito de foregroundServiceType de API 34+)
-android.api = 33
+# Android 15 = API 35. Target alto: Play Protect bloquea la instalacion de apps
+# con target viejo ("disenada para una version anterior de Android").
+# El foregroundServiceType que exige API 34+ lo inyecta p4a_hooks/manifest_hook.py.
+android.api = 35
 
 # (int) Minimum API your APK / AAB will support.
 # Android 5.1.1 = API 22 (compatibilidad con POS Payway)

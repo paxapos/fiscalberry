@@ -36,10 +36,10 @@ services = fiscalberryservice:fiscalberry/android/headless/service.py:foreground
 fullscreen = 0
 
 # Permisos
-android.permissions = INTERNET,FOREGROUND_SERVICE,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,WAKE_LOCK,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_SCAN,BLUETOOTH_CONNECT,ACCESS_COARSE_LOCATION,ACCESS_FINE_LOCATION,REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,RECEIVE_BOOT_COMPLETED
+android.permissions = INTERNET,FOREGROUND_SERVICE,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,WAKE_LOCK,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_SCAN,BLUETOOTH_CONNECT,ACCESS_COARSE_LOCATION,ACCESS_FINE_LOCATION,REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,RECEIVE_BOOT_COMPLETED,CHANGE_WIFI_STATE,CHANGE_NETWORK_STATE,FOREGROUND_SERVICE_CONNECTED_DEVICE,POST_NOTIFICATIONS
 
 # API levels
-android.api = 33
+android.api = 35
 android.minapi = 22
 android.ndk_api = 22
 
@@ -59,6 +59,15 @@ android.private_storage = True
 p4a.local_recipes = my_recipes
 p4a.bootstrap = webview
 p4a.extra_env = LDFLAGS=-Wl,--hash-style=both, CFLAGS=-fPIC
+
+# (str) Hook: fija el target API del dist e inyecta el foregroundServiceType que
+# exige API 34+. Sin esto el APK compila igual, pero el servicio muere al
+# arrancar con MissingForegroundServiceTypeException.
+p4a.hook = p4a_hooks/manifest_hook.py
+
+# Mismo pin que el spec de UI: el master de p4a trae Python 3.14 + pyjnius 1.7,
+# incompatibles con los recipes de my_recipes.
+p4a.branch = v2024.01.21
 
 [buildozer]
 

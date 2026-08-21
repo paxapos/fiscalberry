@@ -249,37 +249,63 @@ class FiscalberrySio:
             return False
         # Si no hay hilo, significa que SIO no está corriendo
 
-    def _run(self):
+    def isSioConnected(self):
+        """
+        Lo que el cliente CREE sobre su conexión (puede mentir: tras Doze el
+        socket queda half-open y este flag sigue en True — es justamente la
+        señal que usa el watchdog anti-zombie).
+        """
         try:
-            # Cliente NUEVO en cada ciclo de conexión (mismo patrón que el
-            # consumer MQTT, que recrea el objeto en cada reintento). Si el
-            # ciclo anterior dejó un Client con estado stale ("Already
-            # connected" sobre un socket muerto), acá se descarta y se parte
-            # de cero. Primero cerrar el viejo por las dudas.
-            old_client = self.sio
-            if old_client is not None:
-                try:
-                    old_client.disconnect()
-                except Exception:
-                    pass
-            self.sio = self._create_client()
+            return bool(self.sio and self.sio.connected)
+        except Exception:
+            return False
 
+    @staticmethod
+    def _shutdown_client(client):
+        """
+        Cierra un Client de forma DEFINITIVA.
+
+        OJO: disconnect() NO alcanza. Con reconnection_attempts=0 (infinito),
+        al caerse la conexión el Client arranca su propio _reconnect_task y
+        wait() queda bloqueado joineándolo; disconnect() es un no-op fuera del
+        estado 'connected', así que el hilo nunca sale y el cliente sigue
+        reintentando de por vida. shutdown() sí aborta ese task (además de
+        desconectar si está conectado).
+        """
+        if client is None:
+            return
+        try:
+            client.shutdown()
+        except Exception as e:
+            logger.error(f"Error cerrando cliente SocketIO: {e}")
+
+    def _run(self):
+        # Cliente NUEVO en cada ciclo de conexión (mismo patrón que el consumer
+        # MQTT, que recrea el objeto en cada reintento). Si el ciclo anterior
+        # dejó un Client con estado stale ("Already connected" sobre un socket
+        # muerto tras Doze), acá se descarta y se parte de cero.
+        self._shutdown_client(self.sio)
+
+        # En una variable LOCAL: self.sio puede ser reemplazado por otro ciclo
+        # mientras este corre. Sin esto, el finally de un hilo viejo cerraría
+        # la conexión sana del hilo nuevo.
+        client = self._create_client()
+        self.sio = client
+
+        try:
             # Si stop() llegó mientras recreábamos el cliente, no reconectar.
             if self.stop_event.is_set():
                 logger.debug("SIO run: stop solicitado, no se conecta")
                 return
 
             logger.debug(f"SIO run: {self.server_url}")
-            self.sio.connect(self.server_url, namespaces=self.namespaces, headers={'x-uuid': self.uuid, 'x-version': VERSION})
-            self.sio.wait()
+            client.connect(self.server_url, namespaces=self.namespaces, headers={'x-uuid': self.uuid, 'x-version': VERSION})
+            client.wait()
         except Exception as e:
             logger.error(f"SIO Error al conectar: {e}")
         finally:
-            # No dejar el socket a medio abrir si connect()/wait() salió por excepción.
-            try:
-                self.sio.disconnect()
-            except Exception:
-                pass
+            # Cerrar SOLO el cliente de este ciclo, nunca self.sio.
+            self._shutdown_client(client)
 
     def force_reconnect(self):
         """
@@ -289,10 +315,7 @@ class FiscalberrySio:
         (el flag connected dice True pero el socket está muerto).
         """
         logger.warning("SIO force_reconnect: cerrando cliente actual para reciclar la conexión")
-        try:
-            self.sio.disconnect()
-        except Exception as e:
-            logger.error(f"Error en force_reconnect: {e}")
+        self._shutdown_client(self.sio)
 
     def start(self) -> threading.Thread:
         if self.thread and self.thread.is_alive():
@@ -307,7 +330,9 @@ class FiscalberrySio:
         logger.debug("SIO STOP")
         self.stop_event.set()
         try:
-            self.sio.disconnect() # detenemios socketio
+            # shutdown() y no disconnect(): hay que abortar el reconnect task
+            # interno o el hilo de _run nunca termina (ver _shutdown_client).
+            self._shutdown_client(self.sio)
             self.rabbit_handler.stop() # detenemos RabbitMQ también
         except Exception as e:
             logger.error("Error al desconectar SIO o detener RabbitMQ: %s", e)

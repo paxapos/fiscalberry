@@ -182,10 +182,11 @@ def show_foreground_notification():
         if ANDROID_API_LEVEL >= 34:
             try:
                 ServiceInfo = autoclass('android.content.pm.ServiceInfo')
-                foreground_types = (
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC | 
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
-                )
+                # Debe coincidir con el foregroundServiceType del manifest
+                # (p4a_hooks/manifest_hook.py) o startForeground lanza excepción.
+                # NO agregar DATA_SYNC: en API 35 tiene límite de 6h/día y este
+                # servicio es 24/7. Ver el comentario del hook.
+                foreground_types = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
                 service.startForeground(1, notification, foreground_types)
             except:
                 service.startForeground(1, notification)
@@ -237,10 +238,6 @@ def run_service_logic():
         while True:
             started_at = monotonic()
             try:
-                # Reset completo de singletons: tras un fallo (o un retorno
-                # inesperado de start()) puede quedar estado stale de la vuelta
-                # anterior en ServiceController/FiscalberrySio.
-                ServiceController.reset_singleton()
                 service_controller = ServiceController()
 
                 logger.debug("Iniciando controlador de servicios...")
@@ -249,13 +246,24 @@ def run_service_logic():
                 logger.warning("ServiceController.start() retornó inesperadamente")
             except Exception as e:
                 logger.error(f"Error en servicio: {e}", exc_info=True)
-                try:
-                    if service_controller:
+            finally:
+                # SIEMPRE frenar y esperar a los hilos ANTES de reciclar, incluso
+                # si start() retornó sin excepción. El orden importa: los hilos
+                # viejos leen self._stop_event del singleton, así que si se
+                # resetea antes de que mueran pasan a mirar el evento nuevo (en
+                # limpio), nunca ven el stop y siguen vivos — dos consumers MQTT
+                # con el mismo client id peleándose contra el broker.
+                if service_controller:
+                    try:
                         # NO usar stop(): en este proceso (sin Kivy) cae en
                         # stop_for_cli(), que hace sys.exit(0) y mata el servicio.
                         service_controller._stop_services_only()
-                except Exception as stop_err:
-                    logger.error(f"Error al limpiar tras fallo: {stop_err}")
+                    except Exception as stop_err:
+                        logger.error(f"Error al detener servicios: {stop_err}")
+
+            # Recién ahora que los hilos murieron, estado limpio para la próxima.
+            ServiceController.reset_singleton()
+            service_controller = None
 
             if monotonic() - started_at > 600:
                 # Corrió estable un buen rato: el problema es nuevo, resetear backoff.
