@@ -628,7 +628,20 @@ class FiscalberryApp(App):
                     self.on_start_service()
             except Exception as e:
                 logger.warning(f"Error reiniciando servicio: {e}")
-        
+
+        # Android: asegurar en CADA resume que el servicio foreground real esté
+        # vivo. on_start_service() en Android solo actualiza flags de UI (el
+        # ServiceController corre en el proceso separado del servicio), así que
+        # si Android mató el servicio mientras la app estaba en background /
+        # pantalla apagada, nadie lo relanzaba. _start_android_service() es
+        # idempotente: si el servicio ya corre, PythonService ignora el start.
+        if self._is_android:
+            try:
+                if self._configberry and self._configberry.is_comercio_adoptado():
+                    self._start_android_service()
+            except Exception as e:
+                logger.warning(f"Error relanzando servicio Android en on_resume: {e}")
+
         try:
             from kivy.core.window import Window
             from kivy.cache import Cache

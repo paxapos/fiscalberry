@@ -65,30 +65,8 @@ class FiscalberrySio:
         self.on_message = on_message
         
         try:
-            # Verificación TLS configurable (backends con CA privada como dev2).
-            # engineio/socketio aceptan ssl_verify como bool; si hay ca_bundle (str) la
-            # verificación de polling usa el sistema, así que en ese caso dejamos True.
-            _verify = Configberry().get_ssl_verify()
-            ssl_verify = _verify if isinstance(_verify, bool) else True
-            if ssl_verify is False:
-                logger.warning("SocketIO: verificación TLS DESACTIVADA (verify_ssl=false)")
-                try:
-                    import urllib3
-                    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-                except Exception:
-                    pass
+            self.sio = self._create_client()
 
-            self.sio = socketio.Client(
-                reconnection=True,
-                reconnection_attempts=0,
-                reconnection_delay=1,  # Reducido para reconexión más rápida
-                reconnection_delay_max=10,  # Reducido para reconexión más rápida
-                logger=sioLogger,
-                engineio_logger=False,
-                ssl_verify=ssl_verify,
-            )
-            logger.debug("Cliente SocketIO creado exitosamente")
-            
             self.stop_event = threading.Event()
             self.thread = None
             self.config = Configberry()
@@ -98,39 +76,73 @@ class FiscalberrySio:
             self._start_rabbit_lock = threading.Lock()
 
             self.rabbit_handler = RabbitMQProcessHandler()
-            
-            self._register_events()
+
             self._initialized = True
-            
+
         except Exception as e:
             logger.error(f"Error durante inicialización de FiscalberrySio: {e}", exc_info=True)
             raise
 
-    def _register_events(self):
+    def _create_client(self):
+        """
+        Crea un socketio.Client NUEVO con sus eventos registrados.
+
+        Nunca reusar un Client viejo entre ciclos de conexión: tras una
+        suspensión (Doze en Android) el socket puede quedar half-open y el
+        Client mantiene connected=True para siempre; cualquier connect()
+        posterior lanza "Already connected" y no reconecta jamás.
+        """
+        # Verificación TLS configurable (backends con CA privada como dev2).
+        # engineio/socketio aceptan ssl_verify como bool; si hay ca_bundle (str) la
+        # verificación de polling usa el sistema, así que en ese caso dejamos True.
+        _verify = Configberry().get_ssl_verify()
+        ssl_verify = _verify if isinstance(_verify, bool) else True
+        if ssl_verify is False:
+            logger.warning("SocketIO: verificación TLS DESACTIVADA (verify_ssl=false)")
+            try:
+                import urllib3
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            except Exception:
+                pass
+
+        client = socketio.Client(
+            reconnection=True,
+            reconnection_attempts=0,
+            reconnection_delay=1,  # Reducido para reconexión más rápida
+            reconnection_delay_max=10,  # Reducido para reconexión más rápida
+            logger=sioLogger,
+            engineio_logger=False,
+            ssl_verify=ssl_verify,
+        )
+        self._register_events(client)
+        logger.debug("Cliente SocketIO creado exitosamente")
+        return client
+
+    def _register_events(self, client):
         ns = self.namespaces
         logger.debug(f"Registrando eventos SocketIO para namespace: {ns}")
 
-        @self.sio.event(namespace=ns)
+        @client.event(namespace=ns)
         def connect():
-            logger.debug(f"SocketIO conectado (SID: {self.sio.sid})")
+            logger.debug(f"SocketIO conectado (SID: {client.sid})")
 
-        @self.sio.event(namespace=ns)
+        @client.event(namespace=ns)
         def connect_error(err):
             logger.error(f"SocketIO error de conexión: {err}")
 
-        @self.sio.event(namespace=ns)
+        @client.event(namespace=ns)
         def disconnect():
             logger.warning("SocketIO desconectado")
 
-        @self.sio.event(namespace=ns)
+        @client.event(namespace=ns)
         def error(err):
             logger.error(f"SocketIO error: {err}")
 
-        @self.sio.event(namespace=ns)
+        @client.event(namespace=ns)
         def start_sio():
             logger.info("Recibido evento start_sio")
 
-        @self.sio.event(namespace=ns)
+        @client.event(namespace=ns)
         def adopt(data):
             """Eliminar de configberry la info de la seccion paxaprinter"""
             logger.info("Evento adopt recibido")
@@ -142,7 +154,7 @@ class FiscalberrySio:
                 logger.error(f"Error en adopt: {e}")
             
 
-        @self.sio.event(namespace=ns)
+        @client.event(namespace=ns)
         def message(data):
             logger.debug(f"Mensaje SocketIO recibido")
             if self.on_message:
@@ -151,7 +163,7 @@ class FiscalberrySio:
                 except Exception as e:
                     logger.error(f"Error en on_message: {e}")
 
-        @self.sio.event(namespace=ns)
+        @client.event(namespace=ns)
         def command(cfg: dict):
             logger.debug("Comando SocketIO recibido")
             
@@ -188,7 +200,7 @@ class FiscalberrySio:
             except Exception as e:
                 logger.error(f"Error en manejo de comando SocketIO: {e}", exc_info=True)
 
-        @self.sio.event(namespace=ns)
+        @client.event(namespace=ns)
         def start_rabbit(cfg: dict):
             logger.debug("Evento start_rabbit recibido")
             # El backend reenvía start_rabbit en CADA (re)conexión de Socket.IO con las mismas
@@ -239,12 +251,48 @@ class FiscalberrySio:
 
     def _run(self):
         try:
+            # Cliente NUEVO en cada ciclo de conexión (mismo patrón que el
+            # consumer MQTT, que recrea el objeto en cada reintento). Si el
+            # ciclo anterior dejó un Client con estado stale ("Already
+            # connected" sobre un socket muerto), acá se descarta y se parte
+            # de cero. Primero cerrar el viejo por las dudas.
+            old_client = self.sio
+            if old_client is not None:
+                try:
+                    old_client.disconnect()
+                except Exception:
+                    pass
+            self.sio = self._create_client()
+
+            # Si stop() llegó mientras recreábamos el cliente, no reconectar.
+            if self.stop_event.is_set():
+                logger.debug("SIO run: stop solicitado, no se conecta")
+                return
+
             logger.debug(f"SIO run: {self.server_url}")
             self.sio.connect(self.server_url, namespaces=self.namespaces, headers={'x-uuid': self.uuid, 'x-version': VERSION})
             self.sio.wait()
         except Exception as e:
             logger.error(f"SIO Error al conectar: {e}")
-       
+        finally:
+            # No dejar el socket a medio abrir si connect()/wait() salió por excepción.
+            try:
+                self.sio.disconnect()
+            except Exception:
+                pass
+
+    def force_reconnect(self):
+        """
+        Cierra el cliente actual para que el hilo de _run termine y el loop de
+        reconexión del ServiceController recree la conexión desde cero (con un
+        Client nuevo). Pensado para watchdogs que detectan una conexión zombie
+        (el flag connected dice True pero el socket está muerto).
+        """
+        logger.warning("SIO force_reconnect: cerrando cliente actual para reciclar la conexión")
+        try:
+            self.sio.disconnect()
+        except Exception as e:
+            logger.error(f"Error en force_reconnect: {e}")
 
     def start(self) -> threading.Thread:
         if self.thread and self.thread.is_alive():

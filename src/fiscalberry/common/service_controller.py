@@ -24,7 +24,12 @@ class ServiceController:
     
     sio: FiscalberrySio = None
     _instance = None
-    
+
+    # Watchdog: segundos con MQTT caído (y SIO "conectado") antes de asumir
+    # conexión zombie y forzar la reconexión completa de SocketIO.
+    SIO_ZOMBIE_RABBIT_DOWN_SECONDS = 180
+
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(ServiceController, cls).__new__(cls)
@@ -61,9 +66,11 @@ class ServiceController:
             pass
     
     def __init__(self):
-        if hasattr(self, 'initialized'):
+        # getattr (no hasattr): reset_singleton() setea initialized=False y el
+        # atributo sigue existiendo — con hasattr el re-init jamás ocurría.
+        if getattr(self, 'initialized', False):
             return
-            
+
         self.initialized = True
         self.socketio_thread = None
         self.discover_thread = None
@@ -208,10 +215,36 @@ class ServiceController:
             )
             logger.info("* * * * * SocketIO thread start.")
             self.socketio_thread.start()
-            
+
+            # Watchdog anti-zombie: si SocketIO se cree conectado pero MQTT
+            # lleva demasiado tiempo caído, lo más probable es un socket
+            # half-open tras una suspensión (Doze en Android): el backend ve a
+            # este cliente desconectado y nunca reenvía start_rabbit, así que
+            # MQTT no se reconfigura jamás. Forzamos el cierre de SocketIO para
+            # reciclar el ciclo completo (cliente nuevo + start_rabbit fresco).
+            rabbit_down_since = None
             while self.socketio_thread.is_alive() and not self._stop_event.is_set():
                 self.socketio_thread.join(timeout=1.0)
-            
+                try:
+                    if self.sio.isRabbitMQRunning():
+                        rabbit_down_since = None
+                    elif rabbit_down_since is None:
+                        rabbit_down_since = time.monotonic()
+                    elif time.monotonic() - rabbit_down_since > self.SIO_ZOMBIE_RABBIT_DOWN_SECONDS:
+                        rabbit_down_since = None
+                        # Antes de la adopción MQTT no corre legítimamente
+                        # (el backend recién manda start_rabbit al adoptar).
+                        if not self.configberry.is_comercio_adoptado():
+                            continue
+                        logger.warning(
+                            f"MQTT caído hace más de {self.SIO_ZOMBIE_RABBIT_DOWN_SECONDS}s con "
+                            "SocketIO aparentemente conectado: posible conexión zombie. "
+                            "Forzando reconexión completa de SocketIO..."
+                        )
+                        self.sio.force_reconnect()
+                except Exception as e:
+                    logger.error(f"Error en watchdog SIO/MQTT: {e}")
+
             logger.debug("SocketIO thread finished or stop requested.")
 
             if self._stop_event.is_set():
@@ -219,7 +252,8 @@ class ServiceController:
                 break
 
             logger.warning("SIO thread terminated. Reconnecting in 5 seconds...")
-            time.sleep(5)
+            # Interrumpible: un stop() durante la espera corta al instante.
+            self._stop_event.wait(5.0)
 
         logger.debug("Fiscalberry SIO Service Loop finished.")
 
