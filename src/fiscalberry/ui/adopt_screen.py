@@ -35,8 +35,41 @@ configberry = Configberry()
 host = configberry.get("SERVIDOR", "sio_host", "https://beta.paxapos.com")
 uuid = configberry.get("SERVIDOR", "uuid", fallback="")
 
+# Fallback remoto: solo si por algún motivo no se puede generar el QR local.
 QRGENLINK = "https://codegenerator.paxapos.com/?bcid=qrcode&text="
 ADOP_LINK = host + "/adopt/" + uuid
+
+
+def generar_qr(texto):
+    """
+    Genera el QR de vinculación LOCALMENTE y devuelve la ruta del PNG.
+
+    Antes se cargaba como imagen remota desde codegenerator.paxapos.com: si el
+    DNS o la red fallan justo al abrir la app (pasa seguido en el arranque, o en
+    un local con la wifi todavía negociando), la pantalla de vinculación muestra
+    una imagen rota y no hay forma de vincular. La librería qrcode ya viene
+    empaquetada en el APK, así que no hace falta pedirlo por red.
+    """
+    try:
+        import hashlib
+        import qrcode
+
+        # El nombre incluye un hash del link: Kivy cachea las imágenes por ruta,
+        # así que un archivo de nombre fijo mostraría el QR viejo si cambia el
+        # uuid o el host.
+        firma = hashlib.sha1(texto.encode("utf-8")).hexdigest()[:8]
+        destino = os.path.join(
+            os.path.dirname(configberry.getConfigFIle()), f"adopt_qr_{firma}.png"
+        )
+        qr = qrcode.QRCode(box_size=10, border=2)
+        qr.add_data(texto)
+        qr.make(fit=True)
+        qr.make_image(fill_color="black", back_color="white").save(destino)
+        logger.debug(f"QR generado localmente en {destino}")
+        return destino
+    except Exception as e:
+        logger.error(f"No se pudo generar el QR local, se usa el remoto: {e}")
+        return QRGENLINK + texto
 
 
 class AdoptScreen(Screen):
@@ -46,7 +79,7 @@ class AdoptScreen(Screen):
     """
     
     adoptarLink = StringProperty(ADOP_LINK)
-    qrCodeLink = StringProperty(QRGENLINK + ADOP_LINK)
+    qrCodeLink = StringProperty("")
     is_monitoring = BooleanProperty(False)
     platform_name = StringProperty("Android" if IS_ANDROID else "Desktop")
     
@@ -101,7 +134,7 @@ class AdoptScreen(Screen):
             
             if uuid_val:
                 self.adoptarLink = f"{host}/adopt/{uuid_val}"
-                self.qrCodeLink = f"{QRGENLINK}{self.adoptarLink}"
+                self.qrCodeLink = generar_qr(self.adoptarLink)
                 logger.debug(f"Links actualizados - UUID: {uuid_val[:8]}...")
             else:
                 logger.warning("UUID no disponible para generar links")
