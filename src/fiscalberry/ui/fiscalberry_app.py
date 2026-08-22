@@ -167,39 +167,17 @@ class FiscalberryApp(App):
             return False
     
     def _request_android_permissions(self):
-        """Solicita todos los permisos necesarios en Android automáticamente"""
-        try:
-            logger.debug("Solicitando permisos de Android...")
-            
-            # Importar módulos de permisos de forma segura
-            try:
-                from fiscalberry.common.android_permissions import (
-                    request_all_permissions,
-                    check_all_permissions
-                )
-                logger.debug("✓ Módulos de permisos importados correctamente")
-            except ImportError as e:
-                logger.warning(f"No se pudieron importar módulos de permisos: {e}")
-                return
-            
-            # Verificar estado actual de permisos
-            try:
-                status = check_all_permissions()
-                logger.debug(f"Permisos: {status['total_permissions']} requeridos, {status['missing_count']} faltantes")
-                
-                if not status['all_granted']:
-                    logger.debug("Solicitando permisos faltantes...")
-                    request_all_permissions(callback_on_complete=self._on_permissions_result)
-                else:
-                    logger.debug("Todos los permisos ya otorgados")
-                    
-            except Exception as e:
-                logger.warning(f"Error verificando permisos: {e}")
-            
+        """
+        No pide permisos: solo deja constancia.
 
-            
-        except Exception as e:
-            logger.error(f"Error general verificando permisos Android: {e}", exc_info=True)
+        Los permisos se piden en on_start(), que es donde ya existe la Activity
+        (requestPermissions necesita una Activity en primer plano; desde
+        __init__ el pedido se pierde). Este método intentaba importar
+        fiscalberry.common.android_permissions, un módulo que NO EXISTE en el
+        repo: el ImportError se tragaba con un warning y nunca pedía nada, lo
+        que hacía parecer que el sistema de permisos estaba cubierto acá.
+        """
+        logger.debug("Permisos Android: se solicitan en on_start (con Activity disponible)")
     
     def _start_android_service(self):
         """
