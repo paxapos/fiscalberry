@@ -5,7 +5,7 @@
 <AdoptScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(20)
+        padding: [dp(20), dp(20) + app.inset_top, dp(20), dp(20) + app.inset_bottom]
         spacing: dp(20)
         canvas.before:
             Color:
@@ -188,7 +188,7 @@
 <LoginScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: 20
+        padding: [dp(20), dp(20) + app.inset_top, dp(20), dp(20) + app.inset_bottom]
         spacing: 15
         canvas.before:
             Color:
@@ -286,7 +286,7 @@
 <MainScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(28)
+        padding: [dp(28), dp(28) + app.inset_top, dp(28), dp(28) + app.inset_bottom]
         spacing: dp(14)
         canvas.before:
             Color:
@@ -433,7 +433,7 @@
 <LogScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(15)
+        padding: [dp(15), dp(15) + app.inset_top, dp(15), dp(15) + app.inset_bottom]
         spacing: dp(10)
         canvas.before:
             Color:

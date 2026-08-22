@@ -9,7 +9,7 @@ import queue
 from fiscalberry.common.Configberry import Configberry
 from fiscalberry.common.service_controller import ServiceController
 from kivy.lang import Builder
-from kivy.properties import StringProperty, BooleanProperty
+from kivy.properties import StringProperty, BooleanProperty, NumericProperty
 from fiscalberry.ui.log_screen import LogScreen
 from threading import Thread
 import time
@@ -64,6 +64,12 @@ class FiscalberryApp(App):
 
     status_message = StringProperty("Esperando conexión...")
     logs = StringProperty("")  # Logs en tiempo real para MainScreen
+
+    # Espacio que ocupan la barra de estado y la de navegación del sistema, en
+    # píxeles. Desde Android 15 la app dibuja debajo de ellas (edge-to-edge), así
+    # que las pantallas suman estos valores a su padding para no quedar tapadas.
+    inset_top = NumericProperty(0)
+    inset_bottom = NumericProperty(0)
     
     def __init__(self, **kwargs):
         logger.debug("Inicializando FiscalberryApp...")
@@ -400,10 +406,38 @@ class FiscalberryApp(App):
         except Exception as e:
             logger.error(f"Error iniciando SocketIO para adopción: {e}", exc_info=True)
     
+    def refresh_system_insets(self, *args):
+        """
+        Recalcula el espacio de las barras del sistema.
+
+        Se llama al arrancar, al volver de background y al rotar: los valores
+        cambian con la orientación y con el modo de navegación (gestos vs
+        botones).
+        """
+        try:
+            from fiscalberry.ui.android_insets import get_system_insets
+
+            margenes = get_system_insets()
+            self.inset_top = margenes.get("top", 0)
+            self.inset_bottom = margenes.get("bottom", 0)
+        except Exception as e:
+            logger.warning(f"No se pudieron aplicar los márgenes del sistema: {e}")
+
     def on_start(self):
         """Se ejecuta después de que la aplicación inicie."""
         logger.debug("Aplicación iniciada")
-        
+
+        # Dejar libre el espacio de la barra de estado / navegación. Android 15
+        # dibuja la app debajo de ellas y taparían la primera y última fila.
+        self.refresh_system_insets()
+        try:
+            from kivy.core.window import Window
+
+            Window.bind(on_resize=self.refresh_system_insets)
+        except Exception as e:
+            logger.debug(f"No se pudo escuchar el resize de la ventana: {e}")
+
+
         # Detectar si estamos en Android
         is_android = 'ANDROID_STORAGE' in os.environ or 'ANDROID_ARGUMENT' in os.environ
         
@@ -619,6 +653,10 @@ class FiscalberryApp(App):
                     self._start_android_service()
             except Exception as e:
                 logger.warning(f"Error relanzando servicio Android en on_resume: {e}")
+
+            # Pueden haber cambiado (rotación, modo de navegación) mientras la
+            # app estuvo en segundo plano.
+            self.refresh_system_insets()
 
         try:
             from kivy.core.window import Window
