@@ -260,7 +260,13 @@ class Configberry:
 
 
     def resetConfigFile(self):
-        myUuid = str(uuid.uuid4())
+        # El uuid es la identidad del dispositivo ante Paxapos (y el topic MQTT):
+        # si ya hay uno, se conserva. Un reset por config corrupta o por una
+        # sección faltante no puede convertir al equipo en otro dispositivo y
+        # obligar a re-vincular el comercio.
+        from fiscalberry.common.device_uuid import generate_device_uuid
+
+        myUuid = self.config.get("SERVIDOR", "uuid", fallback="") or generate_device_uuid()
         self.set("SERVIDOR", {
             "uuid": myUuid,
             "platform": f"{os.name} {platform.system()} {platform.release()} {platform.machine()}",
