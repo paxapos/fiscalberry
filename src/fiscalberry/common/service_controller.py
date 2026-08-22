@@ -35,6 +35,9 @@ class ServiceController:
     SIO_ZOMBIE_MAX_RECONNECTS = 3
     # Cada cuánto publica el estado para que lo lea la UI (otro proceso).
     STATUS_WRITE_INTERVAL_SECONDS = 5
+    # Cada cuánto deja un latido en el log. Sirve para saber, leyendo el log
+    # al otro día, hasta qué hora estuvo vivo el servicio y en qué estado.
+    HEARTBEAT_LOG_SECONDS = 300
 
 
     def __new__(cls):
@@ -265,6 +268,10 @@ class ServiceController:
             # reciclar el ciclo completo (cliente nuevo + start_rabbit fresco).
             rabbit_down_since = None
             last_status_write = 0.0
+            started_at = time.monotonic()
+            # 0.0 fuerza un latido inmediato: deja constancia de que el
+            # ciclo arrancó, sin esperar los primeros 5 minutos.
+            last_heartbeat = 0.0
             while self.socketio_thread.is_alive() and not self._stop_event.is_set():
                 self.socketio_thread.join(timeout=1.0)
 
@@ -280,6 +287,21 @@ class ServiceController:
                         )
                     except Exception as e:
                         logger.debug(f"No se pudo publicar el estado: {e}")
+
+                # Latido periódico al log. Un servicio sano e inactivo no escribe
+                # NADA, así que un log sin líneas no distingue "anduvo toda la
+                # noche" de "Android lo mató a los 10 minutos". Con esto, la
+                # última marca de tiempo dice hasta cuándo estuvo vivo, y en qué
+                # estado — que es justo lo que hace falta para diagnosticar el
+                # comportamiento con la pantalla apagada.
+                if now - last_heartbeat >= self.HEARTBEAT_LOG_SECONDS:
+                    last_heartbeat = now
+                    minutos = int((now - started_at) / 60)
+                    logger.info(
+                        f"Servicio vivo (hace {minutos} min) | SocketIO: "
+                        f"{'conectado' if self.sio.isSioConnected() else 'DESCONECTADO'} | "
+                        f"MQTT: {'conectado' if self.sio.isRabbitMQRunning() else 'DESCONECTADO'}"
+                    )
 
                 try:
                     if self._sio_looks_zombie(rabbit_down_since):

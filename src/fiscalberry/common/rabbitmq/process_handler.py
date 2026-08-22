@@ -323,7 +323,7 @@ class RabbitMQProcessHandler:
             else:
                 logger.debug("MQTT Consumer detenido correctamente.")
         else:
-            logger.warning("No hay hilo de MQTT Consumer en ejecución.")
+            logger.debug("No hay hilo de MQTT Consumer en ejecución.")
         self._thread = None
         self._stop_event.clear()
         logger.info("RabbitMQProcessHandler detenido.")
