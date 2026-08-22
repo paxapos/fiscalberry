@@ -27,26 +27,14 @@ logger = getLogger("DeviceUUID")
 FISCALBERRY_NAMESPACE = uuid.UUID("6f9619ff-8b86-d011-b42d-00c04fc964ff")
 
 
-def _android_context():
-    """Activity si existe; si no, el Service (el proceso del servicio no tiene Activity)."""
-    from jnius import autoclass
-
-    try:
-        actividad = autoclass("org.kivy.android.PythonActivity").mActivity
-        if actividad is not None:
-            return actividad
-    except Exception:
-        pass
-
-    return autoclass("org.kivy.android.PythonService").mService
-
-
 def get_android_id():
     """ANDROID_ID del equipo, o None si no se puede obtener."""
     try:
         from jnius import autoclass
 
-        contexto = _android_context()
+        from fiscalberry.common.android_context import get_android_context
+
+        contexto = get_android_context()
         if contexto is None:
             return None
 

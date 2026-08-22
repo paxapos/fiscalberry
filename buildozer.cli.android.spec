@@ -20,7 +20,7 @@ version.regex = VERSION = ['"](.*)['"]
 version.filename = %(source.dir)s/fiscalberry/version.py
 
 # Requirements - SIN Kivy (APK ~12-15 MB vs ~49 MB)
-requirements = hostpython3,python3,pyjnius,pika,python-socketio[client],python-engineio,python-escpos,qrcode,pillow,pyserial,pyusb,requests,platformdirs,bidict,simple-websocket,wsproto,h11,urllib3,certifi,idna,chardet,python-barcode,appdirs,setuptools,six,pyyaml,importlib-resources,filetype,argcomplete,paho-mqtt
+requirements = hostpython3,python3,pyjnius,pika,python-socketio[client],python-engineio,websocket-client,python-escpos,qrcode,pillow,pyserial,pyusb,requests,platformdirs,bidict,simple-websocket,wsproto,h11,urllib3,certifi,idna,chardet,python-barcode,appdirs,setuptools,six,pyyaml,importlib-resources,filetype,argcomplete,paho-mqtt
 
 # Icon
 icon.filename = %(source.dir)s/fiscalberry/ui/assets/fiscalberry.png

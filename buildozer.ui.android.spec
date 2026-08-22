@@ -49,13 +49,18 @@ version.filename = %(source.dir)s/fiscalberry/version.py
 # NOTE: Dependencias COMPLETAS verificadas del proyecto:
 # - python-escpos: appdirs, argcomplete, importlib-resources, Pillow, python-barcode, PyYAML, qrcode, setuptools, six
 # - python-socketio: python-engineio, bidict, simple-websocket, wsproto, h11
+# - websocket-client: SIN esto engineio cae a HTTP long-polling (un request
+#   nuevo cada pocos segundos: despierta la radio y castiga la batería, y es
+#   más frágil con la pantalla apagada). Con él usa WebSocket, una sola
+#   conexión persistente. Ojo: simple-websocket es del lado servidor, el
+#   cliente necesita websocket-client. Ver paxapos/fiscalberry#146.
 # - Kivy: filetype (para carga de imágenes)
 # - Proyecto: requests (urllib3, certifi, idna, chardet), platformdirs, pyjnius, pika, pyserial, pyusb
 # COMPATIBILIDAD: Todas las dependencias son compatibles con Android API 22-35 (Android 5.1.1 - 16)
 # NOTA: SQLite3 viene integrado con python3, no se especifica separadamente
 
 # GUI MODE (default) - CON Kivy:
-requirements = hostpython3,python3,kivy,python-escpos,python-barcode,appdirs,argcomplete,importlib-resources,pyyaml,setuptools,six,qrcode,pillow,pyserial,pyusb,python-socketio[client],python-engineio,bidict,simple-websocket,wsproto,h11,requests,urllib3,certifi,idna,chardet,platformdirs,pyjnius,pika,filetype,paho-mqtt
+requirements = hostpython3,python3,kivy,python-escpos,python-barcode,appdirs,argcomplete,importlib-resources,pyyaml,setuptools,six,qrcode,pillow,pyserial,pyusb,python-socketio[client],python-engineio,websocket-client,bidict,simple-websocket,wsproto,h11,requests,urllib3,certifi,idna,chardet,platformdirs,pyjnius,pika,filetype,paho-mqtt
 
 # CLI MODE - SIN Kivy (descomentar y comentar línea arriba):
 # APK resultante: ~12-15 MB vs ~49 MB (GUI)
