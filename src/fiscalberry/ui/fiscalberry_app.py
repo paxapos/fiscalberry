@@ -327,19 +327,16 @@ class FiscalberryApp(App):
                     if discover_success:
                         logger.info("Dispositivo registrado correctamente en el servidor")
                         # Dar tiempo al servidor para completar el commit a DB
-                        import time
                         time.sleep(1.5)
                         break
                     else:
                         if attempt < max_retries:
                             logger.warning(f"Discover falló, reintentando ({attempt}/{max_retries})...")
-                            import time
                             time.sleep(2)
                 except Exception as e:
                     logger.error(f"Error al enviar discover: {e}")
                     if attempt < max_retries:
                         logger.warning(f"Reintentando ({attempt}/{max_retries})...")
-                        import time
                         time.sleep(2)
             
             if not discover_success:
@@ -892,14 +889,19 @@ class FiscalberryApp(App):
             self.status_message = "Sin conexión - verificando..."
     
     def _update_logs(self, dt):
-        """Actualiza la propiedad logs leyendo el archivo de logs."""
+        """
+        Actualiza la propiedad logs con el final del archivo.
+
+        Solo el final y solo si cambió: esto corre cada segundo en el hilo de la
+        UI, y asignar el archivo entero a la StringProperty hace que Kivy
+        recalcule una textura de texto gigante en cada vuelta.
+        """
         try:
-            from fiscalberry.common.fiscalberry_logger import getLogFilePath
-            log_path = getLogFilePath()
-            if not log_path:
-                return  # No hay archivo de log configurado
-            with open(log_path, "r") as log_file:
-                self.logs = log_file.read()
+            from fiscalberry.common.fiscalberry_logger import readLogTail
+
+            cola = readLogTail()
+            if cola and cola != self.logs:
+                self.logs = cola
         except Exception:
             pass  # Silenciar errores de lectura de logs
     
@@ -948,10 +950,22 @@ class FiscalberryApp(App):
             instancia = FiscalberrySio._instance
             if instancia is None:
                 return
+
             logger.debug("Cerrando SocketIO local de la UI (lo maneja el servicio)")
-            instancia.stop()
-            FiscalberrySio.reset_singleton()
             FiscalberrySio._instance = None
+
+            def cerrar():
+                # En un hilo aparte: stop() joinea el consumer MQTT (hasta 5s) y
+                # el hilo de SIO (2s). Bloquear el hilo de la UI ese tiempo
+                # durante el arranque congela la app y Android puede matarla.
+                try:
+                    instancia.stop()
+                    FiscalberrySio.reset_singleton()
+                    FiscalberrySio._instance = None
+                except Exception as e:
+                    logger.warning(f"Error cerrando SocketIO local de la UI: {e}")
+
+            Thread(target=cerrar, daemon=True).start()
         except Exception as e:
             logger.warning(f"Error cerrando SocketIO local de la UI: {e}")
 

@@ -105,6 +105,31 @@ def setup_file_logging(role="app", level=logging.INFO):
         return None
 
 
+def readLogTail(max_bytes=16384, path=None):
+    """
+    Devuelve el FINAL del log (por defecto 16 KB).
+
+    Nunca el archivo entero: la UI refresca cada segundo y el archivo rota
+    recién al llegar a 1 MB. Volcar todo eso en un Label de Kivy genera una
+    textura enorme en cada refresco y tumba la app.
+    """
+    ruta = path or getLogFilePath()
+    if not ruta or not os.path.exists(ruta):
+        return ""
+
+    try:
+        tamanio = os.path.getsize(ruta)
+        with open(ruta, "rb") as fh:
+            if tamanio > max_bytes:
+                fh.seek(tamanio - max_bytes)
+                # Descartar la primera línea, casi seguro cortada al medio.
+                fh.readline()
+            datos = fh.read()
+        return datos.decode("utf-8", errors="replace")
+    except Exception as e:
+        return f"Error al leer log: {e}"
+
+
 def getLogFilePath():
     """
     Devuelve la ruta del archivo de log a mostrar en la UI.
@@ -127,9 +152,11 @@ def getLogFilePath():
             
         # Fallback: buscar el archivo más reciente en ~/.kivy/logs/
         # Esto sirve si Kivy aún no inicializó completamente el Logger
+        # OJO: no re-importar `os` acá. Un `import os` local convierte a `os` en
+        # variable local de TODA la función, y el uso de arriba (antes de esta
+        # línea) revienta con UnboundLocalError. Ya está importado arriba.
         import glob
-        import os
-        
+
         kivy_log_dir = os.path.expanduser("~/.kivy/logs")
         
         if not os.path.exists(kivy_log_dir):
