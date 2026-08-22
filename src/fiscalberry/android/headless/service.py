@@ -15,7 +15,9 @@ import sys
 from time import sleep, monotonic
 
 
-from fiscalberry.common.fiscalberry_logger import getLogger
+from fiscalberry.common.fiscalberry_logger import getLogger, setup_file_logging
+
+setup_file_logging(role="service")
 logger = getLogger("Service.Android")
 
 # Android APIs

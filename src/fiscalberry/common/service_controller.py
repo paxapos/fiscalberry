@@ -6,6 +6,7 @@ import socketio
 from fiscalberry.common.fiscalberry_sio import FiscalberrySio
 from fiscalberry.common.discover import send_discover_in_thread
 from fiscalberry.common.Configberry import Configberry
+from fiscalberry.common.service_status import write_status, clear_status
 import time
 import threading
 
@@ -32,6 +33,8 @@ class ServiceController:
     # resuelve, el problema está en el broker: seguir cortando SIO solo agrega
     # carga al backend (y a escala de flota, justo cuando la infra ya está mal).
     SIO_ZOMBIE_MAX_RECONNECTS = 3
+    # Cada cuánto publica el estado para que lo lea la UI (otro proceso).
+    STATUS_WRITE_INTERVAL_SECONDS = 5
 
 
     def __new__(cls):
@@ -261,8 +264,23 @@ class ServiceController:
             # MQTT no se reconfigura jamás. Forzamos el cierre de SocketIO para
             # reciclar el ciclo completo (cliente nuevo + start_rabbit fresco).
             rabbit_down_since = None
+            last_status_write = 0.0
             while self.socketio_thread.is_alive() and not self._stop_event.is_set():
                 self.socketio_thread.join(timeout=1.0)
+
+                # Publicar estado para la UI: en Android corre en otro proceso y
+                # no puede ver estos objetos.
+                now = time.monotonic()
+                if now - last_status_write >= self.STATUS_WRITE_INTERVAL_SECONDS:
+                    last_status_write = now
+                    try:
+                        write_status(
+                            sio_connected=self.sio.isSioConnected(),
+                            mqtt_connected=self.sio.isRabbitMQRunning(),
+                        )
+                    except Exception as e:
+                        logger.debug(f"No se pudo publicar el estado: {e}")
+
                 try:
                     if self._sio_looks_zombie(rabbit_down_since):
                         rabbit_down_since = None
@@ -414,8 +432,11 @@ class ServiceController:
         else:
             logger.debug("Discover thread already stopped or not started.")
                 
+        # No dejar un estado que diga "conectado" con el servicio ya detenido.
+        clear_status()
+
         logger.debug("SIO services stopped.")
-        
+
         return True
 
 

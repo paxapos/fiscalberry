@@ -12,7 +12,11 @@ from time import sleep, monotonic
 import os
 import sys
 
-from fiscalberry.common.fiscalberry_logger import getLogger
+from fiscalberry.common.fiscalberry_logger import getLogger, setup_file_logging
+
+# A archivo desde el arranque: este proceso no tiene UI y sus logs solo irían a
+# logcat, invisible para el usuario. La pantalla "Ver Logs" lee este archivo.
+setup_file_logging(role="service")
 logger = getLogger("AndroidService")
 
 from fiscalberry.common.service_controller import ServiceController

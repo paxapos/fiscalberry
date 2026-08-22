@@ -17,7 +17,10 @@ import sys
 import os
 import signal
 
-from fiscalberry.common.fiscalberry_logger import getLogger
+from fiscalberry.common.fiscalberry_logger import getLogger, setup_file_logging
+
+# Log a archivo también desde la UI (comparte archivo con el servicio).
+setup_file_logging(role="app")
 from fiscalberry.version import VERSION
 
 logger = getLogger("GUI.App")
@@ -809,12 +812,27 @@ class FiscalberryApp(App):
         logger.warning(f"Usuario denegó {len(missing_permissions)} permisos")
         logger.warning(f"Permisos faltantes: {missing_permissions}")
 
+    def _service_status_snapshot(self):
+        """
+        Estado real del servicio. En Android vive en otro proceso, así que se lee
+        del archivo que publica (None = sin datos frescos ⇒ servicio caído).
+        En Desktop el ServiceController es local y se consulta directo.
+        """
+        if not self._is_android:
+            return {
+                "sio_connected": self._service_controller.isSocketIORunning(),
+                "mqtt_connected": self._service_controller.isRabbitRunning(),
+            }
+        from fiscalberry.common.service_status import read_status
+
+        return read_status() or {"sio_connected": False, "mqtt_connected": False}
+
     def _check_sio_status(self, dt):
         """Verifica el estado de la conexión SocketIO de forma optimizada."""
         try:
             previous_status = self.sioConnected
             # Check más eficiente sin llamadas costosas innecesarias
-            new_status = self._service_controller.isSocketIORunning()
+            new_status = bool(self._service_status_snapshot().get("sio_connected"))
 
             if previous_status != new_status:
                 self.sioConnected = new_status
@@ -835,7 +853,7 @@ class FiscalberryApp(App):
         """Verifica el estado de la conexión RabbitMQ de forma optimizada."""
         try:
             previous_status = self.rabbitMqConnected
-            new_status = self._service_controller.isRabbitRunning()
+            new_status = bool(self._service_status_snapshot().get("mqtt_connected"))
 
             if previous_status != new_status:
                 self.rabbitMqConnected = new_status
@@ -916,6 +934,27 @@ class FiscalberryApp(App):
             print("Error: self.root (ScreenManager) aún no está disponible.")
         
 
+    def _stop_local_sio(self):
+        """
+        Cierra la conexión SocketIO/MQTT del proceso de la UI (la que se abre
+        para escuchar la adopción). En Android las conexiones reales viven en el
+        proceso del servicio: dejar viva también la de la UI significa dos
+        clientes con el mismo client id MQTT peleándose contra el broker.
+        Idempotente: si no hay nada abierto, no hace nada.
+        """
+        try:
+            from fiscalberry.common.fiscalberry_sio import FiscalberrySio
+
+            instancia = FiscalberrySio._instance
+            if instancia is None:
+                return
+            logger.debug("Cerrando SocketIO local de la UI (lo maneja el servicio)")
+            instancia.stop()
+            FiscalberrySio.reset_singleton()
+            FiscalberrySio._instance = None
+        except Exception as e:
+            logger.warning(f"Error cerrando SocketIO local de la UI: {e}")
+
     def on_toggle_service(self):
         """Llamado desde la GUI para alternar el estado del servicio."""
         if self._service_controller.is_service_running():
@@ -942,6 +981,12 @@ class FiscalberryApp(App):
             # El servicio foreground (service.py) tiene su propio ServiceController
             # que maneja SocketIO/RabbitMQ independientemente
             logger.debug("Android: delegando a servicio foreground")
+            # Soltar la conexión que la UI abrió para la adopción: si sigue viva,
+            # este proceso y el del servicio quedan con dos clientes usando el
+            # mismo uuid (y el mismo client id MQTT), y el broker patea a uno
+            # cada vez que el otro conecta — parpadeo infinito de "conectado /
+            # esperando cola". Todo el tráfico va por el proceso del servicio.
+            self._stop_local_sio()
             self.serviceRunning = True
             self.status_message = "Servicio activo (foreground)"
             # El servicio Android ya fue iniciado en build() o _go_to_main()
