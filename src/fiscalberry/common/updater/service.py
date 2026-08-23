@@ -134,6 +134,15 @@ class UpdaterService:
         """
         kind = install_kind.detect()
 
+        # Restos de ciclos anteriores. Importa sobre todo en Android: el APK no
+        # se puede borrar al terminar el ciclo (lo lee el instalador del sistema
+        # después), así que si el usuario posterga la instalación queda ocupando
+        # ~44 MB, y el chequeo siguiente baja otro.
+        try:
+            staging.cleanup_stale()
+        except Exception as e:
+            logger.debug(f"No se pudo limpiar el staging viejo: {e}")
+
         try:
             release = release_source.fetch_latest(self._repo)
         except release_source.ReleaseUnavailable as e:

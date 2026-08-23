@@ -142,3 +142,41 @@ def find_binary(raiz, nombre):
 def new_staging(prefijo="fb-update-"):
     """Crea un subdirectorio de staging limpio y devuelve su ruta."""
     return tempfile.mkdtemp(prefix=prefijo, dir=staging_dir())
+
+
+# Los descargables se borran al terminar cada ciclo, salvo en Android: ahí el
+# APK tiene que sobrevivir a la función porque lo lee el instalador del sistema
+# después. Si el usuario no acepta la instalación, ese APK (~44 MB) queda
+# huérfano y el siguiente chequeo baja otro. Sin esta limpieza, un usuario que
+# posterga la actualización llena el teléfono en pocos días.
+MAX_STAGING_AGE_SECONDS = 24 * 3600
+
+
+def cleanup_stale(max_age_seconds=MAX_STAGING_AGE_SECONDS):
+    """Borra restos de ciclos anteriores. Devuelve cuántos directorios sacó."""
+    import time
+
+    raiz = staging_dir()
+    borrados = 0
+    ahora = time.time()
+    try:
+        entradas = os.listdir(raiz)
+    except OSError:
+        return 0
+
+    for nombre in entradas:
+        ruta = os.path.join(raiz, nombre)
+        try:
+            if not os.path.isdir(ruta):
+                continue
+            if ahora - os.path.getmtime(ruta) < max_age_seconds:
+                continue
+            shutil.rmtree(ruta, ignore_errors=True)
+            borrados += 1
+        except OSError:
+            continue
+
+    if borrados:
+        logger.info("Limpieza de staging: %d descarga(s) vieja(s) eliminada(s).",
+                    borrados)
+    return borrados
