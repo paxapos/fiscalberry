@@ -57,7 +57,14 @@ jobs:
   build-linux:
     needs: version
     if: needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    # NO usar ubuntu-latest: GitHub ya lo mapea a 24.04 (glibc 2.39) y un binario
+    # de PyInstaller solo corre en glibc IGUAL O MAS NUEVA que la de compilacion.
+    # Compilando en 24.04, el binario falla con "GLIBC_2.38 not found" en Ubuntu
+    # 22.04 (2.35), Debian 12 (2.36) y Debian 11 (2.31) — o sea, en buena parte
+    # de las maquinas donde esto corre de verdad. glibc es compatible hacia
+    # adelante, asi que hay que compilar en la distro mas VIEJA que soportemos.
+    # 22.04 es la mas antigua que ofrece GitHub hoy.
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
