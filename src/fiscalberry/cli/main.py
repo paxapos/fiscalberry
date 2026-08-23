@@ -7,6 +7,12 @@ import os
 
 # Solo imports livianos al inicio
 from fiscalberry.common.Configberry import Configberry
+from fiscalberry.common.fiscalberry_logger import setup_file_logging
+
+# Log a archivo, igual que la GUI y el servicio de Android: los tres escriben el
+# mismo archivo rotativo, con su rol y PID en cada línea. Sin esto el CLI —que es
+# el que corre en las Raspberry— era el único que no dejaba rastro en disco.
+setup_file_logging(role="cli")
 
 # Variable global para reintentos (estilo v1.0.26)
 cantRetries = 0

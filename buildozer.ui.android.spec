@@ -49,13 +49,18 @@ version.filename = %(source.dir)s/fiscalberry/version.py
 # NOTE: Dependencias COMPLETAS verificadas del proyecto:
 # - python-escpos: appdirs, argcomplete, importlib-resources, Pillow, python-barcode, PyYAML, qrcode, setuptools, six
 # - python-socketio: python-engineio, bidict, simple-websocket, wsproto, h11
+# - websocket-client: SIN esto engineio cae a HTTP long-polling (un request
+#   nuevo cada pocos segundos: despierta la radio y castiga la batería, y es
+#   más frágil con la pantalla apagada). Con él usa WebSocket, una sola
+#   conexión persistente. Ojo: simple-websocket es del lado servidor, el
+#   cliente necesita websocket-client. Ver paxapos/fiscalberry#146.
 # - Kivy: filetype (para carga de imágenes)
 # - Proyecto: requests (urllib3, certifi, idna, chardet), platformdirs, pyjnius, pika, pyserial, pyusb
 # COMPATIBILIDAD: Todas las dependencias son compatibles con Android API 22-35 (Android 5.1.1 - 16)
 # NOTA: SQLite3 viene integrado con python3, no se especifica separadamente
 
 # GUI MODE (default) - CON Kivy:
-requirements = hostpython3,python3,kivy,python-escpos,python-barcode,appdirs,argcomplete,importlib-resources,pyyaml,setuptools,six,qrcode,pillow,pyserial,pyusb,python-socketio[client],python-engineio,bidict,simple-websocket,wsproto,h11,requests,urllib3,certifi,idna,chardet,platformdirs,pyjnius,pika,filetype,paho-mqtt
+requirements = hostpython3,python3,kivy,python-escpos,python-barcode,appdirs,argcomplete,importlib-resources,pyyaml,setuptools,six,qrcode,pillow,pyserial,pyusb,python-socketio[client],python-engineio,websocket-client,bidict,simple-websocket,wsproto,h11,requests,urllib3,certifi,idna,chardet,platformdirs,pyjnius,pika,filetype,paho-mqtt
 
 # CLI MODE - SIN Kivy (descomentar y comentar línea arriba):
 # APK resultante: ~12-15 MB vs ~49 MB (GUI)
@@ -97,10 +102,12 @@ android.presplash_color = purple
 # - POST_NOTIFICATIONS: Requerido en Android 13+ (API 33+) para mostrar notificaciones
 # - FOREGROUND_SERVICE_DATA_SYNC: Tipo de servicio para RabbitMQ/SocketIO (API 34+)
 # - FOREGROUND_SERVICE_CONNECTED_DEVICE: Tipo de servicio para impresoras BT (API 34+)
-# - ACCESS_BACKGROUND_LOCATION: Escaneo BT cuando la app está en segundo plano (API 29+)
+# - ACCESS_BACKGROUND_LOCATION: NO declarar. Mezclarlo en un pedido de permisos
+#   hace que Android (11+) ignore el lote entero y no muestre ningún diálogo.
+#   Un servicio de impresión no necesita ubicación en segundo plano.
 # - SCHEDULE_EXACT_ALARM, USE_EXACT_ALARM: Para reconexiones programadas (API 31+)
 # Nota: Los permisos específicos de versión se manejan en runtime
-android.permissions = INTERNET,FOREGROUND_SERVICE,FOREGROUND_SERVICE_DATA_SYNC,FOREGROUND_SERVICE_CONNECTED_DEVICE,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,WAKE_LOCK,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_SCAN,BLUETOOTH_CONNECT,ACCESS_COARSE_LOCATION,ACCESS_FINE_LOCATION,ACCESS_BACKGROUND_LOCATION,REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,RECEIVE_BOOT_COMPLETED,POST_NOTIFICATIONS,SCHEDULE_EXACT_ALARM,USE_EXACT_ALARM
+android.permissions = INTERNET,FOREGROUND_SERVICE,FOREGROUND_SERVICE_DATA_SYNC,FOREGROUND_SERVICE_CONNECTED_DEVICE,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE,WAKE_LOCK,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,BLUETOOTH,BLUETOOTH_ADMIN,BLUETOOTH_SCAN,BLUETOOTH_CONNECT,ACCESS_COARSE_LOCATION,ACCESS_FINE_LOCATION,REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,RECEIVE_BOOT_COMPLETED,POST_NOTIFICATIONS,SCHEDULE_EXACT_ALARM,USE_EXACT_ALARM,CHANGE_WIFI_STATE,CHANGE_NETWORK_STATE
 
 # (list) features (adds uses-feature tags to manifest)
 # Habilitar soporte para impresoras USB y Bluetooth
@@ -108,8 +115,10 @@ android.permissions = INTERNET,FOREGROUND_SERVICE,FOREGROUND_SERVICE_DATA_SYNC,F
 # android.features = android.hardware.usb.host,android.hardware.bluetooth
 
 # (int) Target Android API, should be as high as possible.
-# Android 13 = API 33 (evita requisito de foregroundServiceType de API 34+)
-android.api = 33
+# Android 15 = API 35. Target alto: Play Protect bloquea la instalacion de apps
+# con target viejo ("disenada para una version anterior de Android").
+# El foregroundServiceType que exige API 34+ lo inyecta p4a_hooks/manifest_hook.py.
+android.api = 35
 
 # (int) Minimum API your APK / AAB will support.
 # Android 5.1.1 = API 22 (compatibilidad con POS Payway)

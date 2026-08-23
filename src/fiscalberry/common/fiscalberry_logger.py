@@ -39,13 +39,108 @@ def getLogger(name=None):
         return logging.getLogger(name)
     return Logger
 
+LOG_FILE_NAME = "fiscalberry.log"
+_file_handler = None
+
+
+def _log_dir():
+    from fiscalberry.common.Configberry import Configberry
+
+    return os.path.join(os.path.dirname(Configberry().getConfigFIle()), "logs")
+
+
+def getServiceLogFilePath():
+    """Ruta del log en archivo (la escriben tanto la UI como el servicio)."""
+    try:
+        return os.path.join(_log_dir(), LOG_FILE_NAME)
+    except Exception:
+        return None
+
+
+def setup_file_logging(role="app", level=logging.INFO):
+    """
+    Manda los logs a un archivo rotativo, además de la consola.
+
+    Sin esto, en Android todo va solo a logcat: el servicio corre en otro
+    proceso y sus logs —los que importan para diagnosticar por qué no imprime—
+    no quedan en ningún lado que el usuario pueda ver desde la app.
+
+    Ambos procesos escriben el mismo archivo; por eso cada línea lleva el rol y
+    el PID. Es idempotente: llamarla dos veces no duplica handlers.
+    """
+    global _file_handler
+
+    if _file_handler is not None:
+        return _file_handler
+
+    try:
+        from logging.handlers import RotatingFileHandler
+
+        directorio = _log_dir()
+        os.makedirs(directorio, exist_ok=True)
+        ruta = os.path.join(directorio, LOG_FILE_NAME)
+
+        handler = RotatingFileHandler(
+            ruta, maxBytes=1_000_000, backupCount=3, encoding="utf-8"
+        )
+        handler.setLevel(level)
+        handler.setFormatter(
+            logging.Formatter(
+                f"%(asctime)s [{role}:%(process)d] %(levelname)s %(name)s: %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        )
+
+        root = logging.getLogger()
+        root.addHandler(handler)
+        if root.level > level:
+            root.setLevel(level)
+
+        _file_handler = handler
+        root.info(f"Log en archivo: {ruta} (rol={role})")
+        return handler
+    except Exception as e:
+        # Nunca romper el arranque por no poder loguear a archivo.
+        print(f"No se pudo configurar el log en archivo: {e}")
+        return None
+
+
+def readLogTail(max_bytes=16384, path=None):
+    """
+    Devuelve el FINAL del log (por defecto 16 KB).
+
+    Nunca el archivo entero: la UI refresca cada segundo y el archivo rota
+    recién al llegar a 1 MB. Volcar todo eso en un Label de Kivy genera una
+    textura enorme en cada refresco y tumba la app.
+    """
+    ruta = path or getLogFilePath()
+    if not ruta or not os.path.exists(ruta):
+        return ""
+
+    try:
+        tamanio = os.path.getsize(ruta)
+        with open(ruta, "rb") as fh:
+            if tamanio > max_bytes:
+                fh.seek(tamanio - max_bytes)
+                # Descartar la primera línea, casi seguro cortada al medio.
+                fh.readline()
+            datos = fh.read()
+        return datos.decode("utf-8", errors="replace")
+    except Exception as e:
+        return f"Error al leer log: {e}"
+
+
 def getLogFilePath():
     """
-    Devuelve la ruta del archivo de log actual de Kivy.
-    
-    Kivy genera automáticamente logs en ~/.kivy/logs/kivy_*.txt
-    Esta función retorna el archivo de log más reciente.
+    Devuelve la ruta del archivo de log a mostrar en la UI.
+
+    Prioriza el log propio de Fiscalberry (que incluye los del proceso del
+    servicio); si todavía no existe, cae al log de Kivy.
     """
+    propio = getServiceLogFilePath()
+    if propio and os.path.exists(propio):
+        return propio
+
     try:
         # Intentar obtener la ruta del log desde Kivy Logger
         # Importamos aquí para evitar dependencia dura si no se usa GUI
@@ -57,9 +152,11 @@ def getLogFilePath():
             
         # Fallback: buscar el archivo más reciente en ~/.kivy/logs/
         # Esto sirve si Kivy aún no inicializó completamente el Logger
+        # OJO: no re-importar `os` acá. Un `import os` local convierte a `os` en
+        # variable local de TODA la función, y el uso de arriba (antes de esta
+        # línea) revienta con UnboundLocalError. Ya está importado arriba.
         import glob
-        import os
-        
+
         kivy_log_dir = os.path.expanduser("~/.kivy/logs")
         
         if not os.path.exists(kivy_log_dir):

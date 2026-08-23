@@ -47,6 +47,17 @@ class TraductorException(Exception):
     pass
 
 
+class PrintJobError(Exception):
+    """
+    Falló la impresión de un trabajo del spooler.
+
+    Existe porque runTraductor a veces DEVUELVE el error en vez de lanzarlo
+    (impresora no configurada, config inválida) y el spooler solo interpreta
+    excepciones: sin convertirlo, daba el ticket por impreso y lo descartaba.
+    """
+    pass
+
+
 # Cola de trabajos de impresión optimizada - mayor capacidad y procesamiento más rápido  
 print_queue = Queue(maxsize=500)  # Aumentar capacidad para mayor throughput
 
@@ -446,6 +457,15 @@ def _spooler_print_fn(ticket):
 
     try:
         result = runTraductor(dict(ticket), Queue())
+
+        # runTraductor no siempre lanza: ante "impresora no encontrada" o un
+        # error de configuración DEVUELVE {"error": ...}. El spooler solo
+        # entiende excepciones, así que sin esto daba el trabajo por "impreso
+        # OK" y lo descartaba: el ticket se perdía en silencio y jamás se
+        # reintentaba, ni siquiera después de configurar la impresora.
+        if isinstance(result, dict) and result.get("error"):
+            raise PrintJobError(str(result["error"]))
+
         if printer_name:
             breaker.record_success(printer_name)
         return result

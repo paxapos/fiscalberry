@@ -1,7 +1,7 @@
 from kivy.uix.screenmanager import Screen
 from kivy.properties import StringProperty
 from kivy.clock import Clock
-from fiscalberry.common.fiscalberry_logger import getLogFilePath
+from fiscalberry.common.fiscalberry_logger import getLogFilePath, readLogTail
 import platform
 import os
 import subprocess
@@ -40,8 +40,14 @@ class LogScreen(Screen):
 
     def update_logs(self, dt):
         """Lee el archivo de logs y actualiza la propiedad `logs`."""
-        # DEFENSIVE: StringProperty no acepta None, convertir a string vacío
-        log_path = getLogFilePath()
+        # Esto corre en un Clock cada segundo: una excepción acá se propaga y
+        # tumba la app. Todo el cuerpo va protegido.
+        try:
+            # DEFENSIVE: StringProperty no acepta None, convertir a string vacío
+            log_path = getLogFilePath()
+        except Exception as e:
+            self.logs = f"Error obteniendo la ruta del log: {e}"
+            return
         self.logFilePath = log_path if log_path else ""
         
         # Si no hay archivo de log configurado, mostrar mensaje
@@ -50,11 +56,14 @@ class LogScreen(Screen):
             return
         
         try:
-            with open(self.logFilePath, "r") as log_file:
-                log_data = log_file.read()  # Leer contenido del log
-                self.logs = log_data
-                # Actualizar el scroll si existe el ScrollView
-                if "scroll_view" in self.ids:
-                    self.ids.scroll_view.scroll_y = 0
+            # Solo el final del archivo: leerlo entero cada segundo genera una
+            # textura de texto enorme en Kivy y tumba la app.
+            log_data = readLogTail(path=self.logFilePath)
+            if log_data == self.logs:
+                return
+            self.logs = log_data
+            # Actualizar el scroll si existe el ScrollView
+            if "scroll_view" in self.ids:
+                self.ids.scroll_view.scroll_y = 0
         except Exception as e:
             self.logs = f"Error al leer log: {e}"

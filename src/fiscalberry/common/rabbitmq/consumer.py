@@ -255,13 +255,21 @@ class RabbitMQConsumer:
         """
         start_time = time.time()
         body_str = None
-        
+
         try:
             # Decodificar payload
             if isinstance(msg.payload, bytes):
                 body_str = msg.payload.decode('utf-8')
             else:
                 body_str = msg.payload
+
+            # Dejar constancia de TODO lo que llega. Sin esta línea, un log sin
+            # actividad no distingue "el trabajo nunca llegó al dispositivo" de
+            # "llegó y algo falló", que es la primera pregunta cuando alguien
+            # reporta que no imprime.
+            self.logger.info(
+                "Mensaje MQTT recibido (%s bytes) en topic %s",
+                len(body_str) if body_str else 0, self.topic)
                 
             # Parse JSON
             try:

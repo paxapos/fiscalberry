@@ -323,7 +323,7 @@ class RabbitMQProcessHandler:
             else:
                 logger.debug("MQTT Consumer detenido correctamente.")
         else:
-            logger.warning("No hay hilo de MQTT Consumer en ejecución.")
+            logger.debug("No hay hilo de MQTT Consumer en ejecución.")
         self._thread = None
         self._stop_event.clear()
         logger.info("RabbitMQProcessHandler detenido.")
@@ -398,16 +398,18 @@ class RabbitMQProcessHandler:
         else:
             final_config["vhost"] = curr_vhost
             
-        # QUEUE
-        if not curr_queue or not str(curr_queue).strip():
-            new_queue = rabbit_cfg.get("queue", "")
-            if new_queue:
-                updates["queue"] = new_queue
-                final_config["queue"] = new_queue
-            else:
-                final_config["queue"] = ""
+        # QUEUE: la define el servidor (igual que tenant/alias), así que un
+        # cambio allá tiene que aplicarse acá y no quedar clavado al primer valor.
+        new_queue = rabbit_cfg.get("queue", "")
+        if new_queue and str(new_queue).strip() != str(curr_queue).strip():
+            if str(curr_queue).strip():
+                logger.warning(
+                    "RabbitMq.queue actualizada desde el servidor: '%s' -> '%s'",
+                    curr_queue, new_queue)
+            updates["queue"] = new_queue
+            final_config["queue"] = new_queue
         else:
-            final_config["queue"] = curr_queue
+            final_config["queue"] = curr_queue or new_queue or ""
         
         # Log de configuración final (compacto)
         logger.debug(f"MQTT: {final_config['host']}:{final_config['port']}")
@@ -417,26 +419,36 @@ class RabbitMQProcessHandler:
             self.config.set("RabbitMq", updates)
             logger.warning(f"Config rellenada desde SocketIO: {list(updates.keys())}")
             
-        # Hacer lo mismo con Paxaprinter
+        # A QUÉ COMERCIO pertenece el dispositivo lo decide el SERVIDOR, no el
+        # archivo local: si en la plataforma se reasigna el equipo a otro tenant,
+        # acá tiene que reflejarse. Antes estos campos solo se escribían cuando
+        # estaban VACÍOS, así que el primer tenant quedaba grabado para siempre y
+        # el cambio hecho en la plataforma no llegaba nunca al dispositivo: los
+        # errores se seguían publicando con el tenant viejo y la UI mostraba el
+        # comercio equivocado.
+        #
+        # La regla de "no pisar config.ini" se mantiene para los campos de
+        # infraestructura (host/port/vhost), donde un override manual es una
+        # decisión legítima de quien instala el equipo.
         pax_cfg = data.get('Paxaprinter', {})
         pax_updates = {}
-        
-        curr_alias = self.config.get("Paxaprinter", "alias", fallback="")
-        curr_tenant = self.config.get("Paxaprinter", "tenant", fallback="")
-        curr_site = self.config.get("Paxaprinter", "site_name", fallback="")
-        
-        if not curr_alias or not str(curr_alias).strip():
-            if pax_cfg.get('alias'):
-                pax_updates["alias"] = pax_cfg.get('alias')
-        if not curr_tenant or not str(curr_tenant).strip():
-            if pax_cfg.get('tenant'):
-                pax_updates["tenant"] = pax_cfg.get('tenant')
-        if not curr_site or not str(curr_site).strip():
-            if pax_cfg.get('site_name'):
-                pax_updates["site_name"] = pax_cfg.get('site_name')
-                
+
+        for clave in ("alias", "tenant", "site_name"):
+            nuevo = pax_cfg.get(clave)
+            if not nuevo:
+                continue
+            actual = self.config.get("Paxaprinter", clave, fallback="")
+            if str(actual).strip() == str(nuevo).strip():
+                continue
+            pax_updates[clave] = nuevo
+            if str(actual).strip():
+                logger.warning(
+                    "Paxaprinter.%s actualizado desde el servidor: '%s' -> '%s'",
+                    clave, actual, nuevo)
+
         if pax_updates:
             self.config.set("Paxaprinter", pax_updates)
+            logger.info(f"Datos del comercio actualizados: {list(pax_updates.keys())}")
 
         # Guardar credenciales sensibles SOLO en memoria
         vhost = final_config.get('vhost', '/')

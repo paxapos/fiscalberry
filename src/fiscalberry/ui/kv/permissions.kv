@@ -1,7 +1,7 @@
 <PermissionsScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(20)
+        padding: [dp(20), dp(20) + app.inset_top, dp(20), dp(20) + app.inset_bottom]
         spacing: dp(15)
         
         canvas.before:
@@ -23,8 +23,7 @@
                 source: app.logo_image
                 size_hint_y: None
                 height: dp(50)
-                allow_stretch: True
-                keep_ratio: True
+                fit_mode: 'contain'
             
             Label:
                 text: "Permisos de Android"

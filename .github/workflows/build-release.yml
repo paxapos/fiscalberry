@@ -249,7 +249,7 @@ jobs:
 
       - name: Install Android SDK components
         run: |
-          sdkmanager "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;25.2.9519653"
 
       - name: Install Buildozer and dependencies
         run: |

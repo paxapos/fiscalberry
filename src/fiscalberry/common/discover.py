@@ -56,7 +56,7 @@ def send_discover():
         ret = requests.post(discoverUrl, headers=headers, data=json.dumps(senddata), timeout=30, verify=verify)
 
         if ret.status_code == requests.codes.ok:
-            logger.debug("DISCOVER:: Registro exitoso en el servidor")
+            logger.info("DISCOVER:: Registro exitoso en el servidor")
             return True
         else:
             logger.error(f"DISCOVER:: Error - Status: {ret.status_code}, Body: {ret.text[:200]}")

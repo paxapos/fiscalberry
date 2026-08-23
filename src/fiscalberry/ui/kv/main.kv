@@ -5,7 +5,7 @@
 <AdoptScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(20)
+        padding: [dp(20), dp(20) + app.inset_top, dp(20), dp(20) + app.inset_bottom]
         spacing: dp(20)
         canvas.before:
             Color:
@@ -27,8 +27,7 @@
                 source: app.logo_image
                 size_hint_y: None
                 height: dp(60)
-                allow_stretch: True
-                keep_ratio: True
+                fit_mode: 'contain'
                 
             Label:
                 text: "Vincula tu dispositivo con Paxapos"
@@ -107,8 +106,7 @@
                         size_hint: None, None
                         size: dp(160), dp(160)
                         pos_hint: {'center_x': 0.5, 'center_y': 0.5}
-                        allow_stretch: True
-                        keep_ratio: True
+                        fit_mode: 'contain'
                         
                     # Loading fallback
                     Label:
@@ -188,7 +186,7 @@
 <LoginScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: 20
+        padding: [dp(20), dp(20) + app.inset_top, dp(20), dp(20) + app.inset_bottom]
         spacing: 15
         canvas.before:
             Color:
@@ -202,8 +200,7 @@
             source: app.logo_image
             size_hint_y: None
             height: 96
-            allow_stretch: True
-            keep_ratio: True
+            fit_mode: 'contain'
 
 
         Label:
@@ -286,7 +283,7 @@
 <MainScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(28)
+        padding: [dp(28), dp(28) + app.inset_top, dp(28), dp(28) + app.inset_bottom]
         spacing: dp(14)
         canvas.before:
             Color:
@@ -433,7 +430,7 @@
 <LogScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(15)
+        padding: [dp(15), dp(15) + app.inset_top, dp(15), dp(15) + app.inset_bottom]
         spacing: dp(10)
         canvas.before:
             Color:
