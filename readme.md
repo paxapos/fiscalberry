@@ -246,3 +246,62 @@ Las dependencias del proyecto son todas permisivas (MIT/BSD), con una excepción
 el extra `python-escpos[all]` arrastra `pycups`, que es GPLv2+. Solo lo usa el
 driver CUPS; si necesitás empaquetar sin código GPL, instalá `python-escpos` sin
 el extra `[all]` y usá el driver `LP` en su lugar.
+
+# Actualización automática
+
+Desde la 3.5.0 Fiscalberry se actualiza solo. Funciona en Linux, Windows,
+Raspberry (instalación desde código) y Android.
+
+## Cómo decide qué versión instalar
+
+La regla no es "actualizar si hay algo más nuevo" sino **tener instalado
+exactamente lo que dice el último release** de GitHub. La diferencia importa:
+si una versión sale mala, **borrar ese release en GitHub hace que toda la flota
+vuelva sola a la anterior**, sin tocar ningún dispositivo. Es el botón de pánico.
+
+Los *prereleases* quedan afuera automáticamente, así que se pueden publicar
+builds de prueba sin que los dispositivos los agarren.
+
+## Qué verifica antes de instalar
+
+1. **Checksum**: el release publica un `SHA256SUMS` y el archivo descargado
+   tiene que coincidir. Si un release no lo trae, no se actualiza.
+2. **Que el binario arranque**: se ejecuta el binario nuevo con `--selftest`
+   (importa los módulos pesados, lee la config, abre la base del spooler) y
+   solo se instala si sale limpio. Compilar no prueba que arranque.
+3. **Que no haya impresiones pendientes**: nunca se actualiza con la cola
+   ocupada. Actualizar con un ticket en vuelo es perder el ticket.
+
+## Si la versión nueva no levanta
+
+Antes de reemplazar el binario se guarda el anterior. Si la versión nueva no
+llega a conectar el servicio en 3 arranques seguidos, **se revierte sola** al
+binario que funcionaba. El local no queda sin imprimir.
+
+## Diferencias por plataforma
+
+| | Cómo se aplica | Automático |
+| --- | --- | --- |
+| Linux / Raspberry | Reemplazo atómico del binario, reinicia systemd | Sí |
+| Windows | El binario nuevo hace de ayudante y se reemplaza tras cerrarse | Sí |
+| Android | Abre el instalador del sistema | Requiere un toque del usuario |
+
+En Android **no existe** la instalación silenciosa fuera de Play Store, ni la
+reversión automática: son límites del sistema operativo.
+
+## Configuración
+
+En el `config.ini`, sección opcional:
+
+```ini
+[Updater]
+enabled = true              ; false para desactivarlo
+check_interval_hours = 6    ; mínimo efectivo: 10 minutos
+```
+
+## Comandos útiles
+
+```sh
+fiscalberry_cli --version    # qué versión es ésta
+fiscalberry_cli --selftest   # ¿este binario arranca bien?
+```

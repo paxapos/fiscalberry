@@ -114,7 +114,20 @@ def main():
     """Función principal que ejecuta el controlador de servicios."""
     global cantRetries
 
+    # --selftest / --apply-update / --version terminan el proceso acá: no son
+    # arranques normales del servidor.
+    from fiscalberry.common.updater.cli_modes import handle_early_modes
+    handle_early_modes()
+
     print("Iniciando Fiscalberry Server")
+
+    # Reversión automática: si la versión anterior se actualizó y nunca llegó a
+    # confirmar que levantaba, volvemos al binario que sí funcionaba.
+    try:
+        from fiscalberry.common.updater.service import on_process_start
+        on_process_start()
+    except Exception as e:
+        print(f"Aviso: no se pudo evaluar el estado de actualizacion: {e}")
 
     # Instancia única por máquina: dos fiscalberry con el mismo config.ini
     # comparten client id MQTT y se patean mutuamente contra el broker.

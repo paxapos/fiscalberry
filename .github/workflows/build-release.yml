@@ -383,6 +383,18 @@ jobs:
           name: fiscalberry-android-gui
           path: ./artifacts/
 
+      # El auto-updater de los dispositivos EXIGE este archivo: si un release no
+      # lo trae, se niega a instalar (mejor quedarse en la version vieja que
+      # aplicar un binario que no se pudo verificar). Ver
+      # src/fiscalberry/common/updater/release_source.py
+      - name: Generar SHA256SUMS
+        run: |
+          cd artifacts
+          rm -f SHA256SUMS
+          sha256sum * > SHA256SUMS
+          echo "--- checksums publicados ---"
+          cat SHA256SUMS
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -399,6 +411,7 @@ jobs:
             ./artifacts/fiscalberry-windows-gui.zip
             ./artifacts/fiscalberry-windows-cli.zip
             ./artifacts/fiscalberry-android-gui.apk
+            ./artifacts/SHA256SUMS
           draft: false
           prerelease: false
           generate_release_notes: true

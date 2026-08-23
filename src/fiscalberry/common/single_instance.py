@@ -44,6 +44,12 @@ def acquire_single_instance_lock():
     """
     Intenta tomar el candado de instancia única.
 
+    Si la variable de entorno FISCALBERRY_LOCK_WAIT trae un número de segundos,
+    reintenta durante ese lapso en vez de rendirse al primer intento. La usa el
+    relanzamiento post-actualización: el proceso viejo todavía puede estar
+    muriendo cuando el nuevo arranca, y sin esta espera el reemplazo se pierde
+    porque el binario nuevo aborta al no conseguir el candado.
+
     Returns:
         bool: True si esta instancia puede arrancar (candado tomado, o
               plataforma sin flock). False si YA HAY otra instancia corriendo
@@ -56,6 +62,11 @@ def acquire_single_instance_lock():
     if _lock_file is not None:
         return True
 
+    try:
+        espera = float(os.environ.get("FISCALBERRY_LOCK_WAIT") or 0)
+    except ValueError:
+        espera = 0.0
+
     path = _lock_file_path()
     try:
         lock_file = open(path, "w")
@@ -64,9 +75,21 @@ def acquire_single_instance_lock():
         logger.warning("single_instance: no se pudo crear %s (%s), candado deshabilitado", path, e)
         return True
 
-    try:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
+    tomado = False
+    import time as _time
+    limite = _time.monotonic() + espera
+    while True:
+        try:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            tomado = True
+            break
+        except OSError:
+            if _time.monotonic() >= limite:
+                break
+            logger.debug("single_instance: candado ocupado, reintentando...")
+            _time.sleep(0.5)
+
+    if not tomado:
         lock_file.close()
         logger.error(
             "Ya hay otro Fiscalberry corriendo en esta maquina (lock: %s). "

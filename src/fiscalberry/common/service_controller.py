@@ -86,6 +86,11 @@ class ServiceController:
         self.socketio_thread = None
         self.discover_thread = None
         self._zombie_reconnects = 0
+        self.updater = None
+        # Una actualización recién se da por buena cuando el servicio conecta.
+        # Ver updater/commit_guard.py: "el binario ejecuta" no es lo mismo que
+        # "el servicio funciona", y solo lo segundo evita la reversión.
+        self._update_confirmed = False
 
         try:
             self.configberry = Configberry()
@@ -251,6 +256,8 @@ class ServiceController:
         self.discover_thread = send_discover_in_thread()
         self.discover_thread.start()
 
+        self._start_updater()
+
         # Bucle principal de reconexión
         while not self._stop_event.is_set():
             self.socketio_thread = threading.Thread(
@@ -287,6 +294,18 @@ class ServiceController:
                         )
                     except Exception as e:
                         logger.debug(f"No se pudo publicar el estado: {e}")
+
+                # Primera conexión efectiva: el servicio anda de verdad, así que
+                # si veníamos de actualizar, la damos por buena y se borra el
+                # respaldo. Si nunca llegamos acá, al tercer arranque fallido el
+                # binario anterior vuelve solo.
+                if not self._update_confirmed and self.sio.isSioConnected():
+                    self._update_confirmed = True
+                    try:
+                        from fiscalberry.common.updater.service import on_services_ready
+                        on_services_ready()
+                    except Exception as e:
+                        logger.debug(f"No se pudo confirmar la actualización: {e}")
 
                 # Latido periódico al log. Un servicio sano e inactivo no escribe
                 # NADA, así que un log sin líneas no distingue "anduvo toda la
@@ -334,6 +353,39 @@ class ServiceController:
 
         logger.debug("Fiscalberry SIO Service Loop finished.")
 
+    def _start_updater(self):
+        """
+        Arranca el hilo de auto-actualización.
+
+        Que falle no puede impedir que el servicio de impresión levante: un
+        problema en el updater dejaría al local sin imprimir, que es mucho peor
+        que quedarse en una versión vieja.
+        """
+        try:
+            from fiscalberry.common.updater.service import UpdaterService
+            self.updater = UpdaterService(
+                config=self.configberry,
+                shutdown_cb=self._shutdown_for_update,
+            )
+            self.updater.start()
+        except Exception as e:
+            logger.warning(f"No se pudo iniciar el auto-actualizador: {e}")
+
+    def _stop_updater(self):
+        if self.updater is not None:
+            try:
+                self.updater.stop()
+            except Exception as e:
+                logger.debug(f"Error deteniendo el actualizador: {e}")
+
+    def _shutdown_for_update(self):
+        """Cierre ordenado para que arranque la versión nueva."""
+        logger.warning("Cerrando el servicio para tomar la versión actualizada.")
+        try:
+            self._stop_services_only()
+        finally:
+            os._exit(0)
+
     def _is_gui_mode(self):
         """Detecta si la aplicación está ejecutándose en modo GUI."""
         try:
@@ -361,7 +413,8 @@ class ServiceController:
         """Detiene el bucle de servicios específicamente para modo CLI."""
         logger.debug("Requesting SIO services stop (CLI mode)...")
         self._stop_event.set()
-        
+        self._stop_updater()
+
         self.sio.stop()
         
         if self.socketio_thread and self.socketio_thread.is_alive():
@@ -396,7 +449,8 @@ class ServiceController:
         """Detiene el bucle de servicios específicamente para modo GUI."""
         logger.debug("Requesting SIO services stop (GUI mode)...")
         self._stop_event.set()
-        
+        self._stop_updater()
+
         self.sio.stop()
         
         if self.socketio_thread and self.socketio_thread.is_alive():
@@ -430,7 +484,8 @@ class ServiceController:
         """Detiene solo los servicios sin llamar a sys.exit() - para uso interno."""
         logger.debug("Requesting SIO services stop...")
         self._stop_event.set()
-        
+        self._stop_updater()
+
         self.sio.stop()
         
         if self.socketio_thread and self.socketio_thread.is_alive():
