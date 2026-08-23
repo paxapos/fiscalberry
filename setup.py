@@ -9,10 +9,14 @@ def load_requirements(filename):
 
 setup(
     name='fiscalberry',
-    version='3.3.0',
+    version='3.4.0',
     description='Proyecto con interfaz Kivy y consola',
     author='Ale Vilar',
     author_email='alevilar@gmail.com',
+    license='MIT',
+    classifiers=[
+        'License :: OSI Approved :: MIT License',
+    ],
     package_dir={'': 'src'},  # Le decimos que los paquetes están en "src"
     packages=find_packages(where='src'),  # Esto encontrará "fiscalberry"
     install_requires=load_requirements("requirements.txt"),  # Asume que load_requirements está fijo para tomar un nombre de archivo

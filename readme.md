@@ -236,3 +236,13 @@ Aquellos que son un mensaje directo de algun dispositivo conectado, vienen con "
 #### NOTA
 
 Deberás enviar JSON válidos al servidor. Recomendamos usar la pagina <http://jsonlint.com/> para verificar como tu programa esta generando los JSON.
+
+# Licencia
+
+Fiscalberry se distribuye bajo licencia [MIT](LICENSE). Podés usarlo, modificarlo
+y redistribuirlo —incluso en productos comerciales— conservando el aviso de copyright.
+
+Las dependencias del proyecto son todas permisivas (MIT/BSD), con una excepción:
+el extra `python-escpos[all]` arrastra `pycups`, que es GPLv2+. Solo lo usa el
+driver CUPS; si necesitás empaquetar sin código GPL, instalá `python-escpos` sin
+el extra `[all]` y usá el driver `LP` en su lugar.
