@@ -259,7 +259,34 @@ jobs:
           # bleeding-edge (Python 3.14 + cython 3) y el build de Android rompía.
           pip install "buildozer==1.5.0" "cython==0.29.36" virtualenv
 
+      # La clave de firma DEBE ser siempre la misma. Si cambia, Android rechaza
+      # la actualización sobre una instalación previa ("problema con el
+      # paquete") y además cambia el ANDROID_ID del que se deriva el uuid del
+      # dispositivo, con lo cual hay que re-vincular el comercio en cada
+      # release. Antes se firmaba con la clave de debug que el runner genera al
+      # vuelo: distinta en cada corrida (el caché guarda ~/.buildozer pero no
+      # ~/.android, que es donde vive).
+      - name: Preparar keystore de firma
+        id: keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "Sin secret ANDROID_KEYSTORE_BASE64: se compila en debug (no publicable)."
+            echo "disponible=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/fiscalberry.keystore"
+            echo "disponible=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build Android APK
+        env:
+          # buildozer firma y alinea el APK solo si estas variables están puestas.
+          P4A_RELEASE_KEYSTORE: ${{ runner.temp }}/fiscalberry.keystore
+          P4A_RELEASE_KEYALIAS: fiscalberry
+          P4A_RELEASE_KEYSTORE_PASSWD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          P4A_RELEASE_KEYALIAS_PASSWD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          HAY_KEYSTORE: ${{ steps.keystore.outputs.disponible }}
         run: |
           cp buildozer.ui.android.spec buildozer.spec
           # El caché (restore-keys) puede traer un clon viejo de p4a (master/3.14) y
@@ -268,14 +295,37 @@ jobs:
           # ~/.buildozer (descargas caras).
           rm -rf .buildozer/android/platform/python-for-android
           rm -rf .buildozer/android/platform/build-*
-          buildozer -v android debug
+          if [ "$HAY_KEYSTORE" = "true" ]; then
+            # release: firmado con la clave fija y SIN android:debuggable, que en
+            # debug deja leer la memoria del proceso — donde viven las
+            # credenciales del broker, que a propósito nunca se guardan en disco.
+            buildozer -v android release
+          else
+            buildozer -v android debug
+          fi
 
       - name: Find and rename APK
         id: find_apk
         run: |
-          APK_PATH=$(find . -name "*.apk" -type f | head -1)
+          # El release deja tambien el APK sin firmar (-unsigned.apk); elegir el firmado.
+          APK_PATH=$(find bin -name "*.apk" -type f ! -name "*unsigned*" | head -1)
+          if [ -z "$APK_PATH" ]; then
+            echo "No se genero ningun APK" >&2
+            exit 1
+          fi
           echo "APK found: $APK_PATH"
           cp "$APK_PATH" ./fiscalberry-android-gui.apk
+
+      - name: Verificar firma del APK
+        run: |
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* 2>/dev/null | sort -V | tail -1)
+          APKSIGNER="$BUILD_TOOLS/apksigner"
+          if [ ! -x "$APKSIGNER" ]; then
+            APKSIGNER=$(find "$HOME/.buildozer" -name apksigner -type f 2>/dev/null | sort -V | tail -1)
+          fi
+          # Deja en el log la huella del certificado: si algun dia cambia, se ve
+          # aca antes de que los usuarios no puedan actualizar.
+          "$APKSIGNER" verify --print-certs ./fiscalberry-android-gui.apk | grep -i "SHA-256 digest" || true
 
       - name: Upload Android Artifact
         uses: actions/upload-artifact@v4
