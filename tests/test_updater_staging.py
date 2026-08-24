@@ -109,8 +109,8 @@ def test_zip_con_ruta_que_se_escapa_es_rechazado(tmp_path):
         staging.extract(str(malicioso), str(tmp_path / "destino"))
 
 
-def test_tar_con_symlink_es_rechazado(tmp_path):
-    """Un symlink dentro del paquete puede apuntar a cualquier lado."""
+def test_symlink_a_ruta_absoluta_es_rechazado(tmp_path):
+    """Un link a /etc/passwd convierte la extracción en escritura arbitraria."""
     malicioso = tmp_path / "link.tar.gz"
     with tarfile.open(malicioso, "w:gz") as tf:
         info = tarfile.TarInfo("atajo")
@@ -118,8 +118,54 @@ def test_tar_con_symlink_es_rechazado(tmp_path):
         info.linkname = "/etc/passwd"
         tf.addfile(info)
 
-    with pytest.raises(staging.StagingError, match="link"):
+    with pytest.raises(staging.StagingError, match="afuera"):
         staging.extract(str(malicioso), str(tmp_path / "destino"))
+
+
+def test_symlink_que_se_escapa_con_dotdot_es_rechazado(tmp_path):
+    malicioso = tmp_path / "escape.tar.gz"
+    with tarfile.open(malicioso, "w:gz") as tf:
+        info = tarfile.TarInfo("app/_internal/atajo")
+        info.type = tarfile.SYMTYPE
+        info.linkname = "../../../../etc/shadow"
+        tf.addfile(info)
+
+    with pytest.raises(staging.StagingError, match="afuera"):
+        staging.extract(str(malicioso), str(tmp_path / "destino"))
+
+
+def test_symlink_interno_es_aceptado(tmp_path):
+    """
+    Los paquetes onedir traen symlinks legítimos entre librerías compartidas
+    (ej. `_internal/libpng16-xxxx.so.16.43.0`). Rechazarlos a todos dejaba al
+    updater sin poder instalar NADA en Linux: paso de verdad con el primer
+    paquete onedir publicado.
+    """
+    paquete = tmp_path / "ok.tar.gz"
+    with tarfile.open(paquete, "w:gz") as tf:
+        real = tarfile.TarInfo("app/_internal/libpng16.so.16.43.0")
+        real.size = 4
+        tf.addfile(real, io.BytesIO(b"ELF\n"))
+
+        link = tarfile.TarInfo("app/_internal/libpng16.so.16")
+        link.type = tarfile.SYMTYPE
+        link.linkname = "libpng16.so.16.43.0"
+        tf.addfile(link)
+
+    destino = staging.extract(str(paquete), str(tmp_path / "destino"))
+    assert os.path.islink(os.path.join(destino, "app/_internal/libpng16.so.16"))
+
+
+def test_tipos_de_entrada_raros_son_rechazados(tmp_path):
+    """Un dispositivo o FIFO no tiene nada que hacer en una actualización."""
+    raro = tmp_path / "raro.tar.gz"
+    with tarfile.open(raro, "w:gz") as tf:
+        info = tarfile.TarInfo("app/dispositivo")
+        info.type = tarfile.CHRTYPE
+        tf.addfile(info)
+
+    with pytest.raises(staging.StagingError, match="inesperado"):
+        staging.extract(str(raro), str(tmp_path / "destino"))
 
 
 def test_extrae_y_encuentra_el_binario(tmp_path):

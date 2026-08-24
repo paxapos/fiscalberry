@@ -100,6 +100,26 @@ def _es_ruta_segura(nombre, base):
     return destino == base_real or destino.startswith(base_real + os.sep)
 
 
+def _link_seguro(miembro, base):
+    """
+    ¿Este link apunta a algún lugar de adentro del paquete?
+
+    Los paquetes onedir traen symlinks LEGÍTIMOS entre librerías compartidas
+    (por ejemplo `_internal/libpng16-xxxx.so.16.43.0`), así que rechazarlos a
+    todos dejaría al updater sin poder instalar nada en Linux.
+
+    Lo peligroso no es el link en sí, sino que apunte AFUERA: un `/etc/passwd`
+    o un `../../..` convierten la extracción en escritura arbitraria sobre el
+    sistema. Se permite lo que queda dentro del directorio de extracción.
+    """
+    objetivo = miembro.linkname or ""
+    if os.path.isabs(objetivo):
+        return False
+    # El destino de un link relativo se resuelve desde la carpeta que lo contiene.
+    relativo = os.path.join(os.path.dirname(miembro.name), objetivo)
+    return _es_ruta_segura(relativo, base)
+
+
 def extract(archivo, destino):
     """Desempaqueta .tar.gz o .zip en `destino`, rechazando rutas que se escapen."""
     os.makedirs(destino, exist_ok=True)
@@ -107,10 +127,18 @@ def extract(archivo, destino):
     if archivo.endswith((".tar.gz", ".tgz")):
         with tarfile.open(archivo, "r:gz") as tf:
             for miembro in tf.getmembers():
-                if miembro.issym() or miembro.islnk():
-                    raise StagingError(f"el paquete trae un link: {miembro.name}")
                 if not _es_ruta_segura(miembro.name, destino):
                     raise StagingError(f"ruta insegura en el paquete: {miembro.name}")
+                if (miembro.issym() or miembro.islnk()) and not _link_seguro(miembro, destino):
+                    raise StagingError(
+                        f"el paquete trae un link que apunta afuera: "
+                        f"{miembro.name} -> {miembro.linkname}")
+                if not (miembro.isfile() or miembro.isdir()
+                        or miembro.issym() or miembro.islnk()):
+                    # Nada de dispositivos, FIFOs ni sockets en un paquete de
+                    # actualización: si aparecen, algo esta muy mal.
+                    raise StagingError(
+                        f"tipo de entrada inesperado en el paquete: {miembro.name}")
             tf.extractall(destino)
     elif archivo.endswith(".zip"):
         with zipfile.ZipFile(archivo) as zf:
