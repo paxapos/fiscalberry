@@ -103,6 +103,10 @@ class AdoptScreen(Screen):
         super().__init__(**kwargs)
         self._monitoring = False
         self._adoption_thread = None
+        # Si el discover del arranque ya registró el dispositivo. Mientras sea
+        # False, abrir el link reintenta el registro antes de mandar al usuario
+        # a una página que va a fallar.
+        self._registrado = False
         logger.debug(f"AdoptScreen inicializada - Plataforma: {self.platform_name}")
     
     def on_pre_enter(self):
@@ -179,6 +183,33 @@ class AdoptScreen(Screen):
             logger.error(f"Error actualizando links: {e}", exc_info=True)
             self.linkError = f"Error preparando la vinculación: {e}"
 
+    def registrar_en_servidor(self):
+        """
+        Reintenta el registro (discover) y refleja el resultado en pantalla.
+
+        Sin registro previo, el servidor no tiene una Paxaprinter con este uuid
+        y la vinculación termina en ":: Paxaprinter no encontrada" — un error
+        del servidor que no le dice nada al usuario sobre qué falló ni qué
+        hacer. Con esto el estado queda a la vista y se puede reintentar sin
+        reinstalar.
+        """
+        try:
+            from fiscalberry.common.discover import send_discover
+
+            if send_discover():
+                self.linkError = ""
+                logger.info("Dispositivo registrado en el servidor.")
+                return True
+
+            self.linkError = ("No se pudo registrar el dispositivo en el "
+                              "servidor. Revisá la conexión y reintentá.")
+            logger.error("El discover no pudo registrar el dispositivo.")
+            return False
+        except Exception as e:
+            self.linkError = f"No se pudo contactar al servidor: {e}"
+            logger.error(f"Error registrando el dispositivo: {e}", exc_info=True)
+            return False
+
     def _regenerar_uuid(self):
         """
         Vuelve a darle identidad al dispositivo cuando el config.ini la perdió.
@@ -210,6 +241,16 @@ class AdoptScreen(Screen):
                                   "Reiniciá la aplicación.")
                 logger.error("Se intentó abrir un link de adopción sin uuid: %r", url)
                 return
+
+            # El servidor solo conoce este dispositivo si el discover llegó. Se
+            # reintenta acá, en el momento exacto en que hace falta: si el
+            # registro del arranque falló (sin red, permisos, lo que sea), el
+            # usuario abriría el link para encontrarse con "Paxaprinter no
+            # encontrada" y ninguna explicación.
+            if not self._registrado:
+                self._registrado = self.registrar_en_servidor()
+                if not self._registrado:
+                    return
 
             if IS_ANDROID and ANDROID_AVAILABLE:
                 # Usar Intent de Android

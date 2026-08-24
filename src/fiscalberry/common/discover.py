@@ -23,10 +23,34 @@ def send_discover():
         logger.error("No se ha configurado el uuid en el archivo de configuracion")
         return False
 
-    data = configberry.getJSON()
-    data["installed_printers"] = listar_impresoras()
+    # Detectar impresoras NO puede impedir que el dispositivo se registre.
+    #
+    # Esto corría fuera del try y era obligatorio para armar el payload: si
+    # `listar_impresoras()` fallaba —en Android escanea USB y Bluetooth, que
+    # dependen de permisos que el usuario todavía no otorgó— el discover ni se
+    # intentaba. Resultado: el dispositivo nunca quedaba registrado y la
+    # vinculación moría con "Paxaprinter no encontrada", sin ninguna pista de
+    # que el problema eran las impresoras.
+    #
+    # Además, en la primera vinculación NO HAY impresoras configuradas: es
+    # justo el momento en que esa lista viene vacía. Que sea un requisito para
+    # registrarse es al revés de como tiene que ser.
+    try:
+        data = configberry.getJSON()
+    except Exception as e:
+        logger.error(f"DISCOVER:: no se pudo leer la configuración ({e}); "
+                     "se envía el registro igual.")
+        data = {}
+
+    try:
+        data["installed_printers"] = listar_impresoras()
+    except Exception as e:
+        logger.error(f"DISCOVER:: falló la detección de impresoras ({e}); "
+                     "se registra el dispositivo sin lista de impresoras.")
+        data["installed_printers"] = []
+
     senddata = {
-        "uuid":  configberry.config.get("SERVIDOR", "uuid"),
+        "uuid": uuidval,
         # Version del cliente: el backend la persiste y decide capacidades
         # (ej. mandar trabajos 'printRaw' solo a clientes que los soportan).
         "version": VERSION,
