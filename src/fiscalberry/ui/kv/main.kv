@@ -77,7 +77,20 @@
                     height: dp(40)
                     halign: 'center'
                     text_size: self.width, None
-                
+
+                # Solo aparece si la vinculación no se pudo preparar. Antes, sin
+                # uuid, el botón de arriba se veía normal pero llevaba a un error
+                # 500 del servidor, sin ninguna explicación para el usuario.
+                Label:
+                    text: root.linkError
+                    opacity: 1 if root.linkError else 0
+                    size_hint_y: None
+                    height: self.texture_size[1] if root.linkError else 0
+                    font_size: '13sp'
+                    color: 0.8, 0.1, 0.1, 1
+                    halign: 'center'
+                    text_size: self.width, None
+
                 Widget:
             
             # Lado derecho - QR

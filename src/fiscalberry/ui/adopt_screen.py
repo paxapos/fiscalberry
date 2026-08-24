@@ -40,6 +40,20 @@ QRGENLINK = "https://codegenerator.paxapos.com/?bcid=qrcode&text="
 ADOP_LINK = host + "/adopt/" + uuid
 
 
+def link_de_adopcion_valido(url):
+    """
+    ¿Este link identifica a un dispositivo?
+
+    Un link que termina en `/adopt/` (sin uuid) hace que el servidor responda
+    500 — `ArgumentCountError: Too few arguments to adopt()` — y el usuario ve
+    una pantalla de error sin ninguna pista. Pasó en producción: el config.ini
+    se quedó sin uuid y la pantalla ofreció igual el botón de vincular.
+    """
+    if not url:
+        return False
+    return not url.rstrip("/").endswith("/adopt")
+
+
 def generar_qr(texto):
     """
     Genera el QR de vinculación LOCALMENTE y devuelve la ruta del PNG.
@@ -80,6 +94,8 @@ class AdoptScreen(Screen):
     
     adoptarLink = StringProperty(ADOP_LINK)
     qrCodeLink = StringProperty("")
+    # Mensaje visible cuando la vinculación no se puede preparar. Vacío = todo ok.
+    linkError = StringProperty("")
     is_monitoring = BooleanProperty(False)
     platform_name = StringProperty("Android" if IS_ANDROID else "Desktop")
     
@@ -127,19 +143,59 @@ class AdoptScreen(Screen):
         self.is_monitoring = False
     
     def _update_links(self):
-        """Actualiza los links de adopción con la configuración actual."""
+        """
+        Actualiza los links de adopción con la configuración actual.
+
+        Si falta el uuid hay que RECUPERARSE, no solo avisar al log: antes, sin
+        uuid, la pantalla dejaba el link de clase (`host + "/adopt/" + ""`), o
+        sea `/adopt/` sin identificador. El usuario veía un botón normal, lo
+        apretaba y el servidor respondía 500 (`ArgumentCountError: Too few
+        arguments to adopt()`), sin ninguna pista de qué había pasado. Y el QR
+        quedaba en blanco por el mismo motivo.
+        """
         try:
             host = configberry.get("SERVIDOR", "sio_host", "https://beta.paxapos.com")
             uuid_val = configberry.get("SERVIDOR", "uuid", fallback="")
-            
+
+            if not uuid_val:
+                logger.warning("No hay uuid en la configuración; se regenera.")
+                uuid_val = self._regenerar_uuid()
+
             if uuid_val:
                 self.adoptarLink = f"{host}/adopt/{uuid_val}"
                 self.qrCodeLink = generar_qr(self.adoptarLink)
+                self.linkError = ""
                 logger.debug(f"Links actualizados - UUID: {uuid_val[:8]}...")
             else:
-                logger.warning("UUID no disponible para generar links")
+                # Mejor un mensaje explícito que un botón que lleva a un error
+                # del servidor.
+                self.adoptarLink = ""
+                self.qrCodeLink = ""
+                self.linkError = ("No se pudo generar el identificador de este "
+                                  "dispositivo. Reiniciá la aplicación.")
+                logger.error("UUID no disponible ni regenerable: "
+                             "la vinculación no puede continuar.")
         except Exception as e:
-            logger.error(f"Error actualizando links: {e}")
+            logger.error(f"Error actualizando links: {e}", exc_info=True)
+            self.linkError = f"Error preparando la vinculación: {e}"
+
+    def _regenerar_uuid(self):
+        """
+        Vuelve a darle identidad al dispositivo cuando el config.ini la perdió.
+
+        En Android es recuperable sin costo: el uuid se deriva de ANDROID_ID, así
+        que el que se regenera es EL MISMO de antes y no hay que re-vincular.
+        """
+        try:
+            from fiscalberry.common.device_uuid import generate_device_uuid
+
+            nuevo = generate_device_uuid()
+            configberry.set("SERVIDOR", {"uuid": nuevo})
+            logger.info(f"UUID regenerado: {nuevo[:8]}...")
+            return nuevo
+        except Exception as e:
+            logger.error(f"No se pudo regenerar el uuid: {e}", exc_info=True)
+            return ""
     
     def open_adoption_link(self):
         """
@@ -148,7 +204,13 @@ class AdoptScreen(Screen):
         """
         try:
             url = self.adoptarLink
-            
+
+            if not link_de_adopcion_valido(url):
+                self.linkError = ("La vinculación todavía no está lista. "
+                                  "Reiniciá la aplicación.")
+                logger.error("Se intentó abrir un link de adopción sin uuid: %r", url)
+                return
+
             if IS_ANDROID and ANDROID_AVAILABLE:
                 # Usar Intent de Android
                 success = self._open_url_android(url)

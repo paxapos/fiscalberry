@@ -1,5 +1,5 @@
 [tool.bumpversion]
-current_version = "3.5.1"
+current_version = "3.5.2"
 # Commitea el cambio de versión como un commit limpio de release.
 commit = true
 commit_args = "--no-verify"

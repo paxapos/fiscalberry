@@ -1,5 +1,6 @@
 import configparser
 import os
+import tempfile
 import threading
 import uuid
 import platformdirs
@@ -176,9 +177,8 @@ class Configberry:
                 # Guardar backup del archivo ANTES de escribir
                 self.saveBackup()
                 try:
-                    with open(self.configFilePath, 'w') as configfile:
-                        self.config.write(configfile)
-                    
+                    self._write_atomic()
+
                     # Recargar la configuración después de escribir
                     self.config.read(self.configFilePath) 
                     # Invalidar cache de get(): el archivo cambió en disco.
@@ -229,6 +229,40 @@ class Configberry:
             # No intentar restaurar backup aquí si el error fue antes de saveBackup()
             return False
 
+    def _write_atomic(self):
+        """
+        Vuelca el INI a disco de forma atómica: temporal + rename encima.
+
+        `open(path, 'w')` trunca el archivo al instante, así que mientras se
+        escribe queda vacío o a medias. En Android eso es una carrera real:
+        el proceso de la UI y el del servicio comparten este mismo config.ini.
+        Si el otro proceso lee justo en esa ventana, encuentra un config SIN la
+        sección SERVIDOR, concluye que está corrupto y lo resetea — y el equipo
+        se queda sin uuid (o con otro).
+
+        Sin uuid, la pantalla de vinculación arma `<host>/adopt/` sin
+        identificador: el servidor devuelve 500 y el QR queda en blanco. Pasó
+        en producción.
+
+        `os.replace()` es atómico en POSIX y en Windows: el que lee ve el
+        archivo viejo o el nuevo, nunca uno a medio escribir. Y si el proceso
+        muere en el medio, el original queda intacto.
+        """
+        directorio = os.path.dirname(self.configFilePath) or "."
+        fd, tmp_path = tempfile.mkstemp(dir=directorio, prefix=".config-", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as configfile:
+                self.config.write(configfile)
+                configfile.flush()
+                os.fsync(configfile.fileno())
+            os.replace(tmp_path, self.configFilePath)
+        except Exception:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            raise
+
     def storeConfig(self):
         with self._rlock:
             return self._store_config_impl()
@@ -241,10 +275,7 @@ class Configberry:
             # Guardar backup del archivo
             self.saveBackup()
 
-            # Guardar en el archivo
-            with open(self.configFilePath, 'w') as configfile:
-                self.config.write(configfile)
-                configfile.close()
+            self._write_atomic()
         except Exception as e:
             # Restaurar desde el backup en caso de error
             if os.path.exists(self.configFilePath + ".bak"):
