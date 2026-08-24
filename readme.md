@@ -3,12 +3,31 @@
 
 Para enviar un JSON (mediante websocket), que fiscalberry lo reciba, lo transforme en un conjunto de comandos compatible con la impresora instalada, conecte con la impresora y responda al websocket con la respuesta que nos envió la impresora.
 
-Descarga la última versión socketio para windows
+# Descargas
 
-[fiscalberry-win]([https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-win.exe))
+**Página de descargas: <https://github.com/paxapos/fiscalberry/releases/latest>**
 
-Para Linux
-[fiscalberry-lin]([https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-lin))
+Estos enlaces apuntan **siempre a la última versión publicada**; no hace falta
+cambiarlos cuando sale una nueva.
+
+| Sistema | Con interfaz gráfica | Solo consola |
+| --- | --- | --- |
+| Windows | [fiscalberry-windows-gui.zip](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-windows-gui.zip) | [fiscalberry-windows-cli.zip](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-windows-cli.zip) |
+| Linux | [fiscalberry-linux-gui.tar.gz](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-linux-gui.tar.gz) | [fiscalberry-linux-cli.tar.gz](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-linux-cli.tar.gz) |
+| Android | [fiscalberry-android-gui.apk](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-android-gui.apk) | — |
+
+Para verificar la descarga:
+[SHA256SUMS](https://github.com/paxapos/fiscalberry/releases/latest/download/SHA256SUMS)
+
+```sh
+sha256sum -c SHA256SUMS --ignore-missing
+```
+
+Una vez instalado **no hace falta volver a descargar nada**: Fiscalberry se
+actualiza solo. Ver [Actualización automática](#actualización-automática).
+
+Los binarios de Linux se compilan en Ubuntu 22.04, así que corren en esa
+versión y en cualquiera más nueva.
 
 Para Raspberry pi (ARM) no hay binario precompilado (PyInstaller no hace
 cross-compile a ARM): se instala desde código y se corre el CLI.
