@@ -51,13 +51,14 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
+# Modo ONEDIR (EXE sin binarios + COLLECT), no onefile. Ver el comentario
+# equivalente en fiscalberry-cli.spec: onefile se auto-extrae en runtime, que
+# es un patron de malware y una fuente habitual de falsos positivos.
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
-    *kivy_deps_trees,
     [],
+    exclude_binaries=True,
     name='fiscalberry-gui',
     debug=False,
     bootloader_ignore_signals=False,
@@ -77,4 +78,15 @@ exe = EXE(
     # Configuraciones adicionales para evitar falsos positivos
     manifest=None,
     resources=[],
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    *kivy_deps_trees,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='fiscalberry-gui',
 )

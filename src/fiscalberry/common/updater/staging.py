@@ -127,8 +127,8 @@ def find_binary(raiz, nombre):
     """
     Ubica el ejecutable dentro de lo extraído.
 
-    Los .tar.gz de la CI traen el binario en la raíz, pero se busca en
-    profundidad por si algún día se empaqueta dentro de una carpeta.
+    Se busca en profundidad porque los builds son onedir: el ejecutable está
+    dentro de su carpeta, no en la raíz del comprimido.
     """
     directo = os.path.join(raiz, nombre)
     if os.path.isfile(directo):
@@ -137,6 +137,29 @@ def find_binary(raiz, nombre):
         if nombre in archivos:
             return os.path.join(base, nombre)
     raise StagingError(f"no se encontró {nombre} dentro del paquete")
+
+
+def find_app_dir(raiz, nombre_dir, nombre_binario):
+    """
+    Ubica la carpeta de la app dentro de lo extraído.
+
+    Es la carpeta que el updater va a poner en lugar de la instalada, así que
+    se exige que contenga el ejecutable: si no lo tiene, el paquete no sirve y
+    es mejor abortar acá que dejar una instalación rota.
+    """
+    candidato = os.path.join(raiz, nombre_dir)
+    if os.path.isdir(candidato) and os.path.isfile(
+            os.path.join(candidato, nombre_binario)):
+        return candidato
+
+    # El comprimido podría traer otro nombre de carpeta: se ubica por el
+    # ejecutable y se toma su directorio.
+    for base, _dirs, archivos in os.walk(raiz):
+        if nombre_binario in archivos:
+            return base
+
+    raise StagingError(
+        f"el paquete no contiene una carpeta con {nombre_binario}")
 
 
 def new_staging(prefijo="fb-update-"):

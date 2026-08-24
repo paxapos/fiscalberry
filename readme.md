@@ -16,6 +16,10 @@ cambiarlos cuando sale una nueva.
 | Linux | [fiscalberry-linux-gui.tar.gz](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-linux-gui.tar.gz) | [fiscalberry-linux-cli.tar.gz](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-linux-cli.tar.gz) |
 | Android | [fiscalberry-android-gui.apk](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-android-gui.apk) | — |
 
+Cada archivo trae **una carpeta** con el ejecutable y sus dependencias al lado.
+Hay que descomprimirla y ejecutar el binario **desde adentro de esa carpeta**:
+si se mueve el ejecutable solo, no arranca.
+
 Para verificar la descarga:
 [SHA256SUMS](https://github.com/paxapos/fiscalberry/releases/latest/download/SHA256SUMS)
 

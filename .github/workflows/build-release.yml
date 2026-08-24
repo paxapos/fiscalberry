@@ -104,6 +104,9 @@ jobs:
         run: |
           PYTHONPATH=src xvfb-run -a pyinstaller --clean -y fiscalberry-cli.spec
 
+      # Los builds son ONEDIR: dist/fiscalberry-gui es una CARPETA (ejecutable +
+      # _internal), no un binario suelto. tar la empaqueta igual, con carpeta y
+      # todo, que es lo que el auto-updater espera encontrar adentro.
       - name: Package Linux Binaries
         run: |
           cd dist
@@ -170,11 +173,13 @@ jobs:
           $env:PYTHONPATH="src"
           pyinstaller --clean -y fiscalberry-cli.spec
 
+      # Los builds son ONEDIR: dist/fiscalberry-gui es una CARPETA (ejecutable +
+      # _internal), no un .exe suelto. Se comprime la carpeta entera.
       - name: Package Windows Binaries
         run: |
           cd dist
-          Compress-Archive -Path fiscalberry-gui.exe -DestinationPath fiscalberry-windows-gui.zip
-          Compress-Archive -Path fiscalberry-cli.exe -DestinationPath fiscalberry-windows-cli.zip
+          Compress-Archive -Path fiscalberry-gui -DestinationPath fiscalberry-windows-gui.zip
+          Compress-Archive -Path fiscalberry-cli -DestinationPath fiscalberry-windows-cli.zip
 
       - name: Upload Windows GUI Artifact
         uses: actions/upload-artifact@v4

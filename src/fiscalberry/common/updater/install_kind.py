@@ -34,6 +34,16 @@ BINARY_IN_ARCHIVE = {
     WINDOWS_CLI: "fiscalberry-cli.exe",
 }
 
+# Los builds son ONEDIR: el comprimido trae una CARPETA con el ejecutable y sus
+# dependencias al lado (ver fiscalberry-cli.spec). Por eso el updater reemplaza
+# el directorio completo y no un archivo suelto.
+APP_DIR_IN_ARCHIVE = {
+    LINUX_GUI: "fiscalberry-gui",
+    LINUX_CLI: "fiscalberry-cli",
+    WINDOWS_GUI: "fiscalberry-gui",
+    WINDOWS_CLI: "fiscalberry-cli",
+}
+
 
 def is_android():
     """
@@ -82,13 +92,44 @@ def binary_name(kind):
     return BINARY_IN_ARCHIVE.get(kind)
 
 
+def app_dir_name(kind):
+    """Nombre de la carpeta de la app dentro del comprimido, o None."""
+    return APP_DIR_IN_ARCHIVE.get(kind)
+
+
+def is_packaged(kind):
+    """True si esta variante se distribuye como carpeta empaquetada."""
+    return kind in (LINUX_GUI, LINUX_CLI, WINDOWS_GUI, WINDOWS_CLI)
+
+
 def current_executable(kind):
     """
-    Ruta del ejecutable que hay que reemplazar.
+    Ruta del ejecutable en ejecución.
 
     Solo tiene sentido para las variantes empaquetadas: en SOURCE no hay un
-    archivo único que reemplazar, y en ANDROID lo reemplaza el sistema.
+    ejecutable propio, y en ANDROID lo maneja el sistema.
     """
-    if kind in (LINUX_GUI, LINUX_CLI, WINDOWS_GUI, WINDOWS_CLI):
+    if is_packaged(kind):
         return os.path.realpath(sys.executable)
     return None
+
+
+def current_app_dir(kind):
+    """
+    Carpeta de instalación que hay que reemplazar al actualizar.
+
+    En onedir el ejecutable vive dentro de su carpeta, junto a `_internal/`
+    con todas las dependencias:
+
+        fiscalberry-cli/
+            fiscalberry-cli      <- sys.executable
+            _internal/...
+
+    Reemplazar solo el ejecutable dejaría un `_internal` de la versión vieja
+    al lado del binario nuevo — combinación que puede no arrancar. Por eso se
+    cambia el directorio entero, de una.
+    """
+    ejecutable = current_executable(kind)
+    if not ejecutable:
+        return None
+    return os.path.dirname(ejecutable)

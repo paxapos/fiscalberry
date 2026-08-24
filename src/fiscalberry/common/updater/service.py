@@ -201,13 +201,18 @@ class UpdaterService:
             return ("error", str(e))
 
     def _aplicar_binario(self, kind, descarga, release, dir_staging):
-        destino = install_kind.current_executable(kind)
+        # Onedir: se reemplaza la CARPETA de instalación, no un archivo suelto.
+        # El ejecutable necesita su `_internal` de la misma versión al lado.
+        destino = install_kind.current_app_dir(kind)
         if not destino:
             staging.cleanup(dir_staging)
-            return ("error", "no se pudo determinar el ejecutable a reemplazar")
+            return ("error", "no se pudo determinar la instalación a reemplazar")
 
+        nombre_binario = install_kind.binary_name(kind)
         extraido = staging.extract(descarga, os.path.join(dir_staging, "x"))
-        binario = staging.find_binary(extraido, install_kind.binary_name(kind))
+        nuevo_dir = staging.find_app_dir(
+            extraido, install_kind.app_dir_name(kind), nombre_binario)
+        binario = os.path.join(nuevo_dir, nombre_binario)
 
         # LA prueba que importa: que el binario nuevo arranque de verdad.
         ok, detalle = selftest.run(binario, expected_version=release.version)
@@ -224,7 +229,8 @@ class UpdaterService:
             staging.cleanup(dir_staging)
             return ("ocupado", "cola de impresión no vacía")
 
-        appliers.apply_for_kind(kind, nuevo=binario, destino=destino,
+        appliers.apply_for_kind(kind, nuevo_dir=nuevo_dir, destino_dir=destino,
+                                binario=nombre_binario,
                                 version=release.version, version_previa=VERSION)
         staging.cleanup(dir_staging)
         self._pedir_reinicio()

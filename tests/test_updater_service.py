@@ -41,11 +41,18 @@ def entorno(monkeypatch, tmp_path):
     """
     reg = Registro()
 
-    destino = tmp_path / "fiscalberry-cli"
-    destino.write_bytes(b"binario viejo")
+    # Instalación onedir: una CARPETA con el ejecutable y sus dependencias.
+    destino = tmp_path / "inst" / "fiscalberry-cli"
+    destino.mkdir(parents=True)
+    (destino / "fiscalberry-cli").write_bytes(b"binario viejo")
+    (destino / "_internal").mkdir()
+
+    nuevo = tmp_path / "nuevo" / "fiscalberry-cli"
+    nuevo.mkdir(parents=True)
+    (nuevo / "fiscalberry-cli").write_bytes(b"binario nuevo")
 
     monkeypatch.setattr(install_kind, "detect", lambda: install_kind.LINUX_CLI)
-    monkeypatch.setattr(install_kind, "current_executable",
+    monkeypatch.setattr(install_kind, "current_app_dir",
                         lambda kind: str(destino))
     monkeypatch.setattr(service, "spooler_idle", lambda: True)
 
@@ -54,8 +61,8 @@ def entorno(monkeypatch, tmp_path):
     monkeypatch.setattr(staging, "download",
                         lambda url, dest, sha, **kw: dest)
     monkeypatch.setattr(staging, "extract", lambda a, d: d)
-    monkeypatch.setattr(staging, "find_binary",
-                        lambda raiz, nombre: str(tmp_path / "nuevo"))
+    monkeypatch.setattr(staging, "find_app_dir",
+                        lambda raiz, nombre_dir, nombre_bin: str(nuevo))
 
     monkeypatch.setattr(service.selftest, "run",
                         lambda binario, expected_version=None: (True, "ok"))
@@ -103,6 +110,7 @@ def test_instala_una_version_mayor(entorno, monkeypatch):
     assert estado == "aplicado"
     assert detalle == "99.0.0"
     assert entorno.aplicado["version"] == "99.0.0"
+    assert entorno.aplicado["binario"] == "fiscalberry-cli"
     assert entorno.reinicios == 1
 
 

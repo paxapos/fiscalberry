@@ -62,55 +62,80 @@ def _relanzar(binario):
     subprocess.Popen([binario], **kwargs)
 
 
-def _preparar_swap(nuevo, destino, version, version_previa):
-    """
-    Deja el respaldo y la marca de confirmación. Común a Linux y Windows.
-
-    El orden importa: primero se respalda, después se arma la marca, y recién
-    al final se toca el binario vivo. Si el proceso muere en el medio, lo peor
-    que pasa es revertir a un respaldo idéntico al binario actual.
-    """
-    backup = destino + BACKUP_SUFFIX
+def _limpiar(ruta):
+    """Borra un archivo o directorio sobrante. Nunca lanza."""
     try:
-        shutil.copy2(destino, backup)
-    except Exception as e:
-        raise ApplyError(f"no se pudo respaldar el binario actual: {e}")
-
-    commit_guard.arm(version, version_previa, destino, backup)
-    return backup
+        if os.path.isdir(ruta) and not os.path.islink(ruta):
+            shutil.rmtree(ruta, ignore_errors=True)
+        elif os.path.exists(ruta):
+            os.remove(ruta)
+    except OSError:
+        pass
 
 
 # --------------------------------------------------------------------------
 # Linux / POSIX empaquetado
 # --------------------------------------------------------------------------
 
-def apply_posix(nuevo, destino, version, version_previa):
+def apply_posix(nuevo_dir, destino_dir, version, version_previa, binario=None):
     """
-    Reemplaza el binario y pide reinicio.
+    Reemplaza la CARPETA de instalación completa y pide reinicio.
 
-    `os.replace` es atómico y en POSIX está permitido sobre un ejecutable en
-    uso: el proceso actual sigue corriendo con el inodo viejo hasta que muere.
+    Los builds son onedir: el ejecutable convive con `_internal/`, que trae el
+    intérprete y todas las librerías. Cambiar solo el ejecutable dejaría un
+    `_internal` de la versión vieja al lado de un binario nuevo, combinación
+    que puede directamente no arrancar. Por eso se mueve el directorio entero.
+
+    En POSIX renombrar un directorio que contiene el ejecutable en uso es
+    seguro: el kernel resuelve por inodo, y el proceso actual sigue vivo con
+    los archivos que ya tenía abiertos. Igual se sale enseguida.
     """
-    _preparar_swap(nuevo, destino, version, version_previa)
+    backup_dir = destino_dir + BACKUP_SUFFIX
+    entrante = destino_dir + INCOMING_SUFFIX
 
-    entrante = destino + INCOMING_SUFFIX
+    _limpiar(backup_dir)
+    _limpiar(entrante)
+
     try:
-        shutil.copy2(nuevo, entrante)
-        make_executable(entrante)
-        os.replace(entrante, destino)
+        # Se copia al lado del destino (mismo filesystem) para que el rename
+        # final sea atómico y no un copiado largo a medio camino.
+        shutil.copytree(nuevo_dir, entrante)
+        if binario:
+            make_executable(os.path.join(entrante, binario))
     except Exception as e:
-        # El binario vivo no se tocó; se limpia la marca para no revertir de más.
-        commit_guard.clear()
-        try:
-            os.remove(entrante)
-        except OSError:
-            pass
-        raise ApplyError(f"no se pudo reemplazar el binario: {e}")
+        _limpiar(entrante)
+        raise ApplyError(f"no se pudo preparar la versión nueva: {e}")
 
-    logger.info("Binario reemplazado por la versión %s. Reiniciando...", version)
+    # La marca va ANTES de tocar la instalación viva: si el proceso muere entre
+    # medio, lo peor que pasa es revertir a un respaldo idéntico a lo actual.
+    commit_guard.arm(version, version_previa, destino_dir, backup_dir)
+
+    try:
+        os.rename(destino_dir, backup_dir)
+    except Exception as e:
+        commit_guard.clear()
+        _limpiar(entrante)
+        raise ApplyError(f"no se pudo respaldar la instalación actual: {e}")
+
+    try:
+        os.rename(entrante, destino_dir)
+    except Exception as e:
+        # Ventana crítica: el destino no existe. Se devuelve el respaldo YA.
+        try:
+            os.rename(backup_dir, destino_dir)
+            commit_guard.clear()
+            logger.error("Falló el reemplazo; se restauró la instalación previa.")
+        except Exception as e2:
+            logger.critical(
+                "Falló el reemplazo (%s) y tampoco se pudo restaurar (%s). "
+                "La instalación quedó en %s.", e, e2, backup_dir)
+        _limpiar(entrante)
+        raise ApplyError(f"no se pudo instalar la versión nueva: {e}")
+
+    logger.info("Instalación reemplazada por la versión %s. Reiniciando...", version)
     if not _bajo_systemd():
         try:
-            _relanzar(destino)
+            _relanzar(os.path.join(destino_dir, binario) if binario else destino_dir)
         except Exception as e:
             logger.error("No se pudo relanzar automáticamente: %s. "
                          "Hay que abrir Fiscalberry de nuevo a mano.", e)
@@ -121,40 +146,54 @@ def apply_posix(nuevo, destino, version, version_previa):
 # Windows
 # --------------------------------------------------------------------------
 
-def apply_windows(nuevo, destino, version, version_previa):
+def apply_windows(nuevo_dir, destino_dir, version, version_previa, binario=None):
     """
-    Windows no deja sobrescribir un .exe en uso, así que el cambio lo hace el
-    propio binario nuevo desde una copia temporal, una vez que éste murió.
+    Windows no deja tocar un .exe en uso, así que el cambio lo hace un ayudante
+    una vez que este proceso murió.
 
-    Se usa el binario NUEVO como ayudante (y no el viejo) para que el código que
-    hace el reemplazo sea siempre el más reciente.
+    El ayudante es una COPIA COMPLETA de la carpeta nueva, en un temporal: al
+    ser onedir, el ejecutable necesita su `_internal` al lado para arrancar, y
+    copiar solo el .exe daría un ayudante que no corre. Se usa la versión nueva
+    (y no la vieja) para que el código que hace el reemplazo sea el más
+    reciente.
     """
     import tempfile
 
-    _preparar_swap(nuevo, destino, version, version_previa)
+    if not binario:
+        raise ApplyError("falta el nombre del ejecutable para el ayudante")
 
-    ayudante = os.path.join(
-        tempfile.mkdtemp(prefix="fb-apply-"), os.path.basename(destino))
+    base_tmp = tempfile.mkdtemp(prefix="fb-apply-")
+    ayudante_dir = os.path.join(base_tmp, "nuevo")
     try:
-        shutil.copy2(nuevo, ayudante)
+        shutil.copytree(nuevo_dir, ayudante_dir)
     except Exception as e:
-        commit_guard.clear()
+        _limpiar(base_tmp)
         raise ApplyError(f"no se pudo preparar el ayudante de actualización: {e}")
+
+    ayudante_exe = os.path.join(ayudante_dir, binario)
+    if not os.path.isfile(ayudante_exe):
+        _limpiar(base_tmp)
+        raise ApplyError(f"el ayudante no contiene {binario}")
+
+    commit_guard.arm(version, version_previa, destino_dir,
+                     destino_dir + BACKUP_SUFFIX)
 
     entorno = dict(os.environ)
     entorno["FISCALBERRY_LOCK_WAIT"] = RELAUNCH_LOCK_WAIT
     try:
         subprocess.Popen(
-            [ayudante, "--apply-update",
+            [ayudante_exe, "--apply-update",
              "--pid", str(os.getpid()),
-             "--src", ayudante,
-             "--dst", destino],
+             "--src", ayudante_dir,
+             "--dst", destino_dir,
+             "--exe", binario],
             env=entorno,
             close_fds=True,
             creationflags=0x00000008 | 0x00000200,
         )
     except Exception as e:
         commit_guard.clear()
+        _limpiar(base_tmp)
         raise ApplyError(f"no se pudo lanzar el ayudante de actualización: {e}")
 
     logger.info("Ayudante lanzado; al cerrarse este proceso queda la versión %s.",
@@ -162,13 +201,13 @@ def apply_windows(nuevo, destino, version, version_previa):
     return True
 
 
-def run_apply_helper(pid, src, dst, timeout=120):
+def run_apply_helper(pid, src, dst, exe=None, timeout=120):
     """
     Modo ayudante (`--apply-update`): esperar a que muera el proceso viejo,
-    reemplazar el ejecutable y volver a arrancarlo.
+    poner la carpeta nueva en lugar de la instalada y relanzar.
 
-    Corre en un proceso aparte; su salida no la ve nadie, así que todo lo
-    importante va al log de archivo.
+    Corre en un proceso aparte, desde un temporal; su salida no la ve nadie,
+    así que todo lo importante va al log de archivo.
     """
     import time
 
@@ -184,24 +223,43 @@ def run_apply_helper(pid, src, dst, timeout=120):
         commit_guard.clear()
         return 1
 
-    # Margen para que Windows suelte del todo el archivo.
-    time.sleep(1.0)
+    # Margen para que Windows libere del todo los archivos del proceso muerto.
+    time.sleep(2.0)
 
+    backup = dst + BACKUP_SUFFIX
+    _limpiar(backup)
+
+    # Windows puede tener el directorio tomado unos instantes más; se reintenta.
     for intento in range(1, 6):
         try:
-            shutil.copy2(src, dst)
+            if os.path.isdir(dst):
+                os.rename(dst, backup)
             break
         except Exception as e:
-            logger.warning("Intento %d de reemplazar %s falló: %s", intento, dst, e)
+            logger.warning("Intento %d de apartar %s falló: %s", intento, dst, e)
             time.sleep(2.0)
     else:
-        logger.error("No se pudo reemplazar %s. Se revierte la marca.", dst)
+        logger.error("No se pudo apartar %s. Se cancela la actualización.", dst)
         commit_guard.clear()
         return 1
 
-    logger.info("Ejecutable reemplazado. Relanzando %s", dst)
     try:
-        _relanzar(dst)
+        shutil.copytree(src, dst)
+    except Exception as e:
+        logger.error("Falló la instalación en %s (%s). Restaurando la anterior.",
+                     dst, e)
+        _limpiar(dst)
+        try:
+            os.rename(backup, dst)
+            commit_guard.clear()
+        except Exception as e2:
+            logger.critical("Tampoco se pudo restaurar: %s. Quedó en %s", e2, backup)
+        return 1
+
+    destino_exe = os.path.join(dst, exe) if exe else dst
+    logger.info("Instalación reemplazada. Relanzando %s", destino_exe)
+    try:
+        _relanzar(destino_exe)
     except Exception as e:
         logger.error("No se pudo relanzar tras actualizar: %s", e)
         return 1
@@ -425,45 +483,69 @@ def _selftest_modulo(version_esperada):
 # Reversión (la decide commit_guard, la ejecuta la plataforma)
 # --------------------------------------------------------------------------
 
-def rollback(pendiente):
-    """Restaura el binario respaldado. Devuelve True si quedó restaurado."""
+def rollback(pendiente, binario=None):
+    """Restaura la instalación respaldada. Devuelve True si quedó restaurada."""
     if not pendiente.backup_exists():
         logger.error("No hay respaldo en %s: no se puede revertir.", pendiente.backup)
         commit_guard.clear()
         return False
 
     destino = pendiente.target
-    try:
-        if os.name == "nt":
-            # Mismo problema que al instalar: el .exe está en uso. El respaldo
-            # hace de ayudante y se reemplaza a sí mismo sobre el destino.
-            entorno = dict(os.environ)
-            entorno["FISCALBERRY_LOCK_WAIT"] = RELAUNCH_LOCK_WAIT
+
+    if os.name == "nt":
+        # Mismo problema que al instalar: los archivos están en uso. El respaldo
+        # hace de ayudante y se instala a sí mismo cuando este proceso muera.
+        exe = binario or _adivinar_exe(pendiente.backup)
+        if not exe:
+            logger.critical("No se encontró el ejecutable dentro de %s: "
+                            "no se puede revertir.", pendiente.backup)
+            return False
+        entorno = dict(os.environ)
+        entorno["FISCALBERRY_LOCK_WAIT"] = RELAUNCH_LOCK_WAIT
+        try:
             subprocess.Popen(
-                [pendiente.backup, "--apply-update",
+                [os.path.join(pendiente.backup, exe), "--apply-update",
                  "--pid", str(os.getpid()),
                  "--src", pendiente.backup,
-                 "--dst", destino],
+                 "--dst", destino,
+                 "--exe", exe],
                 env=entorno, close_fds=True,
                 creationflags=0x00000008 | 0x00000200)
-            logger.warning("Reversión a %s lanzada; este proceso debe cerrarse.",
-                           pendiente.previous_version)
-            return True
+        except Exception as e:
+            logger.critical("No se pudo lanzar la reversión: %s", e)
+            return False
+        logger.warning("Reversión a %s lanzada; este proceso debe cerrarse.",
+                       pendiente.previous_version)
+        return True
 
-        shutil.copy2(pendiente.backup, destino + INCOMING_SUFFIX)
-        make_executable(destino + INCOMING_SUFFIX)
-        os.replace(destino + INCOMING_SUFFIX, destino)
+    entrante = destino + INCOMING_SUFFIX
+    _limpiar(entrante)
+    try:
+        # Se aparta lo que no sirve y se devuelve el respaldo a su lugar. Como
+        # ambos están en el mismo filesystem, los renames son instantáneos.
+        if os.path.isdir(destino):
+            os.rename(destino, entrante)
+        os.rename(pendiente.backup, destino)
     except Exception as e:
         logger.critical("Falló la reversión a %s: %s", pendiente.previous_version, e)
         return False
+    finally:
+        _limpiar(entrante)
 
     commit_guard.clear()
-    try:
-        os.remove(pendiente.backup)
-    except OSError:
-        pass
     logger.warning("Revertido a la versión %s.", pendiente.previous_version)
     return True
+
+
+def _adivinar_exe(directorio):
+    """Nombre del .exe dentro de una carpeta de instalación de Fiscalberry."""
+    try:
+        for nombre in os.listdir(directorio):
+            if nombre.lower().startswith("fiscalberry-") and nombre.lower().endswith(".exe"):
+                return nombre
+    except OSError:
+        pass
+    return None
 
 
 def apply_for_kind(kind, **kwargs):
@@ -475,7 +557,9 @@ def apply_for_kind(kind, **kwargs):
         return apply_source(kwargs["tarball_url"], kwargs["version"],
                             kwargs["version_previa"])
     if kind in (install_kind.WINDOWS_GUI, install_kind.WINDOWS_CLI):
-        return apply_windows(kwargs["nuevo"], kwargs["destino"],
-                             kwargs["version"], kwargs["version_previa"])
-    return apply_posix(kwargs["nuevo"], kwargs["destino"],
-                       kwargs["version"], kwargs["version_previa"])
+        return apply_windows(kwargs["nuevo_dir"], kwargs["destino_dir"],
+                             kwargs["version"], kwargs["version_previa"],
+                             binario=kwargs.get("binario"))
+    return apply_posix(kwargs["nuevo_dir"], kwargs["destino_dir"],
+                       kwargs["version"], kwargs["version_previa"],
+                       binario=kwargs.get("binario"))

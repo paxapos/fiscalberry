@@ -36,12 +36,25 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
+# Modo ONEDIR (EXE sin binarios + COLLECT), no onefile.
+#
+# Un binario onefile lleva todo comprimido adentro y, en cada arranque, se
+# descomprime solo en una carpeta temporal y se ejecuta desde ahi. Eso es un
+# patron clasico de malware y de los que mas falsos positivos genera en los
+# antivirus. Ademas arranca mas lento, porque descomprime ~65 MB cada vez.
+#
+# En onedir el ejecutable y sus dependencias quedan a la vista en una carpeta:
+# nada se auto-extrae en runtime. Para el usuario cambia poco, porque los
+# releases ya se distribuian comprimidos: ahora el .zip/.tar.gz trae una
+# carpeta en vez de un unico archivo.
+#
+# El auto-updater reemplaza la carpeta entera; ver
+# src/fiscalberry/common/updater/appliers.py
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='fiscalberry-cli',
     debug=False,
     bootloader_ignore_signals=False,
@@ -62,4 +75,14 @@ exe = EXE(
     entitlements_file=None,
     icon=['src/fiscalberry/ui/assets/fiscalberry.ico'],
     version=version_info,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='fiscalberry-cli',
 )

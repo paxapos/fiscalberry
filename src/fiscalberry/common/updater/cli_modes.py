@@ -46,6 +46,7 @@ def handle_early_modes(argv=None):
             pid=_arg(argv, "--pid"),
             src=_arg(argv, "--src"),
             dst=_arg(argv, "--dst"),
+            exe=_arg(argv, "--exe"),
         )
         sys.exit(codigo)
 

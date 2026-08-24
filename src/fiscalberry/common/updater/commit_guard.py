@@ -60,7 +60,9 @@ class PendingUpdate:
         }
 
     def backup_exists(self):
-        return bool(self.backup) and os.path.isfile(self.backup)
+        # Es un directorio: los builds son onedir y se respalda la carpeta de
+        # instalación completa, no un ejecutable suelto.
+        return bool(self.backup) and os.path.exists(self.backup)
 
     def __repr__(self):
         return (f"<PendingUpdate {self.previous_version}->{self.version} "
@@ -159,9 +161,13 @@ def confirm():
         return False
 
     logger.info("Actualización a %s confirmada.", pend.version)
-    if pend.backup and os.path.isfile(pend.backup):
+    if pend.backup and os.path.exists(pend.backup):
         try:
-            os.remove(pend.backup)
+            import shutil
+            if os.path.isdir(pend.backup):
+                shutil.rmtree(pend.backup, ignore_errors=True)
+            else:
+                os.remove(pend.backup)
         except Exception as e:
             logger.debug(f"No se pudo borrar el respaldo {pend.backup}: {e}")
     clear()
