@@ -1,8 +1,20 @@
 import configparser
+import logging
 import os
 import tempfile
 import threading
 import uuid
+
+# Logger de la stdlib a propósito, no getLogger() de fiscalberry_logger: ese
+# módulo importa Configberry para resolver la ruta del log, y usarlo acá crearía
+# una recursión durante la construcción del propio Configberry. Como
+# setup_file_logging() configura el logger raíz, esto igual termina en el
+# archivo de log.
+#
+# Importa que estos mensajes SE VEAN: los errores de escritura del config se
+# reportaban con print(), que en Android no va a ningún lado. Un config que no
+# se pudo guardar quedaba como una falla silenciosa.
+logger = logging.getLogger("fiscalberry.Configberry")
 import platformdirs
 import platform
 
@@ -205,7 +217,7 @@ class Configberry:
                     
                 except Exception as write_error:
                      # Reemplazar por backup si falló la escritura o verificación
-                    print(f"Error during config write/verification: {write_error}")
+                    logger.error(f"No se pudo guardar el config: {write_error}")
                     if os.path.exists(self.configFilePath + ".bak"):
                         try:
                             os.replace(self.configFilePath + ".bak", self.configFilePath)
@@ -281,7 +293,7 @@ class Configberry:
             if os.path.exists(self.configFilePath + ".bak"):
                 os.replace(self.configFilePath + ".bak", self.configFilePath)
             
-            print(f"Error writing config file: {e}")
+            logger.error(f"No se pudo escribir el config: {e}")
         
         self.config.read(self.configFilePath)
                 
@@ -289,6 +301,67 @@ class Configberry:
         
 
 
+
+    # Claves que [SERVIDOR] necesita para que el cliente funcione, con su valor
+    # por defecto. NO incluye uuid: ese es la identidad del equipo y se genera
+    # aparte, nunca se pisa.
+    SERVIDOR_DEFAULTS = {
+        "sio_host": "https://beta.paxapos.com",
+        "sio_password": "",
+        "verify_ssl": "true",
+    }
+
+    def _asegurar_claves_servidor(self):
+        """
+        Agrega las claves de [SERVIDOR] que falten, sin tocar las que ya están.
+
+        El chequeo de integridad del config solo exigía que existiera `uuid`, de
+        modo que un config con uuid pero SIN `sio_host` se consideraba válido
+        para siempre y nada volvía a completarlo. Y `sio_host` solo se escribe
+        en el reset, que en ese estado ya no se dispara nunca.
+
+        Consecuencia real en un celular: sin `sio_host`, ni el discover ni
+        SocketIO salían —el cliente ni siquiera intentaba conectarse— y la
+        vinculación moría con ":: Paxaprinter no encontrada", porque el servidor
+        jamás se enteró de que el dispositivo existía.
+
+        Solo se completa lo ausente: si alguien apuntó el equipo a otro host,
+        ese valor se respeta.
+        """
+        # Se mira EL ARCHIVO con un parser limpio, no `self.config`.
+        #
+        # `config` es un atributo de clase, o sea que el ConfigParser se comparte
+        # entre todas las instancias, y `read()` FUSIONA: nunca borra claves que
+        # ya no estén en el archivo. Un valor viejo en memoria puede entonces
+        # tapar una clave que en disco no existe, y la reparación no se haría —
+        # dejando el archivo incompleto para el próximo arranque, que es
+        # exactamente el problema que esto viene a resolver.
+        en_disco = configparser.ConfigParser()
+        en_disco.optionxform = str
+        try:
+            en_disco.read(self.configFilePath)
+        except Exception as e:
+            logger.error(f"No se pudo releer el config para validarlo: {e}")
+            return False
+
+        faltantes = {}
+        for clave, valor in self.SERVIDOR_DEFAULTS.items():
+            if en_disco.get("SERVIDOR", clave, fallback=None) is None:
+                faltantes[clave] = valor
+
+        if not faltantes:
+            return False
+
+        logger.warning(
+            "Faltaban claves en [SERVIDOR] del config (%s). Se completan con "
+            "los valores por defecto; el resto de la configuración no se toca.",
+            ", ".join(sorted(faltantes)))
+        try:
+            self.set("SERVIDOR", faltantes)
+        except Exception as e:
+            logger.error(f"No se pudieron completar las claves faltantes: {e}")
+            return False
+        return True
 
     def resetConfigFile(self):
         # El uuid es la identidad del dispositivo ante Paxapos (y el topic MQTT):
@@ -320,7 +393,7 @@ class Configberry:
                 open(configFile, 'w').close()
                 needs_reset = True # New file always needs initial config
             except OSError as e:
-                print(f"Error creating config file {configFile}: {e}")
+                logger.error(f"No se pudo crear el config {configFile}: {e}")
                 # Handle error appropriately, maybe raise exception or exit
                 return 
         else:
@@ -330,11 +403,11 @@ class Configberry:
         try:
             read_ok = self.config.read(configFile)
             if not read_ok: # Check if read was successful (file might be empty or malformed)
-                 print(f"Config file {configFile} could not be read properly.")
+                 logger.warning(f"El config {configFile} no se pudo leer bien.")
                  # Decide if reset is needed even if file exists but is unreadable
                  # needs_reset = True # Optional: uncomment to reset unreadable files
         except configparser.Error as e:
-             print(f"Error parsing config file {configFile}: {e}")
+             logger.error(f"Config {configFile} ilegible: {e}")
              needs_reset = True # Reset if parsing fails
 
         # Check for essential section/key only if not already marked for reset
@@ -358,9 +431,12 @@ class Configberry:
         if needs_reset:
             print(f"Reseteando configuración en {configFile}")
             self.resetConfigFile() # This method should handle writing the config
-        
+
         # Reload config after potential reset to ensure it's current
         self.config.read(configFile)
+
+        # Completar claves faltantes SIN resetear nada de lo que ya hay.
+        self._asegurar_claves_servidor()
 
         # menos el primero que es el de SERVIDOR, mostrar el el resto en consola ya que son las impresoras
         for s in self.sections()[1:]:

@@ -61,7 +61,14 @@ def send_discover():
     host = configberry.config.get("SERVIDOR", "sio_host", fallback="")
     
     if not host:
-        logger.debug("No hay sio_host configurado, no tengo el host donde hacer el discover")
+        # ERROR, no debug: esta rama es la que hizo que el discover fallara en
+        # un celular sin dejar rastro. En el log solo se veía "Discover falló,
+        # reintentando", sin decir nunca que faltaba el sio_host, y el
+        # diagnóstico terminó necesitando los logs del servidor.
+        logger.error(
+            "DISCOVER:: no hay 'sio_host' en el config: no se sabe contra qué "
+            "servidor registrar el dispositivo. Sin esto la vinculación falla "
+            "con 'Paxaprinter no encontrada'.")
         return False
 
     discoverUrl = host + "/discover.json"
