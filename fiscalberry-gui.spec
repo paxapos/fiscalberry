@@ -1,5 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
 import sys
+
+sys.path.insert(0, os.path.join(os.getcwd(), 'src'))
+sys.path.insert(0, os.path.join(os.getcwd(), 'build_tools'))
+from fiscalberry.version import VERSION  # noqa: E402
+import win_version_info  # noqa: E402
+
+# Se genera a partir de version.py en vez de mantenerse a mano: el archivo
+# estatico anterior declaraba la version 2.1.0.0 cuando el producto ya iba por
+# la 3.5.x. Un ejecutable que dice ser una version que no es no ayuda a que
+# Windows ni el usuario confien en el.
+version_info = win_version_info.generar('fiscalberry-gui', VERSION)
 
 # Dependencias exclusivas de Windows (SDL2, GLEW)
 kivy_deps_trees = []
@@ -60,7 +72,7 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=['src/fiscalberry/ui/assets/fiscalberry.ico'],
-    version='file_version_info.txt',
+    version=version_info,
     uac_admin=False,
     # Configuraciones adicionales para evitar falsos positivos
     manifest=None,

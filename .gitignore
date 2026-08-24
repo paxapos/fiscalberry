@@ -120,3 +120,6 @@ fiscalberry3env
 pyManjaroEnv
 bin
 build
+
+# Generados en cada build por build_tools/win_version_info.py
+build_tools/version_info_*.txt
