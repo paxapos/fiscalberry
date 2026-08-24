@@ -8,7 +8,11 @@ import subprocess
 class LogScreen(Screen):
     logs = StringProperty("")  # Propiedad para almacenar los logs
     logFilePath = StringProperty("")  # Propiedad para almacenar la ruta del log
-  
+    # A qué pantalla vuelve el botón "Volver". Antes estaba fijo en 'main', que
+    # es inalcanzable si el comercio todavía no se vinculó: quien entrara a los
+    # logs desde la pantalla de vinculación quedaba sin salida.
+    volver_a = StringProperty("main")
+
     def on_kv_post(self, base_widget):
         # Se garantiza que los ids están disponibles
         Clock.schedule_interval(self.update_logs, 1)  # Actualizar cada segundo

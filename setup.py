@@ -9,7 +9,7 @@ def load_requirements(filename):
 
 setup(
     name='fiscalberry',
-    version='3.6.2',
+    version='3.6.3',
     description='Proyecto con interfaz Kivy y consola',
     author='Ale Vilar',
     author_email='alevilar@gmail.com',

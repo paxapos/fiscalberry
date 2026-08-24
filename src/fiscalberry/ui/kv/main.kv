@@ -91,6 +91,19 @@
                     halign: 'center'
                     text_size: self.width, None
 
+                # Los logs solo se podían ver DESPUÉS de vincular, que es justo
+                # cuando ya no hacen falta: si la vinculación falla, no había
+                # forma de ver por qué desde el dispositivo.
+                Button:
+                    text: "Ver registro"
+                    size_hint_y: None
+                    height: dp(40)
+                    font_size: '13sp'
+                    background_normal: ''
+                    background_color: 0.85, 0.85, 0.9, 1
+                    color: 0.1, 0.2, 0.5, 1
+                    on_press: root.ir_a_logs()
+
                 Widget:
             
             # Lado derecho - QR
@@ -476,7 +489,9 @@
                 background_normal: ''
                 background_color: 0, 0, 0, 0
                 color: 0.1, 0.2, 0.5, 1
-                on_press: app.root.current = "main"
+                # Vuelve a donde se entró: 'main' no existe como destino válido
+                # si el comercio todavía no está vinculado.
+                on_press: app.root.current = root.volver_a
 
             Label:
                 text: "Logs en Tiempo Real"

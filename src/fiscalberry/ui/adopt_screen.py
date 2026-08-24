@@ -183,6 +183,29 @@ class AdoptScreen(Screen):
             logger.error(f"Error actualizando links: {e}", exc_info=True)
             self.linkError = f"Error preparando la vinculación: {e}"
 
+    def ir_a_logs(self):
+        """
+        Abre el registro desde la pantalla de vinculación.
+
+        Hasta ahora los logs solo eran accesibles desde la pantalla principal,
+        a la que se llega **después** de vincular. O sea que cuando la
+        vinculación fallaba —el único momento en que hacen falta— no había
+        forma de verlos desde el dispositivo.
+        """
+        try:
+            if not self.manager:
+                logger.error("Sin ScreenManager: no se puede abrir el registro.")
+                return
+            pantalla_logs = self.manager.get_screen("logs")
+            # Para que "Volver" traiga de vuelta acá y no a 'main', que todavía
+            # no es un destino válido.
+            pantalla_logs.volver_a = self.name or "adopt"
+            self.manager.current = "logs"
+        except Exception as e:
+            logger.error(f"No se pudo abrir la pantalla de registro: {e}",
+                         exc_info=True)
+            self.linkError = f"No se pudo abrir el registro: {e}"
+
     def registrar_en_servidor(self):
         """
         Reintenta el registro (discover) y refleja el resultado en pantalla.
