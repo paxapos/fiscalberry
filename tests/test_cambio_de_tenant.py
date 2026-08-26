@@ -10,7 +10,8 @@ errores con el tenant viejo y mostrando el comercio equivocado en pantalla.
 
 Lo que estos tests fijan:
   - tenant/alias/site_name y queue se ACTUALIZAN cuando el servidor manda otro valor;
-  - host/port/vhost NO se pisan: ahí un override local es legítimo.
+  - host/port/vhost NO se escriben en config.ini: son del servidor y viven en
+    memoria (la precedencia está en test_config_del_broker_desde_el_servidor.py).
 """
 
 import pytest
@@ -74,8 +75,12 @@ def test_la_cola_se_actualiza_desde_el_servidor(handler):
     assert handler.config.get("RabbitMq", "queue") == "cola-nueva"
 
 
-def test_el_host_local_no_se_pisa(handler):
-    """Un broker configurado a mano es una decisión de quien instala el equipo."""
+def test_el_host_y_el_puerto_no_se_escriben_en_el_archivo(handler):
+    """
+    La infraestructura del broker no toca disco: la manda el servidor en cada
+    start_rabbit y vive en memoria. Lo que quede en config.ini es de una
+    instalación vieja y ya no se usa para conectar.
+    """
     handler.configure_and_restart(_config_del_servidor(), None)
 
     assert handler.config.get("RabbitMq", "host") == "broker.viejo"
