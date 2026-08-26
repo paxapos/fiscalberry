@@ -1,0 +1,48 @@
+name: Tests
+
+# Corre en cada push y en cada PR, y además lo llama el workflow de release
+# (`workflow_call`) para que una versión no se pueda publicar con la suite en
+# rojo. Antes los tests no se ejecutaban en ningún lado: estaban ahí para quien
+# se acordara de correrlos a mano.
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcups2-dev xvfb
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements.kivy.txt
+          pip install -r requirements.dev.txt
+
+      - name: Run tests
+        env:
+          KIVY_NO_CONSOLELOG: 1
+          KIVY_NO_ARGS: 1
+          KIVY_GL_BACKEND: mock
+        run: xvfb-run -a python -m pytest tests -q

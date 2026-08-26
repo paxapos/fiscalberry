@@ -52,10 +52,17 @@ jobs:
             echo "El tag v${{ steps.get.outputs.version }} no existe → se construirá y publicará."
           fi
   # ============================================
+  # TESTS: la suite tiene que pasar antes de compilar nada. Un binario que
+  # no arranca no se descubre compilando, se descubre acá.
+  # ============================================
+  tests:
+    uses: ./.github/workflows/tests.yml
+
+  # ============================================
   # LINUX BUILDS (GUI + CLI)
   # ============================================
   build-linux:
-    needs: version
+    needs: [version, tests]
     if: needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
     # NO usar ubuntu-latest: GitHub ya lo mapea a 24.04 (glibc 2.39) y un binario
     # de PyInstaller solo corre en glibc IGUAL O MAS NUEVA que la de compilacion.
@@ -129,7 +136,7 @@ jobs:
   # WINDOWS BUILDS (GUI + CLI)
   # ============================================
   build-windows:
-    needs: version
+    needs: [version, tests]
     if: needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
@@ -197,7 +204,7 @@ jobs:
   # ANDROID GUI BUILD (con caché y signing)
   # ============================================
   build-android:
-    needs: version
+    needs: [version, tests]
     if: needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-22.04
     steps:
@@ -349,7 +356,7 @@ jobs:
   # CREATE GITHUB RELEASE
   # ============================================
   create-release:
-    needs: [version, build-linux, build-windows, build-android]
+    needs: [version, tests, build-linux, build-windows, build-android]
     runs-on: ubuntu-latest
     # Publicar el release aunque Android falle: con que Linux y Windows compilen,
     # se publica con los binarios disponibles. Android es best-effort (su build es

@@ -13,6 +13,7 @@ descarta la descarga y el dispositivo sigue con la versión que tenía.
 import os
 import stat
 import subprocess
+import tempfile
 
 from fiscalberry.common.fiscalberry_logger import getLogger
 
@@ -49,23 +50,12 @@ def run(binario, expected_version=None, timeout=SELFTEST_TIMEOUT):
     entorno["KIVY_NO_ARGS"] = "1"
     entorno["FISCALBERRY_SELFTEST"] = "1"
 
-    try:
-        proc = subprocess.run(
-            [binario, "--selftest"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            timeout=timeout,
-            env=entorno,
-        )
-    except subprocess.TimeoutExpired:
-        return False, f"el selftest no terminó en {timeout}s (binario colgado)"
-    except Exception as e:
-        return False, f"no se pudo ejecutar el binario nuevo: {e}"
+    codigo, salida, error = _ejecutar(binario, entorno, timeout)
+    if error:
+        return False, error
 
-    salida = (proc.stdout or b"").decode("utf-8", errors="replace").strip()
-
-    if proc.returncode != 0:
-        return False, f"el selftest salió con código {proc.returncode}: {salida[-400:]}"
+    if codigo != 0:
+        return False, f"el selftest salió con código {codigo}: {salida[-400:]}"
 
     if OK_MARKER not in salida:
         return False, f"el selftest no imprimió {OK_MARKER}: {salida[-400:]}"
@@ -78,6 +68,58 @@ def run(binario, expected_version=None, timeout=SELFTEST_TIMEOUT):
                 f"(se esperaba '{esperado}', salida: {salida[-200:]})")
 
     return True, salida[-200:]
+
+
+def _ejecutar(binario, entorno, timeout):
+    """
+    Corre `binario --selftest` y junta lo que haya dicho.
+
+    Devuelve (codigo_de_salida, salida, error). `error` no vacío significa que
+    el proceso ni siquiera llegó a terminar, y los otros dos no sirven.
+
+    El binario de la GUI se compila sin consola (`console=False`), así que su
+    stdout no llega a ningún lado y la marca de éxito se perdía: todo selftest
+    de la GUI en Windows daba por fallado y esa GUI no podía actualizarse
+    nunca. Por eso se le pasa además un archivo donde dejar el resultado.
+
+    El archivo va en un directorio temporal propio y no en una ruta fija: el
+    veredicto de una actualización no puede depender de un nombre predecible
+    en un directorio que cualquiera puede escribir, o bastaría con adelantarse
+    a crearlo para que un binario roto pase el selftest.
+    """
+    with tempfile.TemporaryDirectory(prefix="fiscalberry-selftest-") as carpeta:
+        reporte = os.path.join(carpeta, "reporte.txt")
+
+        try:
+            proc = subprocess.run(
+                [binario, "--selftest", "--report", reporte],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=timeout,
+                env=entorno,
+            )
+        except subprocess.TimeoutExpired:
+            return None, "", f"el selftest no terminó en {timeout}s (binario colgado)"
+        except Exception as e:
+            return None, "", f"no se pudo ejecutar el binario nuevo: {e}"
+
+        consola = (proc.stdout or b"").decode("utf-8", errors="replace").strip()
+        del_archivo = _leer_reporte(reporte)
+
+    # El reporte va al final a propósito: los mensajes de error recortan la
+    # salida por el final (`salida[-400:]`) y ahí es donde tiene que quedar el
+    # veredicto, no el ruido de arranque del binario.
+    salida = "\n".join(p for p in (consola, del_archivo) if p).strip()
+    return proc.returncode, salida, ""
+
+
+def _leer_reporte(ruta):
+    """Contenido del archivo de reporte, o cadena vacía si no está."""
+    try:
+        with open(ruta, "r", encoding="utf-8", errors="replace") as fh:
+            return fh.read().strip()
+    except Exception:
+        return ""
 
 
 def selftest_report(version):

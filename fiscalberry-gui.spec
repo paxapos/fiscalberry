@@ -44,7 +44,10 @@ a = Analysis(
     ],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    # Con console=False, PyInstaller deja sys.stdout/sys.stderr en None y
+    # cualquier escritura a consola aborta el arranque. El hook los reemplaza
+    # antes de que corra nada de la app.
+    runtime_hooks=['build_tools/pyi_rth_consola.py'],
     excludes=[],
     noarchive=False,
     optimize=0,

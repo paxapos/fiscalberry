@@ -51,12 +51,12 @@ def handle_early_modes(argv=None):
         sys.exit(codigo)
 
     if "--selftest" in argv:
-        sys.exit(run_selftest())
+        sys.exit(run_selftest(ruta_reporte=_arg(argv, "--report")))
 
     return False
 
 
-def run_selftest():
+def run_selftest(ruta_reporte=None):
     """
     Comprobación de que este binario sirve. Devuelve el código de salida.
 
@@ -115,9 +115,37 @@ def run_selftest():
         probar("módulos de la interfaz", _gui)
 
     if fallas:
-        for f in fallas:
-            print(f"SELFTEST FALLO -> {f}")
-        return 1
+        lineas = [f"SELFTEST FALLO -> {f}" for f in fallas]
+        codigo = 1
+    else:
+        lineas = [selftest_report(VERSION)]
+        codigo = 0
 
-    print(selftest_report(VERSION))
-    return 0
+    _publicar_resultado(lineas, ruta_reporte)
+    return codigo
+
+
+def _publicar_resultado(lineas, ruta_reporte=None):
+    """
+    Deja el resultado del selftest donde el proceso padre pueda leerlo.
+
+    Por stdout, como siempre, pero eso solo alcanza en el binario de consola:
+    el .exe de la GUI se compila con `console=False` y ahí `print()` no escribe
+    en ningún lado, así que el padre leía la salida vacía y daba por fallado
+    todo selftest de la GUI en Windows —o sea, esa GUI no podía actualizarse
+    nunca—. Por eso el padre además pasa `--report <archivo>` y el resultado
+    de verdad se lee de ahí.
+    """
+    for linea in lineas:
+        print(linea)
+
+    if not ruta_reporte:
+        return
+
+    try:
+        with open(ruta_reporte, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lineas))
+    except Exception:
+        # Si no se puede escribir el reporte queda el stdout; nunca hacer
+        # fallar al selftest por esto.
+        pass

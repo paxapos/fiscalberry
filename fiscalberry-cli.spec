@@ -29,7 +29,10 @@ a = Analysis(
     ],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    # Este binario si tiene consola, pero corriendo como servicio de Windows
+    # tampoco hay stdout/stderr. Mismo blindaje que en la GUI: el hook no hace
+    # nada si los streams ya existen.
+    runtime_hooks=['build_tools/pyi_rth_consola.py'],
     excludes=[],
     noarchive=False,
     optimize=0,
