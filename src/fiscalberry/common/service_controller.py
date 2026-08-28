@@ -438,8 +438,17 @@ class ServiceController:
         else:
             logger.debug("Discover thread already stopped or not started.")
                 
+        # Cierre ordenado del spooler durable (fiscalberry#165): ver comentario
+        # equivalente en _stop_services_only. Cubre el Ctrl+C / KeyboardInterrupt
+        # manual, que pasa por acá y no por _stop_services_only.
+        try:
+            from fiscalberry.common.ComandosHandler import close_print_spooler_if_running
+            close_print_spooler_if_running()
+        except Exception as e:
+            logger.warning("No se pudo cerrar el spooler durable ordenadamente: %s", e)
+
         logger.info("SIO services stopped (CLI mode).")
-        
+
         # Para CLI usamos sys.exit(0)
         sys.exit(0)
         
@@ -474,8 +483,16 @@ class ServiceController:
         else:
             logger.debug("Discover thread already stopped or not started.")
                 
+        # Cierre ordenado del spooler durable (fiscalberry#165): ver comentario
+        # equivalente en _stop_services_only.
+        try:
+            from fiscalberry.common.ComandosHandler import close_print_spooler_if_running
+            close_print_spooler_if_running()
+        except Exception as e:
+            logger.warning("No se pudo cerrar el spooler durable ordenadamente: %s", e)
+
         logger.info("SIO services stopped (GUI mode).")
-        
+
         # Para GUI NO intentar cerrar Kivy desde aquí - evitar recursión
         # La aplicación GUI debe manejar su propio cierre desde on_stop()
         return True
@@ -511,6 +528,17 @@ class ServiceController:
                 
         # No dejar un estado que diga "conectado" con el servicio ya detenido.
         clear_status()
+
+        # Cierre ordenado del spooler durable (fiscalberry#165 propuesta 3): antes
+        # el SIGTERM llamaba a os._exit() justo después de esto sin haber cerrado
+        # nunca la conexión SQLite, dependiendo enteramente de que el SO/disco
+        # hubieran bajado a persistente el último commit. Solo cierra si el
+        # spooler llegó a instanciarse (no lo crea a propósito para esto).
+        try:
+            from fiscalberry.common.ComandosHandler import close_print_spooler_if_running
+            close_print_spooler_if_running()
+        except Exception as e:
+            logger.warning("No se pudo cerrar el spooler durable ordenadamente: %s", e)
 
         logger.debug("SIO services stopped.")
 

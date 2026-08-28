@@ -67,6 +67,15 @@ class DurablePrintSpooler:
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         try:
             self._conn.execute("PRAGMA journal_mode=WAL")
+            # En WAL, el default de SQLite es synchronous=NORMAL: las transacciones
+            # confirmadas pueden perderse ante un corte de luz / caída del SO porque
+            # no se hace fsync del WAL en cada commit (sí se hace en checkpoints).
+            # Para un spooler cuya promesa es "nunca perder impresiones" eso es
+            # insuficiente (fiscalberry#165: 10 jobs 'pending' desaparecieron tras
+            # un power-cycle limpio). El volumen de escritura acá es de unos pocos
+            # tickets por minuto, así que el costo de FULL (fsync por commit) es
+            # despreciable frente a la garantía que da.
+            self._conn.execute("PRAGMA synchronous=FULL")
         except Exception:
             pass
         self._init_db()
@@ -83,6 +92,11 @@ class DurablePrintSpooler:
           reintentos fresco: reiniciar el proceso siempre reintenta TODO.
         - Adelanta a "ya" el next_attempt_at de los 'pending' que quedaron esperando
           un backoff previo al cierre, para no demorar la recuperación tras un reinicio.
+        - Loguea SIEMPRE el estado de la cola al arrancar (haya o no dead-letters).
+          Antes esto era silencioso salvo por dead-letters recuperados, así que una
+          pérdida como #165 (jobs 'pending' que ya no estaban en la DB) no dejaba
+          ningún rastro: el primer evento del log era un job nuevo, como si el
+          spooler jamás hubiera tenido pendientes (fiscalberry#166).
         """
         with self._lock:
             recovered = self._conn.execute(
@@ -91,9 +105,16 @@ class DurablePrintSpooler:
             self._conn.execute(
                 "UPDATE jobs SET next_attempt_at=0 WHERE status='pending'")
             self._conn.commit()
+            pending = self._conn.execute(
+                "SELECT COUNT(*) FROM jobs WHERE status='pending'").fetchone()[0]
         if recovered:
             logger.warning(
                 "Spooler: %d job(s) en dead-letter re-encolados tras reinicio", recovered)
+        if pending:
+            logger.warning(
+                "Spooler: %d job(s) pendiente(s) de imprimir al arrancar", pending)
+        else:
+            logger.info("Spooler: sin trabajos pendientes al arrancar")
 
     def requeue_failed(self):
         """Vuelve a poner en cola los jobs 'failed' (dead-letter). Devuelve cuántos."""
@@ -105,6 +126,24 @@ class DurablePrintSpooler:
         if n:
             self._wake.set()
             logger.info("Spooler: %d job(s) 'failed' re-encolados manualmente", n)
+        return n
+
+    def discard_all(self):
+        """Vacía la cola por completo ('pending' + 'failed'). Devuelve cuántos se descartaron.
+
+        Acción destructiva a pedido explícito del usuario/operador (fiscalberry#166,
+        botón "Descartar" cuando hay trabajos sin imprimir y se decide no reintentarlos
+        más). A diferencia del resto del módulo, acá SÍ se borran jobs sin haberse
+        impreso: se loguea como warning con la cuenta para que quede rastro de que se
+        tiraron comprobantes/comandas a propósito.
+        """
+        with self._lock:
+            n = self._conn.execute(
+                "DELETE FROM jobs WHERE status IN ('pending','failed')").rowcount
+            self._conn.commit()
+        if n:
+            logger.warning(
+                "Spooler: %d job(s) DESCARTADOS manualmente (no se van a imprimir)", n)
         return n
 
     def _init_db(self):
@@ -197,6 +236,33 @@ class DurablePrintSpooler:
             return self._conn.execute(
                 "SELECT COUNT(*) FROM jobs WHERE status='failed'").fetchone()[0]
 
-    def stop(self):
+    def stop(self, timeout=5.0):
+        """Detiene el worker y cierra la conexión de forma ordenada.
+
+        Antes solo marcaba el flag de parada: si el proceso terminaba con
+        os._exit() inmediatamente después (como hacía el manejador de SIGTERM,
+        ver fiscalberry#165 propuesta 3), la conexión SQLite nunca se cerraba
+        ni se forzaba un checkpoint, dependiendo enteramente de que el SO/disco
+        hubiera bajado a persistente lo último escrito. Ahora se espera (con
+        timeout) a que el worker termine el job en curso, se fuerza un
+        checkpoint del WAL y se cierra la conexión explícitamente.
+        """
         self._stop.set()
         self._wake.set()
+        if self._worker.is_alive():
+            self._worker.join(timeout=timeout)
+            if self._worker.is_alive():
+                logger.warning(
+                    "Spooler: el worker no terminó en %.1fs, cerrando la conexión igual",
+                    timeout)
+        with self._lock:
+            try:
+                self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                self._conn.commit()
+            except Exception:
+                pass
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+        logger.info("Spooler durable detenido (db=%s)", self._db_path)

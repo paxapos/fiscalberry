@@ -486,6 +486,20 @@ def get_print_spooler():
     return _print_spooler
 
 
+def close_print_spooler_if_running():
+    """Cierra el spooler ordenadamente (fiscalberry#165) SOLO si ya existe.
+
+    A diferencia de get_print_spooler(), nunca lo instancia: llamarlo durante el
+    apagado no debe abrir una conexión SQLite nueva para un spooler que nunca se
+    usó en este proceso.
+    """
+    global _print_spooler
+    with _print_spooler_lock:
+        if _print_spooler is not None:
+            _print_spooler.stop()
+            _print_spooler = None
+
+
 def _is_sync_print_mode():
     """Modo legacy: responder de forma sincrona con el resultado real de impresion.
 
@@ -755,6 +769,19 @@ class ComandosHandler:
             elif 'removerImpresora' in jsonTicket:
                 rta["rta"] = self._removerImpresora(
                     jsonTicket["removerImpresora"])
+
+            # fiscalberry#166: acciones remotas sobre la cola durable, para que el
+            # panel de PaxaPos pueda avisar "hay N comprobantes sin imprimir" y
+            # ofrecer "imprimir todos" / "descartar" para TODO el parque (incluidos
+            # los equipos headless, sin Kivy, que es el caso mas comun en un local).
+            # Comandos NUEVOS: un cliente viejo que no los conoce simplemente nunca
+            # los recibe (el backend los agrega recien cuando el panel los ofrezca).
+            elif 'spoolerRequeueFailed' in jsonTicket:
+                rta["rta"] = self._spoolerRequeueFailed()
+
+            elif 'spoolerDiscardPending' in jsonTicket:
+                rta["rta"] = self._spoolerDiscardPending()
+
             else:
                 raise TraductorException("No se pasó un comando válido")
 
@@ -862,3 +889,35 @@ class ComandosHandler:
         if password == configberry.configberry.get("SERVIDOR", 'sio_password', fallback="password"):
             rta['rta'] = configberry.get_actual_config()
         return rta
+
+    def _spoolerRequeueFailed(self):
+        """Botón "Imprimir todos" (fiscalberry#166): re-encola los dead-letter.
+
+        requeue_failed() ya existía en DurablePrintSpooler desde que se agregó el
+        spooler durable, pero nadie lo llamaba: era código muerto esperando esta
+        interfaz.
+        """
+        spooler = get_print_spooler()
+        n = spooler.requeue_failed()
+        return {
+            "action": "spoolerRequeueFailed",
+            "requeued": n,
+            "pending_count": spooler.pending_count(),
+            "failed_count": spooler.failed_count(),
+        }
+
+    def _spoolerDiscardPending(self):
+        """Botón "Descartar" (fiscalberry#166): vacía la cola sin imprimir.
+
+        Acción destructiva explícita: se tiran comprobantes fiscales y comandas
+        sin imprimir. discard_all() ya deja constancia en el log (warning con la
+        cuenta); acá solo se expone como comando remoto.
+        """
+        spooler = get_print_spooler()
+        n = spooler.discard_all()
+        return {
+            "action": "spoolerDiscardPending",
+            "discarded": n,
+            "pending_count": spooler.pending_count(),
+            "failed_count": spooler.failed_count(),
+        }
