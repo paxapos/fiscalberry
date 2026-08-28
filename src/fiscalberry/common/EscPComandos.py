@@ -738,7 +738,7 @@ class EscPComandos():
             "tipoCmp":int(tipoCmp),
             "nroCmp":numticket,
             "importe":total,
-            "moneda": encabezado.get("moneda") or "PES",
+            "moneda": encabezado.get("moneda", "PES"),
             "ctz": ctzQr,
             #tipoDocRec OPCIONAL,
             #nroDocRec OPCIONAL,
