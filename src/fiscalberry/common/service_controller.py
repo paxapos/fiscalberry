@@ -257,6 +257,7 @@ class ServiceController:
         self.discover_thread.start()
 
         self._start_updater()
+        self._start_print_spooler()
 
         # Bucle principal de reconexión
         while not self._stop_event.is_set():
@@ -378,6 +379,43 @@ class ServiceController:
             except Exception as e:
                 logger.debug(f"Error deteniendo el actualizador: {e}")
 
+    def _start_print_spooler(self):
+        """
+        Fuerza la creación (lazy hasta ahora) del spooler durable al arrancar
+        el servicio, en vez de esperar al primer ticket que llegue por MQTT.
+
+        Dos motivos (issue #166):
+          1. Loguear al arrancar si quedó algo sin imprimir de la sesión
+             anterior — hoy eso solo pasaba dentro de `DurablePrintSpooler.
+             __init__`, que nadie disparaba hasta el primer print.
+          2. Que `_stop_print_spooler()` tenga algo que cerrar de forma
+             ordenada aunque el equipo nunca haya recibido un ticket.
+
+        Que falle no puede impedir que el resto del servicio levante: sin
+        spooler el camino de impresión igual funciona (falla recién al
+        encolar), y eso es preferible a que el servicio no arranque.
+        """
+        try:
+            from fiscalberry.common.ComandosHandler import get_print_spooler
+            get_print_spooler()
+        except Exception as e:
+            logger.warning(f"No se pudo iniciar el spooler durable: {e}")
+
+    def _stop_print_spooler(self):
+        """
+        Cierre ordenado del spooler durable (issue #165, propuesta 3).
+
+        Antes el proceso terminaba con `os._exit()` sin tocar el spooler en
+        absoluto. Con PRAGMA synchronous=FULL los jobs ya son durables sin
+        esto, pero cerrar bien evita dejar el WAL creciendo entre reinicios
+        (ej. cada auto-actualización).
+        """
+        try:
+            from fiscalberry.common.ComandosHandler import shutdown_print_spooler
+            shutdown_print_spooler()
+        except Exception as e:
+            logger.debug(f"Error deteniendo el spooler durable: {e}")
+
     def _shutdown_for_update(self):
         """Cierre ordenado para que arranque la versión nueva."""
         logger.warning("Cerrando el servicio para tomar la versión actualizada.")
@@ -414,6 +452,7 @@ class ServiceController:
         logger.debug("Requesting SIO services stop (CLI mode)...")
         self._stop_event.set()
         self._stop_updater()
+        self._stop_print_spooler()
 
         self.sio.stop()
         
@@ -450,6 +489,7 @@ class ServiceController:
         logger.debug("Requesting SIO services stop (GUI mode)...")
         self._stop_event.set()
         self._stop_updater()
+        self._stop_print_spooler()
 
         self.sio.stop()
         
@@ -485,6 +525,7 @@ class ServiceController:
         logger.debug("Requesting SIO services stop...")
         self._stop_event.set()
         self._stop_updater()
+        self._stop_print_spooler()
 
         self.sio.stop()
         

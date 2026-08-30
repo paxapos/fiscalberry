@@ -67,13 +67,33 @@ class DurablePrintSpooler:
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         try:
             self._conn.execute("PRAGMA journal_mode=WAL")
+            # journal_mode=WAL por si solo deja synchronous en NORMAL (default de
+            # SQLite en WAL). Con NORMAL el commit NO hace fsync del WAL -> ante un
+            # corte de energia o un OS crash se puede perder TODO lo escrito desde
+            # el ultimo checkpoint, no solo la ultima transaccion (issue #165: la
+            # tabla quedaba vacia tras un power-cycle). FULL fuerza fsync del
+            # WAL en cada commit: la garantia de "nunca perder impresiones" no
+            # puede depender de un cierre ordenado del proceso.
+            self._conn.execute("PRAGMA synchronous=FULL")
         except Exception:
             pass
         self._init_db()
         self._recover_on_start()
+        # Debe existir ANTES de arrancar el worker: _run() lo lee desde su
+        # primer ciclo si la cola arranca vacía (race si se setea después).
+        self._last_pending_log = time.time()
         self._worker = threading.Thread(target=self._run, name="print-spooler", daemon=True)
         self._worker.start()
+        pending, failed = self.pending_count(), self.failed_count()
         logger.info("Spooler durable iniciado (db=%s)", self._db_path)
+        # Visibilidad al arrancar (issue #166): antes una perdida o una cola
+        # acumulada eran invisibles hasta que alguien notaba que faltaban
+        # comprobantes. Este log es el "aviso" minimo que cubre tambien el
+        # camino headless (CLI/Raspberry, sin GUI).
+        if pending or failed:
+            logger.warning(
+                "Spooler: hay trabajos sin imprimir de una sesion anterior "
+                "(pending=%d, failed=%d)", pending, failed)
 
     def _recover_on_start(self):
         """
@@ -105,6 +125,28 @@ class DurablePrintSpooler:
         if n:
             self._wake.set()
             logger.info("Spooler: %d job(s) 'failed' re-encolados manualmente", n)
+        return n
+
+    def discard_all(self):
+        """Descarta TODA la cola ('pending' + 'failed'). Devuelve cuántos.
+
+        Acción "descartar" de la issue #166: el operador decide explícitamente
+        no imprimir lo acumulado (ej. impresora fue reemplazada, comandas ya
+        vencidas). No toca la dedup: si más tarde llega un job con el mismo
+        job_id ya descartado, se vuelve a aceptar (se descartó a propósito).
+        """
+        with self._lock:
+            n = self._conn.execute(
+                "SELECT COUNT(*) FROM jobs WHERE status IN ('pending','failed')"
+            ).fetchone()[0]
+            self._conn.execute(
+                "DELETE FROM jobs WHERE status IN ('pending','failed')")
+            self._conn.commit()
+        if n:
+            # WARNING a propósito: se están descartando comprobantes fiscales
+            # y comandas, no una notificación cualquiera. Tiene que quedar
+            # rastro en el log de quien lo pidió y cuándo.
+            logger.warning("Spooler: %d job(s) DESCARTADOS manualmente (no se imprimirán)", n)
         return n
 
     def _init_db(self):
@@ -158,6 +200,7 @@ class DurablePrintSpooler:
         while not self._stop.is_set():
             row = self._claim_next()
             if row is None:
+                self._maybe_log_pending()
                 self._wake.wait(timeout=self._idle_wait)
                 self._wake.clear()
                 continue
@@ -168,6 +211,14 @@ class DurablePrintSpooler:
                 with self._lock:
                     self._conn.execute("DELETE FROM jobs WHERE job_id=?", (job_id,))
                     self._conn.commit()
+                    # Checkpoint PASSIVE (no bloquea lectores/escritores, aporta lo
+                    # que puede): con synchronous=FULL cada commit ya es durable,
+                    # esto es solo para no dejar el WAL creciendo indefinidamente
+                    # con el volumen bajo de este spooler (issue #165, propuesta 2).
+                    try:
+                        self._conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
+                    except Exception:
+                        pass
                 logger.info("Spooler: job %s impreso OK", job_id)
             except Exception as e:
                 attempts += 1
@@ -187,6 +238,28 @@ class DurablePrintSpooler:
                     logger.warning("Spooler: job %s error (intento %d), reintenta en %.0fs: %s",
                                    job_id, attempts, delay, e)
 
+    # Cada cuánto se repite el aviso de cola estancada mientras el worker está
+    # ocioso (issue #166: "loguear el pendiente ... cuando supere un umbral").
+    # El umbral es simplemente >0: cualquier trabajo sin imprimir es visible.
+    _PENDING_LOG_INTERVAL = 300.0
+
+    def _maybe_log_pending(self):
+        """Avisa periódicamente si hay trabajos estancados (worker ocioso).
+
+        Se llama solo cuando `_claim_next()` no encontró nada para imprimir
+        AHORA: o la cola está vacía, o todo lo pendiente está esperando su
+        backoff. En el segundo caso, sin este log, una impresora caída mucho
+        tiempo es tan invisible como la pérdida original de la #165.
+        """
+        now = time.time()
+        if now - self._last_pending_log < self._PENDING_LOG_INTERVAL:
+            return
+        self._last_pending_log = now
+        pending, failed = self.pending_count(), self.failed_count()
+        if pending or failed:
+            logger.warning(
+                "Spooler: cola sin drenar (pending=%d, failed=%d)", pending, failed)
+
     def pending_count(self):
         with self._lock:
             return self._conn.execute(
@@ -197,6 +270,25 @@ class DurablePrintSpooler:
             return self._conn.execute(
                 "SELECT COUNT(*) FROM jobs WHERE status='failed'").fetchone()[0]
 
-    def stop(self):
+    def stop(self, timeout=5.0):
+        """Cierre ordenado: para el worker, hace checkpoint y cierra la conexión.
+
+        Antes stop() solo señalizaba (el `os._exit()` del proceso servicio
+        mataba todo sin tocar el spooler). Con PRAGMA synchronous=FULL el
+        contrato de durabilidad ya no depende de esto, pero cerrar bien evita
+        dejar el WAL creciendo y conexiones sqlite a medio commit (issue #165,
+        propuesta 3).
+        """
         self._stop.set()
         self._wake.set()
+        if self._worker.is_alive():
+            self._worker.join(timeout=timeout)
+        with self._lock:
+            try:
+                self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            except Exception:
+                pass
+            try:
+                self._conn.close()
+            except Exception:
+                pass
