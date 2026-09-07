@@ -180,6 +180,41 @@ jobs:
           $env:PYTHONPATH="src"
           pyinstaller --clean -y fiscalberry-cli.spec
 
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Windows Installer
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            throw "No se encontró el compilador de Inno Setup en $iscc"
+          }
+          & $iscc installer/fiscalberry.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup finalizó con código $LASTEXITCODE"
+          }
+
+      - name: Test Windows Installer
+        run: |
+          $setup = (Resolve-Path "dist\FiscalberrySetup.exe").Path
+          $installDir = Join-Path $env:LOCALAPPDATA "Programs\Fiscalberry"
+          $report = Join-Path $env:RUNNER_TEMP "fiscalberry-installed-selftest.txt"
+
+          $install = Start-Process $setup -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "El instalador finalizó con código $($install.ExitCode)"
+          }
+
+          & "$installDir\fiscalberry-gui.exe" --selftest --report $report
+          if ($LASTEXITCODE -ne 0 -or -not (Select-String -Path $report -Pattern "SELFTEST OK" -Quiet)) {
+            throw "El binario instalado no superó el selftest"
+          }
+
+          $uninstall = Start-Process "$installDir\unins000.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0 -or (Test-Path "$installDir\fiscalberry-gui.exe")) {
+            throw "La desinstalación de prueba no se completó correctamente"
+          }
+
       # Los builds son ONEDIR: dist/fiscalberry-gui es una CARPETA (ejecutable +
       # _internal), no un .exe suelto. Se comprime la carpeta entera.
       - name: Package Windows Binaries
@@ -199,6 +234,12 @@ jobs:
         with:
           name: fiscalberry-windows-cli
           path: dist/fiscalberry-windows-cli.zip
+
+      - name: Upload Windows Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fiscalberry-windows-installer
+          path: dist/FiscalberrySetup.exe
 
   # ============================================
   # ANDROID GUI BUILD (con caché y signing)
@@ -393,6 +434,12 @@ jobs:
           name: fiscalberry-windows-cli
           path: ./artifacts/
 
+      - name: Download Windows Installer Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: fiscalberry-windows-installer
+          path: ./artifacts/
+
       # Android es best-effort: si su build falló, el artifact no existe.
       # continue-on-error evita que eso tumbe el release.
       - name: Download Android Artifact
@@ -429,6 +476,7 @@ jobs:
             ./artifacts/fiscalberry-linux-cli.tar.gz
             ./artifacts/fiscalberry-windows-gui.zip
             ./artifacts/fiscalberry-windows-cli.zip
+            ./artifacts/FiscalberrySetup.exe
             ./artifacts/fiscalberry-android-gui.apk
             ./artifacts/SHA256SUMS
           draft: false

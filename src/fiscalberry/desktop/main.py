@@ -4,6 +4,16 @@ import sys
 
 logger = getLogger("GUI")
 
+
+def consume_start_minimized(argv=None):
+    """Consume el argumento propio antes de que Kivy procese sys.argv."""
+    argv = sys.argv if argv is None else argv
+    if "--minimized" not in argv:
+        return False
+    argv.remove("--minimized")
+    return True
+
+
 def main():
     """Función principal que ejecuta la interfaz gráfica de Fiscalberry."""
     # Antes que nada: --selftest / --apply-update / --version no son arranques
@@ -11,6 +21,7 @@ def main():
     # actualización de Windows no tenga que cargar Kivy solo para copiar un
     # archivo.
     handle_early_modes()
+    start_minimized = consume_start_minimized()
 
     # El log en archivo se prende acá y no recién al importar la app Kivy: el
     # .exe de Windows corre sin consola, así que sin archivo los mensajes de
@@ -39,6 +50,7 @@ def main():
 
         logger.info("Creando aplicación Kivy...")
         app = FiscalberryApp()
+        app.start_minimized = start_minimized
         logger.info("Iniciando aplicación GUI...")
         app.run()
         logger.info("Aplicación GUI finalizada correctamente")

@@ -156,6 +156,28 @@ def test_jobid_is_stripped_before_translating(monkeypatch):
     assert not any(item.get("rta") == "Function not found" for item in resp["result"])
 
 
+def test_setup_id_no_se_envia_al_constructor_del_driver(monkeypatch):
+    real_dummy = CH.printer.Dummy
+
+    def dummy_sin_metadata(**kwargs):
+        assert "_setup_id" not in kwargs
+        return real_dummy(**kwargs)
+
+    class FakeConfigberry:
+        def get_config_for_printer(self, name):
+            return {"driver": "Dummy", "_setup_id": "windows:Cocina"}
+
+    monkeypatch.setattr(CH, "configberry", FakeConfigberry())
+    monkeypatch.setattr(CH.printer, "Dummy", dummy_sin_metadata)
+
+    response = CH.runTraductor(
+        {"printerName": "Cocina", "printTexto": {"texto": "prueba"}},
+        None,
+    )
+
+    assert response["message"] == "Impresión exitosa"
+
+
 # ---------------------------------------------------------------------------
 # Issue #166: comandos remotos "imprimir todos" / "descartar" sobre la cola.
 # ---------------------------------------------------------------------------
