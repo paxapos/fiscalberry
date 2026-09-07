@@ -773,7 +773,6 @@ class EscPComandos():
         printer.text(f"{caeTxt}    {caeVtoTxt}")
         printer.text("\n")
         printer.text(datetime.datetime.now().strftime("Fecha: %d/%m/%Y %H:%M\n"))
-        printer.text("** Software PAXAPOS **\n")
 
         printer.set(font='a', height=1, bold=True, align='center')
         printer.text("\n** Software PAXAPOS **")
