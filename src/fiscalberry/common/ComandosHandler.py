@@ -313,9 +313,22 @@ def build_driver(driver_config):
         driverName = "Serial"
 
     elif driverName == "UsbPrint".lower():
-        # USB directo por usbprint.sys (escenario 2 de #170): el driver llega
-        # con #183. Hasta entonces, un error claro en vez de "driver inválido".
-        raise DriverError("El driver UsbPrint todavía no está disponible en esta versión")
+        # USB directo por usbprint.sys (escenario 2 de #170, #183). Solo existe
+        # en Windows: en otra plataforma, un error claro en vez de "driver
+        # inválido".
+        if sys.platform != "win32":
+            raise DriverError("El driver UsbPrint solo está disponible en Windows")
+        from fiscalberry.common.usbprint_driver import UsbPrint
+        for clave in ('idVendor', 'idProduct'):
+            if clave in driverOps:
+                try:
+                    driverOps[clave] = int(str(driverOps[clave]), 0)
+                except ValueError:
+                    raise DriverError(f"Valor inválido en la configuración: {clave}={driverOps[clave]!r}")
+        if 'timeout' in driverOps:
+            driverOps['timeout'] = _as_number(driverOps['timeout'], float)
+        driver_class = UsbPrint
+        driverName = "UsbPrint"
 
     elif driverName == "Bluetooth".lower():
         # Bluetooth printer for Android

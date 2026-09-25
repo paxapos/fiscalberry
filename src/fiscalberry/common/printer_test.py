@@ -35,7 +35,7 @@ from datetime import datetime
 from typing import Optional
 
 from fiscalberry.common.fiscalberry_logger import getLogger
-from fiscalberry.common.printer_setup import TRANSPORT_WIN32RAW
+from fiscalberry.common.printer_setup import TRANSPORT_USBPRINT, TRANSPORT_WIN32RAW
 
 logger = getLogger("PrinterTest")
 
@@ -415,6 +415,8 @@ class PrintTestResult:
     job_cancelled: bool = False
     paper_confirmed: bool = False
     tracker: Optional[Win32JobTracker] = field(default=None, repr=False)
+    # Estado LPT de usbprint (#183): solo informativo, nunca decide la prueba.
+    lpt_status: dict = field(default_factory=dict)
 
     @property
     def action(self):
@@ -448,8 +450,11 @@ def _failed(problem, detail="", **kwargs):
 
 # -- Clasificación de errores --------------------------------------------------
 
-_ACCESS_DENIED_WINERRORS = {5, 32}      # acceso denegado, archivo en uso
-_NOT_FOUND_WINERRORS = {2, 3, 1801}     # no existe, ruta, nombre de impresora inválido
+_ACCESS_DENIED_WINERRORS = {5, 32, 170}  # acceso denegado, archivo en uso, ocupado
+# no existe, ruta, nombre de impresora inválido; USB desenchufada (#183):
+# dispositivo no conectado, no existe, falla general del dispositivo.
+_NOT_FOUND_WINERRORS = {2, 3, 1801, 1167, 433, 31}
+_TIMEOUT_WINERRORS = {121, 1460}
 _ACCESS_DENIED_TEXT = ("access is denied", "acceso denegado", "permission denied",
                        "being used by another process")
 _TIMEOUT_TEXT = ("timed out", "timeout", "tiempo de espera")
@@ -484,6 +489,8 @@ def classify_error(error):
             return PROBLEM_ACCESS_DENIED
         if winerror in _NOT_FOUND_WINERRORS:
             return PROBLEM_NOT_FOUND
+        if winerror in _TIMEOUT_WINERRORS:
+            return PROBLEM_TIMEOUT
         if isinstance(e, OSError) and e.errno in (errno.EHOSTUNREACH, errno.ENETUNREACH,
                                                   errno.ENOENT, errno.ENODEV):
             return PROBLEM_NOT_FOUND
@@ -562,12 +569,19 @@ def run_print_test(candidate, info, builder=None, tracker_factory=None,
                     return _failed(despues.blocking_problem, status_before=antes,
                                    status_after=despues)
 
+            lpt = {}
+            if candidate.transport == TRANSPORT_USBPRINT and hasattr(driver, "lpt_status"):
+                try:
+                    lpt = driver.lpt_status() or {}
+                except Exception:
+                    lpt = {}
             return PrintTestResult(
                 technical_success=True,
                 status_before=antes,
                 status_after=despues,
                 warning=despues.warning or antes.warning,
                 tracker=tracker,
+                lpt_status=lpt,
             )
         except Exception as e:
             problema = classify_error(e)

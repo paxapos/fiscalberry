@@ -27,9 +27,36 @@ def _arp():
     return {"entradas": len(read_arp_table())}
 
 
+def _usbprint():
+    from fiscalberry.common.usb_discovery import list_usbprint_devices
+    # Sin abrir los dispositivos: el informe solo lee.
+    return [dict(ruta=d.device_path, vid=d.ids, serie=bool(d.serial), puerto=d.port_name,
+                 descripcion=d.bus_description)
+            for d in list_usbprint_devices(with_details=False)]
+
+
+def _dispositivos_usb():
+    from fiscalberry.common.usb_discovery import windows_usb_devices
+    if sys.platform != "win32":
+        return []
+    dispositivos = windows_usb_devices()
+    return {"total": len(dispositivos),
+            "con_problema": sum(1 for d in dispositivos if d["problem"]),
+            "servicios": sorted({d["service"] for d in dispositivos if d["service"]})}
+
+
+def _puertos_com():
+    from fiscalberry.common.usb_discovery import list_serial_ports
+    return [dict(puerto=p.device, tipo=p.kind, descripcion=p.description)
+            for p in list_serial_ports()]
+
+
 SECTIONS = {
     "adaptadores": _adaptadores,
     "arp": _arp,
+    "usbprint": _usbprint,
+    "dispositivos_usb": _dispositivos_usb,
+    "puertos_com": _puertos_com,
 }
 
 

@@ -126,12 +126,76 @@ imprimió la hoja de autotest) y se ofrece la guía. Cambiarle la IP es #178
 proponerla (lo usará el escenario 5): TCP 80/443/9100 (aceptar o rechazar =
 hay alguien), la tabla ARP e ICMP. Devuelve `None` si no se pudo saber.
 
+## USB directo y COM (escenarios 2 y 3) — #183
+
+Código: `src/fiscalberry/common/usb_discovery.py` (búsqueda) y
+`src/fiscalberry/common/usbprint_driver.py` (driver `UsbPrint`).
+
+### Por qué no PyUSB
+
+Una térmica de clase Impresora USB (0x07) usa `usbprint.sys`, que viene con
+Windows y crea el puerto `USB00x` aunque no haya driver de impresora ni cola.
+PyUSB/libusb exigiría reemplazar ese driver por WinUSB (Zadig, con admin), y
+eso rompe la cola de Windows. **Nunca se hace.** El driver `Usb` (PyUSB) queda
+solo para Linux y para equipos que ya exponen WinUSB.
+
+### Búsqueda
+
+- `SetupDiGetClassDevs` + `SetupDiEnumDeviceInterfaces` sobre
+  `GUID_DEVINTERFACE_USBPRINT` `{28d78fad-5a12-11d1-ae5b-0000f803a8c2}`. De la
+  ruta (`\\?\usb#vid_04b8&pid_0e15#<serie>#{guid}`) salen VID, PID y serie.
+  Si la instancia tiene `&` (Windows la inventó) o el dispositivo es
+  compuesto (`&mi_00`), no hay serie.
+- El puerto `USB001` sale de la clave de registro de la interfaz (`Port
+  Number` + `Base Name`): sirve para reconocer la cola de Windows que usa la
+  misma impresora y no mostrarla dos veces.
+- El modelo: primero el Device ID IEEE 1284 (`IOCTL_USBPRINT_GET_1284_ID`,
+  `MFG:EPSON;MDL:TM-T20II`), después la descripción que reporta el bus
+  (`DEVPKEY_Device_BusReportedDeviceDesc`), después la marca por VID.
+- **COM** con `serial.tools.list_ports`: CDC (`usbser.sys`), CH340, PL2303,
+  FTDI y CP210x aparecen con VID/PID. Los COM de Bluetooth no se abren nunca
+  (abrirlos intenta conectar y puede colgar); los de la placa madre y los
+  módems se ocultan por defecto. Velocidad: 9600.
+- **Incompatibles**: con `SetupDiGetClassDevs("USB")` se revisan todos los
+  USB. Una impresora (clase 07 o VID de una marca conocida) sin driver
+  (`DN_HAS_PROBLEM`, sin servicio) o con WinUSB/libusb se muestra como "no se
+  puede usar" con el enlace a la guía. No se toca su driver.
+
+### Identidad
+
+Se guarda VID/PID/serie, no la ruta: la ruta incluye el puerto físico. Sin
+serie, la ruta forma parte de la identidad (dos térmicas iguales solo se
+distinguen por el puerto) y se guarda; si la impresora se enchufa en otro
+puerto y es la única con ese VID/PID, se la reencuentra igual. Si hay dos
+iguales sin serie y ninguna está en la ruta guardada, el driver avisa en vez
+de adivinar.
+
+### Driver `UsbPrint`
+
+- `CreateFile` + `WriteFile` / `ReadFile` / `DeviceIoControl` con E/S
+  superpuesta y timeout: una impresora sin papel puede dejar un `WriteFile`
+  colgado para siempre; al vencer se cancela con `CancelIoEx`.
+- **Convive con el spooler**: si un trabajo de Windows tiene el dispositivo,
+  `CreateFile` falla por "en uso" y se reintenta a los 0,25, 0,5, 1 y 2 s.
+  Cada ticket abre y cierra (`EscposIO(autoclose=True)`), así que Fiscalberry
+  tampoco lo retiene y la cola de Windows sigue funcionando.
+- Estado real con DLE EOT (1, 2 y 4) si la impresora tiene endpoint de entrada;
+  si no contesta, decide la confirmación del papel (#172).
+- `IOCTL_USBPRINT_GET_LPT_STATUS` se registra en el resultado de la prueba
+  (`lpt_status`) **solo como dato**: muchas térmicas devuelven siempre el
+  mismo valor y bloquear por eso daría falsos "sin papel".
+- Desenchufada (`ERROR_DEVICE_NOT_CONNECTED`, `ERROR_FILE_NOT_FOUND`,
+  `ERROR_GEN_FAILURE`) = "no se encontró la impresora"; ocupada después de
+  los reintentos = "Windows no dejó usar la impresora".
+- Fuera de Windows, `build_driver` responde con un `DriverError` claro.
+
 ## Verificación en Windows real
 
 La prueba del instalador (`build_tools/test-windows-installer.ps1`, workflow
 "Instalador de Windows") corre `fiscalberry-gui.exe --discovery-report` sobre
-el ejecutable instalado: lee `GetAdaptersAddresses` y `GetIpNetTable` de verdad
-y falla si no devuelve al menos un adaptador físico con IPv4. El runner no
+el ejecutable instalado: lee `GetAdaptersAddresses`, `GetIpNetTable`,
+SetupDi (usbprint y todos los USB) y los puertos COM de verdad, y falla si
+alguna sección revienta o si no hay al menos un adaptador físico con IPv4. El runner no
 tiene impresoras: el barrido y las impresoras se prueban con fakes y sockets
 locales en `tests/test_red_impresoras.py`.
 
@@ -143,3 +207,12 @@ locales en `tests/test_red_impresoras.py`.
   conexiones salientes y respuestas a pedidos propios).
 - SNMP en las marcas del mercado (muchas térmicas no lo traen).
 - SAM4S en el 6001.
+- Escenario 2: una térmica USB clase 07 **sin driver ni cola** con cuenta
+  estándar (Epson TM-T20 y una Xprinter/Gprinter), con y sin número de serie;
+  que responda DLE EOT por usbprint; desenchufarla en medio de la prueba.
+- Que una cola de Windows existente sobre `USB001` siga imprimiendo después de
+  usar `UsbPrint` (y mientras el spooler imprime, que `UsbPrint` espere).
+- Escenario 3: una impresora por CH340/PL2303/FTDI y una CDC, a 9600. Si
+  alguna necesita otra velocidad, hay que sumar la detección de velocidad.
+- Una impresora con WinUSB (Zadig) o sin driver: que aparezca como
+  incompatible y que no se toque nada.

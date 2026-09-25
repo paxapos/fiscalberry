@@ -18,6 +18,8 @@ on:
       # Asistente de impresoras: la prueba lee las APIs reales de Windows.
       - "src/fiscalberry/common/discovery_report.py"
       - "src/fiscalberry/common/network_discovery.py"
+      - "src/fiscalberry/common/usb_discovery.py"
+      - "src/fiscalberry/common/usbprint_driver.py"
       - ".github/workflows/windows-installer.yml"
   workflow_dispatch:
 

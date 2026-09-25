@@ -5,7 +5,8 @@ Windows, sobre un runner limpio:
   1. Instalación silenciosa por usuario: quedan el ejecutable y unins000.exe.
   2. El binario instalado pasa --selftest y "Aplicaciones" muestra su versión.
      Su --discovery-report lee de verdad las APIs de Windows que usa el
-     asistente de impresoras (adaptadores de red, ARP) sin reventar.
+     asistente de impresoras (adaptadores de red, ARP, SetupDi de usbprint y
+     de USB, puertos COM) sin reventar.
   3. Actualización silenciosa con Fiscalberry "abierto" (su mutex existe): el
      setup espera a que se cierre, instala, conserva el desinstalador y, por
      /RELAUNCH=1, vuelve a abrir la app con --minimized. Nunca dos procesos.
@@ -141,6 +142,12 @@ if ($fisicos.Count -lt 1) {
 }
 foreach ($a in $fisicos) {
     if (-not ($a.address -as [ipaddress])) { throw "Dirección inválida en el adaptador '$($a.name)': $($a.address)" }
+}
+# El runner no tiene impresoras: SetupDi tiene que contestar "ninguna" sin
+# errores, y la enumeración de todos los USB tiene que ver al menos algo o nada
+# (una VM puede no tener USB), pero siempre con la forma esperada.
+if ($null -eq $informe.dispositivos_usb.total) {
+    throw "La enumeración de dispositivos USB no devolvió un total"
 }
 
 # 3) Actualización con Fiscalberry abierto -----------------------------------
