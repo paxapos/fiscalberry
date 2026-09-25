@@ -280,3 +280,25 @@ def test_timeout_de_red_del_config_llega_como_numero(monkeypatch):
     assert recibido["timeout"] == 10.0
     assert isinstance(recibido["timeout"], float)
     assert recibido["port"] == 9100
+
+
+def test_la_metadata_del_asistente_no_llega_al_driver(monkeypatch):
+    """Serial guarda _usb_vid/_usb_pid/_usb_serial para reencontrar el COM (#171)."""
+    recibido = {}
+    real_dummy = CH.printer.Dummy
+
+    def dummy(**kwargs):
+        recibido.update(kwargs)
+        return real_dummy()
+
+    class FakeConfigberry:
+        def get_config_for_printer(self, name):
+            return {"driver": "Dummy", "_setup_id": "serial:1a86:7523@COM4",
+                    "_usb_vid": "0x1a86", "_usb_pid": "0x7523"}
+
+    monkeypatch.setattr(CH, "configberry", FakeConfigberry())
+    monkeypatch.setattr(CH.printer, "Dummy", dummy)
+
+    CH.runTraductor({"printerName": "Caja", "printTexto": {"texto": "x"}}, None)
+
+    assert not any(k.startswith("_") for k in recibido)

@@ -272,8 +272,9 @@ def runTraductor(jsonTicket, queue):
     driverName = dictSectionConf.pop("driver", "Dummy")
     driverName = driverName.lower()
 
-    driverOps = dictSectionConf
-    driverOps.pop("_setup_id", None)
+    # Las claves con "_" son metadata del asistente (_setup_id, _usb_vid...),
+    # no parámetros del driver (ver printer_setup.py).
+    driverOps = {k: v for k, v in dictSectionConf.items() if not str(k).startswith("_")}
 
     if driverName == "Fiscalberry".lower():
         try:
