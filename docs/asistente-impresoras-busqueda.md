@@ -189,13 +189,45 @@ de adivinar.
   los reintentos = "Windows no dejó usar la impresora".
 - Fuera de Windows, `build_driver` responde con un `DriverError` claro.
 
+## Colas de Windows ya instaladas (escenario 4) — #174
+
+Código: `src/fiscalberry/common/windows_queues.py`.
+
+- `EnumPrinters(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS, 2)`: nombre,
+  puerto, driver, atributos, estado y servidor. (`printer_detector.py` usaba
+  nivel 1, que trae solo el nombre; no se tocó.)
+- **En un subproceso que se puede matar**: `fiscalberry-gui.exe
+  --list-printers --report <json>` (en desarrollo, `python -m
+  fiscalberry.common.windows_queues`). Una cola compartida caída
+  (`\\servidor\cola`) puede colgar `EnumPrinters` más de 30 s y un hilo de
+  Python no se cancela. Si no termina en 8 s se lo mata y se reintenta solo
+  con las colas locales (5 s); si también vence, se explica sin congelar la
+  pantalla. Al salir del asistente el subproceso se mata en el acto.
+- Se ocultan por defecto (quedan con "Mostrar todas"): PDF, XPS, OneNote, fax
+  (atributo o driver) y colas fuera de línea ("usar impresora sin conexión",
+  `PRINTER_STATUS_OFFLINE`, servidor desconocido).
+- Orden: locales listas (la predeterminada primero), locales con algún aviso,
+  compartidas, ocultas. Duplicadas (la misma cola local y como conexión, o con
+  otras mayúsculas) aparecen una sola vez.
+- El estado del spooler se muestra en "Detalles" **como dato**: muchos puertos
+  TCP/IP y drivers POS dicen "Lista" con la impresora apagada. La verdad la da
+  el papel (#172); si no se confirma, el trabajo se borra de la cola.
+- La selección es `Win32Raw(printer_name=...)`; una cola ya guardada se
+  reconoce sin distinguir mayúsculas.
+- El puerto (`USB001`, `COM3:`) sirve para no mostrar dos veces la misma
+  impresora: si una cola usa `USB001`, la impresora usbprint de ese puerto se
+  muestra solo con "Mostrar todas" (se prefiere la cola que ya usa el local).
+
 ## Verificación en Windows real
 
 La prueba del instalador (`build_tools/test-windows-installer.ps1`, workflow
 "Instalador de Windows") corre `fiscalberry-gui.exe --discovery-report` sobre
 el ejecutable instalado: lee `GetAdaptersAddresses`, `GetIpNetTable`,
-SetupDi (usbprint y todos los USB) y los puertos COM de verdad, y falla si
-alguna sección revienta o si no hay al menos un adaptador físico con IPv4. El runner no
+SetupDi (usbprint y todos los USB) y los puertos COM de verdad, y lista las
+colas con el subproceso `--list-printers` del exe instalado. Falla si alguna
+sección revienta, si no hay al menos un adaptador físico con IPv4, si el
+listado de colas tarda más de 5 s o si las colas PDF/XPS del runner no quedan
+como virtuales y ocultas. El runner no
 tiene impresoras: el barrido y las impresoras se prueban con fakes y sockets
 locales en `tests/test_red_impresoras.py`.
 
@@ -216,3 +248,7 @@ locales en `tests/test_red_impresoras.py`.
   alguna necesita otra velocidad, hay que sumar la detección de velocidad.
 - Una impresora con WinUSB (Zadig) o sin driver: que aparezca como
   incompatible y que no se toque nada.
+- Escenario 4: una cola USB (driver del fabricante) y una por puerto TCP/IP
+  con la impresora apagada (el spooler dice "Lista": la prueba tiene que
+  fallar y borrar el trabajo). Una PC con una cola compartida de otra PC
+  apagada: el listado tiene que caer al reintento solo con las locales.

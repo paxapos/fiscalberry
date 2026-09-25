@@ -20,6 +20,7 @@ on:
       - "src/fiscalberry/common/network_discovery.py"
       - "src/fiscalberry/common/usb_discovery.py"
       - "src/fiscalberry/common/usbprint_driver.py"
+      - "src/fiscalberry/common/windows_queues.py"
       - ".github/workflows/windows-installer.yml"
   workflow_dispatch:
 

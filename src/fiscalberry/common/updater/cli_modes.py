@@ -12,12 +12,15 @@ arranques normales del programa:
 - `--version`: útil para diagnosticar a distancia.
 - `--discovery-report`: lo que ve el asistente de impresoras (redes, USB,
   puertos COM, colas), sin tocar nada. Lo usa la prueba del instalador.
+- `--list-printers`: las colas de Windows en JSON. El asistente lo lanza como
+  subproceso para poder matarlo si una cola compartida caída lo cuelga (#174).
 """
 
 import os
 import sys
 
-MODES = ("--selftest", "--apply-update", "--version", "--discovery-report")
+MODES = ("--selftest", "--apply-update", "--version", "--discovery-report",
+         "--list-printers")
 
 
 def _arg(argv, nombre, defecto=None):
@@ -51,6 +54,10 @@ def handle_early_modes(argv=None):
             exe=_arg(argv, "--exe"),
         )
         sys.exit(codigo)
+
+    if "--list-printers" in argv:
+        from fiscalberry.common.windows_queues import run_list_printers
+        sys.exit(run_list_printers(_arg(argv, "--report"), local_only="--local-only" in argv))
 
     if "--discovery-report" in argv:
         from fiscalberry.common.discovery_report import run
@@ -136,6 +143,7 @@ def run_selftest(ruta_reporte=None):
             import fiscalberry.common.network_discovery  # noqa: F401
             import fiscalberry.common.usb_discovery  # noqa: F401
             import fiscalberry.common.usbprint_driver  # noqa: F401
+            import fiscalberry.common.windows_queues  # noqa: F401
             import fiscalberry.common.discovery_report  # noqa: F401
             if sys.platform == "win32":
                 # Backend que pystray carga dinámicamente: si PyInstaller no

@@ -6,7 +6,8 @@ Windows, sobre un runner limpio:
   2. El binario instalado pasa --selftest y "Aplicaciones" muestra su versión.
      Su --discovery-report lee de verdad las APIs de Windows que usa el
      asistente de impresoras (adaptadores de red, ARP, SetupDi de usbprint y
-     de USB, puertos COM) sin reventar.
+     de USB, puertos COM) sin reventar, y lista las colas de Windows por el
+     subproceso --list-printers como lo hace el asistente.
   3. Actualización silenciosa con Fiscalberry "abierto" (su mutex existe): el
      setup espera a que se cierre, instala, conserva el desinstalador y, por
      /RELAUNCH=1, vuelve a abrir la app con --minimized. Nunca dos procesos.
@@ -148,6 +149,18 @@ foreach ($a in $fisicos) {
 # (una VM puede no tener USB), pero siempre con la forma esperada.
 if ($null -eq $informe.dispositivos_usb.total) {
     throw "La enumeración de dispositivos USB no devolvió un total"
+}
+# Colas: EnumPrinters nivel 2 por el subproceso --list-printers del exe
+# instalado. El runner trae las colas virtuales de Windows (PDF, XPS): tienen
+# que aparecer, clasificadas como virtuales y ocultas por defecto, en < 5 s.
+$colas = $informe.colas_windows
+if ($colas.vencido) { throw "El listado de colas de Windows venció el timeout" }
+if ($colas.segundos -gt 5) { throw "El listado de colas tardó $($colas.segundos) s (máximo 5)" }
+foreach ($c in @($colas.colas)) {
+    if (-not $c.nombre) { throw "Una cola de Windows vino sin nombre" }
+    if ($c.nombre -match "PDF|XPS" -and -not ($c.tipo -eq "virtual" -and $c.oculta)) {
+        throw "La cola virtual '$($c.nombre)' no quedó clasificada como virtual y oculta"
+    }
 }
 
 # 3) Actualización con Fiscalberry abierto -----------------------------------

@@ -51,12 +51,26 @@ def _puertos_com():
             for p in list_serial_ports()]
 
 
+def _colas_windows():
+    from fiscalberry.common.windows_queues import list_queues
+    # Por el mismo subproceso (--list-printers) que usa el asistente.
+    r = list_queues()
+    if r.skipped:
+        return []
+    if r.error and not r.queues:
+        raise RuntimeError(r.error)
+    return {"segundos": round(r.seconds, 2), "vencido": r.timed_out, "solo_locales": r.local_only,
+            "colas": [dict(nombre=c.name, puerto=c.port, driver=c.driver, tipo=c.kind,
+                           oculta=c.hidden, estado=c.status_text) for c in r.queues]}
+
+
 SECTIONS = {
     "adaptadores": _adaptadores,
     "arp": _arp,
     "usbprint": _usbprint,
     "dispositivos_usb": _dispositivos_usb,
     "puertos_com": _puertos_com,
+    "colas_windows": _colas_windows,
 }
 
 
