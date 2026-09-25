@@ -23,6 +23,7 @@ $installDir = Join-Path $env:LOCALAPPDATA "Programs\Fiscalberry"
 $exe = Join-Path $installDir "fiscalberry-gui.exe"
 $uninstaller = Join-Path $installDir "unins000.exe"
 $configIni = Join-Path $env:LOCALAPPDATA "Fiscalberry\Fiscalberry\config.ini"
+$appLog = Join-Path $env:LOCALAPPDATA "Fiscalberry\Fiscalberry\logs\fiscalberry.log"
 # Mismos valores que installer/fiscalberry.iss y single_instance.py.
 $uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{55BB025A-ED36-4DB6-A2A3-706DD36AB936}_is1"
 $runKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
@@ -56,6 +57,18 @@ function Wait-Until([scriptblock]$Condition, [int]$Seconds, [string]$Failure) {
     }
 }
 
+# Ante una falla: lo que dejó Fiscalberry en su log, en la salida del job y
+# entre los artefactos.
+function Show-AppLog {
+    if (Test-Path $appLog) {
+        Copy-Item $appLog (Join-Path $logs "fiscalberry.log") -Force
+        Write-Host "--- final de $appLog"
+        Get-Content $appLog -Tail 60 | Write-Host
+    } else {
+        Write-Host "--- no hay log de Fiscalberry en $appLog"
+    }
+}
+
 function Stop-Fiscalberry {
     Get-Process -Name "fiscalberry-gui" -ErrorAction SilentlyContinue | Stop-Process -Force
     Wait-Until { -not (Get-Process -Name "fiscalberry-gui" -ErrorAction SilentlyContinue) } 30 `
@@ -76,10 +89,16 @@ if ($run -notlike "*fiscalberry-gui.exe*--minimized*") {
 # 2) El binario instalado arranca ------------------------------------------
 Write-Host "== Selftest del binario instalado"
 $report = Join-Path $logs "selftest.txt"
-# Es una GUI (sin consola): sin -Wait, PowerShell no espera a que termine.
-$selftest = Start-Process -FilePath $exe -ArgumentList @("--selftest", "--report", "`"$report`"") -Wait -PassThru
-if ($selftest.ExitCode -ne 0 -or -not (Select-String -Path $report -Pattern "FISCALBERRY_SELFTEST_OK" -SimpleMatch -Quiet)) {
-    throw "El binario instalado no superó el selftest: $(Get-Content $report -ErrorAction SilentlyContinue)"
+# Es una GUI (sin consola): con el operador & PowerShell no esperaría a que
+# termine. Se espera el proceso de forma explícita.
+$selftest = Start-Process -FilePath $exe -ArgumentList @("--selftest", "--report", "`"$report`"") -PassThru
+$null = $selftest.Handle
+if (-not $selftest.WaitForExit(180000)) { throw "El selftest no terminó en 180 s" }
+$contenido = if (Test-Path $report) { Get-Content $report -Raw } else { "(sin reporte)" }
+Write-Host "selftest: código $($selftest.ExitCode) -> $contenido"
+if ($selftest.ExitCode -ne 0 -or $contenido -notmatch "FISCALBERRY_SELFTEST_OK") {
+    Show-AppLog
+    throw "El binario instalado no superó el selftest"
 }
 $fileVersion = (Get-Item $exe).VersionInfo.FileVersion
 $displayVersion = (Get-ItemProperty -Path $uninstallKey).DisplayVersion
@@ -109,7 +128,10 @@ if (-not (Select-String -Path "$logs\update.log" -Pattern "--minimized" -SimpleM
 # nunca tiene que haber dos procesos.
 Start-Sleep -Seconds 5
 $procesos = @(Get-Process -Name "fiscalberry-gui" -ErrorAction SilentlyContinue)
-if ($procesos.Count -gt 1) { throw "Quedaron $($procesos.Count) procesos de Fiscalberry" }
+if ($procesos.Count -gt 1) {
+    Show-AppLog
+    throw "Quedaron $($procesos.Count) procesos de Fiscalberry"
+}
 Stop-Fiscalberry
 
 # 4) Desinstalación ---------------------------------------------------------
@@ -125,4 +147,5 @@ if (Get-ItemProperty -Path $runKey -Name "Fiscalberry" -ErrorAction SilentlyCont
 }
 if (-not (Test-Path $configIni)) { throw "La desinstalación borró config.ini (se pierde la vinculación)" }
 
+Show-AppLog
 Write-Host "Instalador OK: instalación, actualización con /RELAUNCH=1 y desinstalación."

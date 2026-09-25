@@ -69,10 +69,18 @@ def run_selftest(ruta_reporte=None):
 
     fallas = []
 
+    # Kivy parsea sys.argv al importarse: "--selftest --report x" son opciones
+    # que no conoce, y responde con sys.exit(2). El updater ya lanza el
+    # selftest con KIVY_NO_ARGS=1, pero corrido a mano (soporte, CI) moría sin
+    # escribir el reporte.
+    os.environ.setdefault("KIVY_NO_ARGS", "1")
+
     def probar(descripcion, fn):
         try:
             fn()
-        except Exception as e:
+        except (Exception, SystemExit) as e:
+            # SystemExit también: una librería que corta el proceso al
+            # importarse es justamente una falla que el selftest tiene que ver.
             fallas.append(f"{descripcion}: {type(e).__name__}: {e}")
 
     def _imports_core():
