@@ -442,6 +442,27 @@
                         size: self.size
                         radius: [dp(10)]
 
+            # Asistente de impresoras (#173): solo donde existe (Windows).
+            Button:
+                text: "Impresoras"
+                font_size: '15sp'
+                bold: True
+                background_normal: ''
+                background_color: 0, 0, 0, 0
+                color: 1, 1, 1, 1
+                size_hint_x: 1 if app.printer_wizard_available else None
+                width: 0
+                opacity: 1 if app.printer_wizard_available else 0
+                disabled: not app.printer_wizard_available
+                on_press: app.open_printer_setup()
+                canvas.before:
+                    Color:
+                        rgba: 0.35, 0.3, 0.6, 1
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [dp(10)]
+
         # Footer minimalista
         Label:
             text: "ID " + (app.uuid[:8] if app.uuid else 'N/A') + "    ·    " + (app.host or 'Paxapos')

@@ -121,6 +121,11 @@ def run_selftest(ruta_reporte=None):
             from kivy.app import App  # noqa: F401
             import fiscalberry.ui.fiscalberry_app  # noqa: F401
             import fiscalberry.desktop.tray  # noqa: F401
+            # El asistente se importa recién al construir la App: sin esto,
+            # un módulo que PyInstaller no empaquetó aparecería con el local
+            # ya actualizado.
+            import fiscalberry.ui.printer_setup_screen  # noqa: F401
+            import fiscalberry.common.printer_test  # noqa: F401
             if sys.platform == "win32":
                 # Backend que pystray carga dinámicamente: si PyInstaller no
                 # lo empaquetó, la bandeja no aparece y la "X" cierra la app.

@@ -374,24 +374,30 @@ class AdoptScreen(Screen):
         """
         try:
             app = App.get_running_app()
-            app.updatePropertiesWithConfig()
-            
-            if self.manager:
-                self.manager.current = 'main'
-            else:
+            if not self.manager:
                 logger.error("ScreenManager no disponible")
                 return
-            
+
+            # La App decide a dónde seguir (pantalla principal, o el asistente
+            # de impresoras en una instalación nueva, #173) y arranca los
+            # servicios. Es el mismo camino que cuando lo detecta el cambio
+            # de configuración, y es idempotente.
+            if hasattr(app, "after_adoption"):
+                app.after_adoption()
+                return
+
+            app.updatePropertiesWithConfig()
+            self.manager.current = 'main'
             app.on_start_service()
-            
+
             if IS_ANDROID and hasattr(app, '_start_android_service'):
                 try:
                     app._start_android_service()
                 except Exception as e:
                     logger.error(f"Error servicio Android: {e}")
-            
+
             logger.info("Pantalla main OK")
-            
+
         except Exception as e:
             logger.error(f"Error al ir a main: {e}", exc_info=True)
     
