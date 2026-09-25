@@ -41,6 +41,13 @@ def handle_early_modes(argv=None):
         sys.exit(0)
 
     if "--apply-update" in argv:
+        # El ayudante corre sin consola: sin log en archivo, sus errores (justo
+        # los que explican por qué Fiscalberry se cerró y no volvió) se pierden.
+        try:
+            from fiscalberry.common.fiscalberry_logger import setup_file_logging
+            setup_file_logging(role="actualizador")
+        except Exception:
+            pass
         from fiscalberry.common.updater.appliers import run_apply_helper
         codigo = run_apply_helper(
             pid=_arg(argv, "--pid"),
