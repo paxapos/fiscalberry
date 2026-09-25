@@ -20,7 +20,8 @@ class LogScreen(Screen):
 
     def open_log_file(self):
         """Abre el archivo de log en el editor de texto predeterminado."""
-        if self.logFilePath:
+        # Verificar que hay una ruta válida (no None ni vacía)
+        if self.logFilePath and self.logFilePath.strip():
 
             try:
                 system = platform.system()
