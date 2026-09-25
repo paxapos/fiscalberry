@@ -139,6 +139,15 @@ jobs:
     needs: [version, tests]
     if: needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
+    env:
+      # Firma Authenticode (#176), con el servicio de firma en la nube de
+      # SSL.com (eSigner): en GitHub solo viven las credenciales del servicio,
+      # la clave privada queda en su HSM. Ver docs/firma-authenticode.md.
+      # Sin secretos los binarios salen sin firmar, como hasta ahora; con la
+      # variable WINDOWS_SIGNING_REQUIRED=true un build sin firma válida falla
+      # y, por lo tanto, no llega al release.
+      SIGNING_AVAILABLE: ${{ secrets.ES_USERNAME != '' && secrets.ES_PASSWORD != '' && secrets.ES_CREDENTIAL_ID != '' && secrets.ES_TOTP_SECRET != '' }}
+      SIGNING_REQUIRED: ${{ vars.WINDOWS_SIGNING_REQUIRED == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -180,6 +189,48 @@ jobs:
           $env:PYTHONPATH="src"
           pyinstaller --clean -y fiscalberry-cli.spec
 
+      - name: Check Authenticode signing
+        id: firma
+        run: |
+          if ($env:SIGNING_AVAILABLE -eq 'true') {
+            "signed=true" >> $env:GITHUB_OUTPUT
+          } elseif ($env:SIGNING_REQUIRED -eq 'true') {
+            throw "La firma Authenticode es obligatoria (WINDOWS_SIGNING_REQUIRED) y faltan los secretos del servicio de firma."
+          } else {
+            "signed=false" >> $env:GITHUB_OUTPUT
+            Write-Host "::warning::Binarios de Windows SIN firmar: falta configurar el servicio de firma (#176, docs/firma-authenticode.md)."
+          }
+
+      # Se firman los ejecutables ANTES de empaquetarlos: el instalador y los
+      # zips tienen que llevar adentro los binarios firmados.
+      # Fijar la action a un SHA verificado al configurar el servicio: recibe
+      # las credenciales de firma.
+      - name: Sign Windows GUI
+        if: steps.firma.outputs.signed == 'true'
+        uses: sslcom/esigner-codesign@develop
+        with:
+          command: sign
+          username: ${{ secrets.ES_USERNAME }}
+          password: ${{ secrets.ES_PASSWORD }}
+          credential_id: ${{ secrets.ES_CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
+          file_path: ${{ github.workspace }}\dist\fiscalberry-gui\fiscalberry-gui.exe
+          override: true
+          clean_logs: true
+
+      - name: Sign Windows CLI
+        if: steps.firma.outputs.signed == 'true'
+        uses: sslcom/esigner-codesign@develop
+        with:
+          command: sign
+          username: ${{ secrets.ES_USERNAME }}
+          password: ${{ secrets.ES_PASSWORD }}
+          credential_id: ${{ secrets.ES_CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
+          file_path: ${{ github.workspace }}\dist\fiscalberry-cli\fiscalberry-cli.exe
+          override: true
+          clean_logs: true
+
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 
@@ -193,6 +244,29 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Inno Setup finalizó con código $LASTEXITCODE"
           }
+
+      - name: Sign Windows Installer
+        if: steps.firma.outputs.signed == 'true'
+        uses: sslcom/esigner-codesign@develop
+        with:
+          command: sign
+          username: ${{ secrets.ES_USERNAME }}
+          password: ${{ secrets.ES_PASSWORD }}
+          credential_id: ${{ secrets.ES_CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
+          file_path: ${{ github.workspace }}\dist\FiscalberrySetup.exe
+          override: true
+          clean_logs: true
+
+      # Editor, huella, sello de tiempo y cadena. Si algo no coincide, el
+      # build falla: nunca se publica un binario con una firma inesperada.
+      - name: Verify Authenticode signatures
+        if: steps.firma.outputs.signed == 'true'
+        run: >
+          .\build_tools\verify-signatures.ps1
+          -Files dist\fiscalberry-gui\fiscalberry-gui.exe,dist\fiscalberry-cli\fiscalberry-cli.exe,dist\FiscalberrySetup.exe
+          -ExpectedSubject "${{ vars.WINDOWS_SIGNING_SUBJECT }}"
+          -ExpectedThumbprint "${{ vars.WINDOWS_SIGNING_THUMBPRINT }}"
 
       # Instalación, actualización con la app abierta y /RELAUNCH=1, y
       # desinstalación que conserva config.ini (#187). El mismo script corre
