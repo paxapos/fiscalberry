@@ -28,6 +28,13 @@ logger = getLogger("Updater")
 
 BACKUP_SUFFIX = ".fb-backup"
 INCOMING_SUFFIX = ".fb-new"
+# Donde el ayudante aparta la instalación rota durante una reversión, cuando el
+# lugar de BACKUP_SUFFIX lo ocupa justo lo que se está restaurando.
+DISCARD_SUFFIX = ".fb-descartada"
+
+# Archivos que Windows/macOS crean solos dentro de cualquier carpeta. No indican
+# que la carpeta tenga contenido del usuario, así que no bloquean el reemplazo.
+_ARCHIVOS_DEL_SISTEMA = {"desktop.ini", "thumbs.db", ".ds_store"}
 
 # Cuánto espera el binario nuevo a que se libere el candado de instancia única
 # tras relanzarse. El proceso viejo puede tardar en morir del todo.
@@ -36,6 +43,55 @@ RELAUNCH_LOCK_WAIT = "30"
 
 class ApplyError(Exception):
     pass
+
+
+def _es_windows():
+    return os.name == "nt"
+
+
+def _carpeta_neutral():
+    """
+    Una carpeta de trabajo que no esté dentro de ninguna instalación.
+
+    En Windows, la carpeta actual (cwd) de un proceso vivo NO se puede renombrar
+    ni borrar: el sistema la mantiene abierta sin permiso de borrado para otros.
+    Un ayudante que heredara como cwd la carpeta que tiene que reemplazar se
+    estaría bloqueando a sí mismo.
+    """
+    import tempfile
+    return tempfile.gettempdir()
+
+
+def _mismo_camino(a, b):
+    return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
+
+
+def verificar_destino(destino_dir, nuevo_dir, binario=None):
+    """
+    Se niega a reemplazar una carpeta que no sea SOLO la instalación.
+
+    El reemplazo mueve la carpeta entera a un respaldo que después se borra. Si
+    alguien sacó el .exe y `_internal` de su carpeta y los dejó sueltos en
+    Descargas o en el Escritorio, la "carpeta de instalación" pasa a ser esa, y
+    actualizar terminaría borrando todo lo que el usuario tiene ahí. Se exige
+    que cada cosa que haya en el destino exista también en el paquete nuevo.
+    """
+    if not os.path.isdir(destino_dir):
+        raise ApplyError(f"la instalación {destino_dir} no es una carpeta")
+    if binario and not os.path.isfile(os.path.join(destino_dir, binario)):
+        raise ApplyError(f"{destino_dir} no contiene {binario}")
+
+    del_paquete = {n.lower() for n in os.listdir(nuevo_dir)}
+    ajenos = sorted(
+        n for n in os.listdir(destino_dir)
+        if n.lower() not in del_paquete and n.lower() not in _ARCHIVOS_DEL_SISTEMA
+    )
+    if ajenos:
+        muestra = ", ".join(ajenos[:5]) + ("..." if len(ajenos) > 5 else "")
+        raise ApplyError(
+            f"la carpeta {destino_dir} tiene archivos que no son de Fiscalberry "
+            f"({muestra}); no se reemplaza para no borrarlos. Hay que dejar "
+            f"Fiscalberry en una carpeta propia.")
 
 
 def _bajo_systemd():
@@ -53,7 +109,10 @@ def _relanzar(binario):
     """
     entorno = dict(os.environ)
     entorno["FISCALBERRY_LOCK_WAIT"] = RELAUNCH_LOCK_WAIT
-    kwargs = {"env": entorno, "close_fds": True}
+    # La misma carpeta de trabajo que tiene al abrirlo con doble clic o desde
+    # un acceso directo: no heredar la del ayudante (un temporal).
+    kwargs = {"env": entorno, "close_fds": True,
+              "cwd": os.path.dirname(os.path.abspath(binario))}
     if os.name == "posix":
         kwargs["start_new_session"] = True
     else:
@@ -90,6 +149,8 @@ def apply_posix(nuevo_dir, destino_dir, version, version_previa, binario=None):
     seguro: el kernel resuelve por inodo, y el proceso actual sigue vivo con
     los archivos que ya tenía abiertos. Igual se sale enseguida.
     """
+    verificar_destino(destino_dir, nuevo_dir, binario)
+
     backup_dir = destino_dir + BACKUP_SUFFIX
     entrante = destino_dir + INCOMING_SUFFIX
 
@@ -162,6 +223,10 @@ def apply_windows(nuevo_dir, destino_dir, version, version_previa, binario=None)
     if not binario:
         raise ApplyError("falta el nombre del ejecutable para el ayudante")
 
+    # Antes de cerrar nada: si la carpeta no se puede reemplazar, el programa
+    # sigue abierto y solo queda el error en el log.
+    verificar_destino(destino_dir, nuevo_dir, binario)
+
     base_tmp = tempfile.mkdtemp(prefix="fb-apply-")
     ayudante_dir = os.path.join(base_tmp, "nuevo")
     try:
@@ -189,6 +254,10 @@ def apply_windows(nuevo_dir, destino_dir, version, version_previa, binario=None)
              "--exe", binario],
             env=entorno,
             close_fds=True,
+            # Sin esto el ayudante hereda nuestra cwd, que al abrir desde un
+            # acceso directo o con doble clic ES `destino_dir`, y Windows no
+            # le deja renombrarla. Ver _carpeta_neutral().
+            cwd=base_tmp,
             creationflags=0x00000008 | 0x00000200,
         )
     except Exception as e:
@@ -208,8 +277,35 @@ def run_apply_helper(pid, src, dst, exe=None, timeout=120):
 
     Corre en un proceso aparte, desde un temporal; su salida no la ve nadie,
     así que todo lo importante va al log de archivo.
+
+    Si no puede completar el reemplazo, vuelve a abrir la versión que estaba:
+    el proceso viejo ya se cerró para dejarlo trabajar, y un ayudante que
+    falla en silencio deja al local sin Fiscalberry hasta que alguien lo abra
+    a mano.
     """
     import time
+
+    # Lo primero: salir de la carpeta a reemplazar. Quien lanzó a este ayudante
+    # puede ser una versión anterior que no le fija la cwd (todas hasta 3.6.6),
+    # y entonces la heredamos: es la carpeta de instalación, y mientras sea
+    # nuestra cwd Windows no deja renombrarla. Hacerlo acá, del lado del binario
+    # NUEVO, es lo que permite que esos equipos se destraben solos.
+    try:
+        os.chdir(_carpeta_neutral())
+    except OSError as e:
+        logger.warning("El ayudante no pudo cambiar de carpeta de trabajo: %s", e)
+
+    exe_instalado = os.path.join(dst, exe) if exe else None
+
+    def reabrir_la_anterior():
+        if exe_instalado and os.path.isfile(exe_instalado):
+            try:
+                _relanzar(exe_instalado)
+                logger.warning("Se volvió a abrir la versión instalada (%s).",
+                               exe_instalado)
+            except Exception as e:
+                logger.error("Tampoco se pudo volver a abrir %s: %s",
+                             exe_instalado, e)
 
     logger.info("Ayudante de actualización: esperando a que termine el pid %s", pid)
     limite = time.monotonic() + timeout
@@ -218,6 +314,7 @@ def run_apply_helper(pid, src, dst, exe=None, timeout=120):
             break
         time.sleep(0.5)
     else:
+        # El proceso viejo sigue vivo: no hay nada que reabrir.
         logger.error("El proceso %s no terminó en %ss; se cancela el reemplazo.",
                      pid, timeout)
         commit_guard.clear()
@@ -226,14 +323,30 @@ def run_apply_helper(pid, src, dst, exe=None, timeout=120):
     # Margen para que Windows libere del todo los archivos del proceso muerto.
     time.sleep(2.0)
 
+    try:
+        verificar_destino(dst, src, exe)
+    except ApplyError as e:
+        logger.error("No se reemplaza la instalación: %s", e)
+        commit_guard.clear()
+        reabrir_la_anterior()
+        return 1
+
     backup = dst + BACKUP_SUFFIX
-    _limpiar(backup)
+    if _mismo_camino(src, backup):
+        # Reversión lanzada desde el propio respaldo (así lo hacía rollback()
+        # hasta 3.6.6): `backup` es de donde estamos corriendo y lo que hay que
+        # restaurar. Borrarlo sería destruir la versión buena; la instalación
+        # rota se aparta con otro nombre.
+        apartado = dst + DISCARD_SUFFIX
+    else:
+        apartado = backup
+    _limpiar(apartado)
 
     # Windows puede tener el directorio tomado unos instantes más; se reintenta.
     for intento in range(1, 6):
         try:
             if os.path.isdir(dst):
-                os.rename(dst, backup)
+                os.rename(dst, apartado)
             break
         except Exception as e:
             logger.warning("Intento %d de apartar %s falló: %s", intento, dst, e)
@@ -241,6 +354,7 @@ def run_apply_helper(pid, src, dst, exe=None, timeout=120):
     else:
         logger.error("No se pudo apartar %s. Se cancela la actualización.", dst)
         commit_guard.clear()
+        reabrir_la_anterior()
         return 1
 
     try:
@@ -250,13 +364,15 @@ def run_apply_helper(pid, src, dst, exe=None, timeout=120):
                      dst, e)
         _limpiar(dst)
         try:
-            os.rename(backup, dst)
+            os.rename(apartado, dst)
             commit_guard.clear()
         except Exception as e2:
-            logger.critical("Tampoco se pudo restaurar: %s. Quedó en %s", e2, backup)
+            logger.critical("Tampoco se pudo restaurar: %s. Quedó en %s", e2, apartado)
+            return 1
+        reabrir_la_anterior()
         return 1
 
-    destino_exe = os.path.join(dst, exe) if exe else dst
+    destino_exe = exe_instalado or dst
     logger.info("Instalación reemplazada. Relanzando %s", destino_exe)
     try:
         _relanzar(destino_exe)
@@ -492,28 +608,52 @@ def rollback(pendiente, binario=None):
 
     destino = pendiente.target
 
-    if os.name == "nt":
-        # Mismo problema que al instalar: los archivos están en uso. El respaldo
-        # hace de ayudante y se instala a sí mismo cuando este proceso muera.
+    if _es_windows():
+        # Mismo problema que al instalar: los archivos están en uso, así que el
+        # cambio lo hace un ayudante cuando este proceso muera.
+        #
+        # El ayudante corre desde una COPIA del respaldo, no desde el respaldo
+        # mismo: el ayudante aparta la instalación a `<destino>.fb-backup`, que
+        # es justamente la carpeta del respaldo, y las versiones hasta 3.6.6 la
+        # borraban primero, destruyendo la versión buena desde la que corrían.
         exe = binario or _adivinar_exe(pendiente.backup)
         if not exe:
             logger.critical("No se encontró el ejecutable dentro de %s: "
                             "no se puede revertir.", pendiente.backup)
             return False
+
+        import tempfile
+        base_tmp = tempfile.mkdtemp(prefix="fb-rollback-")
+        copia = os.path.join(base_tmp, "anterior")
+        try:
+            shutil.copytree(pendiente.backup, copia)
+        except Exception as e:
+            _limpiar(base_tmp)
+            logger.critical("No se pudo preparar la reversión: %s", e)
+            return False
+
         entorno = dict(os.environ)
         entorno["FISCALBERRY_LOCK_WAIT"] = RELAUNCH_LOCK_WAIT
         try:
             subprocess.Popen(
-                [os.path.join(pendiente.backup, exe), "--apply-update",
+                [os.path.join(copia, exe), "--apply-update",
                  "--pid", str(os.getpid()),
-                 "--src", pendiente.backup,
+                 "--src", copia,
                  "--dst", destino,
                  "--exe", exe],
                 env=entorno, close_fds=True,
+                cwd=base_tmp,
                 creationflags=0x00000008 | 0x00000200)
         except Exception as e:
+            _limpiar(base_tmp)
             logger.critical("No se pudo lanzar la reversión: %s", e)
             return False
+        # La marca se borra acá y no la deja para el ayudante: el ayudante es el
+        # binario VIEJO y, si es anterior a este arreglo, no la borra al
+        # terminar. La versión restaurada vería la marca con los arranques
+        # agotados y "revertiría" a lo que quedó en el respaldo: la versión rota.
+        # No hay carrera: el ayudante no toca nada hasta que este proceso muera.
+        commit_guard.clear()
         logger.warning("Reversión a %s lanzada; este proceso debe cerrarse.",
                        pendiente.previous_version)
         return True
