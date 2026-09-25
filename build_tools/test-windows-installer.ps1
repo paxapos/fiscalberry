@@ -100,10 +100,10 @@ if ($selftest.ExitCode -ne 0 -or $contenido -notmatch "FISCALBERRY_SELFTEST_OK")
     Show-AppLog
     throw "El binario instalado no superó el selftest"
 }
-$fileVersion = (Get-Item $exe).VersionInfo.FileVersion
+$productVersion = (Get-Item $exe).VersionInfo.ProductVersion
 $displayVersion = (Get-ItemProperty -Path $uninstallKey).DisplayVersion
-if ($displayVersion -ne $fileVersion) {
-    throw "Aplicaciones muestra la versión '$displayVersion' y el ejecutable es '$fileVersion'"
+if ($displayVersion -ne $productVersion) {
+    throw "Aplicaciones muestra la versión '$displayVersion' y el ejecutable es '$productVersion'"
 }
 
 # 3) Actualización con Fiscalberry abierto -----------------------------------

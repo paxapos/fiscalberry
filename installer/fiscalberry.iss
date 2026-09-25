@@ -5,7 +5,12 @@
 #define AppName "Fiscalberry"
 #define AppPublisher "PaxaPOS"
 #define AppExeName "fiscalberry-gui.exe"
-#define AppVersion GetFileVersion("..\dist\fiscalberry-gui\fiscalberry-gui.exe")
+#define AppExePath "..\dist\fiscalberry-gui\fiscalberry-gui.exe"
+; La versión sale del ejecutable, que la toma de src/fiscalberry/version.py.
+; ProductVersion ("3.6.6") es la que ve la gente en "Aplicaciones";
+; GetFileVersion da la numérica de cuatro partes que exige VERSIONINFO.
+#define AppVersion GetStringFileInfo(AppExePath, "ProductVersion")
+#define AppFileVersion GetFileVersion(AppExePath)
 ; El mismo nombre que crea la app (src/fiscalberry/common/single_instance.py):
 ; mientras exista, Fiscalberry está abierto y no se pueden pisar sus archivos.
 #define AppMutex "Local\FiscalberrySingleInstance"
@@ -17,6 +22,12 @@ AppId={{55BB025A-ED36-4DB6-A2A3-706DD36AB936}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
+; Metadatos del propio FiscalberrySetup.exe: un instalador anónimo se ve
+; sospechoso en SmartScreen y en las propiedades del archivo.
+VersionInfoVersion={#AppFileVersion}
+VersionInfoCompany=Paxapos - Plus Abstracta SRL
+VersionInfoProductName={#AppName}
+VersionInfoDescription=Instalador de Fiscalberry
 DefaultDirName={localappdata}\Programs\Fiscalberry
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
