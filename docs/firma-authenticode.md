@@ -104,8 +104,10 @@ cambiar `version.py` en `v3.0.x`.
 4. En `build-release.yml`, fijar `sslcom/esigner-codesign@develop` al SHA de un
    commit verificado: esa action recibe las credenciales de firma.
 5. Correr el workflow a mano (*workflow_dispatch*) y revisar el paso **Verify
-   Authenticode signatures**. Instalar el setup en un Windows limpio y confirmar
-   que UAC y las propiedades muestran el editor.
+   Authenticode signatures**. Hacerlo con una versión de `version.py` que ya
+   tenga su tag: así compila y firma, pero no publica un release. Instalar el
+   setup (artefacto del job) en un Windows limpio y confirmar que UAC y las
+   propiedades muestran el editor.
 6. Recién entonces crear la variable `WINDOWS_SIGNING_REQUIRED=true`. Desde ahí,
    un build sin firma válida falla y nunca llega a un release.
 
