@@ -16,11 +16,18 @@ En escritorio no hay equivalente confiable, así que se sigue generando al azar
 (el config.ini de escritorio no se borra al actualizar).
 """
 
+import logging
 import uuid
 
-from fiscalberry.common.fiscalberry_logger import getLogger
-
-logger = getLogger("DeviceUUID")
+# Logger de la stdlib a propósito, como en Configberry: este módulo lo importa
+# Configberry.resetConfigFile() mientras se crea el config.ini, y
+# fiscalberry_logger crea el Configberry al importarse. Importar getLogger de
+# ahí cerraba el círculo: en un equipo recién instalado —el primer arranque, sin
+# config.ini— el import fallaba, el config.ini quedaba VACÍO y ese proceso
+# arrancaba sin uuid ni sio_host (el discover no registraba el equipo y la
+# vinculación fallaba). setup_file_logging() configura el logger raíz, así que
+# esto igual llega al archivo de log.
+logger = logging.getLogger("fiscalberry.DeviceUUID")
 
 # Namespace propio para derivar el UUID: fijo y arbitrario, pero no puede
 # cambiar nunca — cambiarlo le daría otra identidad a todos los dispositivos.

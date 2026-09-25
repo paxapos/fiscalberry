@@ -100,6 +100,12 @@ if ($selftest.ExitCode -ne 0 -or $contenido -notmatch "FISCALBERRY_SELFTEST_OK")
     Show-AppLog
     throw "El binario instalado no superó el selftest"
 }
+# El primer arranque (el selftest) tiene que dejar un config.ini completo: un
+# import circular lo dejaba vacío y la app arrancaba sin uuid ni sio_host.
+if (-not (Select-String -Path $configIni -Pattern "sio_host" -SimpleMatch -Quiet)) {
+    Show-AppLog
+    throw "El primer arranque dejó $configIni sin sio_host"
+}
 $productVersion = (Get-Item $exe).VersionInfo.ProductVersion
 $displayVersion = (Get-ItemProperty -Path $uninstallKey).DisplayVersion
 if ($displayVersion -ne $productVersion) {
