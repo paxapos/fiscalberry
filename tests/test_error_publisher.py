@@ -3,6 +3,7 @@
 Tests del publicador de errores no bloqueante (Fase 6). Requiere paho.
 """
 
+import threading
 import time
 
 import pytest
@@ -86,8 +87,14 @@ def test_client_id_incluye_tenant_y_uuid(monkeypatch):
             pass
 
     def fake_make_client(client_id, clean_session=True, protocol=None):
-        captured["client_id"] = client_id
+        # Solo la conexión de ESTE hilo: el worker de fondo del dispatcher puede
+        # estar publicando errores de tests anteriores con el publisher
+        # singleton (otro tenant/uuid) justo mientras dura el monkeypatch.
+        if threading.get_ident() == hilo_del_test:
+            captured["client_id"] = client_id
         return FakeClient()
+
+    hilo_del_test = threading.get_ident()
 
     monkeypatch.setattr(ep.mqtt_compat, "make_client", fake_make_client)
 
