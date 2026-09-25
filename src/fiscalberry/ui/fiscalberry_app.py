@@ -64,6 +64,7 @@ class FiscalberryApp(App):
 
     status_message = StringProperty("Esperando conexión...")
     logs = StringProperty("")  # Logs en tiempo real para MainScreen
+    start_minimized = BooleanProperty(False)
 
     # Espacio que ocupan la barra de estado y la de navegación del sistema, en
     # píxeles. Desde Android 15 la app dibuja debajo de ellas (edge-to-edge), así
@@ -476,6 +477,18 @@ class FiscalberryApp(App):
                     Clock.schedule_once(lambda dt: self._set_windows_icon_delayed(icon_path), 1)
             except Exception as e:
                 logger.error(f"Error en on_start configurando icono: {e}")
+
+            if self.start_minimized and sys.platform == 'win32':
+                Clock.schedule_once(self._minimize_windows, 1.5)
+
+    def _minimize_windows(self, _dt):
+        try:
+            from kivy.core.window import Window
+
+            Window.minimize()
+            logger.info("Fiscalberry iniciado minimizado con Windows")
+        except Exception as e:
+            logger.warning(f"No se pudo minimizar la ventana al iniciar: {e}")
     
     def _check_and_request_battery_exemption(self):
         """

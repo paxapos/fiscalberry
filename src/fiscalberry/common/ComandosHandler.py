@@ -273,6 +273,7 @@ def runTraductor(jsonTicket, queue):
     driverName = driverName.lower()
 
     driverOps = dictSectionConf
+    driverOps.pop("_setup_id", None)
 
     if driverName == "Fiscalberry".lower():
         try:
