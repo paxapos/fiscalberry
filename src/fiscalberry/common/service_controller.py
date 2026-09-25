@@ -6,6 +6,7 @@ import socketio
 from fiscalberry.common.fiscalberry_sio import FiscalberrySio
 from fiscalberry.common.discover import send_discover_in_thread
 from fiscalberry.common.Configberry import Configberry
+from fiscalberry.common.service_status import write_status, clear_status
 import time
 import threading
 
@@ -24,7 +25,21 @@ class ServiceController:
     
     sio: FiscalberrySio = None
     _instance = None
-    
+
+    # Watchdog: segundos con MQTT caído (y SIO "conectado") antes de asumir
+    # conexión zombie y forzar la reconexión completa de SocketIO.
+    SIO_ZOMBIE_RABBIT_DOWN_SECONDS = 180
+    # Tope de reciclados seguidos sin que MQTT levante. Si reciclar el socket no
+    # resuelve, el problema está en el broker: seguir cortando SIO solo agrega
+    # carga al backend (y a escala de flota, justo cuando la infra ya está mal).
+    SIO_ZOMBIE_MAX_RECONNECTS = 3
+    # Cada cuánto publica el estado para que lo lea la UI (otro proceso).
+    STATUS_WRITE_INTERVAL_SECONDS = 5
+    # Cada cuánto deja un latido en el log. Sirve para saber, leyendo el log
+    # al otro día, hasta qué hora estuvo vivo el servicio y en qué estado.
+    HEARTBEAT_LOG_SECONDS = 300
+
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(ServiceController, cls).__new__(cls)
@@ -42,9 +57,10 @@ class ServiceController:
         Debe llamarse desde FiscalberryApp.__init__() en Android.
         """
         if cls._instance:
-            # Limpiar el evento de stop para permitir reinicio
-            if hasattr(cls._instance, '_stop_event'):
-                cls._instance._stop_event.clear()
+            # NO se limpia _stop_event acá a propósito: si quedara algún hilo
+            # vivo de la vuelta anterior, des-señalizar el stop hace que siga
+            # corriendo. start() lo limpia igual antes de arrancar, ya con los
+            # hilos viejos joineados.
             # Marcar como no inicializado para forzar re-init completo
             if hasattr(cls._instance, 'initialized'):
                 cls._instance.initialized = False
@@ -61,13 +77,24 @@ class ServiceController:
             pass
     
     def __init__(self):
-        if hasattr(self, 'initialized'):
+        # getattr (no hasattr): reset_singleton() setea initialized=False y el
+        # atributo sigue existiendo — con hasattr el re-init jamás ocurría.
+        if getattr(self, 'initialized', False):
             return
-            
+
         self.initialized = True
         self.socketio_thread = None
         self.discover_thread = None
-        
+        self._zombie_reconnects = 0
+        self.updater = None
+        # Lo que hay que cerrar antes de un os._exit() (ej. el ícono de la
+        # bandeja de la GUI): os._exit no corre atexit ni finalizadores.
+        self._exit_hooks = []
+        # Una actualización recién se da por buena cuando el servicio conecta.
+        # Ver updater/commit_guard.py: "el binario ejecuta" no es lo mismo que
+        # "el servicio funciona", y solo lo segundo evita la reversión.
+        self._update_confirmed = False
+
         try:
             self.configberry = Configberry()
             self._stop_event = threading.Event()
@@ -76,16 +103,22 @@ class ServiceController:
             sio_host = self.configberry.get("SERVIDOR", "sio_host")
             if not sio_host:
                 logger.error("sio_host no configurado")
-                os._exit(1)
+                # No matar el proceso (rompería la GUI sin feedback). Propagar para
+                # que el caller (GUI/CLI) lo maneje.
+                raise RuntimeError("sio_host no configurado en config.ini")
 
             uuidval = self.configberry.get("SERVIDOR", "uuid", fallback="")
-            
+
         except Exception as e:
             logger.error(f"Error ServiceController init: {e}")
+            # Permitir re-init en el próximo intento (el singleton quedó marcado initialized)
+            if hasattr(self, 'initialized'):
+                del self.initialized
             raise
         if not uuidval:
             logger.error("UUID no encontrado")
-            os._exit(1)
+            del self.initialized
+            raise RuntimeError("UUID no configurado en config.ini")
 
         logger.debug(f"ServiceController: {sio_host} uuid={uuidval[:8]}...")
         self.sio = FiscalberrySio(sio_host, uuidval)
@@ -109,10 +142,25 @@ class ServiceController:
         
         # Solicitar detención limpia (sin sys.exit)
         self._stop_services_only()
-        
+        self._run_exit_hooks()
+
         # Terminar inmediatamente después de la limpieza
         logger.info("Terminando aplicación...")
         os._exit(0)  # Terminar de forma inmediata y definitiva
+
+    def add_exit_hook(self, callback):
+        """Registra algo a cerrar antes de que el proceso termine con os._exit()."""
+        hooks = getattr(self, "_exit_hooks", None)
+        if hooks is None:
+            hooks = self._exit_hooks = []
+        hooks.append(callback)
+
+    def _run_exit_hooks(self):
+        for callback in getattr(self, "_exit_hooks", None) or []:
+            try:
+                callback()
+            except Exception as e:
+                logger.debug(f"Error en un hook de salida: {e}")
 
     def is_service_running(self):
         """Verifica si el servicio ya está en ejecución."""
@@ -141,6 +189,37 @@ class ServiceController:
         else:
             logger.debug("Iniciando el servicio...")
             return self.start()
+
+    def _sio_looks_zombie(self, rabbit_down_since):
+        """
+        True solo si conviene forzar la reconexión de SocketIO.
+
+        Exige TRES condiciones, porque cortar una conexión sana es caro (por el
+        canal SIO también llegan comandos de impresión, y cada reconexión hace
+        que el backend reenvíe start_rabbit → reinicio del consumer):
+
+        1. MQTT lleva caído más de SIO_ZOMBIE_RABBIT_DOWN_SECONDS.
+        2. SocketIO se cree CONECTADO. Si SIO ya sabe que está caído, su propio
+           ciclo de reconexión se encarga; el caso zombie es justamente que el
+           flag diga conectado sobre un socket muerto. Sin este chequeo, un
+           broker MQTT caído (mantenimiento, firewall del local) hacía que todos
+           los dispositivos reciclaran SIO cada 3 minutos contra el backend.
+        3. Comercio adoptado: antes de la adopción MQTT no corre legítimamente.
+
+        Además se corta tras SIO_ZOMBIE_MAX_RECONNECTS intentos seguidos sin
+        que MQTT levante: si reciclar no ayuda, el problema no es el socket.
+        """
+        if rabbit_down_since is None:
+            return False
+        if time.monotonic() - rabbit_down_since <= self.SIO_ZOMBIE_RABBIT_DOWN_SECONDS:
+            return False
+        if self._zombie_reconnects >= self.SIO_ZOMBIE_MAX_RECONNECTS:
+            return False
+        if not self.configberry.is_comercio_adoptado():
+            return False
+        if self.sio.isRabbitMQRunning():
+            return False
+        return self.sio.isSioConnected()
 
     def _run_sio_instance(self):
         """Ejecuta una instancia/conexión de FiscalberrySio y ESPERA a que termine."""
@@ -172,8 +251,20 @@ class ServiceController:
     def start(self):
         """Inicia y mantiene vivo el proceso de conexión SIO."""
         logger.debug("Iniciando Fiscalberry SIO Service Loop")
+
+        # Instancia única por máquina: dos fiscalberry con el mismo config.ini
+        # comparten client id MQTT y se patean mutuamente contra el broker.
+        # Re-entrante: si el entry point (cli/main) ya tomó el candado, pasa.
+        from fiscalberry.common.single_instance import acquire_single_instance_lock
+        if not acquire_single_instance_lock():
+            raise RuntimeError(
+                "Ya hay otro Fiscalberry corriendo en esta maquina; "
+                "detene el otro proceso antes de iniciar este."
+            )
+
         self._stop_event.clear()
         self.initial_retries = 0
+        self._zombie_reconnects = 0
 
         if self._stop_event.is_set():
             logger.debug("Stop requested during initial check.")
@@ -183,6 +274,9 @@ class ServiceController:
         self.discover_thread = send_discover_in_thread()
         self.discover_thread.start()
 
+        self._start_updater()
+        self._start_print_spooler()
+
         # Bucle principal de reconexión
         while not self._stop_event.is_set():
             self.socketio_thread = threading.Thread(
@@ -191,10 +285,81 @@ class ServiceController:
             )
             logger.info("* * * * * SocketIO thread start.")
             self.socketio_thread.start()
-            
+
+            # Watchdog anti-zombie: si SocketIO se cree conectado pero MQTT
+            # lleva demasiado tiempo caído, lo más probable es un socket
+            # half-open tras una suspensión (Doze en Android): el backend ve a
+            # este cliente desconectado y nunca reenvía start_rabbit, así que
+            # MQTT no se reconfigura jamás. Forzamos el cierre de SocketIO para
+            # reciclar el ciclo completo (cliente nuevo + start_rabbit fresco).
+            rabbit_down_since = None
+            last_status_write = 0.0
+            started_at = time.monotonic()
+            # 0.0 fuerza un latido inmediato: deja constancia de que el
+            # ciclo arrancó, sin esperar los primeros 5 minutos.
+            last_heartbeat = 0.0
             while self.socketio_thread.is_alive() and not self._stop_event.is_set():
                 self.socketio_thread.join(timeout=1.0)
-            
+
+                # Publicar estado para la UI: en Android corre en otro proceso y
+                # no puede ver estos objetos.
+                now = time.monotonic()
+                if now - last_status_write >= self.STATUS_WRITE_INTERVAL_SECONDS:
+                    last_status_write = now
+                    try:
+                        write_status(
+                            sio_connected=self.sio.isSioConnected(),
+                            mqtt_connected=self.sio.isRabbitMQRunning(),
+                        )
+                    except Exception as e:
+                        logger.debug(f"No se pudo publicar el estado: {e}")
+
+                # Primera conexión efectiva: el servicio anda de verdad, así que
+                # si veníamos de actualizar, la damos por buena y se borra el
+                # respaldo. Si nunca llegamos acá, al tercer arranque fallido el
+                # binario anterior vuelve solo.
+                if not self._update_confirmed and self.sio.isSioConnected():
+                    self._update_confirmed = True
+                    try:
+                        from fiscalberry.common.updater.service import on_services_ready
+                        on_services_ready()
+                    except Exception as e:
+                        logger.debug(f"No se pudo confirmar la actualización: {e}")
+
+                # Latido periódico al log. Un servicio sano e inactivo no escribe
+                # NADA, así que un log sin líneas no distingue "anduvo toda la
+                # noche" de "Android lo mató a los 10 minutos". Con esto, la
+                # última marca de tiempo dice hasta cuándo estuvo vivo, y en qué
+                # estado — que es justo lo que hace falta para diagnosticar el
+                # comportamiento con la pantalla apagada.
+                if now - last_heartbeat >= self.HEARTBEAT_LOG_SECONDS:
+                    last_heartbeat = now
+                    minutos = int((now - started_at) / 60)
+                    logger.info(
+                        f"Servicio vivo (hace {minutos} min) | SocketIO: "
+                        f"{'conectado' if self.sio.isSioConnected() else 'DESCONECTADO'} | "
+                        f"MQTT: {'conectado' if self.sio.isRabbitMQRunning() else 'DESCONECTADO'}"
+                    )
+
+                try:
+                    if self._sio_looks_zombie(rabbit_down_since):
+                        rabbit_down_since = None
+                        self._zombie_reconnects += 1
+                        logger.warning(
+                            f"MQTT caído hace más de {self.SIO_ZOMBIE_RABBIT_DOWN_SECONDS}s con "
+                            "SocketIO conectado: posible conexión zombie. Forzando reconexión "
+                            f"completa de SocketIO (intento {self._zombie_reconnects}/"
+                            f"{self.SIO_ZOMBIE_MAX_RECONNECTS})..."
+                        )
+                        self.sio.force_reconnect()
+                    elif self.sio.isRabbitMQRunning():
+                        rabbit_down_since = None
+                        self._zombie_reconnects = 0
+                    elif rabbit_down_since is None:
+                        rabbit_down_since = time.monotonic()
+                except Exception as e:
+                    logger.error(f"Error en watchdog SIO/MQTT: {e}")
+
             logger.debug("SocketIO thread finished or stop requested.")
 
             if self._stop_event.is_set():
@@ -202,9 +367,81 @@ class ServiceController:
                 break
 
             logger.warning("SIO thread terminated. Reconnecting in 5 seconds...")
-            time.sleep(5)
+            # Interrumpible: un stop() durante la espera corta al instante.
+            self._stop_event.wait(5.0)
 
         logger.debug("Fiscalberry SIO Service Loop finished.")
+
+    def _start_updater(self):
+        """
+        Arranca el hilo de auto-actualización.
+
+        Que falle no puede impedir que el servicio de impresión levante: un
+        problema en el updater dejaría al local sin imprimir, que es mucho peor
+        que quedarse en una versión vieja.
+        """
+        try:
+            from fiscalberry.common.updater.service import UpdaterService
+            self.updater = UpdaterService(
+                config=self.configberry,
+                shutdown_cb=self._shutdown_for_update,
+            )
+            self.updater.start()
+        except Exception as e:
+            logger.warning(f"No se pudo iniciar el auto-actualizador: {e}")
+
+    def _stop_updater(self):
+        if self.updater is not None:
+            try:
+                self.updater.stop()
+            except Exception as e:
+                logger.debug(f"Error deteniendo el actualizador: {e}")
+
+    def _start_print_spooler(self):
+        """
+        Fuerza la creación (lazy hasta ahora) del spooler durable al arrancar
+        el servicio, en vez de esperar al primer ticket que llegue por MQTT.
+
+        Dos motivos (issue #166):
+          1. Loguear al arrancar si quedó algo sin imprimir de la sesión
+             anterior — hoy eso solo pasaba dentro de `DurablePrintSpooler.
+             __init__`, que nadie disparaba hasta el primer print.
+          2. Que `_stop_print_spooler()` tenga algo que cerrar de forma
+             ordenada aunque el equipo nunca haya recibido un ticket.
+
+        Que falle no puede impedir que el resto del servicio levante: sin
+        spooler el camino de impresión igual funciona (falla recién al
+        encolar), y eso es preferible a que el servicio no arranque.
+        """
+        try:
+            from fiscalberry.common.ComandosHandler import get_print_spooler
+            get_print_spooler()
+        except Exception as e:
+            logger.warning(f"No se pudo iniciar el spooler durable: {e}")
+
+    def _stop_print_spooler(self):
+        """
+        Cierre ordenado del spooler durable (issue #165, propuesta 3).
+
+        Antes el proceso terminaba con `os._exit()` sin tocar el spooler en
+        absoluto. Con PRAGMA synchronous=FULL los jobs ya son durables sin
+        esto, pero cerrar bien evita dejar el WAL creciendo entre reinicios
+        (ej. cada auto-actualización).
+        """
+        try:
+            from fiscalberry.common.ComandosHandler import shutdown_print_spooler
+            shutdown_print_spooler()
+        except Exception as e:
+            logger.debug(f"Error deteniendo el spooler durable: {e}")
+
+    def _shutdown_for_update(self):
+        """Cierre ordenado para que arranque la versión nueva."""
+        logger.warning("Cerrando el servicio para tomar la versión actualizada.")
+        try:
+            self._stop_services_only()
+        finally:
+            self._run_exit_hooks()
+            os._exit(0)
 
     def _is_gui_mode(self):
         """Detecta si la aplicación está ejecutándose en modo GUI."""
@@ -233,7 +470,9 @@ class ServiceController:
         """Detiene el bucle de servicios específicamente para modo CLI."""
         logger.debug("Requesting SIO services stop (CLI mode)...")
         self._stop_event.set()
-        
+        self._stop_updater()
+        self._stop_print_spooler()
+
         self.sio.stop()
         
         if self.socketio_thread and self.socketio_thread.is_alive():
@@ -268,7 +507,9 @@ class ServiceController:
         """Detiene el bucle de servicios específicamente para modo GUI."""
         logger.debug("Requesting SIO services stop (GUI mode)...")
         self._stop_event.set()
-        
+        self._stop_updater()
+        self._stop_print_spooler()
+
         self.sio.stop()
         
         if self.socketio_thread and self.socketio_thread.is_alive():
@@ -302,7 +543,9 @@ class ServiceController:
         """Detiene solo los servicios sin llamar a sys.exit() - para uso interno."""
         logger.debug("Requesting SIO services stop...")
         self._stop_event.set()
-        
+        self._stop_updater()
+        self._stop_print_spooler()
+
         self.sio.stop()
         
         if self.socketio_thread and self.socketio_thread.is_alive():
@@ -326,8 +569,11 @@ class ServiceController:
         else:
             logger.debug("Discover thread already stopped or not started.")
                 
+        # No dejar un estado que diga "conectado" con el servicio ya detenido.
+        clear_status()
+
         logger.debug("SIO services stopped.")
-        
+
         return True
 
 

@@ -2,8 +2,9 @@ import threading
 import requests
 import json
 from fiscalberry.common.Configberry import Configberry
-from fiscalberry.common.fiscalberry_logger import getLogger 
+from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.printer_detector import listar_impresoras
+from fiscalberry.version import VERSION
 
 configberry = Configberry()
 
@@ -22,10 +23,37 @@ def send_discover():
         logger.error("No se ha configurado el uuid en el archivo de configuracion")
         return False
 
-    data = configberry.getJSON()
-    data["installed_printers"] = listar_impresoras()
+    # Detectar impresoras NO puede impedir que el dispositivo se registre.
+    #
+    # Esto corría fuera del try y era obligatorio para armar el payload: si
+    # `listar_impresoras()` fallaba —en Android escanea USB y Bluetooth, que
+    # dependen de permisos que el usuario todavía no otorgó— el discover ni se
+    # intentaba. Resultado: el dispositivo nunca quedaba registrado y la
+    # vinculación moría con "Paxaprinter no encontrada", sin ninguna pista de
+    # que el problema eran las impresoras.
+    #
+    # Además, en la primera vinculación NO HAY impresoras configuradas: es
+    # justo el momento en que esa lista viene vacía. Que sea un requisito para
+    # registrarse es al revés de como tiene que ser.
+    try:
+        data = configberry.getJSON()
+    except Exception as e:
+        logger.error(f"DISCOVER:: no se pudo leer la configuración ({e}); "
+                     "se envía el registro igual.")
+        data = {}
+
+    try:
+        data["installed_printers"] = listar_impresoras()
+    except Exception as e:
+        logger.error(f"DISCOVER:: falló la detección de impresoras ({e}); "
+                     "se registra el dispositivo sin lista de impresoras.")
+        data["installed_printers"] = []
+
     senddata = {
-        "uuid":  configberry.config.get("SERVIDOR", "uuid"),
+        "uuid": uuidval,
+        # Version del cliente: el backend la persiste y decide capacidades
+        # (ej. mandar trabajos 'printRaw' solo a clientes que los soportan).
+        "version": VERSION,
         "raw_data": json.dumps(data)
     }
 
@@ -33,7 +61,14 @@ def send_discover():
     host = configberry.config.get("SERVIDOR", "sio_host", fallback="")
     
     if not host:
-        logger.debug("No hay sio_host configurado, no tengo el host donde hacer el discover")
+        # ERROR, no debug: esta rama es la que hizo que el discover fallara en
+        # un celular sin dejar rastro. En el log solo se veía "Discover falló,
+        # reintentando", sin decir nunca que faltaba el sio_host, y el
+        # diagnóstico terminó necesitando los logs del servidor.
+        logger.error(
+            "DISCOVER:: no hay 'sio_host' en el config: no se sabe contra qué "
+            "servidor registrar el dispositivo. Sin esto la vinculación falla "
+            "con 'Paxaprinter no encontrada'.")
         return False
 
     discoverUrl = host + "/discover.json"
@@ -41,10 +76,18 @@ def send_discover():
 
     try:
         headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
-        ret = requests.post(discoverUrl, headers=headers, data=json.dumps(senddata), timeout=30)
+        verify = configberry.get_ssl_verify()
+        if verify is False:
+            # Silenciar el warning de urllib3 cuando se desactiva verificación a propósito (dev)
+            try:
+                import urllib3
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            except Exception:
+                pass
+        ret = requests.post(discoverUrl, headers=headers, data=json.dumps(senddata), timeout=30, verify=verify)
 
         if ret.status_code == requests.codes.ok:
-            logger.debug("DISCOVER:: Registro exitoso en el servidor")
+            logger.info("DISCOVER:: Registro exitoso en el servidor")
             return True
         else:
             logger.error(f"DISCOVER:: Error - Status: {ret.status_code}, Body: {ret.text[:200]}")

@@ -1,0 +1,37 @@
+DIAGNÓSTICO DEL ASISTENTE DE IMPRESORAS — Fiscalberry
+Generado: 2026-09-25 14:30:00
+Versión: 3.9.9 (windows-installer)
+Sistema: Windows 11 (build 22631), AMD64
+Permisos: administrador con UAC (puede aprobar el cartel de Windows)
+Comercio: Pizzeria Don Pepe (vinculado)
+Equipo: id …9c0d
+Servicio: conectado al servidor (MQTT: sí)
+
+== Dónde quedó
+Paso actual: direccion
+Mensaje: La impresora tiene la dirección de fábrica de Xprinter / Gprinter / Hasar HTP-250, que es de otra red (esta computadora está en 192.168.1.x). Fiscalberry todavía no puede cambiarla solo: seguí la guía para ponerla en la red del local.
+Guía ofrecida: https://doc.paxapos.com/user-guide/impresoras#que-hacer-si-algo-no-sale-bien-problemas-comunes
+
+== Dirección escrita
+192.168.123.100:9100 -> otra_subred_marca_conocida (TCP: sin_respuesta)
+IP de fábrica de: Xprinter, Gprinter, Hasar HTP-250
+Redes de la PC: 192.168.1.0/24
+
+== Redes de la PC
+- Ethernet (físico, conectado): 192.168.1.27/24; gateway 192.168.1.1; DHCP sí; placa A4:BB:6D:xx:xx:xx
+- VPN Oficina (VPN, conectado): 10.8.0.6/24; DHCP no; no se revisa
+
+== Escenario 5 (otra subred con IP temporal)
+No disponible en esta versión: no se usó IP temporal, ni dhcpstaticipcoexistence, ni el fallback de #178; no hay diario de red.
+
+== Impresoras configuradas
+- Caja: driver=Win32Raw, printer_name=EPSON TM-T20II Receipt, _setup_id=windows:EPSON TM-T20II Receipt
+
+== Recorrido
++0.0 s direccion · paso
++0.4 s direccion · diagnostico kind=otra_subred_marca_conocida host=192.168.123.100 port=9100 tcp=sin_respuesta local_networks=['192.168.1.0/24'] brands=['Xprinter', 'Gprinter', 'Hasar HTP-250'] is_gateway=False
++0.8 s direccion · paso mensaje=La impresora tiene la dirección de fábrica de Xprinter / Gprinter / Hasar HTP-250, que es de otra red (esta computadora está en 192.168.1.x). Fiscalberry todavía no puede cambiarla solo: seguí la guía para ponerla en la red del local. guia=otra_red_marca
+
+== Errores recientes del asistente
+2026-09-25 14:29:58 [app:1] WARNING PrinterTest: Prueba de 'Impresora' fallida (tapa_abierta): Authorization: Bearer [oculto]
+2026-09-25 14:29:59 [app:1] ERROR WindowsQueues: password=[oculto] no debería estar acá

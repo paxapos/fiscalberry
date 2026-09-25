@@ -1,0 +1,275 @@
+"""
+Bajar el artefacto a un lugar aparte, verificarlo y recién ahí desempaquetarlo.
+
+Nada de esto toca la instalación viva: todo pasa en un directorio de staging que
+se borra al terminar. Si algo falla a mitad de camino, el dispositivo sigue
+corriendo la versión que tenía.
+"""
+
+import hashlib
+import os
+import shutil
+import tarfile
+import tempfile
+import zipfile
+
+from fiscalberry.common.fiscalberry_logger import getLogger
+
+logger = getLogger("Updater")
+
+HTTP_TIMEOUT = 60
+CHUNK = 256 * 1024
+# Tope de tamaño para no llenar el disco de una Raspberry si el asset viene mal.
+MAX_ASSET_BYTES = 300 * 1024 * 1024
+
+
+class StagingError(Exception):
+    pass
+
+
+def staging_dir():
+    """Directorio de trabajo, al lado de los datos de la app (mismo filesystem)."""
+    import platformdirs
+    d = os.path.join(platformdirs.user_data_dir("fiscalberry"), "update-staging")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def cleanup(path):
+    """Borra el staging. Nunca lanza: limpiar no puede romper la actualización."""
+    try:
+        if path and os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
+    except Exception as e:
+        logger.debug(f"No se pudo limpiar el staging {path}: {e}")
+
+
+def download(url, destino, expected_sha256, session=None, expected_size=None):
+    """
+    Descarga `url` a `destino` verificando el hash mientras baja.
+
+    El hash se calcula sobre el stream, así que no hace falta releer el archivo
+    y un contenido cambiado se detecta aunque el tamaño coincida.
+    """
+    import requests
+
+    if not expected_sha256:
+        raise StagingError("no hay hash esperado: no se descarga sin poder verificar")
+
+    sess = session or requests
+    h = hashlib.sha256()
+    total = 0
+    try:
+        with sess.get(url, stream=True, timeout=HTTP_TIMEOUT) as resp:
+            resp.raise_for_status()
+            with open(destino, "wb") as fh:
+                for chunk in resp.iter_content(chunk_size=CHUNK):
+                    if not chunk:
+                        continue
+                    total += len(chunk)
+                    if total > MAX_ASSET_BYTES:
+                        raise StagingError(
+                            f"el asset supera el tope de {MAX_ASSET_BYTES} bytes")
+                    h.update(chunk)
+                    fh.write(chunk)
+    except StagingError:
+        raise
+    except Exception as e:
+        raise StagingError(f"falló la descarga: {e}")
+
+    if expected_size and total != expected_size:
+        raise StagingError(f"tamaño inesperado: {total} != {expected_size}")
+
+    obtenido = h.hexdigest()
+    if obtenido.lower() != expected_sha256.lower():
+        raise StagingError(
+            f"checksum no coincide (esperado {expected_sha256[:12]}…, "
+            f"obtenido {obtenido[:12]}…)")
+
+    logger.info("Descarga verificada: %s (%d bytes)", os.path.basename(destino), total)
+    return destino
+
+
+def _es_ruta_segura(nombre, base):
+    """
+    Evita el clásico agujero de los comprimidos: una entrada llamada
+    '../../etc/algo' que al extraer escribe fuera del directorio destino.
+    """
+    destino = os.path.realpath(os.path.join(base, nombre))
+    base_real = os.path.realpath(base)
+    return destino == base_real or destino.startswith(base_real + os.sep)
+
+
+def _link_seguro(miembro, base):
+    """
+    ¿Este link apunta a algún lugar de adentro del paquete?
+
+    Los paquetes onedir traen symlinks LEGÍTIMOS entre librerías compartidas
+    (por ejemplo `_internal/libpng16-xxxx.so.16.43.0`), así que rechazarlos a
+    todos dejaría al updater sin poder instalar nada en Linux.
+
+    Lo peligroso no es el link en sí, sino que apunte AFUERA: un `/etc/passwd`
+    o un `../../..` convierten la extracción en escritura arbitraria sobre el
+    sistema. Se permite lo que queda dentro del directorio de extracción.
+    """
+    objetivo = miembro.linkname or ""
+    if os.path.isabs(objetivo):
+        return False
+    # El destino de un link relativo se resuelve desde la carpeta que lo contiene.
+    relativo = os.path.join(os.path.dirname(miembro.name), objetivo)
+    return _es_ruta_segura(relativo, base)
+
+
+def extract(archivo, destino):
+    """Desempaqueta .tar.gz o .zip en `destino`, rechazando rutas que se escapen."""
+    os.makedirs(destino, exist_ok=True)
+
+    if archivo.endswith((".tar.gz", ".tgz")):
+        with tarfile.open(archivo, "r:gz") as tf:
+            for miembro in tf.getmembers():
+                if not _es_ruta_segura(miembro.name, destino):
+                    raise StagingError(f"ruta insegura en el paquete: {miembro.name}")
+                if (miembro.issym() or miembro.islnk()) and not _link_seguro(miembro, destino):
+                    raise StagingError(
+                        f"el paquete trae un link que apunta afuera: "
+                        f"{miembro.name} -> {miembro.linkname}")
+                if not (miembro.isfile() or miembro.isdir()
+                        or miembro.issym() or miembro.islnk()):
+                    # Nada de dispositivos, FIFOs ni sockets en un paquete de
+                    # actualización: si aparecen, algo esta muy mal.
+                    raise StagingError(
+                        f"tipo de entrada inesperado en el paquete: {miembro.name}")
+            tf.extractall(destino)
+    elif archivo.endswith(".zip"):
+        with zipfile.ZipFile(archivo) as zf:
+            for nombre in zf.namelist():
+                if not _es_ruta_segura(nombre, destino):
+                    raise StagingError(f"ruta insegura en el paquete: {nombre}")
+            zf.extractall(destino)
+    else:
+        raise StagingError(f"formato de paquete desconocido: {archivo}")
+    return destino
+
+
+def find_binary(raiz, nombre):
+    """
+    Ubica el ejecutable dentro de lo extraído.
+
+    Se busca en profundidad porque los builds son onedir: el ejecutable está
+    dentro de su carpeta, no en la raíz del comprimido.
+    """
+    directo = os.path.join(raiz, nombre)
+    if os.path.isfile(directo):
+        return directo
+    for base, _dirs, archivos in os.walk(raiz):
+        if nombre in archivos:
+            return os.path.join(base, nombre)
+    raise StagingError(f"no se encontró {nombre} dentro del paquete")
+
+
+def find_app_dir(raiz, nombre_dir, nombre_binario):
+    """
+    Ubica la carpeta de la app dentro de lo extraído.
+
+    Es la carpeta que el updater va a poner en lugar de la instalada, así que
+    se exige que contenga el ejecutable: si no lo tiene, el paquete no sirve y
+    es mejor abortar acá que dejar una instalación rota.
+    """
+    candidato = os.path.join(raiz, nombre_dir)
+    if os.path.isdir(candidato) and os.path.isfile(
+            os.path.join(candidato, nombre_binario)):
+        return candidato
+
+    # El comprimido podría traer otro nombre de carpeta: se ubica por el
+    # ejecutable y se toma su directorio.
+    for base, _dirs, archivos in os.walk(raiz):
+        if nombre_binario in archivos:
+            return base
+
+    raise StagingError(
+        f"el paquete no contiene una carpeta con {nombre_binario}")
+
+
+def new_staging(prefijo="fb-update-"):
+    """Crea un subdirectorio de staging limpio y devuelve su ruta."""
+    return tempfile.mkdtemp(prefix=prefijo, dir=staging_dir())
+
+
+# Los descargables se borran al terminar cada ciclo, salvo en Android: ahí el
+# APK tiene que sobrevivir a la función porque lo lee el instalador del sistema
+# después. Si el usuario no acepta la instalación, ese APK (~44 MB) queda
+# huérfano y el siguiente chequeo baja otro. Sin esta limpieza, un usuario que
+# posterga la actualización llena el teléfono en pocos días.
+MAX_STAGING_AGE_SECONDS = 24 * 3600
+
+
+def cleanup_stale(max_age_seconds=MAX_STAGING_AGE_SECONDS):
+    """Borra restos de ciclos anteriores. Devuelve cuántos directorios sacó."""
+    import time
+
+    raiz = staging_dir()
+    borrados = 0
+    ahora = time.time()
+    try:
+        entradas = os.listdir(raiz)
+    except OSError:
+        return 0
+
+    for nombre in entradas:
+        ruta = os.path.join(raiz, nombre)
+        try:
+            if not os.path.isdir(ruta):
+                continue
+            if ahora - os.path.getmtime(ruta) < max_age_seconds:
+                continue
+            shutil.rmtree(ruta, ignore_errors=True)
+            borrados += 1
+        except OSError:
+            continue
+
+    if borrados:
+        logger.info("Limpieza de staging: %d descarga(s) vieja(s) eliminada(s).",
+                    borrados)
+    return borrados
+
+
+# --------------------------------------------------------------------------
+# Instalador de la versión anterior (reversión en Windows, #187)
+# --------------------------------------------------------------------------
+# Vive aparte del staging: tiene que sobrevivir a los reinicios hasta que la
+# versión nueva confirme que arranca, y cleanup_stale() lo borraría a las 24 h.
+ROLLBACK_DIR_NAME = "rollback"
+ROLLBACK_SETUP_TEMPLATE = "FiscalberrySetup-{version}.exe"
+
+
+def rollback_dir():
+    import platformdirs
+    d = os.path.join(platformdirs.user_data_dir("fiscalberry"), ROLLBACK_DIR_NAME)
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def rollback_setup_path(version):
+    """Dónde se guarda el instalador de `version` para poder volver a ella."""
+    return os.path.join(rollback_dir(), ROLLBACK_SETUP_TEMPLATE.format(version=version))
+
+
+def prune_rollback(keep=None):
+    """
+    Borra los instaladores de reversión que ya no hacen falta (quedan de
+    reversiones anteriores; cada uno pesa decenas de MB). Nunca lanza.
+    """
+    try:
+        raiz = rollback_dir()
+        conservar = os.path.normcase(os.path.abspath(keep)) if keep else None
+        for nombre in os.listdir(raiz):
+            ruta = os.path.join(raiz, nombre)
+            if conservar and os.path.normcase(os.path.abspath(ruta)) == conservar:
+                continue
+            try:
+                if os.path.isfile(ruta):
+                    os.remove(ruta)
+            except OSError:
+                continue
+    except Exception as e:
+        logger.debug(f"No se pudieron limpiar los instaladores de reversión: {e}")

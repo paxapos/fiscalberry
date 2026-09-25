@@ -2,39 +2,47 @@
 
 ## Project Overview
 
-**Fiscalberry** is a multi-platform print server (Windows/Linux/Android) that translates JSON commands into printer-specific protocols via SocketIO/RabbitMQ. It supports fiscal printers (Hasar/Epson) and ESC/POS receipt printers.
+**Fiscalberry** is a multi-platform print server (Windows/Linux/Android) that translates JSON commands into printer-specific protocols via SocketIO/MQTT. It supports fiscal printers (Hasar/Epson) and ESC/POS receipt printers.
+
+> ⚠️ **BRANCH v3.0.x**: This branch uses **MQTT protocol** (paho-mqtt) exclusively.  
+> For AMQP (pika), use branch `v2.0.x`.
 
 **Key Architecture Pattern**: Fiscalberry acts as a 3-in-1 system:
+
 1. **Protocol**: Standardized JSON format for all printer commands
-2. **Server**: SocketIO for management + RabbitMQ for job queuing
+2. **Server**: SocketIO for management + **MQTT** for job queuing (RabbitMQ MQTT plugin)
 3. **Driver**: Translates JSON → printer-specific commands (Hasar, Epson, ESC/POS)
 
 ## Critical Architecture Components
 
 ### Entry Points (3 Modes)
+
 - **GUI Mode**: `src/fiscalberry/gui.py` → `FiscalberryApp` (Kivy-based, cross-platform)
 - **CLI Mode**: `src/fiscalberry/cli.py` → `ServiceController` (headless servers/Raspberry Pi)
 - **Android Service**: `src/fiscalberryservice/android.py` (background service)
 
 ### Core Services (Singleton Pattern)
+
 ```python
-ServiceController  # Orchestrates SocketIO + RabbitMQ lifecycle
+ServiceController  # Orchestrates SocketIO + MQTT lifecycle
 ├── FiscalberrySio  # SocketIO client for real-time management commands
-└── RabbitMQProcessHandler → RabbitMQConsumer  # Job queue processing
+└── RabbitMQProcessHandler → RabbitMQConsumer  # MQTT job queue processing
     └── ComandosHandler → Printer drivers
 ```
 
 **CRITICAL**: `ServiceController` is a singleton - always access via existing instance, never instantiate directly in new code.
 
 ### Configuration System (`Configberry`)
+
 - **File**: `config.ini` (INI format, environment-aware)
 - **Priority Logic**: Local `config.ini` > SocketIO-provided config > Defaults
 - **Adoption Flow**: App starts "unadopted" → SocketIO `start_rabbit` event → writes `[Paxaprinter]` section → becomes "adopted"
 - **Listener Pattern**: Components register with `configberry.add_listener()` to react to config changes
 
 ### Print Job Flow
+
 ```
-JSON Command (SocketIO/RabbitMQ) 
+JSON Command (SocketIO/RabbitMQ)
   → ComandosHandler.runTraductor()
   → Driver-specific translation (Hasar/Epson/ESC/POS)
   → Printer (Serial/USB/Network/Bluetooth)
@@ -44,17 +52,20 @@ JSON Command (SocketIO/RabbitMQ)
 ## Android-Specific Architecture
 
 ### Build System
+
 - **Tool**: Buildozer (Python-for-Android wrapper)
 - **Build Command**: `buildozer android debug` (15-20 min compile time)
 - **Custom Recipes**: `my_recipes/` for native dependencies (jpeg, kivy patches)
 - **APK Output**: `bin/fiscalberry-{version}-{arch}-debug.apk`
 
 ### Permission System (Android 12+ Critical)
+
 - **Runtime Permissions**: Bluetooth requires explicit user grant via `ActivityCompat.requestPermissions()`
 - **Code Location**: `src/fiscalberry/common/android_permissions.py`
 - **Pattern**: Always use dual-method approach (p4a + ActivityCompat fallback)
 
 ### Android Service Pattern
+
 ```python
 # Main app starts service in background
 from android import AndroidService  # OR jnius autoclass fallback
@@ -64,6 +75,7 @@ service.start(mActivity, '')  # Keeps RabbitMQ alive when app in background
 ## Printer Driver Architecture
 
 ### Driver Loading Pattern (ComandosHandler.py)
+
 ```python
 # Dynamic driver instantiation based on config.ini [IMPRESORA] section
 driver = config['driver'].lower()  # "hasar", "epson", "network", "bluetooth"
@@ -82,6 +94,7 @@ elif driver == "bluetooth":  # NEW: Android-specific
 **NEW PATTERN (Bluetooth)**: Uses Android BluetoothSocket via `jnius` → SPP UUID `00001101-...` → implements `escpos` interface.
 
 ### Printer Detection (Android)
+
 - **USB**: Via `pyusb` + Android USB OTG permissions
 - **Bluetooth**: Scans bonded devices + discovery via `BluetoothAdapter.getDefaultAdapter()`
 - **Code**: `src/fiscalberry/common/printer_detector.py`
@@ -89,6 +102,7 @@ elif driver == "bluetooth":  # NEW: Android-specific
 ## Developer Workflows
 
 ### Local Development Setup
+
 ```bash
 # Create virtual environments (2 separate envs for GUI vs CLI)
 python3 -m venv venv.cli
@@ -108,12 +122,14 @@ python src/fiscalberry/gui.py          # GUI mode
 ### Android Build & Deploy
 
 **⚙️ Prerequisitos:**
+
 - Python 3.8+ (preferiblemente 3.11 o 3.12)
 - Android SDK/NDK (se instala automáticamente por Buildozer)
 - Java JDK 11 o superior
 - Git, zip, unzip, autoconf, libtool, pkg-config
 
 **📦 Setup inicial (solo primera vez):**
+
 ```bash
 # 1. Crear entorno virtual dedicado para buildozer
 python3 -m venv venv.buildozer
@@ -150,6 +166,7 @@ buildozer android release           # Genera APK sin firmar
 ```
 
 **📱 Instalación en dispositivo:**
+
 ```bash
 # Conectar dispositivo por USB (activar "Depuración USB" en opciones de desarrollador)
 
@@ -165,6 +182,7 @@ adb shell am start -n com.paxapos.fiscalberry/.FiscalberryActivity
 ```
 
 **🐛 Debugging Android:**
+
 ```bash
 # Ver logs en tiempo real (Python + Android)
 adb logcat -s python:* MainActivity:* SDL:*
@@ -188,22 +206,24 @@ adb shell run-as com.paxapos.fiscalberry cp /sdcard/config.ini files/app/config.
 
 **⚠️ Troubleshooting común:**
 
-| Problema | Solución |
-|----------|----------|
-| `Command failed: ./gradlew...` | Limpiar build: `buildozer android clean && rm -rf .buildozer` |
-| `Recipe not found: kivy` | Verificar `buildozer.spec`: `requirements = kivy==2.3.0,...` |
-| `Permission denied` en build | `chmod +x .buildozer/android/platform/build-*/build/...` |
-| APK no inicia | Ver logcat: `adb logcat -s python:*` buscar errores de import |
-| `AAPT out of memory` | En `buildozer.spec`: `android.gradle_dependencies = ...` reducir |
-| Cambios no reflejados | Forzar rebuild: `buildozer android clean` antes de compilar |
+| Problema                       | Solución                                                         |
+| ------------------------------ | ---------------------------------------------------------------- |
+| `Command failed: ./gradlew...` | Limpiar build: `buildozer android clean && rm -rf .buildozer`    |
+| `Recipe not found: kivy`       | Verificar `buildozer.spec`: `requirements = kivy==2.3.0,...`     |
+| `Permission denied` en build   | `chmod +x .buildozer/android/platform/build-*/build/...`         |
+| APK no inicia                  | Ver logcat: `adb logcat -s python:*` buscar errores de import    |
+| `AAPT out of memory`           | En `buildozer.spec`: `android.gradle_dependencies = ...` reducir |
+| Cambios no reflejados          | Forzar rebuild: `buildozer android clean` antes de compilar      |
 
 **📊 Tiempos de compilación esperados:**
+
 - **Primera compilación**: 15-25 minutos (descarga SDK/NDK/dependencias)
 - **Build limpio**: 8-15 minutos (tiene SDK pero recompila todo)
 - **Build incremental**: 2-5 minutos (solo cambios en código Python)
 - **Tamaño APK final**: ~40-45 MB (arquitecturas arm64-v8a + armeabi-v7a)
 
 ### Testing Printers Without Hardware
+
 ```bash
 # Network simulator (TCP port 9100)
 python3 bluetooth_simulator_simple.py  # Simulates ESC/POS printer
@@ -219,12 +239,14 @@ python3 bluetooth_simulator_simple.py  # Simulates ESC/POS printer
 ## Project-Specific Conventions
 
 ### Logging System
+
 - **Centralized**: `fiscalberry_logger.py` returns configured loggers
 - **Usage**: `logger = getLogger("Component.SubComponent")`
 - **Output**: `logs/fiscalberry.log` + console (environment-aware)
 - **Android**: Logs to `/data/data/com.paxapos.fiscalberry/files/app/logs/`
 
 ### Error Handling Pattern
+
 ```python
 # ALWAYS publish errors to RabbitMQ for monitoring
 from fiscalberry.common.rabbitmq.error_publisher import publish_error
@@ -238,6 +260,7 @@ except Exception as e:
 ```
 
 ### JSON Protocol Pattern
+
 ```json
 // Command format (SocketIO/RabbitMQ)
 {
@@ -253,12 +276,14 @@ except Exception as e:
 ```
 
 ### Threading Model
+
 - **SocketIO**: Daemon thread via `FiscalberrySio.start()`
 - **RabbitMQ**: Process in separate thread via `RabbitMQProcessHandler`
 - **Print Queue**: Worker pool (3 workers) in `ComandosHandler.process_print_jobs()`
 - **CRITICAL**: All service threads must be daemon=True to allow clean shutdown
 
 ### Kivy UI Pattern
+
 - **Screens**: `ScreenManager` with `adopt`, `main`, `logs` screens
 - **State Management**: Properties (`StringProperty`, `BooleanProperty`) auto-update UI
 - **Config Sync**: `_on_config_change()` updates UI when config.ini changes
@@ -298,12 +323,14 @@ except Exception as e:
 **Purpose**: Web dashboard for monitoring errors across multiple Fiscalberry tenants
 
 ### Architecture
+
 - **Framework**: FastAPI + WebSocket
 - **Auth**: JWT-based authentication
 - **Error Source**: Consumes from RabbitMQ queues: `{tenant}_errors`
 - **Real-time**: WebSocket notifications for live error updates
 
 ### Quick Start
+
 ```bash
 # Update panel to latest version
 ./scripts/sync-developer-panel.sh
@@ -320,10 +347,11 @@ python main.py
 ```
 
 ### Context & Integration
+
 - **Message Format**: See `developer-panel/.fiscalberry-context.json`
 - **Error Publisher**: `src/fiscalberry/common/rabbitmq/error_publisher.py`
 - **Error Types**: COMMAND_EXECUTION_ERROR, TRANSLATOR_ERROR, PROCESSING_ERROR, JSON_PARSE_ERROR, PRINTER_ERROR, etc.
-- **Documentation**: 
+- **Documentation**:
   - `MIGRACION_DEVELOPER_PANEL.md` - Migration guide
   - `DEVELOPER_PANEL_WORKFLOW.md` - Development workflows
   - `DEVELOPER_PANEL_DOCS.md` - Error handling system docs
@@ -331,6 +359,7 @@ python main.py
 ### Development Workflows
 
 **Scenario 1: Panel-only changes**
+
 ```bash
 cd developer-panel
 git checkout -b feature/new-view
@@ -341,6 +370,7 @@ git push origin feature/new-view
 ```
 
 **Scenario 2: Fiscalberry changes affecting panel**
+
 ```bash
 # 1. Update error_publisher.py with new error type
 # 2. Document in DEVELOPER_PANEL_DOCS.md
@@ -350,12 +380,14 @@ cd developer-panel && git checkout -b feature/support-new-error
 ```
 
 **Scenario 3: Testing together**
+
 ```bash
 ./scripts/test-developer-panel-integration.sh
 # This starts everything: RabbitMQ + Panel + Fiscalberry + test errors
 ```
 
 ### Key Notes
+
 - **Submodule updates**: Always run `git submodule update --remote` after pulling Fiscalberry
 - **Independent versioning**: Panel has its own release cycle
 - **Standalone capable**: Can run without Fiscalberry for monitoring existing deployments
@@ -363,7 +395,45 @@ cd developer-panel && git checkout -b feature/support-new-error
 
 ## External Dependencies
 
-- **RabbitMQ**: Message broker for job queue (host/port/vhost/queue in config)
+- **RabbitMQ + MQTT Plugin**: Message broker for job queue (host/port in config, default port 1883)
 - **SocketIO Server**: Real-time bidirectional communication (adoption, management)
 - **Printer Protocols**: Hasar/Epson fiscal, ESC/POS (via `python-escpos`)
 - **Android APIs**: USB Host, Bluetooth (via `jnius`), Foreground Service
+
+## MQTT Configuration (v3.0.x)
+
+### RabbitMQ MQTT Plugin Setup
+
+```bash
+# Enable MQTT plugin on RabbitMQ server
+rabbitmq-plugins enable rabbitmq_mqtt
+```
+
+### config.ini
+
+```ini
+[RabbitMq]
+host = your-server.com
+port = 1883              # MQTT port (NOT 5672 AMQP)
+user = fiscalberry
+password = your_password
+
+[SERVIDOR]
+uuid = 12345678-1234-1234-1234-123456789abc  # Topic for this device
+```
+
+### Key MQTT Differences from AMQP (v2.0.x)
+
+| Aspect  | v2.0.x (AMQP)      | v3.0.x (MQTT)                    |
+| ------- | ------------------ | -------------------------------- |
+| Library | pika               | paho-mqtt                        |
+| Port    | 5672               | 1883                             |
+| Concept | Exchange + Queue   | Topic                            |
+| ACK     | Manual (basic_ack) | Automatic (QoS 1)                |
+| Session | N/A                | Persistent (clean_session=False) |
+
+### MQTT Key Features
+
+- **Persistent Session** (`clean_session=False`): RabbitMQ stores pending messages if client disconnects
+- **QoS 1**: Automatic ACK when `on_message` callback completes without errors
+- **Topic = UUID**: Each printer subscribes to its own UUID topic

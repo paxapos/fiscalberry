@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "python-best-practices": {
+      "source": "0xbigboss/claude-code",
+      "sourceType": "github",
+      "computedHash": "908129d87bc8e2e32492154ef38c319a846d8e6ad12e1ed2476d25a67b74677b"
+    },
+    "python-expert": {
+      "source": "shubhamsaboo/awesome-llm-apps",
+      "sourceType": "github",
+      "computedHash": "7ddc44800aef275b3252ffa65369e214ef2a56603842e3f6721363816eb6b45f"
+    }
+  }
+}

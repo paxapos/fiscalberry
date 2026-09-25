@@ -1,0 +1,53 @@
+DIAGNÓSTICO DEL ASISTENTE DE IMPRESORAS — Fiscalberry
+Generado: 2026-09-25 14:30:00
+Versión: 3.9.9 (windows-installer)
+Sistema: Windows 11 (build 22631), AMD64
+Permisos: administrador con UAC (puede aprobar el cartel de Windows)
+Comercio: Pizzeria Don Pepe (vinculado)
+Equipo: id …9c0d
+Servicio: conectado al servidor (MQTT: sí)
+
+== Dónde quedó
+Paso actual: problema
+Mensaje: Windows recibió el ticket pero la impresora no lo tomó. Revisá que esté encendida y conectada. La prueba se canceló para que no salga sola más tarde.
+Guía ofrecida: https://doc.paxapos.com/user-guide/troubleshooting-semantico#error-impresora-comandera
+
+== Última prueba
+Impresora: Cocina TCP (Win32Raw)
+Identidad: windows:Cocina TCP
+Conexión: Cola de Windows (IP_192.168.1.70)
+Resultado técnico: falló (trabajo_sin_imprimir)
+Estado DLE EOT: sin respuesta (la impresora no informa su estado)
+Trabajo de prueba borrado de la cola: sí
+Papel confirmado: no
+
+== Búsqueda
+Duración: 2.6 s; encontradas: 1 (0 ocultas)
+Red: 0 direcciones revisadas en 0.0 s
+USB: 0 por usbprint, 0 puertos COM, 0 incompatibles
+Colas de Windows: 1 en 1.2 s; venció: no; solo locales: no
+Impresoras:
+- [Win32Raw] Cocina TCP — Driver: Generic / Text Only; Puerto: IP_192.168.1.70
+
+== Redes de la PC
+- Ethernet (físico, conectado): 192.168.1.27/24; gateway 192.168.1.1; DHCP sí; placa A4:BB:6D:xx:xx:xx
+- VPN Oficina (VPN, conectado): 10.8.0.6/24; DHCP no; no se revisa
+
+== Escenario 5 (otra subred con IP temporal)
+No disponible en esta versión: no se usó IP temporal, ni dhcpstaticipcoexistence, ni el fallback de #178; no hay diario de red.
+
+== Impresoras configuradas
+- Caja: driver=Win32Raw, printer_name=EPSON TM-T20II Receipt, _setup_id=windows:EPSON TM-T20II Receipt
+
+== Recorrido
++0.0 s resultados · paso
++0.4 s resultados · busqueda encontradas=1 ocultas=0 segundos=2.6
++0.8 s resultados · paso
++1.2 s resultados · eligio clave=windows:cocina tcp transporte=Win32Raw
++1.6 s probando · prueba transporte=Win32Raw identidad=windows:Cocina TCP
++2.0 s probando · resultado tecnico=False problema=trabajo_sin_imprimir cancelado=True
++2.4 s problema · paso mensaje=Windows recibió el ticket pero la impresora no lo tomó. Revisá que esté encendida y conectada. La prueba se canceló para que no salga sola más tarde. guia=no_imprime
+
+== Errores recientes del asistente
+2026-09-25 14:29:58 [app:1] WARNING PrinterTest: Prueba de 'Impresora' fallida (tapa_abierta): Authorization: Bearer [oculto]
+2026-09-25 14:29:59 [app:1] ERROR WindowsQueues: password=[oculto] no debería estar acá
