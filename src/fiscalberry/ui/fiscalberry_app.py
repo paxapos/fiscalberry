@@ -1,3 +1,10 @@
+# Escape NO cierra la app. Por defecto Kivy cierra la ventana con Escape
+# (exit_on_escape=1), y en un local la tecla se toca todo el tiempo para cerrar
+# diálogos del punto de venta: si la ventana de Fiscalberry quedó al frente, se
+# dejaban de imprimir comandas por un Escape. Va antes de importar la App.
+from kivy.config import Config
+Config.set("kivy", "exit_on_escape", "0")
+
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager
 from fiscalberry.ui.main_screen import MainScreen
@@ -1140,7 +1147,7 @@ class FiscalberryApp(App):
         """Configurar manejadores de señales para cierre limpio."""
         try:
             def signal_handler(signum, frame):
-                print(f"Señal {signum} recibida, saliendo inmediatamente...")
+                logger.warning(f"Señal {signum} recibida: se cierra Fiscalberry.")
                 os._exit(0)
 
             # Registrar manejadores para las señales comunes
@@ -1153,9 +1160,25 @@ class FiscalberryApp(App):
         except Exception as e:
             print(f"Error configurando manejadores de señales: {e}")
     
-    def _on_window_close(self, *args):
-        """Maneja el cierre de la ventana de forma inmediata"""
-        print("Ventana cerrada por el usuario, saliendo...")
+    def _on_window_close(self, *args, **kwargs):
+        """
+        Maneja el pedido de cierre de la ventana.
+
+        Kivy manda `source="keyboard"` cuando el pedido viene de Escape; sin
+        `**kwargs` eso era un TypeError que tumbaba la app entera.
+
+        El cierre queda en el log a propósito: `os._exit()` no deja rastro, y un
+        cierre hecho por alguien (X, Alt+F4, "Finalizar tarea") era indistinguible
+        de un crash al mirar el registro.
+        """
+        if kwargs.get("source") == "keyboard":
+            # Con exit_on_escape desactivado no debería llegar acá. Si llega, un
+            # servidor de impresión no se cierra por una tecla.
+            logger.info("Se ignoró un pedido de cierre por teclado (Escape).")
+            return True
+        logger.warning(
+            "Ventana cerrada por el usuario (X, Alt+F4 o Finalizar tarea). "
+            "No se imprimen comandas hasta volver a abrir Fiscalberry.")
         self._immediate_force_exit_standalone()
         return True
 

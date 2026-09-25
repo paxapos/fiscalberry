@@ -4,6 +4,49 @@ import sys
 
 logger = getLogger("GUI")
 
+# Se mantiene abierto mientras viva el proceso: faulthandler escribe ahí
+# directamente desde C, justo cuando Python ya no puede loguear nada.
+_crash_file = None
+
+
+def _registrar_crashes():
+    """
+    Deja rastro de lo que hoy termina el proceso sin dejar nada en el log.
+
+    - Un crash nativo (access violation en un driver o en una DLL) no pasa por
+      Python: sin faulthandler, el log simplemente se corta. Con esto queda en
+      logs/crash.log la pila de cada hilo en el momento del crash.
+    - Una excepción no manejada en un hilo se imprime a stderr, que en el .exe
+      sin consola no existe: se pierde. Se manda al log.
+    """
+    global _crash_file
+    try:
+        import faulthandler
+        import os
+        from fiscalberry.common.fiscalberry_logger import getServiceLogFilePath
+
+        ruta_log = getServiceLogFilePath()
+        if ruta_log:
+            ruta = os.path.join(os.path.dirname(ruta_log), "crash.log")
+            _crash_file = open(ruta, "a", encoding="utf-8")
+            faulthandler.enable(file=_crash_file, all_threads=True)
+    except Exception as e:
+        logger.warning(f"No se pudo activar el registro de crashes: {e}")
+
+    try:
+        import threading
+
+        def _excepcion_en_hilo(args):
+            if issubclass(args.exc_type, SystemExit):
+                return
+            nombre = args.thread.name if args.thread else "?"
+            logger.error(f"Excepción no manejada en el hilo {nombre}",
+                         exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
+
+        threading.excepthook = _excepcion_en_hilo
+    except Exception as e:
+        logger.warning(f"No se pudo registrar las excepciones de hilos: {e}")
+
 def main():
     """Función principal que ejecuta la interfaz gráfica de Fiscalberry."""
     # Antes que nada: --selftest / --apply-update / --version no son arranques
@@ -19,6 +62,7 @@ def main():
     # ui/fiscalberry_app.py: es el mismo proceso, y como setup_file_logging es
     # idempotente, la primera llamada es la que fija el rol del archivo.
     setup_file_logging(role="app")
+    _registrar_crashes()
 
     logger.info("=== Iniciando Fiscalberry GUI ===")
     logger.debug(f"Versión de Python: {sys.version}")
