@@ -14,6 +14,7 @@ from fiscalberry.common.printer_error_detector import PrinterErrorDetector, anal
 from escpos import printer
 from queue import Queue
 import traceback
+from collections import namedtuple
 
 configberry = Configberry()
 
@@ -227,6 +228,156 @@ def _ensure_legacy_workers_started():
 
 
 
+BuiltDriver = namedtuple("BuiltDriver", "driver name columns options")
+
+_TRUE_VALUES = ("true", "1", "yes", "on", "si", "sí")
+
+
+def _as_bool(value):
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in _TRUE_VALUES
+
+
+def _as_number(value, kind):
+    """int/float desde el texto del config.ini; lanza DriverError si no es número."""
+    try:
+        return kind(value)
+    except (TypeError, ValueError):
+        raise DriverError(f"Valor numérico inválido en la configuración: {value!r}")
+
+
+def build_driver(driver_config):
+    """
+    Construye el driver python-escpos para una configuración de impresora:
+    una sección del config.ini o un candidato del asistente (#172).
+
+    No lee ni escribe el config.ini, no publica errores y no abre la conexión
+    (python-escpos la abre al primer uso). Trabaja sobre una COPIA: el dict
+    recibido queda intacto.
+
+    Devuelve BuiltDriver(driver, name, columns, options). Lanza DriverError si
+    el driver no existe, no está disponible en esta plataforma o no se puede
+    crear con esos parámetros.
+    """
+    # Las claves con "_" son metadata del asistente (_setup_id, _usb_vid...),
+    # no parámetros del driver (ver printer_setup.py).
+    driverOps = {k: v for k, v in dict(driver_config).items() if not str(k).startswith("_")}
+    driverName = str(driverOps.pop("driver", "Dummy")).lower()
+    driver_class = None
+
+    if driverName == "Win32Raw".lower():
+        driverName = "Win32Raw"
+        if not printer.Win32Raw.is_usable():
+            raise DriverError(f"Driver {driverName} no disponible")
+
+    elif driverName == "Usb".lower():
+        driverName = "Usb"
+
+        # convertir de string eJ: 0x82 a int
+        if 'out_ep' in driverOps:
+            driverOps['out_ep'] = int(driverOps['out_ep'], 16)
+
+        if 'in_ep' in driverOps:
+            driverOps['in_ep'] = int(driverOps['in_ep'], 16)
+
+        driverOps['idProduct'] = int(driverOps['idProduct'], 16)
+        driverOps['idVendor'] = int(driverOps['idVendor'], 16)
+        if 'timeout' in driverOps:
+            driverOps['timeout'] = _as_number(driverOps['timeout'], int)
+
+    elif driverName == "Network".lower():
+        # printer.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
+        if 'port' in driverOps:
+            driverOps['port'] = _as_number(driverOps['port'], int)
+        # Del config.ini llega como texto: socket.settimeout("10") revienta.
+        if 'timeout' in driverOps:
+            driverOps['timeout'] = _as_number(driverOps['timeout'], float)
+        driverName = "Network"
+
+    elif driverName == "Serial".lower():
+        # printer.Serial(devfile='', baudrate=9600, bytesize=8, timeout=1, parity=None, stopbits=None, xonxoff=False, dsrdtr=True, *args, **kwargs)
+        # pyserial no acepta texto en bytesize/timeout/stopbits: del config.ini
+        # llegaba "8" y el puerto no abría.
+        for clave in ('baudrate', 'bytesize'):
+            if clave in driverOps:
+                driverOps[clave] = _as_number(driverOps[clave], int)
+        if 'timeout' in driverOps:
+            driverOps['timeout'] = _as_number(driverOps['timeout'], float)
+        if 'stopbits' in driverOps:
+            bits = _as_number(driverOps['stopbits'], float)
+            driverOps['stopbits'] = int(bits) if bits.is_integer() else bits
+        for clave in ('xonxoff', 'dsrdtr'):
+            if clave in driverOps:
+                driverOps[clave] = _as_bool(driverOps[clave])
+        driverName = "Serial"
+
+    elif driverName == "UsbPrint".lower():
+        # USB directo por usbprint.sys (escenario 2 de #170): el driver llega
+        # con #183. Hasta entonces, un error claro en vez de "driver inválido".
+        raise DriverError("El driver UsbPrint todavía no está disponible en esta versión")
+
+    elif driverName == "Bluetooth".lower():
+        # Bluetooth printer for Android
+        # BluetoothPrinter(mac_address='XX:XX:XX:XX:XX:XX', timeout=10)
+
+        # Validar MAC address
+        if 'mac_address' not in driverOps and 'macAddress' not in driverOps:
+            raise DriverError("MAC address requerida para Bluetooth: use 'mac_address' en config")
+
+        # Normalizar nombre de parámetro
+        if 'macAddress' in driverOps:
+            driverOps['mac_address'] = driverOps.pop('macAddress')
+
+        # Importar driver Bluetooth custom
+        from fiscalberry.common.bluetooth_printer import BluetoothPrinter
+        driver_class = BluetoothPrinter
+        driverName = "Bluetooth"
+
+    elif driverName == "File".lower():
+        # (devfile='', auto_flush=True
+        # printer.File(devfile='', auto_flush=True, *args, **kwargs)[source]
+        driverName = "File"
+
+    elif driverName == "Dummy".lower():
+        # printer.Dummy(*args, **kwargs)[source]
+        driverName = "Dummy"
+
+    elif driverName == "Cups".lower():
+        # printer.CupsPrinter(printer_name='', *args, **kwargs)[source]
+        driverName = "CupsPrinter"
+
+    elif driverName == "LP".lower():
+        # printer.LP(printer_name='', *args, **kwargs)[source]
+        driverName = "LP"
+
+    else:
+        raise DriverError(f"Invalid driver: {driverName}")
+
+    # Los drivers custom (ej: Bluetooth) ya tienen driver_class asignado
+    if driver_class is None:
+        try:
+            driver_class = getattr(printer, driverName)
+            if not callable(driver_class):
+                raise DriverError(f"Driver {driverName} is not callable")
+        except AttributeError:
+            raise DriverError(f"Driver {driverName} not found in printer module")
+        except DriverError:
+            raise
+        except Exception as e:
+            raise DriverError(f"Error loading driver {driverName}: {e}")
+
+    # Extraer columns antes de crear el driver (no es un parámetro del driver)
+    columns = driverOps.pop('columns', None)
+
+    try:
+        driver = driver_class(**driverOps)
+    except Exception as e:
+        raise DriverError(f"Error creando driver {driverName}: {e}")
+
+    return BuiltDriver(driver, driverName, columns, driverOps)
+
+
 def runTraductor(jsonTicket, queue):
     printerName = jsonTicket.pop('printerName')
     # jobId es metadata de dedup del spooler, no un comando: si quedara en el
@@ -269,14 +420,12 @@ def runTraductor(jsonTicket, queue):
         return {"error": f"Error de configuración: {str(e)}"}
 
 
-    driverName = dictSectionConf.pop("driver", "Dummy")
-    driverName = driverName.lower()
-
-    # Las claves con "_" son metadata del asistente (_setup_id, _usb_vid...),
-    # no parámetros del driver (ver printer_setup.py).
-    driverOps = {k: v for k, v in dictSectionConf.items() if not str(k).startswith("_")}
+    driverName = str(dictSectionConf.get("driver", "Dummy")).lower()
 
     if driverName == "Fiscalberry".lower():
+        # Las claves con "_" son metadata del asistente (ver printer_setup.py).
+        driverOps = {k: v for k, v in dictSectionConf.items()
+                     if not str(k).startswith("_") and k != "driver"}
         try:
             comando = FiscalberryComandos()
             host = driverOps.get('host', 'localhost')
@@ -288,103 +437,7 @@ def runTraductor(jsonTicket, queue):
             logger.error(f"Error FiscalberryComandos: {e}")
             return queue.put({"error": f"Error en FiscalberryComandos: {str(e)}"})
 
-    if driverName == "Win32Raw".lower():
-        driverName = "Win32Raw"
-        driver = printer.Win32Raw
-
-        if not driver.is_usable():
-            raise DriverError(f"Driver {driverName} no disponible")
-
-
-    elif driverName == "Usb".lower():
-        driverName = "Usb"
-
-        # convertir de string eJ: 0x82 a int
-        if 'out_ep' in driverOps:
-            driverOps['out_ep'] = int(driverOps['out_ep'], 16)
-
-        if 'in_ep' in driverOps:
-            driverOps['in_ep'] = int(driverOps['in_ep'], 16)
-
-        driverOps['idProduct'] = int(driverOps['idProduct'], 16)
-        driverOps['idVendor'] = int(driverOps['idVendor'], 16)
-
-
-    elif driverName == "Network".lower():
-        # printer.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
-        if 'port' in driverOps:
-            driverOps['port'] = int(driverOps['port'])
-        # Del config.ini llega como texto: socket.settimeout("10") revienta.
-        if 'timeout' in driverOps:
-            driverOps['timeout'] = float(driverOps['timeout'])
-        driverName = "Network"
-
-    elif driverName == "Serial".lower():
-        # printer.Serial(devfile='', baudrate=9600, bytesize=8, timeout=1, parity=None, stopbits=None, xonxoff=False, dsrdtr=True, *args, **kwargs)
-        driverName = "Serial"
-
-    elif driverName == "Bluetooth".lower():
-        # Bluetooth printer for Android
-        # BluetoothPrinter(mac_address='XX:XX:XX:XX:XX:XX', timeout=10)
-
-        
-        # Validar MAC address
-        if 'mac_address' not in driverOps and 'macAddress' not in driverOps:
-            raise DriverError("MAC address requerida para Bluetooth: use 'mac_address' en config")
-        
-        # Normalizar nombre de parámetro
-        if 'macAddress' in driverOps:
-            driverOps['mac_address'] = driverOps.pop('macAddress')
-        
-        # Importar driver Bluetooth custom
-        from fiscalberry.common.bluetooth_printer import BluetoothPrinter
-        driver_class = BluetoothPrinter
-        driverName = "Bluetooth"
-
-    elif driverName == "File".lower():
-        # (devfile='', auto_flush=True
-        # printer.File(devfile='', auto_flush=True, *args, **kwargs)[source]
-        driverName = "File"
-
-    elif driverName == "Dummy".lower():
-        # printer.Dummy(*args, **kwargs)[source]
-        driverName = "Dummy"
-
-
-    elif driverName == "Cups".lower():
-        # printer.CupsPrinter(printer_name='', *args, **kwargs)[source]
-        driverName = "CupsPrinter"
-
-
-    elif driverName == "LP".lower():
-        # printer.LP(printer_name='', *args, **kwargs)[source]
-        driverName = "LP"
-
-
-    else:
-        raise DriverError(f"Invalid driver: {driver}")
-    
-    # Manejar drivers custom (ej: Bluetooth) que ya tienen driver_class asignado
-    if driverName == "Bluetooth":
-        # Ya está configurado arriba con BluetoothPrinter
-        pass
-    else:
-        try:
-            driver_class = getattr(printer, driverName)
-            if not callable(driver_class):
-                raise DriverError(f"Driver {driverName} is not callable")
-        except AttributeError:
-            raise DriverError(f"Driver {driverName} not found in printer module")
-        except Exception as e:
-            raise DriverError(f"Error loading driver {driverName}: {e}")
-
-    # Extraer columns antes de crear el driver (no es un parámetro del driver)
-    columns = driverOps.pop('columns', None)
-    
-    try:
-        driver = driver_class(**driverOps)
-    except Exception as e:
-        raise DriverError(f"Error creando driver {driverName}: {e}")
+    driver, driverName, columns, driverOps = build_driver(dictSectionConf)
 
     # ---- Modo RAW: el backend manda bytes ESC/POS ya renderizados ----
     # Permite cambiar cualquier formato (arqueo, comanda, etc.) deployando solo el

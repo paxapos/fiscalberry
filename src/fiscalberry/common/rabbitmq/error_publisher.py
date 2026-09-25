@@ -10,6 +10,7 @@ import queue
 import threading
 import time
 import traceback
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Optional, Dict, Any
 import paho.mqtt.client as mqtt
@@ -310,6 +311,31 @@ def get_error_publisher() -> ErrorPublisher:
         return _error_publisher_instance
 
 
+_silenciado = threading.local()
+
+
+@contextmanager
+def suppress_error_publishing():
+    """
+    Mientras dure, publish_error no publica nada desde ESTE hilo.
+
+    Lo usa el ticket de prueba del asistente (#172): una impresora que todavía
+    no está configurada y falla una prueba no es un error de producción, y no
+    tiene que aparecer en el topic de errores del comercio. Es por hilo a
+    propósito: el servicio sigue publicando sus errores reales mientras tanto.
+    """
+    previo = getattr(_silenciado, "activo", False)
+    _silenciado.activo = True
+    try:
+        yield
+    finally:
+        _silenciado.activo = previo
+
+
+def is_error_publishing_suppressed():
+    return getattr(_silenciado, "activo", False)
+
+
 def publish_error(error_type: str, error_message: str, 
                  context: Optional[Dict[str, Any]] = None, 
                  exception: Optional[Exception] = None):
@@ -321,6 +347,9 @@ def publish_error(error_type: str, error_message: str,
     broker esté caído. Sanitiza el contexto (no expone credenciales) y aplica un
     rate-limit por tipo de error para no spamear.
     """
+    if is_error_publishing_suppressed():
+        logger.debug("Error no publicado (prueba del asistente): %s", error_type)
+        return
     try:
         _error_dispatcher.submit({
             "error_type": error_type,
