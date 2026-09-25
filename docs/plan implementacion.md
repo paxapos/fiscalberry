@@ -1,3 +1,20 @@
+> ⚠️ **DOCUMENTO HISTÓRICO (v3.0.x).** Esta migración AMQP→MQTT ya está aplicada:
+> el consumer consume por **MQTT/Paho** y el spooler durable es el dueño de la
+> impresión. Se conserva como referencia del cambio original.
+>
+> **Estado actual (post-endurecimiento Fiscalberry-only):**
+> - Impresión unificada en `DurablePrintSpooler` (MQTT y Socket.IO/directo).
+> - Compatibilidad **paho 1.x/2.x** vía `common/rabbitmq/mqtt_compat.py`.
+> - **TLS MQTT opt-in** (`[RabbitMq] use_tls`, puerto 8883/1883). Ver `mqtt_seguridad_tls.md`.
+> - **ErrorPublisher no bloqueante** (cola + worker de fondo, con saneo y rate-limit).
+> - **Circuit breaker** por impresora (`common/printer_circuit_breaker.py`).
+> - **Heartbeat** local opcional (`[Heartbeat] enabled`, `common/heartbeat.py`).
+> - Binding AMQP `pika` = **legacy opcional** (`[RabbitMq] create_amqp_binding`, default true),
+>   ejecutado fuera del callback MQTT. `pika` sigue como dependencia legacy hasta validar
+>   recepción sin binding local.
+>
+> ---
+
 Migración de AMQP (RabbitMQ/Pika) a MQTT (Paho-MQTT)
 IMPORTANT
 

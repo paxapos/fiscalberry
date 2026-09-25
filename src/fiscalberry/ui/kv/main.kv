@@ -1,15 +1,11 @@
-ScreenManager:
-    LoginScreen:
-        name: "login"
-    MainScreen:
-        name: "main"
-    LogScreen: # Add LogScreen here
-        name: "logs" # Give it a name for navigation
+# NOTA: el ScreenManager y sus pantallas se crean en FiscalberryApp.build()
+# (incluyendo AdoptScreen). No declarar acá un root ScreenManager o las
+# pantallas se instancian dos veces.
 
 <AdoptScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(20)
+        padding: [dp(20), dp(20) + app.inset_top, dp(20), dp(20) + app.inset_bottom]
         spacing: dp(20)
         canvas.before:
             Color:
@@ -31,8 +27,7 @@ ScreenManager:
                 source: app.logo_image
                 size_hint_y: None
                 height: dp(60)
-                allow_stretch: True
-                keep_ratio: True
+                fit_mode: 'contain'
                 
             Label:
                 text: "Vincula tu dispositivo con Paxapos"
@@ -82,7 +77,33 @@ ScreenManager:
                     height: dp(40)
                     halign: 'center'
                     text_size: self.width, None
-                
+
+                # Solo aparece si la vinculación no se pudo preparar. Antes, sin
+                # uuid, el botón de arriba se veía normal pero llevaba a un error
+                # 500 del servidor, sin ninguna explicación para el usuario.
+                Label:
+                    text: root.linkError
+                    opacity: 1 if root.linkError else 0
+                    size_hint_y: None
+                    height: self.texture_size[1] if root.linkError else 0
+                    font_size: '13sp'
+                    color: 0.8, 0.1, 0.1, 1
+                    halign: 'center'
+                    text_size: self.width, None
+
+                # Los logs solo se podían ver DESPUÉS de vincular, que es justo
+                # cuando ya no hacen falta: si la vinculación falla, no había
+                # forma de ver por qué desde el dispositivo.
+                Button:
+                    text: "Ver registro"
+                    size_hint_y: None
+                    height: dp(40)
+                    font_size: '13sp'
+                    background_normal: ''
+                    background_color: 0.85, 0.85, 0.9, 1
+                    color: 0.1, 0.2, 0.5, 1
+                    on_press: root.ir_a_logs()
+
                 Widget:
             
             # Lado derecho - QR
@@ -111,8 +132,7 @@ ScreenManager:
                         size_hint: None, None
                         size: dp(160), dp(160)
                         pos_hint: {'center_x': 0.5, 'center_y': 0.5}
-                        allow_stretch: True
-                        keep_ratio: True
+                        fit_mode: 'contain'
                         
                     # Loading fallback
                     Label:
@@ -152,7 +172,7 @@ ScreenManager:
             
             # Indicador de monitoreo
             Label:
-                text: "🔄 Monitoreando adopción automáticamente..." if root.is_monitoring else ""
+                text: "Monitoreando vinculación automáticamente..." if root.is_monitoring else ""
                 font_size: '11sp'
                 size_hint_y: None
                 height: dp(20)
@@ -192,7 +212,7 @@ ScreenManager:
 <LoginScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: 20
+        padding: [dp(20), dp(20) + app.inset_top, dp(20), dp(20) + app.inset_bottom]
         spacing: 15
         canvas.before:
             Color:
@@ -206,8 +226,7 @@ ScreenManager:
             source: app.logo_image
             size_hint_y: None
             height: 96
-            allow_stretch: True
-            keep_ratio: True
+            fit_mode: 'contain'
 
 
         Label:
@@ -272,58 +291,185 @@ ScreenManager:
             pos: self.x, self.center_y - dp(0.5) # Center the line vertically
             size: self.width, dp(1) # Make it 1dp thick
 
+# ── Indicador circular grande de estado (verde / ámbar / rojo) ──────
+<StatusDot@Widget>:
+    dot_color: 0.86, 0.25, 0.25, 1
+    canvas:
+        Color:
+            rgba: 1, 1, 1, 0.25
+        Ellipse:
+            pos: self.center_x - dp(86), self.center_y - dp(86)
+            size: dp(172), dp(172)
+        Color:
+            rgba: self.dot_color
+        Ellipse:
+            pos: self.center_x - dp(78), self.center_y - dp(78)
+            size: dp(156), dp(156)
+
 <MainScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(25)
-        spacing: dp(20)
+        padding: [dp(28), dp(28) + app.inset_top, dp(28), dp(28) + app.inset_bottom]
+        spacing: dp(14)
         canvas.before:
             Color:
-                rgba: 0.96, 0.96, 1, 1 # Fondo más claro y limpio
+                rgba: 0.96, 0.97, 1, 1
             Rectangle:
                 pos: self.pos
                 size: self.size
 
-        # Header mejorado con mejor diseño
+        # Header minimalista
+        Label:
+            text: "Fiscalberry · Servidor de Impresión"
+            font_size: '15sp'
+            bold: True
+            color: 0.1, 0.2, 0.5, 1
+            size_hint_y: None
+            height: dp(28)
+            halign: 'left'
+            valign: 'middle'
+            text_size: self.size
+
+        # Espaciador superior flexible
+        Widget:
+
+        # ── Señal central de estado ──────────────────────────────────
+        AnchorLayout:
+            anchor_x: 'center'
+            anchor_y: 'center'
+            size_hint_y: None
+            height: dp(190)
+
+            StatusDot:
+                dot_color: (0.16, 0.72, 0.36, 1) if app.status_level == 'ok' else ((0.95, 0.66, 0.15, 1) if app.status_level == 'warn' else (0.86, 0.25, 0.25, 1))
+
+            Label:
+                text: "OK" if app.status_level == 'ok' else ("!" if app.status_level == 'warn' else "OFF")
+                font_size: '44sp'
+                bold: True
+                color: 1, 1, 1, 1
+                halign: 'center'
+                valign: 'middle'
+
+        # Mensaje de estado grande
+        Label:
+            text: app.status_message
+            font_size: '20sp'
+            bold: True
+            color: (0.12, 0.5, 0.25, 1) if app.status_level == 'ok' else ((0.6, 0.42, 0.05, 1) if app.status_level == 'warn' else (0.6, 0.12, 0.12, 1))
+            size_hint_y: None
+            height: dp(34)
+            halign: 'center'
+            valign: 'middle'
+            text_size: self.width, None
+
+        # Sub-chips de canales (Socket.IO + RabbitMQ)
         BoxLayout:
             orientation: 'horizontal'
             size_hint_y: None
-            height: dp(60)
-            spacing: dp(15)
-            canvas.before:
-                Color:
-                    rgba: 1, 1, 1, 0.8 # Fondo blanco semi-transparente
-                RoundedRectangle:
-                    pos: self.pos
-                    size: self.size
-                    radius: [dp(10)]
-            padding: dp(15)
-            
-            
-            # Logo (string vacío - no se mostrará)
-            Image:
-                source: app.logo_image
-                size_hint: None, None
-                size: dp(40), dp(40)
-                allow_stretch: True
-                keep_ratio: True
-                
+            height: dp(26)
+            spacing: dp(24)
+            padding: [dp(30), 0]
+
             Label:
-                text: "Fiscalberry - Servidor de Impresión"
-                font_size: '18sp'
-                bold: True
-                halign: 'left'
+                markup: True
+                text: "[b]Socket.IO[/b]   " + ("conectado" if app.sioConnected else "desconectado")
+                font_size: '14sp'
+                color: (0.16, 0.55, 0.3, 1) if app.sioConnected else (0.6, 0.2, 0.2, 1)
+                halign: 'center'
                 valign: 'middle'
-                color: 0.1, 0.2, 0.5, 1
-                size_hint_x: 1
-                
+                text_size: self.size
 
+            Label:
+                markup: True
+                text: "[b]RabbitMQ[/b]   " + ("conectado" if app.rabbitMqConnected else "desconectado")
+                font_size: '14sp'
+                color: (0.16, 0.55, 0.3, 1) if app.rabbitMqConnected else (0.6, 0.2, 0.2, 1)
+                halign: 'center'
+                valign: 'middle'
+                text_size: self.size
 
-        # Panel de información del comercio mejorado
-        BoxLayout:
-            orientation: 'vertical'
+        # Espaciador inferior flexible
+        Widget:
+
+        # Datos del comercio (línea compacta)
+        Label:
+            text: (app.siteName or 'Sin comercio') + "   ·   " + (app.siteAlias or 'Sin alias') + "   ·   v" + (app.version or '')
+            font_size: '13sp'
+            color: 0.4, 0.4, 0.45, 1
             size_hint_y: None
-            height: dp(100)
+            height: dp(24)
+            halign: 'center'
+            valign: 'middle'
+            text_size: self.width, None
+
+        # ── Botonera ──────────────────────────────────────────────────
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint_y: None
+            height: dp(54)
+            spacing: dp(14)
+
+            Button:
+                text: "Detener servicio" if app.serviceRunning else "Iniciar servicio"
+                font_size: '15sp'
+                bold: True
+                background_normal: ''
+                background_color: 0, 0, 0, 0
+                color: 1, 1, 1, 1
+                on_press: root.toggle_service()
+                canvas.before:
+                    Color:
+                        rgba: (0.7, 0.25, 0.2, 1) if app.serviceRunning else (0.16, 0.55, 0.3, 1)
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [dp(10)]
+
+            Button:
+                text: "Ver Logs"
+                font_size: '15sp'
+                bold: True
+                background_normal: ''
+                background_color: 0, 0, 0, 0
+                color: 1, 1, 1, 1
+                on_press: app.root.current = 'logs'
+                canvas.before:
+                    Color:
+                        rgba: 0.1, 0.2, 0.5, 1
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [dp(10)]
+
+        # Footer minimalista
+        Label:
+            text: "ID " + (app.uuid[:8] if app.uuid else 'N/A') + "    ·    " + (app.host or 'Paxapos')
+            font_size: '10sp'
+            color: 0.55, 0.55, 0.6, 1
+            size_hint_y: None
+            height: dp(18)
+            halign: 'center'
+            valign: 'middle'
+            text_size: self.width, None
+
+<LogScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: [dp(15), dp(15) + app.inset_top, dp(15), dp(15) + app.inset_bottom]
+        spacing: dp(10)
+        canvas.before:
+            Color:
+                rgba: 0.96, 0.96, 1, 1
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        # Header con botón volver y título
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint_y: None
+            height: dp(55)
             spacing: dp(10)
             canvas.before:
                 Color:
@@ -332,163 +478,74 @@ ScreenManager:
                     pos: self.pos
                     size: self.size
                     radius: [dp(10)]
-                Color:
-                    rgba: 0.8, 0.8, 0.9, 1
-                Line:
-                    rounded_rectangle: (self.pos[0], self.pos[1], self.size[0], self.size[1], dp(10))
-                    width: 1
-            padding: dp(15)
+            padding: dp(10)
+
+            Button:
+                text: "< Volver"
+                size_hint_x: None
+                width: dp(90)
+                font_size: '13sp'
+                bold: True
+                background_normal: ''
+                background_color: 0, 0, 0, 0
+                color: 0.1, 0.2, 0.5, 1
+                # Vuelve a donde se entró: 'main' no existe como destino válido
+                # si el comercio todavía no está vinculado.
+                on_press: app.root.current = root.volver_a
 
             Label:
-                text: "INFORMACIÓN DEL COMERCIO"
-                font_size: '14sp'
+                text: "Logs en Tiempo Real"
+                font_size: '16sp'
                 bold: True
                 color: 0.1, 0.2, 0.5, 1
-                size_hint_y: None
-                height: dp(20)
                 halign: 'center'
+                valign: 'middle'
 
-            BoxLayout:
-                orientation: 'horizontal'
-                spacing: dp(20)
-                
-                Label:
-                    text: f"Comercio: {app.siteName or 'No configurado'}"
-                    font_size: '13sp'
-                    color: 0.3, 0.3, 0.3, 1
-                    halign: 'left'
-                    valign: 'middle'
-                    text_size: self.width, None
-                    size_hint_x: 0.6
+            Button:
+                text: "Abrir archivo"
+                size_hint_x: None
+                width: dp(100)
+                font_size: '12sp'
+                background_normal: ''
+                background_color: 0, 0, 0, 0
+                color: 0.1, 0.2, 0.8, 1
+                on_press: root.open_log_file()
 
-                Label:
-                    text: f"Dispositivo: {app.siteAlias or 'Sin alias'}"
-                    font_size: '13sp'
-                    color: 0.3, 0.3, 0.3, 1
-                    halign: 'left'
-                    valign: 'middle'
-                    text_size: self.width, None
-                    size_hint_x: 0.4
+        # Ruta del archivo de log
+        Label:
+            text: root.logFilePath if root.logFilePath else "Sin archivo de log configurado"
+            font_size: '10sp'
+            color: 0.5, 0.5, 0.5, 1
+            size_hint_y: None
+            height: dp(18)
+            halign: 'center'
+            text_size: self.size
 
-        # Panel de logs en tiempo real
+        # Panel de logs con fondo oscuro (terminal style)
         BoxLayout:
             orientation: 'vertical'
-            spacing: dp(5)
             canvas.before:
                 Color:
-                    rgba: 0.1, 0.1, 0.15, 1
+                    rgba: 0.06, 0.06, 0.1, 1
                 RoundedRectangle:
                     pos: self.pos
                     size: self.size
-                    radius: [dp(10)]
-            padding: dp(10)
-
-            Label:
-                text: "REGISTRO DE ACTIVIDAD"
-                font_size: '12sp'
-                bold: True
-                color: 0.7, 0.7, 0.8, 1
-                size_hint_y: None
-                height: dp(20)
-                halign: 'left'
-                text_size: self.size
+                    radius: [dp(8)]
+            padding: dp(8)
 
             ScrollView:
-                id: main_scroll_view
+                id: scroll_view
                 do_scroll_x: False
-                scroll_y: 0  # 0 = fondo (logs más recientes)
+                scroll_y: 0
                 TextInput:
-                    id: main_log_output
-                    text: app.logs
-                    on_text: main_scroll_view.scroll_y = 0  # Auto-scroll al final cuando hay nuevos logs
+                    id: log_output
+                    text: root.logs
+                    on_text: scroll_view.scroll_y = 0
                     readonly: True
-                    font_size: '14sp'
+                    font_size: '13sp'
                     background_color: 0, 0, 0, 0
-                    foreground_color: 0.8, 0.9, 0.8, 1
+                    foreground_color: 0.75, 0.95, 0.75, 1
                     size_hint_y: None
-                    height: max(self.minimum_height, main_scroll_view.height)
+                    height: max(self.minimum_height, scroll_view.height)
                     multiline: True
                     cursor_color: 0, 0, 0, 0
-
-        # Footer mejorado
-        BoxLayout:
-            orientation: 'horizontal'
-            size_hint_y: None
-            height: dp(25)
-            spacing: dp(15)
-            canvas.before:
-                Color:
-                    rgba: 0.9, 0.9, 0.9, 0.7
-                RoundedRectangle:
-                    pos: self.pos
-                    size: self.size
-                    radius: [dp(5)]
-            padding: dp(10)
-            
-            Label:
-                text: f"ID: {app.uuid[:8] if app.uuid else 'No ID'}"
-                font_size: '10sp'
-                color: 0.4, 0.4, 0.4, 1
-                halign: "left"
-                valign: "middle"
-                size_hint_x: 0.35
-                
-            Label:
-                text: f"v{app.version if app.version else '1.0'}"
-                font_size: '10sp'
-                color: 0.4, 0.4, 0.4, 1
-                halign: "center"
-                valign: "middle"
-                size_hint_x: 0.3
-                
-            Label:
-                text: f"{app.host if app.host else 'Paxapos'}"
-                font_size: '10sp'
-                color: 0.4, 0.4, 0.4, 1
-                halign: "right"
-                valign: "middle"
-                size_hint_x: 0.35
-            
-<LogScreen>:
-    BoxLayout:
-        orientation: 'vertical'
-        padding: 10
-        spacing: 10
-
-        Label:
-            text: "Logs del Servicio"
-            font_size: 24
-            size_hint_y: None
-            height: 50
-        
-        Button:
-            text: root.logFilePath
-            font_size: 12
-            size_hint_y: None
-            height: self.texture_size[1] + dp(10) # Adjust height based on text
-            # Style to look like a clickable link
-            background_color: 0, 0, 0, 0 # Transparent background
-            color: 0.1, 0.2, 0.8, 1 # Blue color like a hyperlink
-            # Action to open the file using a method defined in the Python class
-            # Ensure 'open_log_file' method exists in your LogScreen Python class
-            on_press: root.open_log_file()
-
-        ScrollView:
-            id: scroll_view  # Agregar un ID para acceder desde Python
-            size_hint: (1, 1)
-            TextInput:
-                id: log_output
-                text: root.logs
-                readonly: True
-                font_size: 14
-                background_color: 0, 0, 0, 1  # Fondo negro
-                foreground_color: 1, 1, 1, 1  # Texto blanco
-                size_hint_y: None
-                height: self.minimum_height
-                multiline: True
-
-        Button:
-            text: "Volver"
-            size_hint_y: None
-            height: 50
-            on_press: app.root.current = "main"

@@ -192,3 +192,22 @@ sudo journalctl -u fiscalberry -n 50
 
 - El archivo de configuración se guarda en `~/.config/Fiscalberry/config.ini` del usuario que ejecuta el servicio
 - Si el servicio corre como root, el config estará en `/root/.config/Fiscalberry/config.ini`
+
+### Backend con CA privada (ej. dev2.paxapos.com)
+
+Los entornos de desarrollo (como `dev2.paxapos.com`) usan una **CA propia** que no
+está en el almacén de confianza del sistema, así que la verificación TLS falla. En
+`[SERVIDOR]` del `config.ini`:
+
+```ini
+[SERVIDOR]
+sio_host = https://dev2.paxapos.com
+; Opción A (recomendada): verificar contra la CA de PaxaPOS Dev
+ca_bundle = /opt/fiscalberry/paxapos-dev-ca.pem
+; Opción B (solo dev): desactivar verificación TLS
+verify_ssl = false
+```
+
+`ca_bundle` (si se define) tiene prioridad y aplica a las llamadas HTTP (discover/login).
+`verify_ssl = false` desactiva la verificación en HTTP y Socket.IO. En **producción**
+dejar `verify_ssl = true` y sin `ca_bundle` (default).

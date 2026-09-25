@@ -35,8 +35,55 @@ configberry = Configberry()
 host = configberry.get("SERVIDOR", "sio_host", "https://beta.paxapos.com")
 uuid = configberry.get("SERVIDOR", "uuid", fallback="")
 
+# Fallback remoto: solo si por algún motivo no se puede generar el QR local.
 QRGENLINK = "https://codegenerator.paxapos.com/?bcid=qrcode&text="
 ADOP_LINK = host + "/adopt/" + uuid
+
+
+def link_de_adopcion_valido(url):
+    """
+    ¿Este link identifica a un dispositivo?
+
+    Un link que termina en `/adopt/` (sin uuid) hace que el servidor responda
+    500 — `ArgumentCountError: Too few arguments to adopt()` — y el usuario ve
+    una pantalla de error sin ninguna pista. Pasó en producción: el config.ini
+    se quedó sin uuid y la pantalla ofreció igual el botón de vincular.
+    """
+    if not url:
+        return False
+    return not url.rstrip("/").endswith("/adopt")
+
+
+def generar_qr(texto):
+    """
+    Genera el QR de vinculación LOCALMENTE y devuelve la ruta del PNG.
+
+    Antes se cargaba como imagen remota desde codegenerator.paxapos.com: si el
+    DNS o la red fallan justo al abrir la app (pasa seguido en el arranque, o en
+    un local con la wifi todavía negociando), la pantalla de vinculación muestra
+    una imagen rota y no hay forma de vincular. La librería qrcode ya viene
+    empaquetada en el APK, así que no hace falta pedirlo por red.
+    """
+    try:
+        import hashlib
+        import qrcode
+
+        # El nombre incluye un hash del link: Kivy cachea las imágenes por ruta,
+        # así que un archivo de nombre fijo mostraría el QR viejo si cambia el
+        # uuid o el host.
+        firma = hashlib.sha1(texto.encode("utf-8")).hexdigest()[:8]
+        destino = os.path.join(
+            os.path.dirname(configberry.getConfigFIle()), f"adopt_qr_{firma}.png"
+        )
+        qr = qrcode.QRCode(box_size=10, border=2)
+        qr.add_data(texto)
+        qr.make(fit=True)
+        qr.make_image(fill_color="black", back_color="white").save(destino)
+        logger.debug(f"QR generado localmente en {destino}")
+        return destino
+    except Exception as e:
+        logger.error(f"No se pudo generar el QR local, se usa el remoto: {e}")
+        return QRGENLINK + texto
 
 
 class AdoptScreen(Screen):
@@ -46,7 +93,9 @@ class AdoptScreen(Screen):
     """
     
     adoptarLink = StringProperty(ADOP_LINK)
-    qrCodeLink = StringProperty(QRGENLINK + ADOP_LINK)
+    qrCodeLink = StringProperty("")
+    # Mensaje visible cuando la vinculación no se puede preparar. Vacío = todo ok.
+    linkError = StringProperty("")
     is_monitoring = BooleanProperty(False)
     platform_name = StringProperty("Android" if IS_ANDROID else "Desktop")
     
@@ -54,6 +103,10 @@ class AdoptScreen(Screen):
         super().__init__(**kwargs)
         self._monitoring = False
         self._adoption_thread = None
+        # Si el discover del arranque ya registró el dispositivo. Mientras sea
+        # False, abrir el link reintenta el registro antes de mandar al usuario
+        # a una página que va a fallar.
+        self._registrado = False
         logger.debug(f"AdoptScreen inicializada - Plataforma: {self.platform_name}")
     
     def on_pre_enter(self):
@@ -94,19 +147,109 @@ class AdoptScreen(Screen):
         self.is_monitoring = False
     
     def _update_links(self):
-        """Actualiza los links de adopción con la configuración actual."""
+        """
+        Actualiza los links de adopción con la configuración actual.
+
+        Si falta el uuid hay que RECUPERARSE, no solo avisar al log: antes, sin
+        uuid, la pantalla dejaba el link de clase (`host + "/adopt/" + ""`), o
+        sea `/adopt/` sin identificador. El usuario veía un botón normal, lo
+        apretaba y el servidor respondía 500 (`ArgumentCountError: Too few
+        arguments to adopt()`), sin ninguna pista de qué había pasado. Y el QR
+        quedaba en blanco por el mismo motivo.
+        """
         try:
             host = configberry.get("SERVIDOR", "sio_host", "https://beta.paxapos.com")
             uuid_val = configberry.get("SERVIDOR", "uuid", fallback="")
-            
+
+            if not uuid_val:
+                logger.warning("No hay uuid en la configuración; se regenera.")
+                uuid_val = self._regenerar_uuid()
+
             if uuid_val:
                 self.adoptarLink = f"{host}/adopt/{uuid_val}"
-                self.qrCodeLink = f"{QRGENLINK}{self.adoptarLink}"
+                self.qrCodeLink = generar_qr(self.adoptarLink)
+                self.linkError = ""
                 logger.debug(f"Links actualizados - UUID: {uuid_val[:8]}...")
             else:
-                logger.warning("UUID no disponible para generar links")
+                # Mejor un mensaje explícito que un botón que lleva a un error
+                # del servidor.
+                self.adoptarLink = ""
+                self.qrCodeLink = ""
+                self.linkError = ("No se pudo generar el identificador de este "
+                                  "dispositivo. Reiniciá la aplicación.")
+                logger.error("UUID no disponible ni regenerable: "
+                             "la vinculación no puede continuar.")
         except Exception as e:
-            logger.error(f"Error actualizando links: {e}")
+            logger.error(f"Error actualizando links: {e}", exc_info=True)
+            self.linkError = f"Error preparando la vinculación: {e}"
+
+    def ir_a_logs(self):
+        """
+        Abre el registro desde la pantalla de vinculación.
+
+        Hasta ahora los logs solo eran accesibles desde la pantalla principal,
+        a la que se llega **después** de vincular. O sea que cuando la
+        vinculación fallaba —el único momento en que hacen falta— no había
+        forma de verlos desde el dispositivo.
+        """
+        try:
+            if not self.manager:
+                logger.error("Sin ScreenManager: no se puede abrir el registro.")
+                return
+            pantalla_logs = self.manager.get_screen("logs")
+            # Para que "Volver" traiga de vuelta acá y no a 'main', que todavía
+            # no es un destino válido.
+            pantalla_logs.volver_a = self.name or "adopt"
+            self.manager.current = "logs"
+        except Exception as e:
+            logger.error(f"No se pudo abrir la pantalla de registro: {e}",
+                         exc_info=True)
+            self.linkError = f"No se pudo abrir el registro: {e}"
+
+    def registrar_en_servidor(self):
+        """
+        Reintenta el registro (discover) y refleja el resultado en pantalla.
+
+        Sin registro previo, el servidor no tiene una Paxaprinter con este uuid
+        y la vinculación termina en ":: Paxaprinter no encontrada" — un error
+        del servidor que no le dice nada al usuario sobre qué falló ni qué
+        hacer. Con esto el estado queda a la vista y se puede reintentar sin
+        reinstalar.
+        """
+        try:
+            from fiscalberry.common.discover import send_discover
+
+            if send_discover():
+                self.linkError = ""
+                logger.info("Dispositivo registrado en el servidor.")
+                return True
+
+            self.linkError = ("No se pudo registrar el dispositivo en el "
+                              "servidor. Revisá la conexión y reintentá.")
+            logger.error("El discover no pudo registrar el dispositivo.")
+            return False
+        except Exception as e:
+            self.linkError = f"No se pudo contactar al servidor: {e}"
+            logger.error(f"Error registrando el dispositivo: {e}", exc_info=True)
+            return False
+
+    def _regenerar_uuid(self):
+        """
+        Vuelve a darle identidad al dispositivo cuando el config.ini la perdió.
+
+        En Android es recuperable sin costo: el uuid se deriva de ANDROID_ID, así
+        que el que se regenera es EL MISMO de antes y no hay que re-vincular.
+        """
+        try:
+            from fiscalberry.common.device_uuid import generate_device_uuid
+
+            nuevo = generate_device_uuid()
+            configberry.set("SERVIDOR", {"uuid": nuevo})
+            logger.info(f"UUID regenerado: {nuevo[:8]}...")
+            return nuevo
+        except Exception as e:
+            logger.error(f"No se pudo regenerar el uuid: {e}", exc_info=True)
+            return ""
     
     def open_adoption_link(self):
         """
@@ -115,7 +258,23 @@ class AdoptScreen(Screen):
         """
         try:
             url = self.adoptarLink
-            
+
+            if not link_de_adopcion_valido(url):
+                self.linkError = ("La vinculación todavía no está lista. "
+                                  "Reiniciá la aplicación.")
+                logger.error("Se intentó abrir un link de adopción sin uuid: %r", url)
+                return
+
+            # El servidor solo conoce este dispositivo si el discover llegó. Se
+            # reintenta acá, en el momento exacto en que hace falta: si el
+            # registro del arranque falló (sin red, permisos, lo que sea), el
+            # usuario abriría el link para encontrarse con "Paxaprinter no
+            # encontrada" y ninguna explicación.
+            if not self._registrado:
+                self._registrado = self.registrar_en_servidor()
+                if not self._registrado:
+                    return
+
             if IS_ANDROID and ANDROID_AVAILABLE:
                 # Usar Intent de Android
                 success = self._open_url_android(url)

@@ -11,6 +11,11 @@ import time
 from typing import Dict, Any
 import paho.mqtt.client as mqtt
 
+try:
+    from fiscalberry.common.rabbitmq import mqtt_compat
+except Exception:  # ejecución fuera del paquete
+    mqtt_compat = None
+
 
 def check_dns_resolution(host: str) -> bool:
     """Verifica si el hostname se puede resolver."""
@@ -48,27 +53,37 @@ def check_port_connectivity(host: str, port: int, timeout: int = 5) -> bool:
         return False
 
 
-def check_mqtt_connection(host: str, port: int, user: str, password: str) -> bool:
-    """Verifica la conexión completa a MQTT."""
+def check_mqtt_connection(host: str, port: int, user: str, password: str,
+                          tls_cfg: Dict[str, Any] = None) -> bool:
+    """Verifica la conexión completa a MQTT (compatible paho 1.x/2.x, TLS opcional)."""
     connected = False
     connection_result = None
     
     def on_connect(client, userdata, flags, rc):
         nonlocal connected, connection_result
         connection_result = rc
-        if rc == 0:
+        ok = mqtt_compat.rc_is_success(rc) if mqtt_compat else (rc == 0)
+        if ok:
             connected = True
     
     try:
-        # Crear cliente MQTT
-        client = mqtt.Client(
-            client_id="fiscalberry-diagnostic",
-            clean_session=True,
-            protocol=mqtt.MQTTv311
-        )
+        # Crear cliente MQTT (compat paho 1.x/2.x)
+        if mqtt_compat:
+            client = mqtt_compat.make_client(
+                client_id="fiscalberry-diagnostic", clean_session=True,
+                protocol=mqtt.MQTTv311)
+        else:
+            client = mqtt.Client(
+                client_id="fiscalberry-diagnostic", clean_session=True,
+                protocol=mqtt.MQTTv311)
         
         # Configurar credenciales
         client.username_pw_set(user, password)
+
+        # TLS opcional
+        if tls_cfg and tls_cfg.get("use_tls") and mqtt_compat:
+            mqtt_compat.apply_tls(client, tls_cfg)
+            print(f"  TLS habilitado (ca_cert={tls_cfg.get('ca_cert')}, insecure={tls_cfg.get('tls_insecure')})")
         
         # Configurar callback
         client.on_connect = on_connect
@@ -88,8 +103,9 @@ def check_mqtt_connection(host: str, port: int, user: str, password: str) -> boo
         # Desconectar
         client.loop_stop()
         client.disconnect()
-        
-        if connection_result == 0:
+
+        ok = mqtt_compat.rc_is_success(connection_result) if (mqtt_compat and connection_result is not None) else (connection_result == 0)
+        if ok:
             print(f"✓ MQTT: Conexión exitosa a {host}:{port}")
             print(f"  Usuario: {user}")
             return True
@@ -122,11 +138,14 @@ def get_config_from_file(config_file: str = None) -> Dict[str, Any]:
     try:
         from fiscalberry.common.Configberry import Configberry
         config = Configberry()
+        tls_cfg = mqtt_compat.read_mqtt_tls_config(config) if mqtt_compat else {}
+        default_port = str(tls_cfg.get("port", 1883)) if tls_cfg else "1883"
         return {
             'host': config.get("RabbitMq", "host"),
-            'port': int(config.get("RabbitMq", "port", fallback="1883")),
+            'port': int(config.get("RabbitMq", "port", fallback=default_port)),
             'user': config.get("RabbitMq", "user"),
-            'password': config.get("RabbitMq", "password")
+            'password': config.get("RabbitMq", "password"),
+            'tls': tls_cfg,
         }
     except Exception as e:
         print(f"No se pudo leer configuración de Fiscalberry: {e}")
@@ -140,10 +159,23 @@ def main():
     parser.add_argument('--user', default='guest', help='Usuario MQTT')
     parser.add_argument('--password', default='guest', help='Contraseña MQTT')
     parser.add_argument('--from-config', action='store_true', help='Usar configuración de Fiscalberry')
+    parser.add_argument('--tls', action='store_true', help='Usar TLS para la conexión MQTT (default puerto 8883)')
+    parser.add_argument('--ca-cert', default=None, help='Ruta al CA bundle para TLS (opcional)')
+    parser.add_argument('--tls-insecure', action='store_true', help='No verificar certificado TLS (solo pruebas)')
     
     args = parser.parse_args()
     
     print("=== Diagnóstico de conexión MQTT ===\n")
+
+    tls_cfg = None
+    if args.tls:
+        tls_cfg = {
+            'use_tls': True,
+            'ca_cert': args.ca_cert,
+            'tls_insecure': args.tls_insecure,
+        }
+        if args.port == 1883:
+            args.port = 8883
     
     # Si se especifica --from-config, intentar leer del archivo de configuración
     if args.from_config:
@@ -153,6 +185,8 @@ def main():
             args.port = config['port']
             args.user = config['user']
             args.password = config['password']
+            if config.get('tls', {}).get('use_tls'):
+                tls_cfg = config['tls']
             print(f"Usando configuración de Fiscalberry:")
             print(f"  Host: {args.host}")
             print(f"  Puerto: {args.port}")
@@ -171,7 +205,7 @@ def main():
     # 3. Verificar conexión MQTT completa
     mqtt_ok = False
     if port_ok:
-        mqtt_ok = check_mqtt_connection(args.host, args.port, args.user, args.password)
+        mqtt_ok = check_mqtt_connection(args.host, args.port, args.user, args.password, tls_cfg)
     
     print("\n=== Resumen ===")
     print(f"DNS: {'✓' if dns_ok else '✗'}")

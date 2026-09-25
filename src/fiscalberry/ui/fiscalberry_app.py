@@ -9,7 +9,7 @@ import queue
 from fiscalberry.common.Configberry import Configberry
 from fiscalberry.common.service_controller import ServiceController
 from kivy.lang import Builder
-from kivy.properties import StringProperty, BooleanProperty
+from kivy.properties import StringProperty, BooleanProperty, NumericProperty
 from fiscalberry.ui.log_screen import LogScreen
 from threading import Thread
 import time
@@ -17,7 +17,10 @@ import sys
 import os
 import signal
 
-from fiscalberry.common.fiscalberry_logger import getLogger
+from fiscalberry.common.fiscalberry_logger import getLogger, setup_file_logging
+
+# Log a archivo también desde la UI (comparte archivo con el servicio).
+setup_file_logging(role="app")
 from fiscalberry.version import VERSION
 
 logger = getLogger("GUI.App")
@@ -48,9 +51,25 @@ class FiscalberryApp(App):
     
     sioConnected: bool = BooleanProperty(False)
     rabbitMqConnected: bool = BooleanProperty(False)
-    
+
+    # Estado del servicio local (Desktop) / foreground (Android).
+    # Reactivo para que el botón Iniciar/Detener refleje el estado real.
+    serviceRunning: bool = BooleanProperty(False)
+
+    # Nivel global de salud para la UI status-centric:
+    #   'ok'    -> ambos canales conectados (verde)
+    #   'warn'  -> solo uno conectado (ámbar)
+    #   'error' -> ningún canal conectado (rojo)
+    status_level = StringProperty("error")
+
     status_message = StringProperty("Esperando conexión...")
     logs = StringProperty("")  # Logs en tiempo real para MainScreen
+
+    # Espacio que ocupan la barra de estado y la de navegación del sistema, en
+    # píxeles. Desde Android 15 la app dibuja debajo de ellas (edge-to-edge), así
+    # que las pantallas suman estos valores a su padding para no quedar tapadas.
+    inset_top = NumericProperty(0)
+    inset_bottom = NumericProperty(0)
     
     def __init__(self, **kwargs):
         logger.debug("Inicializando FiscalberryApp...")
@@ -154,39 +173,17 @@ class FiscalberryApp(App):
             return False
     
     def _request_android_permissions(self):
-        """Solicita todos los permisos necesarios en Android automáticamente"""
-        try:
-            logger.debug("Solicitando permisos de Android...")
-            
-            # Importar módulos de permisos de forma segura
-            try:
-                from fiscalberry.common.android_permissions import (
-                    request_all_permissions,
-                    check_all_permissions
-                )
-                logger.debug("✓ Módulos de permisos importados correctamente")
-            except ImportError as e:
-                logger.warning(f"No se pudieron importar módulos de permisos: {e}")
-                return
-            
-            # Verificar estado actual de permisos
-            try:
-                status = check_all_permissions()
-                logger.debug(f"Permisos: {status['total_permissions']} requeridos, {status['missing_count']} faltantes")
-                
-                if not status['all_granted']:
-                    logger.debug("Solicitando permisos faltantes...")
-                    request_all_permissions(callback_on_complete=self._on_permissions_result)
-                else:
-                    logger.debug("Todos los permisos ya otorgados")
-                    
-            except Exception as e:
-                logger.warning(f"Error verificando permisos: {e}")
-            
+        """
+        No pide permisos: solo deja constancia.
 
-            
-        except Exception as e:
-            logger.error(f"Error general verificando permisos Android: {e}", exc_info=True)
+        Los permisos se piden en on_start(), que es donde ya existe la Activity
+        (requestPermissions necesita una Activity en primer plano; desde
+        __init__ el pedido se pierde). Este método intentaba importar
+        fiscalberry.common.android_permissions, un módulo que NO EXISTE en el
+        repo: el ImportError se tragaba con un warning y nunca pedía nada, lo
+        que hacía parecer que el sistema de permisos estaba cubierto acá.
+        """
+        logger.debug("Permisos Android: se solicitan en on_start (con Activity disponible)")
     
     def _start_android_service(self):
         """
@@ -314,19 +311,16 @@ class FiscalberryApp(App):
                     if discover_success:
                         logger.info("Dispositivo registrado correctamente en el servidor")
                         # Dar tiempo al servidor para completar el commit a DB
-                        import time
                         time.sleep(1.5)
                         break
                     else:
                         if attempt < max_retries:
                             logger.warning(f"Discover falló, reintentando ({attempt}/{max_retries})...")
-                            import time
                             time.sleep(2)
                 except Exception as e:
                     logger.error(f"Error al enviar discover: {e}")
                     if attempt < max_retries:
                         logger.warning(f"Reintentando ({attempt}/{max_retries})...")
-                        import time
                         time.sleep(2)
             
             if not discover_success:
@@ -412,10 +406,38 @@ class FiscalberryApp(App):
         except Exception as e:
             logger.error(f"Error iniciando SocketIO para adopción: {e}", exc_info=True)
     
+    def refresh_system_insets(self, *args):
+        """
+        Recalcula el espacio de las barras del sistema.
+
+        Se llama al arrancar, al volver de background y al rotar: los valores
+        cambian con la orientación y con el modo de navegación (gestos vs
+        botones).
+        """
+        try:
+            from fiscalberry.ui.android_insets import get_system_insets
+
+            margenes = get_system_insets()
+            self.inset_top = margenes.get("top", 0)
+            self.inset_bottom = margenes.get("bottom", 0)
+        except Exception as e:
+            logger.warning(f"No se pudieron aplicar los márgenes del sistema: {e}")
+
     def on_start(self):
         """Se ejecuta después de que la aplicación inicie."""
         logger.debug("Aplicación iniciada")
-        
+
+        # Dejar libre el espacio de la barra de estado / navegación. Android 15
+        # dibuja la app debajo de ellas y taparían la primera y última fila.
+        self.refresh_system_insets()
+        try:
+            from kivy.core.window import Window
+
+            Window.bind(on_resize=self.refresh_system_insets)
+        except Exception as e:
+            logger.debug(f"No se pudo escuchar el resize de la ventana: {e}")
+
+
         # Detectar si estamos en Android
         is_android = 'ANDROID_STORAGE' in os.environ or 'ANDROID_ARGUMENT' in os.environ
         
@@ -618,7 +640,24 @@ class FiscalberryApp(App):
                     self.on_start_service()
             except Exception as e:
                 logger.warning(f"Error reiniciando servicio: {e}")
-        
+
+        # Android: asegurar en CADA resume que el servicio foreground real esté
+        # vivo. on_start_service() en Android solo actualiza flags de UI (el
+        # ServiceController corre en el proceso separado del servicio), así que
+        # si Android mató el servicio mientras la app estaba en background /
+        # pantalla apagada, nadie lo relanzaba. _start_android_service() es
+        # idempotente: si el servicio ya corre, PythonService ignora el start.
+        if self._is_android:
+            try:
+                if self._configberry and self._configberry.is_comercio_adoptado():
+                    self._start_android_service()
+            except Exception as e:
+                logger.warning(f"Error relanzando servicio Android en on_resume: {e}")
+
+            # Pueden haber cambiado (rotación, modo de navegación) mientras la
+            # app estuvo en segundo plano.
+            self.refresh_system_insets()
+
         try:
             from kivy.core.window import Window
             from kivy.cache import Cache
@@ -786,57 +825,99 @@ class FiscalberryApp(App):
         logger.warning(f"Usuario denegó {len(missing_permissions)} permisos")
         logger.warning(f"Permisos faltantes: {missing_permissions}")
 
+    def _service_status_snapshot(self):
+        """
+        Estado real del servicio. En Android vive en otro proceso, así que se lee
+        del archivo que publica (None = sin datos frescos ⇒ servicio caído).
+        En Desktop el ServiceController es local y se consulta directo.
+        """
+        if not self._is_android:
+            return {
+                "sio_connected": self._service_controller.isSocketIORunning(),
+                "mqtt_connected": self._service_controller.isRabbitRunning(),
+            }
+        from fiscalberry.common.service_status import read_status
+
+        return read_status() or {"sio_connected": False, "mqtt_connected": False}
+
     def _check_sio_status(self, dt):
         """Verifica el estado de la conexión SocketIO de forma optimizada."""
         try:
             previous_status = self.sioConnected
             # Check más eficiente sin llamadas costosas innecesarias
-            new_status = self._service_controller.isSocketIORunning()
-            
+            new_status = bool(self._service_status_snapshot().get("sio_connected"))
+
             if previous_status != new_status:
                 self.sioConnected = new_status
                 if new_status:
                     logger.info("SocketIO conectado")
-                    self.status_message = "Conectado - Listo para imprimir"
                 else:
                     logger.warning("SocketIO desconectado")
-                    self.status_message = "Desconectado - Verificando conexión..."
-                    
+                self._recompute_status()
+
         except Exception as e:
             # Manejo de errores silencioso para evitar spam en logs
             if self.sioConnected:  # Solo log si cambia de conectado a error
                 logger.error(f"Error verificando SocketIO: {e}")
             self.sioConnected = False
-            self.status_message = "Error de conexión"
-            
+            self._recompute_status()
+
     def _check_rabbit_status(self, dt):
-        """Verifica el estado de la conexión RabbitMQ de forma optimizada.""" 
+        """Verifica el estado de la conexión RabbitMQ de forma optimizada."""
         try:
             previous_status = self.rabbitMqConnected
-            new_status = self._service_controller.isRabbitRunning()
-            
+            new_status = bool(self._service_status_snapshot().get("mqtt_connected"))
+
             if previous_status != new_status:
                 self.rabbitMqConnected = new_status
                 if new_status:
                     logger.info("RabbitMQ conectado")
                 else:
                     logger.warning("RabbitMQ desconectado")
-                    
+                self._recompute_status()
+
         except Exception as e:
             # Manejo de errores silencioso para evitar spam en logs
             if self.rabbitMqConnected:  # Solo log si cambia de conectado a error
                 logger.error(f"Error verificando RabbitMQ: {e}")
             self.rabbitMqConnected = False
+            self._recompute_status()
+
+    def _recompute_status(self):
+        """
+        Recalcula el nivel global de salud y el mensaje para la UI
+        status-centric, en base al estado de ambos canales (Socket.IO + RabbitMQ).
+        """
+        sio = self.sioConnected
+        rabbit = self.rabbitMqConnected
+
+        if sio and rabbit:
+            self.status_level = "ok"
+            self.status_message = "Listo para imprimir"
+        elif sio and not rabbit:
+            self.status_level = "warn"
+            self.status_message = "Conectado - esperando cola de impresión..."
+        elif rabbit and not sio:
+            self.status_level = "warn"
+            self.status_message = "Cola activa - reconectando con el servidor..."
+        else:
+            self.status_level = "error"
+            self.status_message = "Sin conexión - verificando..."
     
     def _update_logs(self, dt):
-        """Actualiza la propiedad logs leyendo el archivo de logs."""
+        """
+        Actualiza la propiedad logs con el final del archivo.
+
+        Solo el final y solo si cambió: esto corre cada segundo en el hilo de la
+        UI, y asignar el archivo entero a la StringProperty hace que Kivy
+        recalcule una textura de texto gigante en cada vuelta.
+        """
         try:
-            from fiscalberry.common.fiscalberry_logger import getLogFilePath
-            log_path = getLogFilePath()
-            if not log_path:
-                return  # No hay archivo de log configurado
-            with open(log_path, "r") as log_file:
-                self.logs = log_file.read()
+            from fiscalberry.common.fiscalberry_logger import readLogTail
+
+            cola = readLogTail()
+            if cola and cola != self.logs:
+                self.logs = cola
         except Exception:
             pass  # Silenciar errores de lectura de logs
     
@@ -871,6 +952,39 @@ class FiscalberryApp(App):
             print("Error: self.root (ScreenManager) aún no está disponible.")
         
 
+    def _stop_local_sio(self):
+        """
+        Cierra la conexión SocketIO/MQTT del proceso de la UI (la que se abre
+        para escuchar la adopción). En Android las conexiones reales viven en el
+        proceso del servicio: dejar viva también la de la UI significa dos
+        clientes con el mismo client id MQTT peleándose contra el broker.
+        Idempotente: si no hay nada abierto, no hace nada.
+        """
+        try:
+            from fiscalberry.common.fiscalberry_sio import FiscalberrySio
+
+            instancia = FiscalberrySio._instance
+            if instancia is None:
+                return
+
+            logger.debug("Cerrando SocketIO local de la UI (lo maneja el servicio)")
+            FiscalberrySio._instance = None
+
+            def cerrar():
+                # En un hilo aparte: stop() joinea el consumer MQTT (hasta 5s) y
+                # el hilo de SIO (2s). Bloquear el hilo de la UI ese tiempo
+                # durante el arranque congela la app y Android puede matarla.
+                try:
+                    instancia.stop()
+                    FiscalberrySio.reset_singleton()
+                    FiscalberrySio._instance = None
+                except Exception as e:
+                    logger.warning(f"Error cerrando SocketIO local de la UI: {e}")
+
+            Thread(target=cerrar, daemon=True).start()
+        except Exception as e:
+            logger.warning(f"Error cerrando SocketIO local de la UI: {e}")
+
     def on_toggle_service(self):
         """Llamado desde la GUI para alternar el estado del servicio."""
         if self._service_controller.is_service_running():
@@ -897,6 +1011,13 @@ class FiscalberryApp(App):
             # El servicio foreground (service.py) tiene su propio ServiceController
             # que maneja SocketIO/RabbitMQ independientemente
             logger.debug("Android: delegando a servicio foreground")
+            # Soltar la conexión que la UI abrió para la adopción: si sigue viva,
+            # este proceso y el del servicio quedan con dos clientes usando el
+            # mismo uuid (y el mismo client id MQTT), y el broker patea a uno
+            # cada vez que el otro conecta — parpadeo infinito de "conectado /
+            # esperando cola". Todo el tráfico va por el proceso del servicio.
+            self._stop_local_sio()
+            self.serviceRunning = True
             self.status_message = "Servicio activo (foreground)"
             # El servicio Android ya fue iniciado en build() o _go_to_main()
             # No necesitamos hacer nada más aquí
@@ -904,9 +1025,11 @@ class FiscalberryApp(App):
             # En Desktop: Iniciar el ServiceController local
             if not self._service_controller.is_service_running():
                 logger.debug("Desktop: Iniciando servicios desde GUI...")
+                self.serviceRunning = True
                 self.status_message = "Iniciando servicios..."
                 Thread(target=self._service_controller.start, daemon=True).start()
             else:
+                self.serviceRunning = True
                 logger.debug("Desktop: Servicio ya en ejecución, omitiendo inicio")
 
 
@@ -922,7 +1045,7 @@ class FiscalberryApp(App):
             logger.debug("Android: No se puede detener el servicio foreground desde UI")
             self.status_message = "Servicio foreground activo"
             return
-        
+
         # Desktop: Detener el ServiceController local
         logger.debug("Desktop: Deteniendo servicios desde GUI...")
         self.status_message = "Deteniendo servicios..."
@@ -934,7 +1057,8 @@ class FiscalberryApp(App):
             else:
                 # Fallback al método más seguro
                 self._service_controller._stop_services_only()
-            
+
+            self.serviceRunning = False
             self.status_message = "Servicios detenidos"
             logger.debug("Servicios detenidos desde GUI")
         except Exception as e:

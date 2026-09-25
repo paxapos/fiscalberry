@@ -2,16 +2,76 @@ name: Build and Release Fiscalberry
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - v3.0.x
+    paths:
+      # El release se dispara cuando se bumpea la versión. Cambiar version.py
+      # (y pushear a v3.0.x) es la señal de "publicar release".
+      - "src/fiscalberry/version.py"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
+  # ============================================
+  # VERSION: lee la versión de version.py y decide si hay que releasear
+  # (solo si el tag vX.Y.Z todavía no existe → evita releases duplicados)
+  # ============================================
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get.outputs.version }}
+      tag: ${{ steps.get.outputs.tag }}
+      exists: ${{ steps.check.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from version.py
+        id: get
+        run: |
+          VERSION=$(grep -oP 'VERSION\s*=\s*["'\'']\K[^"'\'']+' src/fiscalberry/version.py)
+          if [ -z "$VERSION" ]; then
+            echo "::error::No pude leer VERSION de src/fiscalberry/version.py"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Versión detectada: $VERSION (tag v$VERSION)"
+
+      - name: Check if tag/release already exists
+        id: check
+        run: |
+          if git rev-parse "v${{ steps.get.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::El tag v${{ steps.get.outputs.version }} ya existe — se omite la creación del release. Bumpeá version.py para publicar uno nuevo."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "El tag v${{ steps.get.outputs.version }} no existe → se construirá y publicará."
+          fi
+  # ============================================
+  # TESTS: la suite tiene que pasar antes de compilar nada. Un binario que
+  # no arranca no se descubre compilando, se descubre acá.
+  # ============================================
+  tests:
+    uses: ./.github/workflows/tests.yml
+
   # ============================================
   # LINUX BUILDS (GUI + CLI)
   # ============================================
   build-linux:
-    runs-on: ubuntu-latest
+    needs: [version, tests]
+    if: needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
+    # NO usar ubuntu-latest: GitHub ya lo mapea a 24.04 (glibc 2.39) y un binario
+    # de PyInstaller solo corre en glibc IGUAL O MAS NUEVA que la de compilacion.
+    # Compilando en 24.04, el binario falla con "GLIBC_2.38 not found" en Ubuntu
+    # 22.04 (2.35), Debian 12 (2.36) y Debian 11 (2.31) — o sea, en buena parte
+    # de las maquinas donde esto corre de verdad. glibc es compatible hacia
+    # adelante, asi que hay que compilar en la distro mas VIEJA que soportemos.
+    # 22.04 es la mas antigua que ofrece GitHub hoy.
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -41,13 +101,19 @@ jobs:
           pip install pyinstaller
 
       - name: Build Linux GUI
+        env:
+          KIVY_NO_CONSOLELOG: 1
+          KIVY_NO_ARGS: 1
         run: |
-          PYTHONPATH=src pyinstaller fiscalberry-gui.spec
+          PYTHONPATH=src xvfb-run -a pyinstaller --clean -y fiscalberry-gui.spec
 
       - name: Build Linux CLI
         run: |
-          PYTHONPATH=src pyinstaller fiscalberry-cli.spec
+          PYTHONPATH=src xvfb-run -a pyinstaller --clean -y fiscalberry-cli.spec
 
+      # Los builds son ONEDIR: dist/fiscalberry-gui es una CARPETA (ejecutable +
+      # _internal), no un binario suelto. tar la empaqueta igual, con carpeta y
+      # todo, que es lo que el auto-updater espera encontrar adentro.
       - name: Package Linux Binaries
         run: |
           cd dist
@@ -70,6 +136,8 @@ jobs:
   # WINDOWS BUILDS (GUI + CLI)
   # ============================================
   build-windows:
+    needs: [version, tests]
+    if: needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -95,14 +163,22 @@ jobs:
           pip install pyinstaller
 
       - name: Build Windows GUI
+        env:
+          KIVY_NO_CONSOLELOG: 1
+          KIVY_NO_ARGS: 1
+          KIVY_GL_BACKEND: mock
         run: |
           $env:PYTHONPATH="src"
-          pyinstaller fiscalberry-gui.spec
+          pyinstaller --clean -y fiscalberry-gui.spec
 
       - name: Build Windows CLI
+        env:
+          KIVY_NO_CONSOLELOG: 1
+          KIVY_NO_ARGS: 1
+          KIVY_GL_BACKEND: mock
         run: |
           $env:PYTHONPATH="src"
-          pyinstaller fiscalberry-cli.spec
+          pyinstaller --clean -y fiscalberry-cli.spec
 
       - name: Install Inno Setup
         run: |
@@ -112,11 +188,13 @@ jobs:
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
+      # Los builds son ONEDIR: dist/fiscalberry-gui es una CARPETA (ejecutable +
+      # _internal), no un .exe suelto. Se comprime la carpeta entera.
       - name: Package Windows Binaries
         run: |
           cd dist
-          Compress-Archive -Path fiscalberry-gui.exe -DestinationPath fiscalberry-windows-gui.zip
-          Compress-Archive -Path fiscalberry-cli.exe -DestinationPath fiscalberry-windows-cli.zip
+          Compress-Archive -Path fiscalberry-gui -DestinationPath fiscalberry-windows-gui.zip
+          Compress-Archive -Path fiscalberry-cli -DestinationPath fiscalberry-windows-cli.zip
 
       - name: Upload Windows GUI Artifact
         uses: actions/upload-artifact@v4
@@ -140,7 +218,9 @@ jobs:
   # ANDROID GUI BUILD (con caché y signing)
   # ============================================
   build-android:
-    runs-on: ubuntu-latest
+    needs: [version, tests]
+    if: needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -186,34 +266,99 @@ jobs:
             zlib1g-dev \
             libncurses5-dev \
             libncursesw5-dev \
-            libtinfo5 \
             cmake \
             libffi-dev \
             libssl-dev \
             automake
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
       - name: Install Android SDK components
         run: |
-          sdkmanager "platforms;android-33" "build-tools;33.0.2" "ndk;25.2.9519653"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;25.2.9519653"
 
       - name: Install Buildozer and dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install buildozer cython virtualenv
+          # Toolchain PINEADO para matchear p4a v2024.01.21 (Python 3.11.x):
+          # buildozer 1.5.0 + cython 0.29.x. Sin pin se instalaba buildozer/p4a
+          # bleeding-edge (Python 3.14 + cython 3) y el build de Android rompía.
+          pip install "buildozer==1.5.0" "cython==0.29.36" virtualenv
+
+      # La clave de firma DEBE ser siempre la misma. Si cambia, Android rechaza
+      # la actualización sobre una instalación previa ("problema con el
+      # paquete") y además cambia el ANDROID_ID del que se deriva el uuid del
+      # dispositivo, con lo cual hay que re-vincular el comercio en cada
+      # release. Antes se firmaba con la clave de debug que el runner genera al
+      # vuelo: distinta en cada corrida (el caché guarda ~/.buildozer pero no
+      # ~/.android, que es donde vive).
+      - name: Preparar keystore de firma
+        id: keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "Sin secret ANDROID_KEYSTORE_BASE64: se compila en debug (no publicable)."
+            echo "disponible=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/fiscalberry.keystore"
+            echo "disponible=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build Android APK
+        env:
+          # buildozer firma y alinea el APK solo si estas variables están puestas.
+          P4A_RELEASE_KEYSTORE: ${{ runner.temp }}/fiscalberry.keystore
+          P4A_RELEASE_KEYALIAS: fiscalberry
+          P4A_RELEASE_KEYSTORE_PASSWD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          P4A_RELEASE_KEYALIAS_PASSWD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          HAY_KEYSTORE: ${{ steps.keystore.outputs.disponible }}
         run: |
-          buildozer android debug -s buildozer.ui.android.spec
+          cp buildozer.ui.android.spec buildozer.spec
+          # El caché (restore-keys) puede traer un clon viejo de p4a (master/3.14) y
+          # builds para Python 3.14. Con el pin nuevo hay que limpiarlos para forzar
+          # re-clone de p4a v2024.01.21 y rebuild limpio. Se conservan SDK/NDK en
+          # ~/.buildozer (descargas caras).
+          rm -rf .buildozer/android/platform/python-for-android
+          rm -rf .buildozer/android/platform/build-*
+          if [ "$HAY_KEYSTORE" = "true" ]; then
+            # release: firmado con la clave fija y SIN android:debuggable, que en
+            # debug deja leer la memoria del proceso — donde viven las
+            # credenciales del broker, que a propósito nunca se guardan en disco.
+            buildozer -v android release
+          else
+            buildozer -v android debug
+          fi
 
       - name: Find and rename APK
         id: find_apk
         run: |
-          APK_PATH=$(find . -name "*.apk" -type f | head -1)
+          # El release deja tambien el APK sin firmar (-unsigned.apk); elegir el firmado.
+          APK_PATH=$(find bin -name "*.apk" -type f ! -name "*unsigned*" | head -1)
+          if [ -z "$APK_PATH" ]; then
+            echo "No se genero ningun APK" >&2
+            exit 1
+          fi
           echo "APK found: $APK_PATH"
           cp "$APK_PATH" ./fiscalberry-android-gui.apk
+
+      - name: Verificar firma del APK
+        run: |
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* 2>/dev/null | sort -V | tail -1)
+          APKSIGNER="$BUILD_TOOLS/apksigner"
+          if [ ! -x "$APKSIGNER" ]; then
+            APKSIGNER=$(find "$HOME/.buildozer" -name apksigner -type f 2>/dev/null | sort -V | tail -1)
+          fi
+          # Deja en el log la huella del certificado: si algun dia cambia, se ve
+          # aca antes de que los usuarios no puedan actualizar.
+          "$APKSIGNER" verify --print-certs ./fiscalberry-android-gui.apk | grep -i "SHA-256 digest" || true
 
       - name: Upload Android Artifact
         uses: actions/upload-artifact@v4
@@ -225,9 +370,16 @@ jobs:
   # CREATE GITHUB RELEASE
   # ============================================
   create-release:
-    needs: [build-linux, build-windows, build-android]
+    needs: [version, tests, build-linux, build-windows, build-android]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    # Publicar el release aunque Android falle: con que Linux y Windows compilen,
+    # se publica con los binarios disponibles. Android es best-effort (su build es
+    # frágil) y NO debe bloquear el release del resto de plataformas.
+    if: >-
+      always() &&
+      needs.version.outputs.exists == 'false' &&
+      needs.build-linux.result == 'success' &&
+      needs.build-windows.result == 'success'
     steps:
       - uses: actions/checkout@v4
 
@@ -255,7 +407,10 @@ jobs:
           name: fiscalberry-windows-cli
           path: ./artifacts/
 
+      # Android es best-effort: si su build falló, el artifact no existe.
+      # continue-on-error evita que eso tumbe el release.
       - name: Download Android Artifact
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: fiscalberry-android-gui
@@ -267,9 +422,28 @@ jobs:
           name: fiscalberry-windows-installer
           path: ./artifacts/
 
+      # El auto-updater de los dispositivos EXIGE este archivo: si un release no
+      # lo trae, se niega a instalar (mejor quedarse en la version vieja que
+      # aplicar un binario que no se pudo verificar). Ver
+      # src/fiscalberry/common/updater/release_source.py
+      - name: Generar SHA256SUMS
+        run: |
+          cd artifacts
+          rm -f SHA256SUMS
+          sha256sum * > SHA256SUMS
+          echo "--- checksums publicados ---"
+          cat SHA256SUMS
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          # Crea el tag vX.Y.Z (leído de version.py) apuntando al commit pusheado
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          # fail_on_unmatched_files=false: si falta el APK de Android (build frágil),
+          # se publica igual con los binarios de Linux y Windows.
+          fail_on_unmatched_files: false
           files: |
             ./artifacts/fiscalberry-linux-gui.tar.gz
             ./artifacts/fiscalberry-linux-cli.tar.gz
@@ -277,6 +451,7 @@ jobs:
             ./artifacts/fiscalberry-windows-cli.zip
             ./artifacts/fiscalberry-*-setup.exe
             ./artifacts/fiscalberry-android-gui.apk
+            ./artifacts/SHA256SUMS
           draft: false
           prerelease: false
           generate_release_notes: true
