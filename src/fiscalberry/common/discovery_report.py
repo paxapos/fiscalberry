@@ -64,6 +64,11 @@ def _colas_windows():
                            oculta=c.hidden, estado=c.status_text) for c in r.queues]}
 
 
+def _privilegio():
+    from fiscalberry.common.windows_privilege import detect_privilege
+    return detect_privilege()
+
+
 SECTIONS = {
     "adaptadores": _adaptadores,
     "arp": _arp,
@@ -71,6 +76,7 @@ SECTIONS = {
     "dispositivos_usb": _dispositivos_usb,
     "puertos_com": _puertos_com,
     "colas_windows": _colas_windows,
+    "privilegio": _privilegio,
 }
 
 

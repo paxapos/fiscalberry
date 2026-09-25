@@ -150,6 +150,10 @@ foreach ($a in $fisicos) {
 if ($null -eq $informe.dispositivos_usb.total) {
     throw "La enumeración de dispositivos USB no devolvió un total"
 }
+# El runner corre como administrador: el token tiene que leerse sin errores.
+if ($informe.privilegio -notin @("admin_con_uac", "admin_elevado", "admin_sin_uac", "estandar")) {
+    throw "No se pudo leer el nivel de privilegio: '$($informe.privilegio)'"
+}
 # Colas: EnumPrinters nivel 2 por el subproceso --list-printers del exe
 # instalado. El runner trae las colas virtuales de Windows (PDF, XPS): tienen
 # que aparecer, clasificadas como virtuales y ocultas por defecto, en < 5 s.

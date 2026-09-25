@@ -1,0 +1,58 @@
+DIAGNÓSTICO DEL ASISTENTE DE IMPRESORAS — Fiscalberry
+Generado: 2026-09-25 14:30:00
+Versión: 3.9.9 (windows-installer)
+Sistema: Windows 11 (build 22631), AMD64
+Permisos: administrador con UAC (puede aprobar el cartel de Windows)
+Comercio: Pizzeria Don Pepe (vinculado)
+Equipo: id …9c0d
+Servicio: conectado al servidor (MQTT: sí)
+
+== Dónde quedó
+Paso actual: guardada
+Guardadas en esta sesión: Cocina
+
+== Última prueba
+Impresora: 192.168.1.60 (Network)
+Identidad: network:192.168.1.60:9100
+Conexión: Red (192.168.1.60)
+Resultado técnico: bien
+Estado DLE EOT: sin respuesta (la impresora no informa su estado)
+Papel confirmado: sí
+
+== Búsqueda
+Duración: 2.6 s; encontradas: 1 (0 ocultas)
+Red: 256 direcciones revisadas en 2.5 s
+USB: 0 por usbprint, 0 puertos COM, 0 incompatibles
+Colas de Windows: no aplica
+Avisos:
+- Se ignoró la conexión VPN "VPN Oficina".
+Impresoras:
+- [Network] TM-T88V — Dirección IP: 192.168.1.60; Puerto: 9100; Placa de red: 00:26:AB:xx:xx:xx
+
+== Redes de la PC
+- Ethernet (físico, conectado): 192.168.1.27/24; gateway 192.168.1.1; DHCP sí; placa A4:BB:6D:xx:xx:xx
+- VPN Oficina (VPN, conectado): 10.8.0.6/24; DHCP no; no se revisa
+
+== Escenario 5 (otra subred con IP temporal)
+No disponible en esta versión: no se usó IP temporal, ni dhcpstaticipcoexistence, ni el fallback de #178; no hay diario de red.
+
+== Impresoras configuradas
+- Caja: driver=Win32Raw, printer_name=EPSON TM-T20II Receipt, _setup_id=windows:EPSON TM-T20II Receipt
+- Cocina: driver=Network, host=192.168.1.60, port=9100, _setup_id=network:192.168.1.60:9100
+
+== Recorrido
++0.0 s resultados · paso
++0.4 s resultados · busqueda encontradas=1 ocultas=0 segundos=2.6 avisos=['Se ignoró la conexión VPN "VPN Oficina".']
++0.8 s resultados · paso
++1.2 s resultados · eligio clave=network:192.168.1.60:9100 transporte=Network
++1.6 s probando · prueba transporte=Network identidad=network:192.168.1.60:9100
++2.0 s probando · resultado tecnico=True cancelado=False
++2.4 s confirmar · paso
++2.8 s confirmar · papel salio=True
++3.2 s nombre · paso
++3.6 s nombre · guardada alias=Cocina transporte=Network
++4.0 s guardada · paso
+
+== Errores recientes del asistente
+2026-09-25 14:29:58 [app:1] WARNING PrinterTest: Prueba de 'Impresora' fallida (tapa_abierta): Authorization: Bearer [oculto]
+2026-09-25 14:29:59 [app:1] ERROR WindowsQueues: password=[oculto] no debería estar acá

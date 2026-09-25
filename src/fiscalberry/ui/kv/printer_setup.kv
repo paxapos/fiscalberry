@@ -180,6 +180,25 @@
             height: dp(50) if root.guide else 0
             on_press: root.open_guide()
 
+        # Ante un error o aviso: lo que soporte necesita (#185).
+        GridLayout:
+            cols: 2
+            spacing: dp(10)
+            size_hint_y: None
+            height: dp(44) if (root.message or root.step == 'problema') else 0
+            opacity: 1 if (root.message or root.step == 'problema') else 0
+            disabled: not (root.message or root.step == 'problema')
+            AsistenteSecundario:
+                height: dp(44)
+                font_size: '15sp'
+                text: root.diagnosis_status or "Copiar diagnóstico para soporte"
+                on_press: root.copy_diagnosis()
+            AsistenteSecundario:
+                height: dp(44)
+                font_size: '15sp'
+                text: "Ver registro"
+                on_press: root.view_log()
+
         ScreenManager:
             id: pasos
             transition: NoTransition()

@@ -171,6 +171,7 @@ class PrinterWizard:
         self.busy = False
         self.candidate = None
         self.result = None
+        self.last_result = None   # la última prueba, aunque ya se haya guardado (#185)
         self.info = None
         self.suggested_alias = ""
         self.saved = []
@@ -429,6 +430,7 @@ class PrinterWizard:
 
     def test_candidate(self, candidate):
         """Imprime el ticket de prueba de un candidato (cualquier transporte)."""
+        self.last_result = None
         duplicada = self.service.find_duplicate(candidate)
         if duplicada is not None:
             self._go(STEP_PROBLEM,
@@ -457,10 +459,11 @@ class PrinterWizard:
                          GUIDE_PRINT_FAILED)
                 return
             self.result = resultado
+            self.last_result = resultado
+            estado = resultado.status_after if resultado.status_after.known else resultado.status_before
             self._registrar("resultado", tecnico=resultado.technical_success,
                             problema=resultado.problem, aviso=resultado.warning,
-                            estado=resultado.status_after.as_dict()
-                            if resultado.status_after.known else resultado.status_before.as_dict(),
+                            estado=estado.as_dict() if estado.known else None,
                             cancelado=resultado.job_cancelled, detalle=resultado.detail)
             if resultado.technical_success:
                 # Un aviso (poco papel) no impide seguir, pero se muestra.

@@ -1,0 +1,52 @@
+DIAGNÓSTICO DEL ASISTENTE DE IMPRESORAS — Fiscalberry
+Generado: 2026-09-25 14:30:00
+Versión: 3.9.9 (windows-installer)
+Sistema: Windows 11 (build 22631), AMD64
+Permisos: administrador con UAC (puede aprobar el cartel de Windows)
+Comercio: Pizzeria Don Pepe (vinculado)
+Equipo: id …9c0d
+Servicio: conectado al servidor (MQTT: sí)
+
+== Dónde quedó
+Paso actual: problema
+Mensaje: La tapa de la impresora está abierta. Cerrala bien, hasta que haga clic, y probá de nuevo.
+Guía ofrecida: https://doc.paxapos.com/user-guide/troubleshooting-semantico#error-impresora-comandera
+
+== Última prueba
+Impresora: EPSON TM-T20II (UsbPrint)
+Identidad: usbprint:04b8:0e15:…1234
+Conexión: USB (…1234)
+Resultado técnico: falló (tapa_abierta)
+Estado DLE EOT: en línea=no, tapa abierta=sí, sin papel=no, poco papel=no, error=no
+Papel confirmado: no
+
+== Búsqueda
+Duración: 2.6 s; encontradas: 1 (0 ocultas)
+Red: 0 direcciones revisadas en 0.0 s
+USB: 1 por usbprint, 0 puertos COM, 0 incompatibles
+Colas de Windows: no aplica
+Impresoras:
+- [UsbPrint] EPSON TM-T20II — USB 04B8:0E15; Con número de serie; Puerto de Windows: USB001
+
+== Redes de la PC
+- Ethernet (físico, conectado): 192.168.1.27/24; gateway 192.168.1.1; DHCP sí; placa A4:BB:6D:xx:xx:xx
+- VPN Oficina (VPN, conectado): 10.8.0.6/24; DHCP no; no se revisa
+
+== Escenario 5 (otra subred con IP temporal)
+No disponible en esta versión: no se usó IP temporal, ni dhcpstaticipcoexistence, ni el fallback de #178; no hay diario de red.
+
+== Impresoras configuradas
+- Caja: driver=Win32Raw, printer_name=EPSON TM-T20II Receipt, _setup_id=windows:EPSON TM-T20II Receipt
+
+== Recorrido
++0.0 s resultados · paso
++0.4 s resultados · busqueda encontradas=1 ocultas=0 segundos=2.6
++0.8 s resultados · paso
++1.2 s resultados · eligio clave=usbprint:04b8:0e15:…1234 transporte=UsbPrint
++1.6 s probando · prueba transporte=UsbPrint identidad=usbprint:04b8:0e15:…1234
++2.0 s probando · resultado tecnico=False problema=tapa_abierta estado={'online': False, 'cover_open': True, 'paper_out': False, 'paper_near_end': False, 'error': False} cancelado=False
++2.4 s problema · paso mensaje=La tapa de la impresora está abierta. Cerrala bien, hasta que haga clic, y probá de nuevo. guia=no_imprime
+
+== Errores recientes del asistente
+2026-09-25 14:29:58 [app:1] WARNING PrinterTest: Prueba de 'Impresora' fallida (tapa_abierta): Authorization: Bearer [oculto]
+2026-09-25 14:29:59 [app:1] ERROR WindowsQueues: password=[oculto] no debería estar acá

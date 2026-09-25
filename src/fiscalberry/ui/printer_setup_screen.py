@@ -53,6 +53,16 @@ def kivy_runner(fn, on_done):
     threading.Thread(target=trabajo, daemon=True, name="fiscalberry-asistente").start()
 
 
+def armar_diagnostico(wizard):
+    from fiscalberry.common.support_report import build_report
+    return build_report(wizard)
+
+
+def copiar_al_portapapeles(texto):
+    from kivy.core.clipboard import Clipboard
+    Clipboard.copy(texto)
+
+
 def kivy_post(fn):
     """Lleva `fn` al hilo de Kivy (resultados parciales de la búsqueda)."""
     Clock.schedule_once(lambda _dt: fn(), 0)
@@ -107,6 +117,7 @@ class PrinterSetupScreen(Screen):
     test_code = StringProperty("")
     suggested_alias = StringProperty("")
     saved = ListProperty([])
+    diagnosis_status = StringProperty("")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -263,6 +274,28 @@ class PrinterSetupScreen(Screen):
         from fiscalberry.common.printer_guides import open_guide
         if self.guide and not open_guide(self.guide):
             logger.warning(f"No se pudo abrir la guía '{self.guide}'")
+
+    def copy_diagnosis(self):
+        """"Copiar diagnóstico" (#185): al portapapeles y a un archivo junto al registro."""
+        from fiscalberry.common import support_report
+
+        texto = armar_diagnostico(self.ensure_wizard())
+        ruta = support_report.save_report(texto)
+        try:
+            copiar_al_portapapeles(texto)
+            self.diagnosis_status = "Copiado: pegalo en el chat de soporte."
+        except Exception as e:
+            logger.warning(f"No se pudo copiar el diagnóstico: {e}")
+            self.diagnosis_status = ("No se pudo copiar. Quedó guardado en la carpeta del registro."
+                                     if ruta else "No se pudo copiar el diagnóstico.")
+        Clock.schedule_once(lambda _dt: setattr(self, "diagnosis_status", ""), 8)
+
+    def view_log(self):
+        """"Ver registro": la pantalla de logs, que vuelve al asistente."""
+        if self.manager is None or not self.manager.has_screen("logs"):
+            return
+        self.manager.get_screen("logs").volver_a = self.name
+        self.manager.current = "logs"
 
     def choose_address(self):
         self.ensure_wizard().choose_address()

@@ -268,6 +268,47 @@ responde DLE EOT: la búsqueda real la encontró en 2,6 s (1,5 s de barrido +
 apareció la sección en `config.ini`. Con el servicio MQTT sin poder conectar
 (proxy), el asistente siguió respondiendo.
 
+## Diagnóstico para soporte — #185
+
+Código: `common/support_report.py` y `common/windows_privilege.py`.
+
+Ante un error o aviso del asistente aparecen **"Copiar diagnóstico para
+soporte"** (al portapapeles y a `diagnostico-impresoras.txt`, junto al
+registro) y **"Ver registro"** (la pantalla de logs, que vuelve al asistente).
+
+El reporte se arma **solo con campos permitidos**: versión e instalación,
+sistema, nivel de privilegio, comercio (nombre, no el tenant), estado del
+servicio, dónde quedó (paso, mensaje, guía), la última prueba (transporte,
+identidad, DLE EOT, LPT, si se borró el trabajo de la cola, si se confirmó el
+papel), la dirección escrita y su diagnóstico, la búsqueda (qué encontró cada
+fuente, tiempos, avisos, ocultas y por qué), las redes de la PC, las
+impresoras configuradas (claves de driver solamente) y el **recorrido paso a
+paso** con tiempos relativos, que alcanza para reproducir dónde falló.
+
+Lo identificable se reduce: MAC al fabricante (`00:26:AB:xx:xx:xx`), números de
+serie a los últimos 4, id del equipo a 4 caracteres, IP pública oculta (las
+privadas del local quedan: sin ellas no se entiende un problema de subred),
+carpeta del usuario como `~`. Nunca entran credenciales MQTT, JWT,
+contraseñas, tokens ni tickets: no se incluyen y, además, una pasada final
+reemplaza por `[oculto]` todo valor del `config.ini` cuya clave sea sensible,
+todo lo que parezca un JWT y lo que siga a `password=`, `token=`, `Bearer`.
+Del registro entran solo advertencias y errores de los módulos del asistente.
+
+**Privilegio** (`detect_privilege`, sin pedir nada): `TokenElevationType`
+distingue administrador con UAC (token filtrado), ya elevado o "default"; en
+el último caso `IsUserAnAdmin` separa administrador sin UAC de cuenta
+estándar. #178 lo va a usar para no mostrar un cartel de UAC que la persona no
+puede aprobar.
+
+El escenario 5 (IP temporal, `dhcpstaticipcoexistence` antes y después,
+fallback, diario de red) es de la fase 3: el reporte dice explícitamente que
+no se usó.
+
+Snapshots aprobados en `tests/snapshots/diagnostico_*.txt` (éxito, USB con
+tapa abierta, cola trabada, nada encontrado, otra subred). Si un cambio es a
+propósito: `FISCALBERRY_UPDATE_SNAPSHOTS=1 pytest tests/test_diagnostico_soporte.py`
+y revisar el diff.
+
 ## Verificación en Windows real
 
 La prueba del instalador (`build_tools/test-windows-installer.ps1`, workflow
@@ -276,8 +317,8 @@ el ejecutable instalado: lee `GetAdaptersAddresses`, `GetIpNetTable`,
 SetupDi (usbprint y todos los USB) y los puertos COM de verdad, y lista las
 colas con el subproceso `--list-printers` del exe instalado. Falla si alguna
 sección revienta, si no hay al menos un adaptador físico con IPv4, si el
-listado de colas tarda más de 5 s o si las colas PDF/XPS del runner no quedan
-como virtuales y ocultas. El runner no
+listado de colas tarda más de 5 s, si las colas PDF/XPS del runner no quedan
+como virtuales y ocultas o si no se puede leer el nivel de privilegio. El runner no
 tiene impresoras: el barrido y las impresoras se prueban con fakes y sockets
 locales en `tests/test_red_impresoras.py`.
 

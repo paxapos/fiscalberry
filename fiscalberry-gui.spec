@@ -56,6 +56,8 @@ a = Analysis(
         'fiscalberry.common.windows_queues',
         'fiscalberry.common.printer_search',
         'fiscalberry.common.printer_guides',
+        'fiscalberry.common.support_report',
+        'fiscalberry.common.windows_privilege',
         'fiscalberry.common.discovery_report',
     ],
     hookspath=[],

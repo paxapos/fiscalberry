@@ -146,6 +146,8 @@ def run_selftest(ruta_reporte=None):
             import fiscalberry.common.windows_queues  # noqa: F401
             import fiscalberry.common.printer_search  # noqa: F401
             import fiscalberry.common.printer_guides  # noqa: F401
+            import fiscalberry.common.support_report  # noqa: F401
+            import fiscalberry.common.windows_privilege  # noqa: F401
             import fiscalberry.common.discovery_report  # noqa: F401
             if sys.platform == "win32":
                 # Backend que pystray carga dinámicamente: si PyInstaller no
