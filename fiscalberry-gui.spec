@@ -45,6 +45,13 @@ a = Analysis(
         # sin esto la bandeja no aparece en el .exe (y la "X" cerraría la app).
         'pystray._win32',
         'fiscalberry.desktop.tray',
+        # Asistente de impresoras: se importa recién al abrirlo (y el informe
+        # de descubrimiento, desde el arranque temprano).
+        'fiscalberry.ui.printer_setup_screen',
+        'fiscalberry.common.printer_wizard',
+        'fiscalberry.common.printer_test',
+        'fiscalberry.common.network_discovery',
+        'fiscalberry.common.discovery_report',
     ],
     hookspath=[],
     hooksconfig={},

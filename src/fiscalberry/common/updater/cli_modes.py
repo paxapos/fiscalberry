@@ -10,12 +10,14 @@ arranques normales del programa:
 - `--apply-update`: solo Windows. El binario nuevo hace de ayudante y reemplaza
   al viejo una vez que éste murió.
 - `--version`: útil para diagnosticar a distancia.
+- `--discovery-report`: lo que ve el asistente de impresoras (redes, USB,
+  puertos COM, colas), sin tocar nada. Lo usa la prueba del instalador.
 """
 
 import os
 import sys
 
-MODES = ("--selftest", "--apply-update", "--version")
+MODES = ("--selftest", "--apply-update", "--version", "--discovery-report")
 
 
 def _arg(argv, nombre, defecto=None):
@@ -49,6 +51,10 @@ def handle_early_modes(argv=None):
             exe=_arg(argv, "--exe"),
         )
         sys.exit(codigo)
+
+    if "--discovery-report" in argv:
+        from fiscalberry.common.discovery_report import run
+        sys.exit(run(ruta_reporte=_arg(argv, "--report")))
 
     if "--selftest" in argv:
         sys.exit(run_selftest(ruta_reporte=_arg(argv, "--report")))
@@ -125,7 +131,10 @@ def run_selftest(ruta_reporte=None):
             # un módulo que PyInstaller no empaquetó aparecería con el local
             # ya actualizado.
             import fiscalberry.ui.printer_setup_screen  # noqa: F401
+            import fiscalberry.common.printer_wizard  # noqa: F401
             import fiscalberry.common.printer_test  # noqa: F401
+            import fiscalberry.common.network_discovery  # noqa: F401
+            import fiscalberry.common.discovery_report  # noqa: F401
             if sys.platform == "win32":
                 # Backend que pystray carga dinámicamente: si PyInstaller no
                 # lo empaquetó, la bandeja no aparece y la "X" cierra la app.

@@ -15,6 +15,9 @@ on:
       - "src/fiscalberry/desktop/**"
       - "src/fiscalberry/common/single_instance.py"
       - "src/fiscalberry/common/updater/**"
+      # Asistente de impresoras: la prueba lee las APIs reales de Windows.
+      - "src/fiscalberry/common/discovery_report.py"
+      - "src/fiscalberry/common/network_discovery.py"
       - ".github/workflows/windows-installer.yml"
   workflow_dispatch:
 

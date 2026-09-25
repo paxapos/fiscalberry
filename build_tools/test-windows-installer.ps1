@@ -4,6 +4,8 @@ Windows, sobre un runner limpio:
 
   1. Instalación silenciosa por usuario: quedan el ejecutable y unins000.exe.
   2. El binario instalado pasa --selftest y "Aplicaciones" muestra su versión.
+     Su --discovery-report lee de verdad las APIs de Windows que usa el
+     asistente de impresoras (adaptadores de red, ARP) sin reventar.
   3. Actualización silenciosa con Fiscalberry "abierto" (su mutex existe): el
      setup espera a que se cierre, instala, conserva el desinstalador y, por
      /RELAUNCH=1, vuelve a abrir la app con --minimized. Nunca dos procesos.
@@ -110,6 +112,35 @@ $productVersion = (Get-Item $exe).VersionInfo.ProductVersion
 $displayVersion = (Get-ItemProperty -Path $uninstallKey).DisplayVersion
 if ($displayVersion -ne $productVersion) {
     throw "Aplicaciones muestra la versión '$displayVersion' y el ejecutable es '$productVersion'"
+}
+
+# El asistente de impresoras usa APIs de Windows que en Linux solo se prueban
+# con fakes: acá se leen de verdad. El runner no tiene impresoras, pero sí red.
+Write-Host "== Lo que ve el asistente de impresoras"
+$discovery = Join-Path $logs "discovery.json"
+$proc = Start-Process -FilePath $exe -ArgumentList @("--discovery-report", "--report", "`"$discovery`"") -PassThru
+$null = $proc.Handle
+if (-not $proc.WaitForExit(120000)) {
+    Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+    throw "El informe de descubrimiento no terminó en 120 s"
+}
+if (-not (Test-Path $discovery)) {
+    Show-AppLog
+    throw "El informe de descubrimiento no se escribió (código $($proc.ExitCode))"
+}
+$crudo = Get-Content $discovery -Raw
+Write-Host $crudo
+$informe = $crudo | ConvertFrom-Json
+if ($proc.ExitCode -ne 0) {
+    Show-AppLog
+    throw "El informe de descubrimiento falló en: $($informe.fallas -join ', ')"
+}
+$fisicos = @($informe.adaptadores | Where-Object { $_.kind -eq "fisico" -and $_.up -and $_.prefix -gt 0 })
+if ($fisicos.Count -lt 1) {
+    throw "GetAdaptersAddresses no devolvió ningún adaptador físico conectado con IPv4"
+}
+foreach ($a in $fisicos) {
+    if (-not ($a.address -as [ipaddress])) { throw "Dirección inválida en el adaptador '$($a.name)': $($a.address)" }
 }
 
 # 3) Actualización con Fiscalberry abierto -----------------------------------
