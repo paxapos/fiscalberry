@@ -252,3 +252,31 @@ def test_shutdown_print_spooler_is_noop_when_never_created(monkeypatch):
 
     assert created == []
     assert CH._print_spooler is None
+
+
+def test_timeout_de_red_del_config_llega_como_numero(monkeypatch):
+    """
+    #187: el config.ini guarda todo como texto. Con timeout="10" el driver
+    Network hacía socket.settimeout("10") y la impresión reventaba.
+    """
+    recibido = {}
+
+    class NetworkFalso:
+        def __init__(self, **kwargs):
+            recibido.update(kwargs)
+            raise RuntimeError("sin impresora en el test")
+
+    class FakeConfigberry:
+        def get_config_for_printer(self, name):
+            return {"driver": "Network", "host": "192.168.1.80",
+                    "port": "9100", "timeout": "10"}
+
+    monkeypatch.setattr(CH, "configberry", FakeConfigberry())
+    monkeypatch.setattr(CH.printer, "Network", NetworkFalso)
+
+    with pytest.raises(CH.DriverError):
+        CH.runTraductor({"printerName": "Barra", "printTexto": {"texto": "x"}}, None)
+
+    assert recibido["timeout"] == 10.0
+    assert isinstance(recibido["timeout"], float)
+    assert recibido["port"] == 9100

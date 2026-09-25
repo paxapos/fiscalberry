@@ -313,6 +313,9 @@ def runTraductor(jsonTicket, queue):
         # printer.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
         if 'port' in driverOps:
             driverOps['port'] = int(driverOps['port'])
+        # Del config.ini llega como texto: socket.settimeout("10") revienta.
+        if 'timeout' in driverOps:
+            driverOps['timeout'] = float(driverOps['timeout'])
         driverName = "Network"
 
     elif driverName == "Serial".lower():
