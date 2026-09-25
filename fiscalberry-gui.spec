@@ -54,6 +54,8 @@ a = Analysis(
         'fiscalberry.common.usb_discovery',
         'fiscalberry.common.usbprint_driver',
         'fiscalberry.common.windows_queues',
+        'fiscalberry.common.printer_search',
+        'fiscalberry.common.printer_guides',
         'fiscalberry.common.discovery_report',
     ],
     hookspath=[],

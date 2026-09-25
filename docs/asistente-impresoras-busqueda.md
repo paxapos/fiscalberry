@@ -218,6 +218,56 @@ Código: `src/fiscalberry/common/windows_queues.py`.
   impresora: si una cola usa `USB001`, la impresora usbprint de ese puerto se
   muestra solo con "Mostrar todas" (se prefiere la cola que ya usa el local).
 
+## La pantalla: "Buscar impresoras" — #184
+
+Código: `common/printer_search.py` (sin Kivy), `common/printer_wizard.py`,
+`common/printer_guides.py`, `ui/printer_setup_screen.py` y
+`ui/kv/printer_setup.kv`.
+
+- Un solo botón **"Buscar impresoras"** corre red, USB/COM y colas de Windows
+  en paralelo (`PrinterSearch`, un hilo por fuente) y muestra un solo listado
+  que se va llenando: la red y el USB aparecen en ~2 s aunque las colas
+  tarden. Nada corre en el hilo de Kivy: los resultados vuelven con `Clock`.
+- Cada impresora es una fila grande con un nombre (el modelo si se conoce) y
+  una frase sin jerga: "Conectada a la red", "Conectada por USB", "Conectada
+  por cable USB", "Instalada en Windows". IP, puerto, driver, MAC y estado del
+  spooler aparecen solo con **"Ver detalles"**.
+- Una misma impresora vista por dos caminos se muestra una vez (reglas en
+  `printer_search.py`); lo oculto (virtuales, fuera de línea, duplicados,
+  COM de la placa) se ve con **"Mostrar todas (N más)"**.
+- Las ya configuradas aparecen marcadas ("Ya está configurada como Caja") y
+  no se vuelven a probar.
+- Estados: buscando (con "Dejar de buscar", que deja lo encontrado), lista,
+  vacío ("No encontramos impresoras…" con la guía), error por fuente (avisos
+  debajo de la lista), probando, confirmar papel, problema (con "Probar de
+  nuevo" y "Elegir otra impresora"), nombre, guardada ("Terminar" o "Agregar
+  otra", que vuelve a la lista con la guardada marcada).
+- **"Sé la dirección de la impresora"**: para una de red que no apareció. La
+  dirección se diagnostica con la máscara real (#175). Si es de otra red, o
+  es una IP de fábrica, se explica y se ofrece **"Ver la guía paso a paso"**.
+  Si es la del router, se lo dice.
+- Casos no automáticos (otra subred, impresora USB sin driver o con WinUSB,
+  nada encontrado, prueba fallida): enlace a doc.paxapos.com. Todos los
+  enlaces están en `printer_guides.py`; las guías específicas
+  (paxapos/documentation#117 a #125) todavía no están publicadas y hoy apuntan
+  a la página de impresoras y a la biblioteca de drivers.
+- **Teclado**: Tab / Shift+Tab recorren botones e impresoras (recuadro azul),
+  Enter o Espacio tocan, Escape vuelve atrás (y nunca cierra la app). Al
+  llegar a cada paso el foco va a la acción principal, salvo en "¿salió el
+  ticket?": un Enter por costumbre no puede confirmar el papel.
+- Salir del asistente ("Configurar después", "Terminar", abrirlo de nuevo
+  desde la bandeja) cancela la búsqueda y el subproceso de colas. Nada de
+  esto toca el servicio MQTT.
+
+### Recorrido E2E
+
+Se probó con la app real bajo xvfb (Linux, `FISCALBERRY_PRINTER_WIZARD=1`),
+el comercio vinculado y una impresora TCP falsa en la IP del contenedor que
+responde DLE EOT: la búsqueda real la encontró en 2,6 s (1,5 s de barrido +
+1 s de SNMP), el ticket llegó con su código, se confirmó el papel y recién ahí
+apareció la sección en `config.ini`. Con el servicio MQTT sin poder conectar
+(proxy), el asistente siguió respondiendo.
+
 ## Verificación en Windows real
 
 La prueba del instalador (`build_tools/test-windows-installer.ps1`, workflow

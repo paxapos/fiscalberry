@@ -1,15 +1,19 @@
 #:import NoTransition kivy.uix.screenmanager.NoTransition
 
-# Asistente de impresoras (#173). Una decisión y una acción principal por
-# paso, con controles grandes: lo usan personas sin conocimientos técnicos.
+# Asistente de impresoras (#173, #184). Una decisión y una acción principal
+# por paso, con controles grandes y texto sin jerga: lo usan personas sin
+# conocimientos técnicos. IP, puerto o driver aparecen solo en "Detalles".
 # La lógica está en common/printer_wizard.py; acá solo se dibuja.
+#
+# Teclado: Tab / Shift+Tab mueven el foco (recuadro azul), Enter o Espacio
+# tocan, Escape vuelve atrás.
 
-<AsistenteBoton@Button>:
+<AsistenteBoton@BotonFoco>:
     fondo: 0.16, 0.55, 0.3, 1
-    font_size: '17sp'
+    font_size: '18sp'
     bold: True
     size_hint_y: None
-    height: dp(58)
+    height: dp(60)
     background_normal: ''
     background_color: 0, 0, 0, 0
     color: 1, 1, 1, 1
@@ -20,17 +24,29 @@
             pos: self.pos
             size: self.size
             radius: [dp(10)]
+    canvas.after:
+        Color:
+            rgba: (0.05, 0.15, 0.55, 1) if self.focus else (0, 0, 0, 0)
+        Line:
+            rounded_rectangle: (self.x - dp(3), self.y - dp(3), self.width + dp(6), self.height + dp(6), dp(12))
+            width: dp(2)
 
-<AsistenteSecundario@Button>:
-    font_size: '15sp'
+<AsistenteSecundario@BotonFoco>:
+    font_size: '16sp'
     size_hint_y: None
-    height: dp(46)
+    height: dp(50)
     background_normal: ''
     background_color: 0.86, 0.88, 0.94, 1
     color: 0.1, 0.2, 0.5, 1
+    canvas.after:
+        Color:
+            rgba: (0.05, 0.15, 0.55, 1) if self.focus else (0, 0, 0, 0)
+        Line:
+            rectangle: (self.x - dp(2), self.y - dp(2), self.width + dp(4), self.height + dp(4))
+            width: dp(2)
 
 <AsistenteTexto@Label>:
-    font_size: '17sp'
+    font_size: '18sp'
     color: 0.2, 0.2, 0.25, 1
     halign: 'center'
     valign: 'middle'
@@ -38,21 +54,96 @@
     size_hint_y: None
     height: self.texture_size[1] + dp(10)
 
+<AsistenteChico@Label>:
+    font_size: '14sp'
+    color: 0.42, 0.42, 0.48, 1
+    halign: 'left'
+    valign: 'top'
+    text_size: self.width, None
+    size_hint_y: None
+    height: (self.texture_size[1] + dp(4)) if self.text else 0
+    opacity: 1 if self.text else 0
+
 <AsistenteEntrada@TextInput>:
-    font_size: '20sp'
+    font_size: '22sp'
     multiline: False
     write_tab: False
     size_hint_y: None
-    height: dp(52)
+    height: dp(56)
     padding: [dp(12), dp(12)]
     background_color: 1, 1, 1, 1
     foreground_color: 0, 0, 0, 1
 
+<ImpresoraItem>:
+    orientation: 'vertical'
+    size_hint_y: None
+    height: self.minimum_height
+    padding: [dp(16), dp(12)]
+    spacing: dp(3)
+    opacity: 1 if (self.seleccionable or self.configurada) else 0.75
+    canvas.before:
+        Color:
+            rgba: (0.84, 0.9, 1, 1) if self.state == 'down' else ((0.92, 0.95, 0.92, 1) if self.configurada else (1, 1, 1, 1))
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(10)]
+        Color:
+            rgba: (0.05, 0.15, 0.55, 1) if self.focus else (0.78, 0.8, 0.87, 1)
+        Line:
+            rounded_rectangle: (self.x, self.y, self.width, self.height, dp(10))
+            width: dp(2.2) if self.focus else dp(1)
+    Label:
+        text: root.titulo
+        font_size: '19sp'
+        bold: True
+        color: 0.1, 0.16, 0.35, 1
+        halign: 'left'
+        text_size: self.width, None
+        size_hint_y: None
+        height: self.texture_size[1]
+    Label:
+        text: root.subtitulo + (("  ·  Ya está configurada como \"" + root.configurada + "\"") if root.configurada else "")
+        font_size: '16sp'
+        color: 0.3, 0.32, 0.38, 1
+        halign: 'left'
+        text_size: self.width, None
+        size_hint_y: None
+        height: self.texture_size[1]
+    Label:
+        text: root.nota
+        font_size: '15sp'
+        color: 0.62, 0.35, 0.05, 1
+        halign: 'left'
+        text_size: self.width, None
+        size_hint_y: None
+        height: self.texture_size[1] if root.nota else 0
+        opacity: 1 if root.nota else 0
+    Label:
+        text: root.oculta_por
+        font_size: '14sp'
+        italic: True
+        color: 0.45, 0.45, 0.5, 1
+        halign: 'left'
+        text_size: self.width, None
+        size_hint_y: None
+        height: self.texture_size[1] if root.oculta_por else 0
+        opacity: 1 if root.oculta_por else 0
+    Label:
+        text: root.detalles if root.mostrar_detalles else ""
+        font_size: '14sp'
+        color: 0.35, 0.35, 0.42, 1
+        halign: 'left'
+        text_size: self.width, None
+        size_hint_y: None
+        height: self.texture_size[1] if (root.mostrar_detalles and root.detalles) else 0
+        opacity: 1 if root.mostrar_detalles else 0
+
 <PrinterSetupScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: [dp(28), dp(24) + app.inset_top, dp(28), dp(24) + app.inset_bottom]
-        spacing: dp(14)
+        padding: [dp(28), dp(22) + app.inset_top, dp(28), dp(22) + app.inset_bottom]
+        spacing: dp(12)
         canvas.before:
             Color:
                 rgba: 0.96, 0.97, 1, 1
@@ -62,7 +153,7 @@
 
         Label:
             text: "Impresoras"
-            font_size: '21sp'
+            font_size: '22sp'
             bold: True
             color: 0.1, 0.2, 0.5, 1
             size_hint_y: None
@@ -71,7 +162,7 @@
         # Error o aviso del paso actual, con la acción concreta.
         Label:
             text: root.message
-            font_size: '16sp'
+            font_size: '17sp'
             color: 0.62, 0.22, 0.1, 1
             halign: 'center'
             valign: 'middle'
@@ -79,6 +170,15 @@
             size_hint_y: None
             height: (self.texture_size[1] + dp(10)) if root.message else 0
             opacity: 1 if root.message else 0
+
+        # Casos que el asistente no resuelve solo: la guía de doc.paxapos.com.
+        AsistenteSecundario:
+            id: boton_guia
+            text: "Ver la guía paso a paso"
+            disabled: not root.guide
+            opacity: 1 if root.guide else 0
+            height: dp(50) if root.guide else 0
+            on_press: root.open_guide()
 
         ScreenManager:
             id: pasos
@@ -91,11 +191,53 @@
                     spacing: dp(18)
                     Widget:
                     AsistenteTexto:
-                        text: "Configuremos la impresora del local.\nVamos a imprimir un ticket de prueba para confirmar que funciona."
+                        text: "Vamos a buscar la impresora del local: por cable USB, por la red o instalada en Windows.\nDespués imprimimos un ticket de prueba para confirmar que funciona."
                     AsistenteBoton:
-                        text: "Agregar una impresora de red"
+                        id: principal_inicio
+                        text: "Buscar impresoras"
+                        on_press: root.search()
+                    AsistenteSecundario:
+                        text: "Sé la dirección de mi impresora de red"
                         on_press: root.choose_address()
                     Widget:
+
+            Screen:
+                name: 'resultados'
+                BoxLayout:
+                    orientation: 'vertical'
+                    spacing: dp(10)
+                    AsistenteTexto:
+                        text: ("Buscando impresoras..." if root.found_count == 0 else "Buscando más impresoras... Ya podés elegir una.") if root.searching else ("Tocá la impresora que querés usar." if root.found_count else "")
+                    ScrollView:
+                        do_scroll_x: False
+                        bar_width: dp(8)
+                        BoxLayout:
+                            id: lista
+                            orientation: 'vertical'
+                            size_hint_y: None
+                            height: self.minimum_height
+                            spacing: dp(10)
+                            padding: [dp(4), dp(4)]
+                    AsistenteChico:
+                        text: "\n".join(root.notes)
+                    GridLayout:
+                        cols: 2
+                        size_hint_y: None
+                        height: self.minimum_height
+                        spacing: dp(10)
+                        AsistenteSecundario:
+                            text: "Dejar de buscar" if root.searching else "Buscar de nuevo"
+                            on_press: root.cancel_search() if root.searching else root.search()
+                        AsistenteSecundario:
+                            text: "Sé la dirección de la impresora"
+                            on_press: root.choose_address()
+                        AsistenteSecundario:
+                            text: "Ocultar detalles" if root.show_details else "Ver detalles"
+                            on_press: root.toggle_details()
+                        AsistenteSecundario:
+                            text: ("Mostrar menos" if root.show_all else "Mostrar todas (" + str(root.hidden_count) + " más)") if root.hidden_count else "Mostrar todas"
+                            disabled: not root.hidden_count
+                            on_press: root.toggle_show_all()
 
             Screen:
                 name: 'direccion'
@@ -112,8 +254,8 @@
                         disabled: root.busy
                         on_text_validate: root.submit_address(self.text)
                     Label:
-                        text: "Suele figurar en una etiqueta de la impresora o en su ticket de configuración."
-                        font_size: '14sp'
+                        text: "Figura en el ticket que imprime la impresora al prenderla con el botón FEED apretado."
+                        font_size: '15sp'
                         color: 0.45, 0.45, 0.5, 1
                         halign: 'center'
                         text_size: self.width, None
@@ -144,11 +286,11 @@
                         text: "Fijate en la impresora: ¿salió un ticket con este código?"
                     Label:
                         text: root.test_code
-                        font_size: '44sp'
+                        font_size: '46sp'
                         bold: True
                         color: 0.1, 0.2, 0.5, 1
                         size_hint_y: None
-                        height: dp(64)
+                        height: dp(66)
                     AsistenteBoton:
                         text: "Sí, salió"
                         on_press: root.confirm_paper(True)
@@ -165,11 +307,12 @@
                     spacing: dp(14)
                     Widget:
                     AsistenteBoton:
+                        id: principal_problema
                         text: "Probar de nuevo"
                         disabled: root.busy
                         on_press: root.retry()
                     AsistenteSecundario:
-                        text: "Volver al inicio"
+                        text: "Elegir otra impresora"
                         on_press: root.back()
                     Widget:
 
@@ -187,7 +330,7 @@
                         on_text_validate: root.save(self.text)
                     Label:
                         text: "Por ejemplo: Cocina, Barra o Caja."
-                        font_size: '14sp'
+                        font_size: '15sp'
                         color: 0.45, 0.45, 0.5, 1
                         size_hint_y: None
                         height: dp(24)
@@ -205,6 +348,7 @@
                     AsistenteTexto:
                         text: "Listo: la impresora quedó configurada.\n" + ("Configuradas ahora: " + ", ".join(root.saved) if root.saved else "")
                     AsistenteBoton:
+                        id: principal_guardada
                         text: "Terminar"
                         on_press: root.finish()
                     AsistenteSecundario:
@@ -216,7 +360,7 @@
         BoxLayout:
             orientation: 'horizontal'
             size_hint_y: None
-            height: dp(46)
+            height: dp(50)
             spacing: dp(14)
 
             # Un botón que no aplica al paso se colapsa: no queda un hueco.

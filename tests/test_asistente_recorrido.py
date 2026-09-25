@@ -72,6 +72,9 @@ def asistente(config=None, probe=lambda host, port: TCP_OK, impresora=None, runn
         print_test=impresora or Impresora(ok),
         on_change=lambda: setattr(reg, "cambios", reg.cambios + 1),
         on_exit=reg.salidas.append,
+        # Sin adaptadores conocidos: la subred no se puede juzgar y decide el
+        # diagnóstico TCP (los casos de subred están en test_asistente_busqueda).
+        list_adapters=lambda: [],
     )
     return w, reg, config
 

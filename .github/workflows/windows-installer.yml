@@ -21,6 +21,9 @@ on:
       - "src/fiscalberry/common/usb_discovery.py"
       - "src/fiscalberry/common/usbprint_driver.py"
       - "src/fiscalberry/common/windows_queues.py"
+      - "src/fiscalberry/common/printer_*.py"
+      - "src/fiscalberry/ui/printer_setup_screen.py"
+      - "src/fiscalberry/ui/kv/printer_setup.kv"
       - ".github/workflows/windows-installer.yml"
   workflow_dispatch:
 
