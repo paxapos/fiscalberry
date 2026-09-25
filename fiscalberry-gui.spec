@@ -41,6 +41,10 @@ a = Analysis(
         'fiscalberry.common.Configberry',
         'fiscalberry.common.fiscalberry_logger',
         'pywin32',
+        # pystray elige su backend con un import dinámico que PyInstaller no ve:
+        # sin esto la bandeja no aparece en el .exe (y la "X" cerraría la app).
+        'pystray._win32',
+        'fiscalberry.desktop.tray',
     ],
     hookspath=[],
     hooksconfig={},

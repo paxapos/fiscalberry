@@ -29,3 +29,5 @@ pika>=1.3.0  # solo para crear el binding AMQP inicial
 
 # Windows-specific dependencies
 pywin32; sys_platform == 'win32'
+# Ícono en la bandeja: la "X" oculta la ventana y el servicio sigue imprimiendo.
+pystray; sys_platform == 'win32'

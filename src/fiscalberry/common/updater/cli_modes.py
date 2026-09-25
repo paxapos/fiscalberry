@@ -112,6 +112,11 @@ def run_selftest(ruta_reporte=None):
             import kivy  # noqa: F401
             from kivy.app import App  # noqa: F401
             import fiscalberry.ui.fiscalberry_app  # noqa: F401
+            import fiscalberry.desktop.tray  # noqa: F401
+            if sys.platform == "win32":
+                # Backend que pystray carga dinámicamente: si PyInstaller no
+                # lo empaquetó, la bandeja no aparece y la "X" cierra la app.
+                import pystray._win32  # noqa: F401
         probar("módulos de la interfaz", _gui)
 
     if fallas:

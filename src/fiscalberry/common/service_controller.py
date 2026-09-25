@@ -87,6 +87,9 @@ class ServiceController:
         self.discover_thread = None
         self._zombie_reconnects = 0
         self.updater = None
+        # Lo que hay que cerrar antes de un os._exit() (ej. el ícono de la
+        # bandeja de la GUI): os._exit no corre atexit ni finalizadores.
+        self._exit_hooks = []
         # Una actualización recién se da por buena cuando el servicio conecta.
         # Ver updater/commit_guard.py: "el binario ejecuta" no es lo mismo que
         # "el servicio funciona", y solo lo segundo evita la reversión.
@@ -139,10 +142,25 @@ class ServiceController:
         
         # Solicitar detención limpia (sin sys.exit)
         self._stop_services_only()
-        
+        self._run_exit_hooks()
+
         # Terminar inmediatamente después de la limpieza
         logger.info("Terminando aplicación...")
         os._exit(0)  # Terminar de forma inmediata y definitiva
+
+    def add_exit_hook(self, callback):
+        """Registra algo a cerrar antes de que el proceso termine con os._exit()."""
+        hooks = getattr(self, "_exit_hooks", None)
+        if hooks is None:
+            hooks = self._exit_hooks = []
+        hooks.append(callback)
+
+    def _run_exit_hooks(self):
+        for callback in getattr(self, "_exit_hooks", None) or []:
+            try:
+                callback()
+            except Exception as e:
+                logger.debug(f"Error en un hook de salida: {e}")
 
     def is_service_running(self):
         """Verifica si el servicio ya está en ejecución."""
@@ -422,6 +440,7 @@ class ServiceController:
         try:
             self._stop_services_only()
         finally:
+            self._run_exit_hooks()
             os._exit(0)
 
     def _is_gui_mode(self):

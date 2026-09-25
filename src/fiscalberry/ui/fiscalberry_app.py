@@ -66,6 +66,10 @@ class FiscalberryApp(App):
     logs = StringProperty("")  # Logs en tiempo real para MainScreen
     start_minimized = BooleanProperty(False)
 
+    # Puente con las otras instancias (desktop/main.py): cuando alguien vuelve
+    # a abrir Fiscalberry, esta ventana se muestra en vez de abrir otra.
+    activation = None
+
     # Espacio que ocupan la barra de estado y la de navegación del sistema, en
     # píxeles. Desde Android 15 la app dibuja debajo de ellas (edge-to-edge), así
     # que las pantallas suman estos valores a su padding para no quedar tapadas.
@@ -81,6 +85,10 @@ class FiscalberryApp(App):
             self.message_queue = queue.Queue()
             self._stopping = False
             self._is_android = False
+            # Ícono de la bandeja (solo Windows): con él, la "X" oculta la
+            # ventana en vez de cortar la impresión.
+            self._tray = None
+            self._tray_notified = False
             logger.debug("Variables básicas inicializadas")
             
             # Detectar si estamos en Android de forma segura
@@ -478,17 +486,109 @@ class FiscalberryApp(App):
             except Exception as e:
                 logger.error(f"Error en on_start configurando icono: {e}")
 
+            self._start_tray()
+            if self.activation is not None:
+                self.activation.set_handler(self.request_show_window)
+
             if self.start_minimized and sys.platform == 'win32':
-                Clock.schedule_once(self._minimize_windows, 1.5)
+                if self._tray is not None:
+                    logger.info("Fiscalberry iniciado en la bandeja (arranque con Windows)")
+                else:
+                    # Sin bandeja la ventana no puede quedar oculta: no habría
+                    # forma de volver a abrirla. Minimizada, como antes.
+                    Clock.schedule_once(self._minimize_windows, 1.5)
 
     def _minimize_windows(self, _dt):
         try:
             from kivy.core.window import Window
 
+            # Si se pidió crearla oculta (desktop/main.py) y la bandeja no
+            # levantó, primero hay que volver a mostrarla.
+            Window.show()
             Window.minimize()
             logger.info("Fiscalberry iniciado minimizado con Windows")
         except Exception as e:
             logger.warning(f"No se pudo minimizar la ventana al iniciar: {e}")
+
+    # -- Bandeja del sistema (Windows) --------------------------------------
+
+    def _start_tray(self):
+        """
+        Muestra el ícono en la bandeja. Solo Windows: en Linux la "X" sigue
+        cerrando la aplicación como siempre.
+        """
+        try:
+            from fiscalberry.desktop import tray
+
+            if not tray.is_supported():
+                return False
+            icono = tray.TrayIcon(
+                on_open=self.request_show_window,
+                on_quit=self.request_quit,
+                icon_path=os.path.join(self.assetpath, "fiscalberry.ico"),
+            )
+            if not icono.start():
+                return False
+            self._tray = icono
+            if getattr(self, "_service_controller", None) is not None:
+                # Si el proceso termina por una actualización, que no quede un
+                # ícono fantasma en la bandeja.
+                self._service_controller.add_exit_hook(icono.stop)
+            return True
+        except Exception as e:
+            logger.error(f"No se pudo iniciar la bandeja: {e}", exc_info=True)
+            self._tray = None
+            return False
+
+    def hide_to_tray(self):
+        """La "X": se oculta la ventana y el servicio sigue imprimiendo."""
+        from kivy.core.window import Window
+        from fiscalberry.desktop.tray import BACKGROUND_NOTICE
+
+        Window.hide()
+        logger.info("Ventana oculta en la bandeja; el servicio de impresión sigue activo")
+        if not self._tray_notified:
+            self._tray_notified = True
+            self._tray.notify(BACKGROUND_NOTICE)
+
+    @mainthread
+    def request_show_window(self):
+        """Desde otros hilos (bandeja, otra instancia): mostrar la ventana."""
+        self.show_window()
+
+    def show_window(self):
+        try:
+            from kivy.core.window import Window
+
+            Window.show()
+            Window.restore()
+            Window.raise_window()
+            logger.info("Ventana mostrada")
+        except Exception as e:
+            logger.warning(f"No se pudo mostrar la ventana: {e}")
+
+    def request_quit(self):
+        """
+        "Salir (deja de imprimir)" de la bandeja, ya confirmado.
+
+        No pasa por el hilo de Kivy a propósito: salir tiene que funcionar
+        aunque la interfaz esté trabada.
+        """
+        logger.info("Saliendo desde la bandeja: se detiene el servicio de impresión")
+        if self._tray is not None:
+            self._tray.stop()
+
+        def detener():
+            try:
+                controller = getattr(self, "_service_controller", None)
+                if controller is not None:
+                    controller._stop_services_only()
+            except Exception as e:
+                logger.error(f"Error deteniendo servicios al salir: {e}")
+            finally:
+                os._exit(0)
+
+        Thread(target=detener, daemon=True).start()
     
     def _check_and_request_battery_exemption(self):
         """
@@ -916,7 +1016,11 @@ class FiscalberryApp(App):
         else:
             self.status_level = "error"
             self.status_message = "Sin conexión - verificando..."
-    
+
+        tray_icon = getattr(self, "_tray", None)
+        if tray_icon is not None:
+            tray_icon.set_status(self.status_message)
+
     def _update_logs(self, dt):
         """
         Actualiza la propiedad logs con el final del archivo.
@@ -1166,8 +1270,18 @@ class FiscalberryApp(App):
         except Exception as e:
             print(f"Error configurando manejadores de señales: {e}")
     
-    def _on_window_close(self, *args):
-        """Maneja el cierre de la ventana de forma inmediata"""
+    def _on_window_close(self, *args, **kwargs):
+        """
+        La "X" de la ventana.
+
+        Con bandeja (Windows) solo oculta la ventana: el servicio vive en este
+        mismo proceso, y salir dejaría al local sin imprimir hasta el próximo
+        inicio de sesión. Para salir de verdad está "Salir" en la bandeja.
+        """
+        tray_icon = getattr(self, "_tray", None)
+        if tray_icon is not None and tray_icon.running:
+            self.hide_to_tray()
+            return True
         print("Ventana cerrada por el usuario, saliendo...")
         self._immediate_force_exit_standalone()
         return True
