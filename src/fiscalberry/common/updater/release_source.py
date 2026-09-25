@@ -21,7 +21,13 @@ logger = getLogger("Updater")
 
 DEFAULT_REPO = "paxapos/fiscalberry"
 API_URL = "https://api.github.com/repos/{repo}/releases/latest"
+TAG_API_URL = "https://api.github.com/repos/{repo}/releases/tags/{tag}"
 HTTP_TIMEOUT = 20
+
+GITHUB_HEADERS = {
+    "Accept": "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+}
 
 # Archivo de checksums que publica la CI junto a los binarios.
 CHECKSUMS_ASSET = "SHA256SUMS"
@@ -29,6 +35,10 @@ CHECKSUMS_ASSET = "SHA256SUMS"
 
 class ReleaseUnavailable(Exception):
     """No se pudo averiguar cuál es el release vigente. No es un error fatal."""
+
+
+class ReleaseNotFound(ReleaseUnavailable):
+    """GitHub respondió que ese release no existe (404), no que no contestó."""
 
 
 def _version_tuple(version):
@@ -94,10 +104,7 @@ def fetch_latest(repo=DEFAULT_REPO, session=None):
 
     sess = session or requests
     cache = _load_etag_cache()
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
+    headers = dict(GITHUB_HEADERS)
     if cache.get("etag"):
         headers["If-None-Match"] = cache["etag"]
 
@@ -113,10 +120,38 @@ def fetch_latest(repo=DEFAULT_REPO, session=None):
         _save_etag_cache(resp.headers.get("ETag"), data)
     elif resp.status_code == 404:
         # Repo sin releases publicados todavía.
-        raise ReleaseUnavailable("el repositorio no tiene releases")
+        raise ReleaseNotFound("el repositorio no tiene releases")
     else:
         raise ReleaseUnavailable(f"GitHub respondió {resp.status_code}")
 
+    return _parse_release(data)
+
+
+def fetch_release_by_tag(tag, repo=DEFAULT_REPO, session=None):
+    """
+    Devuelve el Release de un tag puntual (por ejemplo, el de la versión que
+    está corriendo, para tener su instalador a mano antes de actualizar).
+
+    Lanza ReleaseNotFound si ese tag no tiene release (build de desarrollo o
+    release borrado) y ReleaseUnavailable si GitHub no se pudo consultar.
+    """
+    import requests
+
+    sess = session or requests
+    try:
+        resp = sess.get(TAG_API_URL.format(repo=repo, tag=tag),
+                        headers=dict(GITHUB_HEADERS), timeout=HTTP_TIMEOUT)
+    except Exception as e:
+        raise ReleaseUnavailable(f"no se pudo consultar GitHub: {e}")
+
+    if resp.status_code == 404:
+        raise ReleaseNotFound(f"no hay release publicado para {tag}")
+    if resp.status_code != 200:
+        raise ReleaseUnavailable(f"GitHub respondió {resp.status_code}")
+    return _parse_release(resp.json())
+
+
+def _parse_release(data):
     tag = data.get("tag_name") or ""
     assets = {}
     for a in data.get("assets") or []:

@@ -48,6 +48,51 @@ class ActivationBridge:
 activation = ActivationBridge()
 
 
+def redirect_portable_to_installed(start_minimized=False, platform=None, frozen=None,
+                                  executable=None, location=None, popen=None):
+    """
+    Una copia portable (el zip de las 3.6.x) no arranca si ya existe la
+    instalación hecha con FiscalberrySetup.exe: abre la instalada y termina.
+
+    Las portables migran solas a la ubicación instalada con la primera
+    actualización por instalador (#187), pero la carpeta del zip y sus accesos
+    directos quedan. Sin esto, abrir uno de esos accesos levantaría una
+    versión vieja al lado de la nueva, y nunca tienen que convivir dos.
+
+    Devuelve True si abrió la instalada (el llamador debe salir con código 0).
+    """
+    import os
+
+    platform = sys.platform if platform is None else platform
+    frozen = getattr(sys, "frozen", False) if frozen is None else frozen
+    if platform != "win32" or not frozen:
+        return False
+
+    from fiscalberry.common.updater import install_kind
+
+    location = install_kind.installed_location() if location is None else location
+    if not location:
+        return False
+
+    nombre = install_kind.binary_name(install_kind.WINDOWS_INSTALLER)
+    instalado = os.path.join(location, nombre)
+    actual = executable or sys.executable
+    if not os.path.isfile(instalado):
+        return False
+    if os.path.normcase(os.path.abspath(instalado)) == os.path.normcase(os.path.abspath(actual)):
+        return False
+
+    argv = [instalado] + (["--minimized"] if start_minimized else [])
+    try:
+        import subprocess
+        (popen or subprocess.Popen)(argv, close_fds=True, creationflags=0x00000008 | 0x00000200)
+    except Exception as e:
+        logger.warning(f"No se pudo abrir la instalación de {location}: {e}")
+        return False
+    logger.info(f"Copia portable en {os.path.dirname(actual)}: se abre la instalada ({instalado}).")
+    return True
+
+
 def ensure_single_instance(acquire=None, request_activation=None, exit=sys.exit):
     """
     Una sola GUI por equipo: si ya hay una corriendo, le pide que se muestre y
@@ -89,6 +134,11 @@ def main():
     # ui/fiscalberry_app.py: es el mismo proceso, y como setup_file_logging es
     # idempotente, la primera llamada es la que fija el rol del archivo.
     setup_file_logging(role="app")
+
+    # Una copia portable vieja le cede el lugar a la instalada. Tiene que ser
+    # antes del candado: si lo tomara, la instalada no podría arrancar.
+    if redirect_portable_to_installed(start_minimized):
+        sys.exit(0)
 
     # Instancia única ANTES de todo lo demás: una segunda apertura no cuenta
     # como arranque de una actualización pendiente ni carga Kivy.

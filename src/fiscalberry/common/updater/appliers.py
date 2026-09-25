@@ -7,8 +7,9 @@ Es lo único que cambia por plataforma, y cada una tiene su propia limitación:
   kernel mantiene vivo el inodo viejo mientras haya un fd abierto), así que el
   swap es un `os.replace` atómico.
 - Windows: NO se puede. Hace falta que otro proceso haga el cambio cuando éste
-  ya murió. Se usa el propio binario nuevo como ayudante, para no tener que
-  distribuir un ejecutable extra.
+  ya murió. La GUI se actualiza con el instalador de Inno Setup (que pisa la
+  versión anterior y mantiene al día el desinstalador); el CLI usa el propio
+  binario nuevo como ayudante, para no tener que distribuir un ejecutable extra.
 - Android: el reemplazo lo hace el sistema y SIEMPRE requiere que el usuario
   acepte. No hay instalación silenciosa fuera de Play Store, y tampoco hay
   reversión automática.
@@ -32,6 +33,21 @@ INCOMING_SUFFIX = ".fb-new"
 # Cuánto espera el binario nuevo a que se libere el candado de instancia única
 # tras relanzarse. El proceso viejo puede tardar en morir del todo.
 RELAUNCH_LOCK_WAIT = "30"
+
+# DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP: el hijo sobrevive a este proceso.
+_WINDOWS_DETACHED = 0x00000008 | 0x00000200
+
+# Actualización silenciosa con el instalador. /CLOSEAPPLICATIONS es la red de
+# seguridad: igual este proceso sale enseguida para liberar el mutex, que es lo
+# que espera el [Code] del .iss. /RELAUNCH=1 hace que el setup vuelva a abrir
+# Fiscalberry (en la bandeja) al terminar.
+INSTALLER_SILENT_ARGS = (
+    "/VERYSILENT",
+    "/SUPPRESSMSGBOXES",
+    "/NORESTART",
+    "/CLOSEAPPLICATIONS",
+    "/RELAUNCH=1",
+)
 
 
 class ApplyError(Exception):
@@ -57,8 +73,7 @@ def _relanzar(binario):
     if os.name == "posix":
         kwargs["start_new_session"] = True
     else:
-        # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
-        kwargs["creationflags"] = 0x00000008 | 0x00000200
+        kwargs["creationflags"] = _WINDOWS_DETACHED
     subprocess.Popen([binario], **kwargs)
 
 
@@ -189,7 +204,7 @@ def apply_windows(nuevo_dir, destino_dir, version, version_previa, binario=None)
              "--exe", binario],
             env=entorno,
             close_fds=True,
-            creationflags=0x00000008 | 0x00000200,
+            creationflags=_WINDOWS_DETACHED,
         )
     except Exception as e:
         commit_guard.clear()
@@ -284,6 +299,101 @@ def _proceso_vivo(pid):
         return True
     except OSError:
         return False
+
+
+# --------------------------------------------------------------------------
+# Windows GUI: instalador de Inno Setup
+# --------------------------------------------------------------------------
+
+def installer_log_path(version, prefijo="instalador"):
+    """El log de Inno Setup va junto al de Fiscalberry, para soporte."""
+    from fiscalberry.common.fiscalberry_logger import getServiceLogFilePath
+
+    ruta_log = getServiceLogFilePath()
+    carpeta = os.path.dirname(ruta_log) if ruta_log else None
+    if not carpeta:
+        import tempfile
+        carpeta = tempfile.gettempdir()
+    try:
+        os.makedirs(carpeta, exist_ok=True)
+    except OSError:
+        pass
+    return os.path.join(carpeta, f"{prefijo}-{version}.log")
+
+
+def installer_command(setup_path, log_path):
+    return [setup_path, *INSTALLER_SILENT_ARGS, f"/LOG={log_path}"]
+
+
+def launch_installer(setup_path, log_path, popen=None):
+    """
+    Lanza el setup desacoplado y vuelve. Quien lo llama tiene que terminar
+    enseguida: mientras exista el mutex de Fiscalberry, el setup espera.
+    """
+    popen = popen or subprocess.Popen
+    popen(installer_command(setup_path, log_path),
+          close_fds=True, creationflags=_WINDOWS_DETACHED)
+
+
+def apply_windows_installer(setup_path, version, version_previa,
+                            rollback_setup=None, target=None, popen=None):
+    """
+    Instala la versión nueva con FiscalberrySetup.exe, en silencio.
+
+    Siempre pisa la versión anterior en la carpeta instalada (nunca conviven
+    dos versiones) y mantiene al día el desinstalador de "Aplicaciones".
+
+    `rollback_setup` es el instalador de la versión actual, ya verificado: si
+    la nueva no confirma el arranque, se reinstala ese. Sin él (versiones
+    anteriores al instalador) no hay reversión local, y queda en el log.
+    """
+    if not os.path.isfile(setup_path):
+        raise ApplyError(f"no se encontró el instalador descargado: {setup_path}")
+
+    if not rollback_setup:
+        logger.warning(
+            "La versión %s no tiene instalador para volver atrás: si la %s no "
+            "arranca, no hay reversión automática local.", version_previa, version)
+
+    commit_guard.arm(version, version_previa, target, rollback_setup,
+                     method=commit_guard.METHOD_INSTALLER)
+
+    log_path = installer_log_path(version)
+    try:
+        launch_installer(setup_path, log_path, popen=popen)
+    except Exception as e:
+        commit_guard.clear()
+        raise ApplyError(f"no se pudo lanzar el instalador: {e}")
+
+    logger.info("Instalador de la versión %s lanzado (log: %s). Este proceso "
+                "se cierra para que pueda reemplazar los archivos.", version, log_path)
+    return True
+
+
+def _rollback_installer(pendiente, popen=None):
+    """Reinstala en silencio el setup de la versión anterior."""
+    if not pendiente.backup_exists():
+        logger.error(
+            "La versión %s no llegó a arrancar y no hay instalador de %s para "
+            "volver atrás (versión anterior al instalador). Hace falta "
+            "reinstalar a mano.", pendiente.version, pendiente.previous_version)
+        commit_guard.clear()
+        return False
+
+    # La marca se borra ANTES de lanzar: la versión reinstalada no tiene que
+    # contar arranques contra esta actualización, o volvería a "revertir" en
+    # loop. El setup no se borra: lo lee el propio instalador mientras corre.
+    commit_guard.clear()
+    log_path = installer_log_path(pendiente.previous_version, prefijo="reversion")
+    try:
+        launch_installer(pendiente.backup, log_path, popen=popen)
+    except Exception as e:
+        logger.critical("No se pudo lanzar la reversión a %s: %s",
+                        pendiente.previous_version, e)
+        return False
+    logger.warning("Reinstalando la versión %s en silencio (log: %s).",
+                   pendiente.previous_version, log_path)
+    return True
 
 
 # --------------------------------------------------------------------------
@@ -485,6 +595,9 @@ def _selftest_modulo(version_esperada):
 
 def rollback(pendiente, binario=None):
     """Restaura la instalación respaldada. Devuelve True si quedó restaurada."""
+    if pendiente.method == commit_guard.METHOD_INSTALLER:
+        return _rollback_installer(pendiente)
+
     if not pendiente.backup_exists():
         logger.error("No hay respaldo en %s: no se puede revertir.", pendiente.backup)
         commit_guard.clear()
@@ -510,7 +623,7 @@ def rollback(pendiente, binario=None):
                  "--dst", destino,
                  "--exe", exe],
                 env=entorno, close_fds=True,
-                creationflags=0x00000008 | 0x00000200)
+                creationflags=_WINDOWS_DETACHED)
         except Exception as e:
             logger.critical("No se pudo lanzar la reversión: %s", e)
             return False
@@ -550,6 +663,11 @@ def _adivinar_exe(directorio):
 
 def apply_for_kind(kind, **kwargs):
     """Despacha al applier que corresponde a esta instalación."""
+    if kind == install_kind.WINDOWS_INSTALLER:
+        return apply_windows_installer(kwargs["setup_path"], kwargs["version"],
+                                       kwargs["version_previa"],
+                                       rollback_setup=kwargs.get("rollback_setup"),
+                                       target=kwargs.get("target"))
     if kind == install_kind.ANDROID:
         return apply_android(kwargs["apk_path"], kwargs["version"],
                              kwargs["version_previa"])

@@ -194,26 +194,11 @@ jobs:
             throw "Inno Setup finalizó con código $LASTEXITCODE"
           }
 
+      # Instalación, actualización con la app abierta y /RELAUNCH=1, y
+      # desinstalación que conserva config.ini (#187). El mismo script corre
+      # en windows-installer.yml en cada cambio al instalador.
       - name: Test Windows Installer
-        run: |
-          $setup = (Resolve-Path "dist\FiscalberrySetup.exe").Path
-          $installDir = Join-Path $env:LOCALAPPDATA "Programs\Fiscalberry"
-          $report = Join-Path $env:RUNNER_TEMP "fiscalberry-installed-selftest.txt"
-
-          $install = Start-Process $setup -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
-          if ($install.ExitCode -ne 0) {
-            throw "El instalador finalizó con código $($install.ExitCode)"
-          }
-
-          & "$installDir\fiscalberry-gui.exe" --selftest --report $report
-          if ($LASTEXITCODE -ne 0 -or -not (Select-String -Path $report -Pattern "SELFTEST OK" -Quiet)) {
-            throw "El binario instalado no superó el selftest"
-          }
-
-          $uninstall = Start-Process "$installDir\unins000.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
-          if ($uninstall.ExitCode -ne 0 -or (Test-Path "$installDir\fiscalberry-gui.exe")) {
-            throw "La desinstalación de prueba no se completó correctamente"
-          }
+        run: .\build_tools\test-windows-installer.ps1 -Setup dist\FiscalberrySetup.exe
 
       # Los builds son ONEDIR: dist/fiscalberry-gui es una CARPETA (ejecutable +
       # _internal), no un .exe suelto. Se comprime la carpeta entera.

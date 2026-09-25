@@ -231,3 +231,45 @@ def cleanup_stale(max_age_seconds=MAX_STAGING_AGE_SECONDS):
         logger.info("Limpieza de staging: %d descarga(s) vieja(s) eliminada(s).",
                     borrados)
     return borrados
+
+
+# --------------------------------------------------------------------------
+# Instalador de la versión anterior (reversión en Windows, #187)
+# --------------------------------------------------------------------------
+# Vive aparte del staging: tiene que sobrevivir a los reinicios hasta que la
+# versión nueva confirme que arranca, y cleanup_stale() lo borraría a las 24 h.
+ROLLBACK_DIR_NAME = "rollback"
+ROLLBACK_SETUP_TEMPLATE = "FiscalberrySetup-{version}.exe"
+
+
+def rollback_dir():
+    import platformdirs
+    d = os.path.join(platformdirs.user_data_dir("fiscalberry"), ROLLBACK_DIR_NAME)
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def rollback_setup_path(version):
+    """Dónde se guarda el instalador de `version` para poder volver a ella."""
+    return os.path.join(rollback_dir(), ROLLBACK_SETUP_TEMPLATE.format(version=version))
+
+
+def prune_rollback(keep=None):
+    """
+    Borra los instaladores de reversión que ya no hacen falta (quedan de
+    reversiones anteriores; cada uno pesa decenas de MB). Nunca lanza.
+    """
+    try:
+        raiz = rollback_dir()
+        conservar = os.path.normcase(os.path.abspath(keep)) if keep else None
+        for nombre in os.listdir(raiz):
+            ruta = os.path.join(raiz, nombre)
+            if conservar and os.path.normcase(os.path.abspath(ruta)) == conservar:
+                continue
+            try:
+                if os.path.isfile(ruta):
+                    os.remove(ruta)
+            except OSError:
+                continue
+    except Exception as e:
+        logger.debug(f"No se pudieron limpiar los instaladores de reversión: {e}")

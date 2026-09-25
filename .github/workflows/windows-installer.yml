@@ -1,0 +1,86 @@
+name: Instalador de Windows
+
+# El workflow de release solo corre al publicar una versión: sin esto, un
+# cambio que rompe el instalador (o la instancia única, la bandeja o el
+# updater, que dependen de él) se descubriría recién al releasear. Corre la
+# misma prueba de punta a punta que el release (#187).
+on:
+  push:
+    paths:
+      - "installer/**"
+      - "build_tools/**"
+      - "fiscalberry-gui.spec"
+      - "requirements.txt"
+      - "requirements.kivy.txt"
+      - "src/fiscalberry/desktop/**"
+      - "src/fiscalberry/common/single_instance.py"
+      - "src/fiscalberry/common/updater/**"
+      - ".github/workflows/windows-installer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-installer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements.kivy.txt
+          pip install pyinstaller
+
+      - name: Build Windows GUI
+        env:
+          KIVY_NO_CONSOLELOG: 1
+          KIVY_NO_ARGS: 1
+          KIVY_GL_BACKEND: mock
+        run: |
+          $env:PYTHONPATH="src"
+          pyinstaller --clean -y fiscalberry-gui.spec
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Windows Installer
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            throw "No se encontró el compilador de Inno Setup en $iscc"
+          }
+          & $iscc installer/fiscalberry.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup finalizó con código $LASTEXITCODE"
+          }
+
+      - name: Test Windows Installer
+        run: .\build_tools\test-windows-installer.ps1 -Setup dist\FiscalberrySetup.exe
+
+      - name: Upload installer logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-test-logs
+          path: ${{ runner.temp }}/fiscalberry-installer-test
+          if-no-files-found: ignore

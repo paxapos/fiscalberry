@@ -42,7 +42,11 @@ def test_sin_congelar_es_instalacion_desde_codigo(monkeypatch):
     ("/opt/fb/fiscalberry-cli", "linux", install_kind.LINUX_CLI),
     ("/opt/fb/fiscalberry-gui", "linux", install_kind.LINUX_GUI),
     (r"C:\fb\fiscalberry-cli.exe", "win32", install_kind.WINDOWS_CLI),
-    (r"C:\fb\fiscalberry-gui.exe", "win32", install_kind.WINDOWS_GUI),
+    # Toda GUI de Windows se actualiza con el instalador, esté instalada o sea
+    # una copia portable del zip (#187): así las portables migran.
+    (r"C:\fb\fiscalberry-gui.exe", "win32", install_kind.WINDOWS_INSTALLER),
+    (r"C:\Users\x\AppData\Local\Programs\Fiscalberry\fiscalberry-gui.exe",
+     "win32", install_kind.WINDOWS_INSTALLER),
 ])
 def test_variante_segun_el_ejecutable(monkeypatch, ejecutable, plataforma, esperado):
     monkeypatch.delenv("ANDROID_ARGUMENT", raising=False)
@@ -56,7 +60,8 @@ def test_variante_segun_el_ejecutable(monkeypatch, ejecutable, plataforma, esper
 
 def test_toda_variante_empaquetada_sabe_su_asset_y_su_binario():
     for kind in (install_kind.LINUX_CLI, install_kind.LINUX_GUI,
-                 install_kind.WINDOWS_CLI, install_kind.WINDOWS_GUI):
+                 install_kind.WINDOWS_CLI, install_kind.WINDOWS_GUI,
+                 install_kind.WINDOWS_INSTALLER):
         assert install_kind.asset_name(kind), f"{kind} sin asset"
         assert install_kind.binary_name(kind), f"{kind} sin binario"
 
@@ -91,3 +96,70 @@ def test_el_workflow_publica_los_checksums():
     assert "SHA256SUMS" in contenido
     assert re.search(r"sha256sum\s", contenido), \
         "el workflow no genera los checksums"
+
+
+def test_la_gui_de_windows_se_actualiza_con_el_instalador():
+    assert install_kind.asset_name(install_kind.WINDOWS_INSTALLER) == "FiscalberrySetup.exe"
+    assert install_kind.binary_name(install_kind.WINDOWS_INSTALLER) == "fiscalberry-gui.exe"
+
+
+@pytest.mark.skipif(not os.path.exists(WORKFLOW), reason="sin workflow en el checkout")
+def test_el_zip_portable_se_sigue_publicando_en_la_transicion():
+    """
+    Las 3.6.x buscan fiscalberry-windows-gui.zip con su updater viejo: si el
+    release deja de traerlo antes de tiempo, nunca reciben el updater nuevo.
+    """
+    with open(WORKFLOW, "r", encoding="utf-8") as fh:
+        contenido = fh.read()
+    assert "./artifacts/fiscalberry-windows-gui.zip" in contenido
+    assert "./artifacts/FiscalberrySetup.exe" in contenido
+
+
+class _WinregFalso:
+    HKEY_CURRENT_USER = "HKCU"
+
+    def __init__(self, valores):
+        self.valores = valores
+        self.abiertas = []
+
+    def OpenKey(self, raiz, subclave):
+        self.abiertas.append((raiz, subclave))
+        if subclave not in self.valores:
+            raise FileNotFoundError(subclave)
+        valores = self.valores[subclave]
+
+        class _Clave:
+            def __enter__(self_inner):
+                return valores
+
+            def __exit__(self_inner, *exc):
+                return False
+
+        return _Clave()
+
+    def QueryValueEx(self, clave, nombre):
+        if nombre not in clave:
+            raise FileNotFoundError(nombre)
+        return clave[nombre], 1
+
+
+def test_la_ubicacion_instalada_sale_del_registro_de_inno_setup():
+    winreg = _WinregFalso({install_kind.UNINSTALL_KEY: {
+        "InstallLocation": "C:\\Users\\x\\AppData\\Local\\Programs\\Fiscalberry\\",
+    }})
+
+    ubicacion = install_kind.installed_location(winreg_module=winreg)
+
+    assert ubicacion == "C:\\Users\\x\\AppData\\Local\\Programs\\Fiscalberry"
+    assert winreg.abiertas == [("HKCU", install_kind.UNINSTALL_KEY)]
+
+
+def test_sin_instalacion_no_hay_ubicacion():
+    assert install_kind.installed_location(winreg_module=_WinregFalso({})) is None
+
+
+def test_el_app_id_coincide_con_el_del_instalador():
+    """Si se cambia el AppId del .iss, la migración y la reversión se pierden."""
+    iss = os.path.join(REPO, "installer", "fiscalberry.iss")
+    with open(iss, "r", encoding="utf-8") as fh:
+        assert "AppId={" + install_kind.INNO_APP_ID in fh.read()

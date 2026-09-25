@@ -17,15 +17,22 @@ cambiarlos cuando sale una nueva.
 | Android | [fiscalberry-android-gui.apk](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-android-gui.apk) | — |
 
 En Windows, descargá y ejecutá `FiscalberrySetup.exe`. Se instala para el usuario
-actual, crea el acceso en el menú Inicio y queda configurado para arrancar
-minimizado con Windows. En el primer inicio, Fiscalberry muestra el enlace para
-iniciar sesión en Paxapos y elegir el comercio que querés vincular.
+actual, crea el acceso en el menú Inicio y queda configurado para arrancar con
+Windows, en la bandeja (el ícono junto al reloj). En el primer inicio,
+Fiscalberry muestra el enlace para iniciar sesión en Paxapos y elegir el
+comercio que querés vincular.
 
-El ZIP de interfaz gráfica sigue disponible como alternativa portable para
-soporte técnico:
-[fiscalberry-windows-gui.zip](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-windows-gui.zip).
-Hay que descomprimir la carpeta completa y ejecutar el binario desde adentro;
-si se mueve el ejecutable solo, no arranca.
+Fiscalberry se abre **una sola vez** por equipo: volver a abrirlo desde el menú
+Inicio muestra la ventana que ya estaba abierta. La "X" solo oculta la ventana
+y **el servicio sigue imprimiendo**; para detenerlo de verdad, clic derecho en
+el ícono de la bandeja → "Salir (deja de imprimir)".
+
+El ZIP de interfaz gráfica
+([fiscalberry-windows-gui.zip](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-windows-gui.zip))
+se publica solo por transición: lo necesitan las instalaciones portables 3.6.x
+para recibir el actualizador nuevo, que en la siguiente versión las migra solas
+a la instalación con `FiscalberrySetup.exe`. Se va a retirar del release; para
+instalar, usá el instalador.
 
 Para verificar la descarga:
 [SHA256SUMS](https://github.com/paxapos/fiscalberry/releases/latest/download/SHA256SUMS)
@@ -306,15 +313,22 @@ builds de prueba sin que los dispositivos los agarren.
 
 Antes de reemplazar el binario se guarda el anterior. Si la versión nueva no
 llega a conectar el servicio en 3 arranques seguidos, **se revierte sola** al
-binario que funcionaba. El local no queda sin imprimir.
+binario que funcionaba. El local no queda sin imprimir. Esa versión queda
+descartada en ese equipo: no se vuelve a instalar hasta que salga otra.
 
 ## Diferencias por plataforma
 
 | | Cómo se aplica | Automático |
 | --- | --- | --- |
 | Linux / Raspberry | Reemplazo atómico del binario, reinicia systemd | Sí |
-| Windows | El binario nuevo hace de ayudante y se reemplaza tras cerrarse | Sí |
+| Windows (GUI) | `FiscalberrySetup.exe` en silencio: pisa la versión anterior y reabre la app en la bandeja | Sí |
+| Windows (CLI) | El binario nuevo hace de ayudante y se reemplaza tras cerrarse | Sí |
 | Android | Abre el instalador del sistema | Requiere un toque del usuario |
+
+En la GUI de Windows, la reversión reinstala el `FiscalberrySetup.exe` de la
+versión anterior, que se baja y verifica antes de actualizar. Las versiones
+anteriores al instalador (3.6.x) no lo tienen: esa primera actualización no
+tiene reversión local, y así queda en el log.
 
 En Android **no existe** la instalación silenciosa fuera de Play Store, ni la
 reversión automática: son límites del sistema operativo.

@@ -15,6 +15,19 @@ La solución es el patrón de "confirmación en dos tiempos":
 
 Así, un binario que pasa el selftest pero no arranca en el local NO deja al
 restaurante sin imprimir: a los pocos segundos vuelve solo a la versión previa.
+
+Cómo se revierte depende de cómo se instaló (`method`):
+
+- "folder": se vuelve a poner la carpeta de instalación respaldada (Linux, CLI
+  de Windows). `backup` es esa carpeta.
+- "installer": GUI de Windows. `backup` es el FiscalberrySetup.exe de la
+  versión anterior, verificado antes de actualizar, y revertir es reinstalarlo
+  en silencio. Las versiones anteriores al instalador no tienen ese setup: la
+  marca queda sin respaldo y la reversión solo se anota en el log.
+
+Una versión que se revirtió queda anotada como fallida en este equipo, para
+que el updater no la vuelva a instalar en el siguiente chequeo (sería un loop
+de instalar, no arrancar y revertir). Cuando se publica otra, se prueba esa.
 """
 
 import json
@@ -31,13 +44,25 @@ logger = getLogger("Updater")
 MAX_BOOTS = 3
 
 STATE_FILE = "update_pending.json"
+FAILED_FILE = "update_failed.json"
+
+METHOD_FOLDER = "folder"
+METHOD_INSTALLER = "installer"
 
 
-def _state_path():
+def _state_dir():
     import platformdirs
     d = platformdirs.user_data_dir("fiscalberry")
     os.makedirs(d, exist_ok=True)
-    return os.path.join(d, STATE_FILE)
+    return d
+
+
+def _state_path():
+    return os.path.join(_state_dir(), STATE_FILE)
+
+
+def _failed_path():
+    return os.path.join(os.path.dirname(_state_path()), FAILED_FILE)
 
 
 class PendingUpdate:
@@ -48,6 +73,8 @@ class PendingUpdate:
         self.backup = data.get("backup")
         self.boots = int(data.get("boots") or 0)
         self.created_at = data.get("created_at")
+        # Las marcas anteriores al instalador no tienen el campo.
+        self.method = data.get("method") or METHOD_FOLDER
 
     def as_dict(self):
         return {
@@ -57,11 +84,12 @@ class PendingUpdate:
             "backup": self.backup,
             "boots": self.boots,
             "created_at": self.created_at,
+            "method": self.method,
         }
 
     def backup_exists(self):
-        # Es un directorio: los builds son onedir y se respalda la carpeta de
-        # instalación completa, no un ejecutable suelto.
+        # "folder": un directorio (los builds son onedir y se respalda la
+        # carpeta completa). "installer": el setup de la versión anterior.
         return bool(self.backup) and os.path.exists(self.backup)
 
     def __repr__(self):
@@ -69,9 +97,9 @@ class PendingUpdate:
                 f"boots={self.boots}>")
 
 
-def _write(data):
+def _write(data, ruta=None):
     """Escritura atómica: un corte de luz no puede dejar un JSON a medias."""
-    ruta = _state_path()
+    ruta = ruta or _state_path()
     tmp = ruta + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(data, fh)
@@ -93,7 +121,7 @@ def read():
         return None
 
 
-def arm(version, previous_version, target, backup):
+def arm(version, previous_version, target, backup, method=METHOD_FOLDER):
     """
     Deja la marca ANTES de reemplazar el binario.
 
@@ -108,6 +136,7 @@ def arm(version, previous_version, target, backup):
         "backup": backup,
         "boots": 0,
         "created_at": time.time(),
+        "method": method,
     })
     _write(pend.as_dict())
     logger.info("Actualización armada: %s -> %s (respaldo en %s)",
@@ -125,14 +154,27 @@ def clear():
         logger.warning(f"No se pudo borrar la marca de actualización: {e}")
 
 
-def register_boot():
+def register_boot(running_version=None):
     """
     Cuenta este arranque. Devuelve (pendiente, hay_que_revertir).
 
     Se llama lo antes posible en el arranque, antes de que nada pueda colgarse.
+
+    `running_version` es la versión de este proceso. Si todavía es la ANTERIOR,
+    la actualización nunca llegó a instalarse (el setup se canceló o falló):
+    contar ese arranque terminaría "revirtiendo" a la misma versión que ya
+    corre. Se descarta la marca y el updater lo reintenta más adelante.
     """
     pend = read()
     if pend is None:
+        return None, False
+
+    if (running_version and running_version == pend.previous_version
+            and running_version != pend.version):
+        logger.warning(
+            "La actualización a %s no llegó a instalarse: sigue corriendo %s. "
+            "Se reintenta en el próximo chequeo.", pend.version, running_version)
+        clear()
         return None, False
 
     pend.boots += 1
@@ -147,6 +189,28 @@ def register_boot():
     logger.info("Arranque %d/%d tras actualizar a %s (sin confirmar todavía)",
                 pend.boots, MAX_BOOTS, pend.version)
     return pend, False
+
+
+def remember_failed(version):
+    """Anota que `version` no logró arrancar en este equipo y se revirtió."""
+    try:
+        _write({"version": version, "at": time.time()}, ruta=_failed_path())
+        logger.warning("La versión %s queda descartada en este equipo hasta que "
+                       "se publique otra.", version)
+    except Exception as e:
+        logger.warning(f"No se pudo anotar la versión fallida: {e}")
+
+
+def is_failed(version):
+    """True si `version` ya se instaló acá, no arrancó y se revirtió."""
+    try:
+        with open(_failed_path(), "r", encoding="utf-8") as fh:
+            return bool(version) and json.load(fh).get("version") == version
+    except FileNotFoundError:
+        return False
+    except Exception as e:
+        logger.debug(f"Registro de versión fallida ilegible: {e}")
+        return False
 
 
 def confirm():

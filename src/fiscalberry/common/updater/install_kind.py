@@ -12,8 +12,15 @@ import sys
 # Variantes soportadas.
 LINUX_GUI = "linux-gui"
 LINUX_CLI = "linux-cli"
+# GUI portable de Windows (zip). Ya no la detecta ningún proceso: la sigue
+# buscando el updater de las 3.6.x, así que el zip se publica al menos un
+# release más para que esas instalaciones reciban el updater nuevo (#187).
 WINDOWS_GUI = "windows-gui"
 WINDOWS_CLI = "windows-cli"
+# GUI de Windows actualizada con el instalador de Inno Setup: toda GUI
+# congelada en Windows, instalada o portable (las portables migran así a la
+# ubicación instalada).
+WINDOWS_INSTALLER = "windows-installer"
 ANDROID = "android"
 SOURCE = "source"
 
@@ -22,17 +29,27 @@ ASSET_BY_KIND = {
     LINUX_CLI: "fiscalberry-linux-cli.tar.gz",
     WINDOWS_GUI: "fiscalberry-windows-gui.zip",
     WINDOWS_CLI: "fiscalberry-windows-cli.zip",
+    WINDOWS_INSTALLER: "FiscalberrySetup.exe",
     ANDROID: "fiscalberry-android-gui.apk",
     # SOURCE no tiene asset: se actualiza desde el tarball de código del release.
 }
 
-# Nombre del ejecutable dentro del paquete comprimido, por variante.
+# Nombre del ejecutable dentro del paquete comprimido (o del que deja
+# instalado el setup), por variante.
 BINARY_IN_ARCHIVE = {
     LINUX_GUI: "fiscalberry-gui",
     LINUX_CLI: "fiscalberry-cli",
     WINDOWS_GUI: "fiscalberry-gui.exe",
     WINDOWS_CLI: "fiscalberry-cli.exe",
+    WINDOWS_INSTALLER: "fiscalberry-gui.exe",
 }
+
+# AppId de installer/fiscalberry.iss. Inno Setup registra la instalación en
+# HKCU\...\Uninstall\{AppId}_is1 (instalación por usuario).
+INNO_APP_ID = "{55BB025A-ED36-4DB6-A2A3-706DD36AB936}"
+UNINSTALL_KEY = (
+    "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\" + INNO_APP_ID + "_is1"
+)
 
 # Los builds son ONEDIR: el comprimido trae una CARPETA con el ejecutable y sus
 # dependencias al lado (ver fiscalberry-cli.spec). Por eso el updater reemplaza
@@ -78,7 +95,7 @@ def detect():
         # Instalado desde código: Raspberry, o un dev corriendo `pip install -e .`
         return SOURCE
     if sys.platform.startswith("win"):
-        return WINDOWS_GUI if is_gui() else WINDOWS_CLI
+        return WINDOWS_INSTALLER if is_gui() else WINDOWS_CLI
     return LINUX_GUI if is_gui() else LINUX_CLI
 
 
@@ -99,7 +116,7 @@ def app_dir_name(kind):
 
 def is_packaged(kind):
     """True si esta variante se distribuye como carpeta empaquetada."""
-    return kind in (LINUX_GUI, LINUX_CLI, WINDOWS_GUI, WINDOWS_CLI)
+    return kind in (LINUX_GUI, LINUX_CLI, WINDOWS_GUI, WINDOWS_CLI, WINDOWS_INSTALLER)
 
 
 def current_executable(kind):
@@ -133,3 +150,23 @@ def current_app_dir(kind):
     if not ejecutable:
         return None
     return os.path.dirname(ejecutable)
+
+
+def installed_location(winreg_module=None):
+    """
+    Carpeta donde el instalador dejó la GUI de Windows, o None.
+
+    Se lee del registro (`InstallLocation` de la entrada de desinstalación) y no
+    se asume %LOCALAPPDATA%\\Programs\\Fiscalberry: en el instalador interactivo
+    el usuario puede elegir otra carpeta.
+    """
+    try:
+        winreg = winreg_module
+        if winreg is None:
+            import winreg  # noqa: F811 (solo existe en Windows)
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, UNINSTALL_KEY) as clave:
+            valor, _tipo = winreg.QueryValueEx(clave, "InstallLocation")
+    except Exception:
+        return None
+    valor = str(valor or "").strip().rstrip("\\/")
+    return valor or None

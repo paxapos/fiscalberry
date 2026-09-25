@@ -157,6 +157,14 @@ class UpdaterService:
             logger.debug("Ya corriendo la versión vigente (%s).", VERSION)
             return ("al-dia", VERSION)
 
+        if commit_guard.is_failed(release.version):
+            # Ya se instaló, no arrancó y se revirtió: reinstalarla sería un
+            # loop. Se espera a que se publique otra versión.
+            logger.info("La versión %s ya falló en este equipo y se revirtió: "
+                        "se sigue en %s hasta que se publique otra.",
+                        release.version, VERSION)
+            return ("descartado", f"la versión {release.version} no arrancó en este equipo")
+
         direccion = release_source.compare(release.version, VERSION)
         verbo = "Actualizando" if direccion > 0 else "Volviendo atrás"
         logger.info("%s: instalada %s, vigente %s.", verbo, VERSION, release.version)
@@ -189,6 +197,9 @@ class UpdaterService:
 
             if kind == install_kind.ANDROID:
                 return self._aplicar_android(descarga, release, dir_staging)
+
+            if kind == install_kind.WINDOWS_INSTALLER:
+                return self._aplicar_instalador(descarga, release, dir_staging)
 
             return self._aplicar_binario(kind, descarga, release, dir_staging)
         except staging.StagingError as e:
@@ -235,6 +246,78 @@ class UpdaterService:
         staging.cleanup(dir_staging)
         self._pedir_reinicio()
         return ("aplicado", release.version)
+
+    def _aplicar_instalador(self, setup, release, dir_staging):
+        """
+        GUI de Windows: FiscalberrySetup.exe en silencio, que pisa la versión
+        instalada y relanza la app en la bandeja (#187).
+
+        No hay selftest previo: el setup no es la app. La garantía de que la
+        versión nueva anda es commit_guard, con el instalador de la versión
+        actual guardado para reinstalarla si la nueva no confirma el arranque.
+        """
+        if not spooler_idle():
+            logger.info("Hay impresiones pendientes: se pospone la actualización.")
+            staging.cleanup(dir_staging)
+            return ("ocupado", "cola de impresión no vacía")
+
+        try:
+            respaldo = self._preparar_reversion_instalador()
+        except (staging.StagingError, release_source.ReleaseUnavailable) as e:
+            # La versión actual SÍ tiene instalador pero no se pudo bajar:
+            # actualizar sin poder volver atrás no vale la pena. Se reintenta.
+            logger.warning("No se pudo preparar la reversión (%s): se pospone "
+                           "la actualización.", e)
+            staging.cleanup(dir_staging)
+            return ("error", f"no se pudo preparar la reversión: {e}")
+
+        appliers.apply_for_kind(
+            install_kind.WINDOWS_INSTALLER,
+            setup_path=setup,
+            version=release.version,
+            version_previa=VERSION,
+            rollback_setup=respaldo,
+            target=install_kind.current_app_dir(install_kind.WINDOWS_INSTALLER),
+        )
+        # El staging NO se borra: el setup lee su propio .exe mientras instala.
+        # Lo limpia cleanup_stale() en algún chequeo posterior.
+        self._pedir_reinicio()
+        return ("aplicado", release.version)
+
+    def _preparar_reversion_instalador(self):
+        """
+        Baja y verifica el FiscalberrySetup.exe de la versión que está
+        corriendo. Devuelve su ruta, o None si esa versión es anterior al
+        instalador (o no tiene release publicado): en ese caso no hay reversión
+        local, y así queda en el log.
+        """
+        nombre = install_kind.asset_name(install_kind.WINDOWS_INSTALLER)
+        destino = staging.rollback_setup_path(VERSION)
+        staging.prune_rollback(keep=destino)
+
+        try:
+            actual = release_source.fetch_release_by_tag(f"v{VERSION}", repo=self._repo)
+        except release_source.ReleaseNotFound:
+            logger.warning("No hay release publicado para la versión instalada "
+                           "(%s): la actualización sigue sin reversión local.", VERSION)
+            return None
+
+        asset = actual.asset(nombre)
+        if not asset:
+            logger.warning("La versión %s es anterior al instalador: si la "
+                           "versión nueva no arranca, no hay reversión local.", VERSION)
+            return None
+
+        esperado = release_source.fetch_checksums(actual).get(nombre)
+        if not esperado:
+            raise staging.StagingError(
+                f"el release {actual.tag} no publica el checksum de {nombre}")
+
+        parcial = destino + ".part"
+        staging.download(asset["url"], parcial, esperado, expected_size=asset.get("size"))
+        os.replace(parcial, destino)
+        logger.info("Instalador de reversión listo: %s", destino)
+        return destino
 
     def _aplicar_android(self, apk, release, dir_staging):
         if not spooler_idle():
@@ -284,12 +367,14 @@ def on_process_start():
     seguidas, revierte al binario anterior.
     """
     try:
-        pendiente, revertir = commit_guard.register_boot()
+        pendiente, revertir = commit_guard.register_boot(running_version=VERSION)
     except Exception as e:
         logger.warning(f"No se pudo evaluar la marca de actualización: {e}")
         return False
 
     if pendiente and revertir:
+        # Antes de revertir: que el próximo chequeo no la vuelva a instalar.
+        commit_guard.remember_failed(pendiente.version)
         if appliers.rollback(pendiente):
             logger.warning("Se revirtió a %s. Reiniciando.",
                            pendiente.previous_version)
