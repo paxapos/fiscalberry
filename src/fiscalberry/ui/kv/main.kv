@@ -61,7 +61,8 @@
                     halign: 'center'
                 
                 Button:
-                    text: "Abrir vinculación"
+                    text: "Registrando dispositivo..." if root.registrando else "Abrir vinculación"
+                    disabled: root.registrando
                     size_hint_y: None
                     height: dp(60)
                     background_color: 0.2, 0.4, 0.8, 1
