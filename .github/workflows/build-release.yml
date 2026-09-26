@@ -9,6 +9,14 @@ on:
       # (y pushear a v3.0.x) es la señal de "publicar release".
       - "src/fiscalberry/version.py"
   workflow_dispatch:
+    inputs:
+      completar_tag:
+        description: >-
+          Opcional. Tag de un release YA publicado al que le falta el APK
+          (ej. v3.6.7): compila Android con el código de ese tag y sube el APK
+          y su línea en SHA256SUMS. Vacío = build normal.
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -24,6 +32,10 @@ jobs:
       version: ${{ steps.get.outputs.version }}
       tag: ${{ steps.get.outputs.tag }}
       exists: ${{ steps.check.outputs.exists }}
+      # completar=true: no se publica un release nuevo, se le agrega el APK a
+      # uno existente (input completar_tag). ref: qué código se compila.
+      completar: ${{ steps.get.outputs.completar }}
+      ref: ${{ steps.get.outputs.ref }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,11 +43,55 @@ jobs:
 
       - name: Read version from version.py
         id: get
+        env:
+          COMPLETAR_TAG: ${{ inputs.completar_tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          VERSION=$(grep -oP 'VERSION\s*=\s*["'\'']\K[^"'\'']+' src/fiscalberry/version.py)
-          if [ -z "$VERSION" ]; then
-            echo "::error::No pude leer VERSION de src/fiscalberry/version.py"
-            exit 1
+          leer_version() { grep -oP 'VERSION\s*=\s*["'\'']\K[^"'\'']+'; }
+
+          if [ -z "$COMPLETAR_TAG" ]; then
+            VERSION=$(leer_version < src/fiscalberry/version.py)
+            if [ -z "$VERSION" ]; then
+              echo "::error::No pude leer VERSION de src/fiscalberry/version.py"
+              exit 1
+            fi
+            echo "completar=false" >> "$GITHUB_OUTPUT"
+            echo "ref=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          else
+            # Completar un release ya publicado. Todo se valida ACÁ, antes de
+            # gastar 20 minutos compilando algo que después no se puede subir.
+            if ! [[ "$COMPLETAR_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::completar_tag tiene que ser de la forma vX.Y.Z (vino '$COMPLETAR_TAG')"
+              exit 1
+            fi
+            if ! git rev-parse -q --verify "refs/tags/$COMPLETAR_TAG" >/dev/null; then
+              echo "::error::El tag $COMPLETAR_TAG no existe"
+              exit 1
+            fi
+            # El APK toma su versionName de version.py, y el updater descarta
+            # un APK que no diga la versión del release: se compila el código
+            # DEL TAG, y tiene que coincidir.
+            VERSION=$(git show "$COMPLETAR_TAG:src/fiscalberry/version.py" | leer_version)
+            if [ "v$VERSION" != "$COMPLETAR_TAG" ]; then
+              echo "::error::version.py en $COMPLETAR_TAG dice '$VERSION': el APK saldría con otra versión y los equipos lo rechazarían"
+              exit 1
+            fi
+            if ! ASSETS=$(gh release view "$COMPLETAR_TAG" --json assets --jq '.assets[].name'); then
+              echo "::error::No hay un release publicado para $COMPLETAR_TAG"
+              exit 1
+            fi
+            if grep -qx 'fiscalberry-android-gui.apk' <<<"$ASSETS"; then
+              echo "::error::El release $COMPLETAR_TAG ya tiene fiscalberry-android-gui.apk: no hay nada que completar. Para reemplazarlo, borrar antes el asset del release."
+              exit 1
+            fi
+            if ! grep -qx 'SHA256SUMS' <<<"$ASSETS"; then
+              echo "::error::El release $COMPLETAR_TAG no tiene SHA256SUMS: sin eso ningún equipo se actualiza, y completarlo no alcanza"
+              exit 1
+            fi
+            echo "completar=true" >> "$GITHUB_OUTPUT"
+            echo "ref=$COMPLETAR_TAG" >> "$GITHUB_OUTPUT"
+            echo "Modo completar: se compila Android desde $COMPLETAR_TAG y se agrega al release existente."
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
@@ -46,6 +102,7 @@ jobs:
         run: |
           if git rev-parse "v${{ steps.get.outputs.version }}" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
+            [ "${{ steps.get.outputs.completar }}" = "true" ] && exit 0
             echo "::warning::El tag v${{ steps.get.outputs.version }} ya existe — se omite la creación del release. Bumpeá version.py para publicar uno nuevo."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -63,7 +120,11 @@ jobs:
   # ============================================
   build-linux:
     needs: [version, tests]
-    if: needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
+    # En modo completar solo se recompila Android: los binarios de Linux y
+    # Windows del release ya están publicados y no se tocan.
+    if: >-
+      needs.version.outputs.completar != 'true' &&
+      (needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch')
     # NO usar ubuntu-latest: GitHub ya lo mapea a 24.04 (glibc 2.39) y un binario
     # de PyInstaller solo corre en glibc IGUAL O MAS NUEVA que la de compilacion.
     # Compilando en 24.04, el binario falla con "GLIBC_2.38 not found" en Ubuntu
@@ -137,7 +198,9 @@ jobs:
   # ============================================
   build-windows:
     needs: [version, tests]
-    if: needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
+    if: >-
+      needs.version.outputs.completar != 'true' &&
+      (needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -208,7 +271,11 @@ jobs:
     if: needs.version.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-22.04
     steps:
+      # En modo completar se compila el código DEL TAG; los pasos (este
+      # archivo) son los de la rama desde la que se corre, ya arreglados.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -263,8 +330,19 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
+      # Sin `packages`, la action instala su default 'tools platform-tools', y
+      # 'tools' (el SDK Tools viejo, obsoleto hace años) ya no está en el
+      # repositorio de sdkmanager: el step abortaba con "Failed to find
+      # package 'tools'" y el release salía sin APK (#190). Acá no hace falta
+      # ninguno de los dos: buildozer usa su propio SDK/NDK en ~/.buildozer, y
+      # de este SDK solo se usa apksigner (build-tools, en el step siguiente).
+      # Las licencias se aceptan igual, pero sin volcar su texto al log: eran
+      # cientos de líneas que tapaban el error.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: ""
+          log-accepted-android-sdk-licenses: false
 
       - name: Install Android SDK components
         run: |
@@ -306,7 +384,9 @@ jobs:
           P4A_RELEASE_KEYSTORE_PASSWD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           P4A_RELEASE_KEYALIAS_PASSWD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           HAY_KEYSTORE: ${{ steps.keystore.outputs.disponible }}
+          COMPLETAR: ${{ needs.version.outputs.completar }}
         run: |
+          set -o pipefail
           cp buildozer.ui.android.spec buildozer.spec
           # El caché (restore-keys) puede traer un clon viejo de p4a (master/3.14) y
           # builds para Python 3.14. Con el pin nuevo hay que limpiarlos para forzar
@@ -318,10 +398,41 @@ jobs:
             # release: firmado con la clave fija y SIN android:debuggable, que en
             # debug deja leer la memoria del proceso — donde viven las
             # credenciales del broker, que a propósito nunca se guardan en disco.
-            buildozer -v android release
+            MODO=release
+          elif [ "$COMPLETAR" = "true" ]; then
+            # Un APK de debug va a un release publicado: firma distinta, ningún
+            # equipo lo podría instalar encima del que tiene.
+            echo "::error::Sin keystore no se puede completar un release publicado"
+            exit 1
           else
-            buildozer -v android debug
+            MODO=debug
           fi
+
+          # Cada build baja de internet el SDK, el NDK y el fuente de cada
+          # receta (freetype de savannah.gnu.org, SDL2, openssl, Python...)
+          # cuando no hay caché, y GitHub lo desaloja a los 7 días sin uso: el
+          # build de v3.6.6 arrancó sin caché. Con que un mirror conteste 502 se
+          # pierde el APK: así se perdió el de v3.6.6 (#190), y p4a reintenta
+          # cada descarga apenas ~15 s. Por eso se reintenta el build entero,
+          # pero SOLO si en el log aparece un error de red (un error de
+          # compilación corta en el primer intento). Lo ya bajado queda en disco
+          # y no se vuelve a pedir.
+          LOG="$RUNNER_TEMP/buildozer.log"
+          for INTENTO in 1 2 3; do
+            if buildozer -v android "$MODO" 2>&1 | tee "$LOG"; then
+              exit 0
+            fi
+            if ! grep -qE 'Download failed|HTTPError|URLError|ContentTooShortError|HTTPSConnectionPool|ReadTimeout|Temporary failure in name resolution|Connection (reset|refused|timed out)|unable to access' "$LOG"; then
+              echo "::error::El build de Android falló y no fue una descarga: no se reintenta. Ver el log de arriba."
+              exit 1
+            fi
+            if [ "$INTENTO" -lt 3 ]; then
+              echo "::warning::Build de Android: falló una descarga (intento $INTENTO de 3). Se reintenta en 2 minutos."
+              sleep 120
+            fi
+          done
+          echo "::error::Build de Android: las descargas siguieron fallando después de 3 intentos."
+          exit 1
 
       - name: Find and rename APK
         id: find_apk
@@ -414,6 +525,37 @@ jobs:
           echo "--- checksums publicados ---"
           cat SHA256SUMS
 
+      # Sin APK se publica igual (no hay que frenar un fix de Linux/Windows
+      # porque se rompió Android), pero NO en silencio: v3.6.6 y v3.6.7 salieron
+      # sin APK y nadie lo notó (#190). Queda un aviso arriba de las notas del
+      # release y un error en el resumen de la corrida. El aviso va entre
+      # marcadores para que el job completar-release lo pueda sacar.
+      - name: Avisar si falta el APK
+        id: faltantes
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -f artifacts/fiscalberry-android-gui.apk ]; then
+            exit 0
+          fi
+          echo "::error title=Release sin APK de Android::$TAG se publica SIN fiscalberry-android-gui.apk porque falló build-android. Una vez arreglado, completarlo con Run workflow y completar_tag=$TAG."
+          {
+            echo "## :warning: $TAG se publicó sin el APK de Android"
+            echo ""
+            echo "Falló \`build-android\`. Hasta completarlo, los equipos Android no se actualizan y \`releases/latest/download/fiscalberry-android-gui.apk\` da 404."
+            echo ""
+            echo "Para completarlo: **Actions → Build and Release Fiscalberry → Run workflow** sobre \`v3.0.x\`, con \`completar_tag\` = \`$TAG\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo 'aviso<<FIN_AVISO'
+            echo '<!-- faltantes:inicio -->'
+            echo "> **:warning: Este release todavía no trae el APK de Android** (falló su build: $RUN_URL). Los equipos Android siguen en su versión actual hasta que se agregue."
+            echo '<!-- faltantes:fin -->'
+            echo ''
+            echo 'FIN_AVISO'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -424,6 +566,8 @@ jobs:
           # fail_on_unmatched_files=false: si falta el APK de Android (build frágil),
           # se publica igual con los binarios de Linux y Windows.
           fail_on_unmatched_files: false
+          # Vacío si está todo; si falta el APK, va arriba de las notas generadas.
+          body: ${{ steps.faltantes.outputs.aviso }}
           files: |
             ./artifacts/fiscalberry-linux-gui.tar.gz
             ./artifacts/fiscalberry-linux-cli.tar.gz
@@ -436,3 +580,51 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================
+  # COMPLETAR UN RELEASE YA PUBLICADO (Run workflow con completar_tag)
+  # Le agrega el APK a un release que salió sin él. No alcanza con subir el
+  # APK: el updater de Android exige su línea en SHA256SUMS, así que también se
+  # republica SHA256SUMS (con las líneas de Linux/Windows intactas).
+  # ============================================
+  completar-release:
+    needs: [version, build-android]
+    if: needs.version.outputs.completar == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Android Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: fiscalberry-android-gui
+          path: ./artifacts/
+
+      - name: Subir APK y SHA256SUMS al release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          cd artifacts
+          gh release download "$TAG" --pattern SHA256SUMS --dir publicado
+          { grep -vE '[ *]fiscalberry-android-gui\.apk$' publicado/SHA256SUMS || true; } > SHA256SUMS
+          sha256sum fiscalberry-android-gui.apk >> SHA256SUMS
+          echo "--- checksums publicados ---"
+          cat SHA256SUMS
+          # Primero el APK y después SHA256SUMS. Cualquier estado intermedio que
+          # vea un equipo (APK sin su línea, o SHA256SUMS reemplazándose) hace
+          # que ese ciclo no actualice y reintente después: nunca instala algo
+          # sin verificar.
+          gh release upload "$TAG" fiscalberry-android-gui.apk --clobber
+          gh release upload "$TAG" SHA256SUMS --clobber
+
+      - name: Sacar el aviso de APK faltante
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          gh release view "$TAG" --json body --jq .body > notas.md
+          if grep -q '<!-- faltantes:inicio -->' notas.md; then
+            perl -0pi -e 's/<!-- faltantes:inicio -->.*?<!-- faltantes:fin -->\n*//s' notas.md
+            gh release edit "$TAG" --notes-file notas.md
+          fi
