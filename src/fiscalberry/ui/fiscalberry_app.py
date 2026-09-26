@@ -326,6 +326,11 @@ class FiscalberryApp(App):
             if not discover_success:
                 logger.error("No se pudo registrar el dispositivo en el servidor después de varios intentos")
                 # Continuamos de todas formas para permitir reintentos manuales
+
+            # Sin esto la pantalla no sabía que el dispositivo ya estaba
+            # registrado y el botón "Abrir vinculación" repetía el discover
+            # (issue #191).
+            sm.get_screen('adopt').marcar_registrado(discover_success)
             
             # NUEVO: Iniciar SocketIO para recibir configuración de adopción
             logger.debug("Iniciando SocketIO para adopción...")

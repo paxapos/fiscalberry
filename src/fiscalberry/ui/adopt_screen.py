@@ -96,6 +96,8 @@ class AdoptScreen(Screen):
     qrCodeLink = StringProperty("")
     # Mensaje visible cuando la vinculación no se puede preparar. Vacío = todo ok.
     linkError = StringProperty("")
+    # True mientras el botón reintenta el registro en segundo plano.
+    registrando = BooleanProperty(False)
     is_monitoring = BooleanProperty(False)
     platform_name = StringProperty("Android" if IS_ANDROID else "Desktop")
     
@@ -107,7 +109,18 @@ class AdoptScreen(Screen):
         # False, abrir el link reintenta el registro antes de mandar al usuario
         # a una página que va a fallar.
         self._registrado = False
+        self._registro_thread = None
         logger.debug(f"AdoptScreen inicializada - Plataforma: {self.platform_name}")
+
+    def marcar_registrado(self, registrado=True):
+        """
+        Informa el resultado del discover que hizo la app al arrancar.
+
+        Sin esto la pantalla nunca se enteraba de que el dispositivo ya estaba
+        registrado y cada click en "Abrir vinculación" volvía a mandar el
+        discover (ver issue #191).
+        """
+        self._registrado = bool(registrado)
     
     def on_pre_enter(self):
         """Se llama justo antes de entrar a la pantalla - útil para Android."""
@@ -216,22 +229,29 @@ class AdoptScreen(Screen):
         hacer. Con esto el estado queda a la vista y se puede reintentar sin
         reinstalar.
         """
+        ok, mensaje = self._intentar_registro()
+        self.linkError = mensaje
+        return ok
+
+    def _intentar_registro(self):
+        """
+        Manda el discover y devuelve (ok, mensaje_de_error).
+
+        No toca la UI: se puede llamar desde un hilo que no es el de Kivy.
+        """
         try:
             from fiscalberry.common.discover import send_discover
 
             if send_discover():
-                self.linkError = ""
                 logger.info("Dispositivo registrado en el servidor.")
-                return True
+                return True, ""
 
-            self.linkError = ("No se pudo registrar el dispositivo en el "
-                              "servidor. Revisá la conexión y reintentá.")
             logger.error("El discover no pudo registrar el dispositivo.")
-            return False
+            return False, ("No se pudo registrar el dispositivo en el "
+                           "servidor. Revisá la conexión y reintentá.")
         except Exception as e:
-            self.linkError = f"No se pudo contactar al servidor: {e}"
             logger.error(f"Error registrando el dispositivo: {e}", exc_info=True)
-            return False
+            return False, f"No se pudo contactar al servidor: {e}"
 
     def _regenerar_uuid(self):
         """
@@ -255,6 +275,12 @@ class AdoptScreen(Screen):
         """
         Abre el link de adopción en el navegador.
         Usa Intent para Android o webbrowser para Desktop.
+
+        El link se abre SIEMPRE que sea válido, igual que el QR (issue #191).
+        Antes, si el dispositivo no figuraba como registrado, se reenviaba el
+        discover en el hilo de Kivy (UI congelada hasta 30 s) y, si fallaba,
+        el botón se negaba a abrir el link: la adopción solo andaba con el QR,
+        aunque el dispositivo ya estuviera registrado en el servidor.
         """
         try:
             url = self.adoptarLink
@@ -265,31 +291,69 @@ class AdoptScreen(Screen):
                 logger.error("Se intentó abrir un link de adopción sin uuid: %r", url)
                 return
 
-            # El servidor solo conoce este dispositivo si el discover llegó. Se
-            # reintenta acá, en el momento exacto en que hace falta: si el
-            # registro del arranque falló (sin red, permisos, lo que sea), el
-            # usuario abriría el link para encontrarse con "Paxaprinter no
-            # encontrada" y ninguna explicación.
-            if not self._registrado:
-                self._registrado = self.registrar_en_servidor()
-                if not self._registrado:
-                    return
+            if self._registrado:
+                self._abrir_link(url)
+                return
 
+            # Ya hay un reintento en curso: un segundo click no lanza otro.
+            if self.registrando:
+                return
+
+            # El servidor solo conoce este dispositivo si el discover llegó, así
+            # que se reintenta antes de abrir; pero en otro hilo, y sin que un
+            # fallo impida abrir el link.
+            self.registrando = True
+            self.linkError = ""
+            self._registro_thread = threading.Thread(
+                target=self._registrar_y_abrir, args=(url,), daemon=True
+            )
+            self._registro_thread.start()
+
+        except Exception as e:
+            self.registrando = False
+            self.linkError = f"No se pudo abrir la vinculación: {e}"
+            logger.error(f"Error al abrir navegador: {e}", exc_info=True)
+
+    def _registrar_y_abrir(self, url):
+        """Hilo de fondo: reintenta el discover y vuelve al hilo de Kivy."""
+        ok, mensaje = self._intentar_registro()
+        Clock.schedule_once(lambda dt: self._fin_registro(url, ok, mensaje), 0)
+
+    def _fin_registro(self, url, ok, mensaje):
+        """Hilo de Kivy: refleja el resultado del registro y abre el link."""
+        self.registrando = False
+        self._registrado = ok
+        if not ok:
+            # Aviso, no bloqueo: el dispositivo puede estar registrado de antes
+            # (el QR funciona justamente por eso).
+            self.linkError = (f"{mensaje} Se abrió la vinculación igual; si la "
+                              "página no encuentra el dispositivo, reintentá.")
+        self._abrir_link(url)
+
+    def _abrir_link(self, url):
+        """
+        Abre la URL en el navegador del sistema.
+
+        Si no se puede, lo dice en pantalla con el link y la alternativa del
+        QR, en vez de dejarlo solo en el log.
+        """
+        try:
             if IS_ANDROID and ANDROID_AVAILABLE:
-                # Usar Intent de Android
-                success = self._open_url_android(url)
-                if success:
-                    logger.debug(f"Link abierto en Android")
-                else:
-                    logger.error("No se pudo abrir el link en Android")
+                abierto = self._open_url_android(url)
             else:
-                # Usar webbrowser para Desktop
                 import webbrowser
-                webbrowser.open(url)
-                logger.debug("Link abierto en Desktop")
-                
+                abierto = webbrowser.open(url)
         except Exception as e:
             logger.error(f"Error al abrir navegador: {e}", exc_info=True)
+            abierto = False
+
+        if abierto:
+            logger.debug(f"Link de vinculación abierto en {self.platform_name}")
+        else:
+            logger.error("No se pudo abrir el navegador con %s", url)
+            self.linkError = ("No se pudo abrir el navegador. Escaneá el QR "
+                              f"o entrá a:\n{url}")
+        return abierto
     
     def _open_url_android(self, url):
         """
