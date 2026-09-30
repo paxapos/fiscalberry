@@ -11,8 +11,13 @@ aiohttp
 appdirs
 platformdirs
 
-# Message broker
-pika
+# Message broker (MQTT + AMQP binding)
+# Compatible con paho-mqtt 1.x y 2.x: el codigo usa mqtt_compat (callback_api_version=VERSION1
+# en 2.x). Ver src/fiscalberry/common/rabbitmq/mqtt_compat.py.
+paho-mqtt>=1.6.0
+# Binding AMQP legacy: SOLO se usa si [RabbitMq] create_amqp_binding=true (default true).
+# Se puede desactivar y quitar pika si el broker entrega por MQTT sin binding local.
+pika>=1.3.0
 
 # Windows-specific dependencies
 pywin32; sys_platform == 'win32'

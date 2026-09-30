@@ -1,5 +1,28 @@
 # Mejoras en el manejo de errores de RabbitMQ
 
+> ♻️ **Actualizado a MQTT + spooler durable (v3.0.x).** El transporte principal es
+> **MQTT/Paho**; `pika`/AMQP quedó como binding legacy opcional
+> (`[RabbitMq] create_amqp_binding`, default true). El manejo de errores y la
+> resiliencia de impresión hoy se apoyan en:
+>
+> - **`DurablePrintSpooler`** (`common/print_spooler.py`): cola SQLite persistente
+>   (WAL), dedup por `job_id` (`INSERT OR IGNORE`), reintentos con backoff y
+>   recuperación al reiniciar (`_recover_on_start`). El ACK MQTT se hace al
+>   **persistir**, no al imprimir → no se pierden tickets por impresora caída.
+> - **Circuit breaker por impresora** (`common/printer_circuit_breaker.py`):
+>   estados `closed/open/half_open`; tras N fallos consecutivos deja de martillar
+>   el driver y reintenta pasado un cooldown.
+> - **ErrorPublisher no bloqueante** (`common/rabbitmq/error_publisher.py`):
+>   `publish_error()` encola y retorna de inmediato; un worker de fondo publica a
+>   `fiscalberry/errors/{tenant}`. Nunca bloquea impresión, **sanea** datos
+>   sensibles (password/token/…) y aplica **rate-limit** por tipo de error.
+> - **Compatibilidad paho 1.x/2.x** vía `common/rabbitmq/mqtt_compat.py`.
+>
+> Las secciones de abajo describen el manejo de red original (DNS, backoff,
+> timeouts) que sigue vigente en `process_handler.py`/`consumer.py`.
+>
+> ---
+
 ## Problemas identificados
 
 El error original mostraba:

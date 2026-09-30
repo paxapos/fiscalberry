@@ -89,6 +89,7 @@ source venv.cli/bin/activate
 # Ejecutar fiscalberry
 python -m fiscalberry.cli.main
 
+---
 
 ### Actualizar Dependencias
 
@@ -148,3 +149,34 @@ grep -i "error\|exception\|traceback" ~/.fiscalberry/fiscalberry.log
 
 # Ver últimas 50 líneas del log
 tail -n 50 ~/.fiscalberry/fiscalberry.log
+
+
+***************************************
+#############COMPILAR#############
+***************************************
+
+# Compilar versión CLI (Línea de Comandos)
+
+# Desde el directorio principal (donde están los archivos .spec)
+
+# 1. Activar el entorno virtual correspondiente
+
+source venv.cli/bin/activate
+
+# 2. Compilar con PyInstaller
+
+pyinstaller fiscalberry-cli.spec
+
+---
+
+# Compilar versión GUI (Interfaz Gráfica)
+
+# Desde el directorio principal (donde están los archivos .spec)
+
+# 1. Activar el entorno virtual correspondiente
+
+source venv.gui/bin/activate
+
+# 2. Compilar con PyInstaller
+
+pyinstaller fiscalberry-gui.spec

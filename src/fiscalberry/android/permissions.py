@@ -48,25 +48,33 @@ FISCALBERRY_PERMISSIONS_BASE = [
 ]
 
 # Permisos adicionales según versión de API
+# Ubicación: SOLO se pide antes de API 31. Desde Android 12 el escaneo Bluetooth
+# usa BLUETOOTH_SCAN y no necesita ubicación; pedirla en un servicio de
+# impresión asusta al usuario sin motivo.
 FISCALBERRY_PERMISSIONS_API_23_PLUS = [
-    'android.permission.ACCESS_COARSE_LOCATION',  # Requerido para Bluetooth desde API 23
+    'android.permission.ACCESS_COARSE_LOCATION',  # Requerido para Bluetooth ANTES de API 31
 ]
 
 FISCALBERRY_PERMISSIONS_API_28_PLUS = [
     'android.permission.FOREGROUND_SERVICE',  # Requerido desde API 28
 ]
 
-# API 29+: Ubicación en background requerida para BT scan en segundo plano
-FISCALBERRY_PERMISSIONS_API_29_PLUS = [
-    'android.permission.ACCESS_BACKGROUND_LOCATION',
-]
+# ⚠️ ACCESS_BACKGROUND_LOCATION: NO pedirlo nunca junto con los demás. Desde
+# Android 11 (API 30) el sistema IGNORA EL PEDIDO COMPLETO si viene mezclado con
+# permisos de ubicación en primer plano: no aparece ningún diálogo y no se
+# otorga nada — ni siquiera los permisos no relacionados del mismo lote. Era la
+# causa de que la app no pidiera NINGÚN permiso. Un servicio de impresión no
+# necesita ubicación en segundo plano; si alguna vez hiciera falta, va en un
+# pedido separado y posterior al de ubicación en primer plano.
 
 FISCALBERRY_PERMISSIONS_API_31_PLUS = [
     'android.permission.BLUETOOTH_CONNECT',  # Nuevos permisos de Bluetooth desde API 31
     'android.permission.BLUETOOTH_SCAN',
-    'android.permission.ACCESS_FINE_LOCATION',  # Requerido para BLUETOOTH_SCAN
-    'android.permission.SCHEDULE_EXACT_ALARM',  # Para reconexiones programadas
 ]
+
+# SCHEDULE_EXACT_ALARM tampoco va acá: es un permiso especial que solo se
+# concede desde Ajustes, requestPermissions() no abre ningún diálogo para él y
+# queda para siempre en la lista de "faltantes", re-pidiendo en cada arranque.
 
 # API 33+: Permiso explícito para notificaciones (incluyendo foreground service)
 FISCALBERRY_PERMISSIONS_API_33_PLUS = [
@@ -92,7 +100,7 @@ def get_required_permissions():
         return []
     
     permissions = FISCALBERRY_PERMISSIONS_BASE.copy()
-    
+
     # Permisos de almacenamiento solo para Android 12 y anteriores
     # En Android 13+ (API 33+) estos permisos están deprecados
     if ANDROID_API_LEVEL < 33:  # Solo Android 12 y anteriores
@@ -100,21 +108,17 @@ def get_required_permissions():
         logger.debug(f"Android {ANDROID_API_LEVEL} < 33: agregando permisos de almacenamiento legacy")
     else:
         logger.debug(f"Android {ANDROID_API_LEVEL} >= 33: permisos de almacenamiento no necesarios")
-    
-    # Agregar permisos según nivel de API
-    if ANDROID_API_LEVEL >= 23:  # Android 6.0+
+
+    # Ubicación: solo hasta API 30. Desde API 31 el escaneo BT no la necesita.
+    if 23 <= ANDROID_API_LEVEL < 31:
         permissions.extend(FISCALBERRY_PERMISSIONS_API_23_PLUS)
-        
+
     if ANDROID_API_LEVEL >= 28:  # Android 9.0+
         permissions.extend(FISCALBERRY_PERMISSIONS_API_28_PLUS)
-    
-    if ANDROID_API_LEVEL >= 29:  # Android 10.0+
-        permissions.extend(FISCALBERRY_PERMISSIONS_API_29_PLUS)
-        logger.debug(f"Android {ANDROID_API_LEVEL} >= 29: agregando ACCESS_BACKGROUND_LOCATION")
-        
+
     if ANDROID_API_LEVEL >= 31:  # Android 12.0+
         permissions.extend(FISCALBERRY_PERMISSIONS_API_31_PLUS)
-    
+
     if ANDROID_API_LEVEL >= 33:  # Android 13.0+
         permissions.extend(FISCALBERRY_PERMISSIONS_API_33_PLUS)
         logger.debug(f"Android {ANDROID_API_LEVEL} >= 33: agregando POST_NOTIFICATIONS")
@@ -258,6 +262,16 @@ def request_all_permissions(callback_on_complete: Optional[Callable] = None):
             except:
                 missing_permissions.append(permission)
         
+        # Red de seguridad: ACCESS_BACKGROUND_LOCATION jamás puede ir en un lote
+        # con otros permisos (Android ignora el pedido entero y no muestra nada).
+        descartados = [p for p in missing_permissions if p.endswith("ACCESS_BACKGROUND_LOCATION")]
+        if descartados:
+            logger.warning(
+                "Se descarta ACCESS_BACKGROUND_LOCATION del pedido: mezclarlo hace "
+                "que Android ignore TODOS los permisos del lote."
+            )
+            missing_permissions = [p for p in missing_permissions if p not in descartados]
+
         if missing_permissions:
             logger.info(f"Solicitando {len(missing_permissions)} permisos faltantes...")
             logger.info("⚠️ El usuario verá diálogos de permisos del sistema")

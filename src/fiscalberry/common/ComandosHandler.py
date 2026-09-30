@@ -14,6 +14,7 @@ from fiscalberry.common.printer_error_detector import PrinterErrorDetector, anal
 from escpos import printer
 from queue import Queue
 import traceback
+from collections import namedtuple
 
 configberry = Configberry()
 
@@ -44,6 +45,17 @@ class DriverError(Exception):
 
 
 class TraductorException(Exception):
+    pass
+
+
+class PrintJobError(Exception):
+    """
+    Falló la impresión de un trabajo del spooler.
+
+    Existe porque runTraductor a veces DEVUELVE el error en vez de lanzarlo
+    (impresora no configurada, config inválida) y el spooler solo interpreta
+    excepciones: sin convertirlo, daba el ticket por impreso y lo descartaba.
+    """
     pass
 
 
@@ -91,7 +103,9 @@ def report_queue_status():
                 }
             )
     
-    threading.Timer(30.0, report_queue_status).start()  # Reportar cada 30 segundos
+    _t = threading.Timer(30.0, report_queue_status)
+    _t.daemon = True  # no bloquear el cierre del proceso/tests
+    _t.start()  # Reportar cada 30 segundos
 
 def process_print_jobs(worker_id=0):
     """Worker optimizado para procesar trabajos de impresión con detección de comandas trabadas"""
@@ -188,20 +202,200 @@ def process_print_jobs(worker_id=0):
             )
             continue
 
-# Iniciar workers optimizados
-for i in range(MAX_WORKERS):
-    worker = threading.Thread(target=process_print_jobs, args=(i,), daemon=True)
-    worker.start()
-    worker_threads.append(worker)
-
-# Iniciar el informe periódico
-report_queue_status()
+# Arranque LAZY de los workers legacy en memoria.
+# No se arrancan al importar el módulo: importar ComandosHandler no debe crear
+# threads ni timers de fondo (tests, discover, herramientas). Solo se inician si
+# se usa el camino síncrono legacy ([Paxaprinter] sync_print_commands=true).
+_legacy_workers_started = False
+_legacy_workers_lock = threading.Lock()
 
 
+def _ensure_legacy_workers_started():
+    """Inicia una sola vez el pool de workers en memoria y el reporte periódico."""
+    global _legacy_workers_started
+    if _legacy_workers_started:
+        return
+    with _legacy_workers_lock:
+        if _legacy_workers_started:
+            return
+        for i in range(MAX_WORKERS):
+            worker = threading.Thread(target=process_print_jobs, args=(i,), daemon=True)
+            worker.start()
+            worker_threads.append(worker)
+        report_queue_status()
+        _legacy_workers_started = True
+
+
+
+
+BuiltDriver = namedtuple("BuiltDriver", "driver name columns options")
+
+_TRUE_VALUES = ("true", "1", "yes", "on", "si", "sí")
+
+
+def _as_bool(value):
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in _TRUE_VALUES
+
+
+def _as_number(value, kind):
+    """int/float desde el texto del config.ini; lanza DriverError si no es número."""
+    try:
+        return kind(value)
+    except (TypeError, ValueError):
+        raise DriverError(f"Valor numérico inválido en la configuración: {value!r}")
+
+
+def build_driver(driver_config):
+    """
+    Construye el driver python-escpos para una configuración de impresora:
+    una sección del config.ini o un candidato del asistente (#172).
+
+    No lee ni escribe el config.ini, no publica errores y no abre la conexión
+    (python-escpos la abre al primer uso). Trabaja sobre una COPIA: el dict
+    recibido queda intacto.
+
+    Devuelve BuiltDriver(driver, name, columns, options). Lanza DriverError si
+    el driver no existe, no está disponible en esta plataforma o no se puede
+    crear con esos parámetros.
+    """
+    # Las claves con "_" son metadata del asistente (_setup_id, _usb_vid...),
+    # no parámetros del driver (ver printer_setup.py).
+    driverOps = {k: v for k, v in dict(driver_config).items() if not str(k).startswith("_")}
+    driverName = str(driverOps.pop("driver", "Dummy")).lower()
+    driver_class = None
+
+    if driverName == "Win32Raw".lower():
+        driverName = "Win32Raw"
+        if not printer.Win32Raw.is_usable():
+            raise DriverError(f"Driver {driverName} no disponible")
+
+    elif driverName == "Usb".lower():
+        driverName = "Usb"
+
+        # convertir de string eJ: 0x82 a int
+        if 'out_ep' in driverOps:
+            driverOps['out_ep'] = int(driverOps['out_ep'], 16)
+
+        if 'in_ep' in driverOps:
+            driverOps['in_ep'] = int(driverOps['in_ep'], 16)
+
+        driverOps['idProduct'] = int(driverOps['idProduct'], 16)
+        driverOps['idVendor'] = int(driverOps['idVendor'], 16)
+        if 'timeout' in driverOps:
+            driverOps['timeout'] = _as_number(driverOps['timeout'], int)
+
+    elif driverName == "Network".lower():
+        # printer.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
+        if 'port' in driverOps:
+            driverOps['port'] = _as_number(driverOps['port'], int)
+        # Del config.ini llega como texto: socket.settimeout("10") revienta.
+        if 'timeout' in driverOps:
+            driverOps['timeout'] = _as_number(driverOps['timeout'], float)
+        driverName = "Network"
+
+    elif driverName == "Serial".lower():
+        # printer.Serial(devfile='', baudrate=9600, bytesize=8, timeout=1, parity=None, stopbits=None, xonxoff=False, dsrdtr=True, *args, **kwargs)
+        # pyserial no acepta texto en bytesize/timeout/stopbits: del config.ini
+        # llegaba "8" y el puerto no abría.
+        for clave in ('baudrate', 'bytesize'):
+            if clave in driverOps:
+                driverOps[clave] = _as_number(driverOps[clave], int)
+        if 'timeout' in driverOps:
+            driverOps['timeout'] = _as_number(driverOps['timeout'], float)
+        if 'stopbits' in driverOps:
+            bits = _as_number(driverOps['stopbits'], float)
+            driverOps['stopbits'] = int(bits) if bits.is_integer() else bits
+        for clave in ('xonxoff', 'dsrdtr'):
+            if clave in driverOps:
+                driverOps[clave] = _as_bool(driverOps[clave])
+        driverName = "Serial"
+
+    elif driverName == "UsbPrint".lower():
+        # USB directo por usbprint.sys (escenario 2 de #170, #183). Solo existe
+        # en Windows: en otra plataforma, un error claro en vez de "driver
+        # inválido".
+        if sys.platform != "win32":
+            raise DriverError("El driver UsbPrint solo está disponible en Windows")
+        from fiscalberry.common.usbprint_driver import UsbPrint
+        for clave in ('idVendor', 'idProduct'):
+            if clave in driverOps:
+                try:
+                    driverOps[clave] = int(str(driverOps[clave]), 0)
+                except ValueError:
+                    raise DriverError(f"Valor inválido en la configuración: {clave}={driverOps[clave]!r}")
+        if 'timeout' in driverOps:
+            driverOps['timeout'] = _as_number(driverOps['timeout'], float)
+        driver_class = UsbPrint
+        driverName = "UsbPrint"
+
+    elif driverName == "Bluetooth".lower():
+        # Bluetooth printer for Android
+        # BluetoothPrinter(mac_address='XX:XX:XX:XX:XX:XX', timeout=10)
+
+        # Validar MAC address
+        if 'mac_address' not in driverOps and 'macAddress' not in driverOps:
+            raise DriverError("MAC address requerida para Bluetooth: use 'mac_address' en config")
+
+        # Normalizar nombre de parámetro
+        if 'macAddress' in driverOps:
+            driverOps['mac_address'] = driverOps.pop('macAddress')
+
+        # Importar driver Bluetooth custom
+        from fiscalberry.common.bluetooth_printer import BluetoothPrinter
+        driver_class = BluetoothPrinter
+        driverName = "Bluetooth"
+
+    elif driverName == "File".lower():
+        # (devfile='', auto_flush=True
+        # printer.File(devfile='', auto_flush=True, *args, **kwargs)[source]
+        driverName = "File"
+
+    elif driverName == "Dummy".lower():
+        # printer.Dummy(*args, **kwargs)[source]
+        driverName = "Dummy"
+
+    elif driverName == "Cups".lower():
+        # printer.CupsPrinter(printer_name='', *args, **kwargs)[source]
+        driverName = "CupsPrinter"
+
+    elif driverName == "LP".lower():
+        # printer.LP(printer_name='', *args, **kwargs)[source]
+        driverName = "LP"
+
+    else:
+        raise DriverError(f"Invalid driver: {driverName}")
+
+    # Los drivers custom (ej: Bluetooth) ya tienen driver_class asignado
+    if driver_class is None:
+        try:
+            driver_class = getattr(printer, driverName)
+            if not callable(driver_class):
+                raise DriverError(f"Driver {driverName} is not callable")
+        except AttributeError:
+            raise DriverError(f"Driver {driverName} not found in printer module")
+        except DriverError:
+            raise
+        except Exception as e:
+            raise DriverError(f"Error loading driver {driverName}: {e}")
+
+    # Extraer columns antes de crear el driver (no es un parámetro del driver)
+    columns = driverOps.pop('columns', None)
+
+    try:
+        driver = driver_class(**driverOps)
+    except Exception as e:
+        raise DriverError(f"Error creando driver {driverName}: {e}")
+
+    return BuiltDriver(driver, driverName, columns, driverOps)
 
 
 def runTraductor(jsonTicket, queue):
     printerName = jsonTicket.pop('printerName')
+    # jobId es metadata de dedup del spooler, no un comando: si quedara en el
+    # ticket, EscPComandos.run() lo tomaria como accion inexistente.
+    jsonTicket.pop('jobId', None)
 
     try:
         dictSectionConf = configberry.get_config_for_printer(printerName)
@@ -239,12 +433,12 @@ def runTraductor(jsonTicket, queue):
         return {"error": f"Error de configuración: {str(e)}"}
 
 
-    driverName = dictSectionConf.pop("driver", "Dummy")
-    driverName = driverName.lower()
-
-    driverOps = dictSectionConf
+    driverName = str(dictSectionConf.get("driver", "Dummy")).lower()
 
     if driverName == "Fiscalberry".lower():
+        # Las claves con "_" son metadata del asistente (ver printer_setup.py).
+        driverOps = {k: v for k, v in dictSectionConf.items()
+                     if not str(k).startswith("_") and k != "driver"}
         try:
             comando = FiscalberryComandos()
             host = driverOps.get('host', 'localhost')
@@ -256,100 +450,27 @@ def runTraductor(jsonTicket, queue):
             logger.error(f"Error FiscalberryComandos: {e}")
             return queue.put({"error": f"Error en FiscalberryComandos: {str(e)}"})
 
-    if driverName == "Win32Raw".lower():
-        driverName = "Win32Raw"
-        driver = printer.Win32Raw
+    driver, driverName, columns, driverOps = build_driver(dictSectionConf)
 
-        if not driver.is_usable():
-            raise DriverError(f"Driver {driverName} no disponible")
-
-
-    elif driverName == "Usb".lower():
-        driverName = "Usb"
-
-        # convertir de string eJ: 0x82 a int
-        if 'out_ep' in driverOps:
-            driverOps['out_ep'] = int(driverOps['out_ep'], 16)
-
-        if 'in_ep' in driverOps:
-            driverOps['in_ep'] = int(driverOps['in_ep'], 16)
-
-        driverOps['idProduct'] = int(driverOps['idProduct'], 16)
-        driverOps['idVendor'] = int(driverOps['idVendor'], 16)
-
-
-    elif driverName == "Network".lower():
-        # printer.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
-        if 'port' in driverOps:
-            driverOps['port'] = int(driverOps['port'])
-        driverName = "Network"
-
-    elif driverName == "Serial".lower():
-        # printer.Serial(devfile='', baudrate=9600, bytesize=8, timeout=1, parity=None, stopbits=None, xonxoff=False, dsrdtr=True, *args, **kwargs)
-        driverName = "Serial"
-
-    elif driverName == "Bluetooth".lower():
-        # Bluetooth printer for Android
-        # BluetoothPrinter(mac_address='XX:XX:XX:XX:XX:XX', timeout=10)
-
-        
-        # Validar MAC address
-        if 'mac_address' not in driverOps and 'macAddress' not in driverOps:
-            raise DriverError("MAC address requerida para Bluetooth: use 'mac_address' en config")
-        
-        # Normalizar nombre de parámetro
-        if 'macAddress' in driverOps:
-            driverOps['mac_address'] = driverOps.pop('macAddress')
-        
-        # Importar driver Bluetooth custom
-        from fiscalberry.common.bluetooth_printer import BluetoothPrinter
-        driver_class = BluetoothPrinter
-        driverName = "Bluetooth"
-
-    elif driverName == "File".lower():
-        # (devfile='', auto_flush=True
-        # printer.File(devfile='', auto_flush=True, *args, **kwargs)[source]
-        driverName = "File"
-
-    elif driverName == "Dummy".lower():
-        # printer.Dummy(*args, **kwargs)[source]
-        driverName = "Dummy"
-
-
-    elif driverName == "Cups".lower():
-        # printer.CupsPrinter(printer_name='', *args, **kwargs)[source]
-        driverName = "CupsPrinter"
-
-
-    elif driverName == "LP".lower():
-        # printer.LP(printer_name='', *args, **kwargs)[source]
-        driverName = "LP"
-
-
-    else:
-        raise DriverError(f"Invalid driver: {driver}")
-    
-    # Manejar drivers custom (ej: Bluetooth) que ya tienen driver_class asignado
-    if driverName == "Bluetooth":
-        # Ya está configurado arriba con BluetoothPrinter
-        pass
-    else:
+    # ---- Modo RAW: el backend manda bytes ESC/POS ya renderizados ----
+    # Permite cambiar cualquier formato (arqueo, comanda, etc.) deployando solo el
+    # backend, sin actualizar los Fiscalberry de la calle. El cliente solo escupe
+    # los bytes a la impresora vía _raw(); no interpreta el contenido.
+    raw_cmd = jsonTicket.get("printRaw")
+    if not raw_cmd and jsonTicket.get("type") == "raw":
+        raw_cmd = jsonTicket  # variante: envelope plano {type:raw,data,encoding}
+    if raw_cmd:
+        import base64, gzip
+        data = base64.b64decode(raw_cmd["data"])
+        if (raw_cmd.get("encoding") or "gzip+base64") in ("gzip", "gzip+base64"):
+            data = gzip.decompress(data)
+        driver._raw(data)
         try:
-            driver_class = getattr(printer, driverName)
-            if not callable(driver_class):
-                raise DriverError(f"Driver {driverName} is not callable")
-        except AttributeError:
-            raise DriverError(f"Driver {driverName} not found in printer module")
-        except Exception as e:
-            raise DriverError(f"Error loading driver {driverName}: {e}")
-
-    # Extraer columns antes de crear el driver (no es un parámetro del driver)
-    columns = driverOps.pop('columns', None)
-    
-    try:
-        driver = driver_class(**driverOps)
-    except Exception as e:
-        raise DriverError(f"Error creando driver {driverName}: {e}")
+            driver.close()
+        except Exception:
+            pass
+        logger.info(f"Impresión RAW OK en '{printerName}' ({len(data)} bytes)")
+        return {"message": "Impresion RAW exitosa", "result": "ok", "bytes": len(data)}
 
     try:
         comando = EscPComandos(driver, columns=columns)
@@ -376,6 +497,115 @@ def runTraductor(jsonTicket, queue):
         
         raise e
 
+
+# ---------------------------------------------------------------------------
+# Spooler durable (cola persistente en disco) para el camino MQTT.
+# Desacopla "recibi de la nube" de "imprimi": el ACK se hace al PERSISTIR, y la
+# impresion se reintenta hasta lograrse (tolerante a impresora caida / reinicios
+# / mala conectividad). Deduplica reentregas QoS1 por job_id.
+# ---------------------------------------------------------------------------
+_print_spooler = None
+_print_spooler_lock = threading.Lock()
+
+
+def _spooler_print_fn(ticket):
+    """Imprime un ticket ya persistido. Lanza excepcion si falla (-> reintento).
+
+    Integra el circuit breaker por impresora (Fase 8): si el circuito de esa
+    impresora esta abierto, no se toca el driver y se lanza CircuitOpenError para
+    que el spooler reprograme con backoff. Exito -> cierra circuito; fallo -> lo
+    registra (puede abrirlo tras varios fallos consecutivos).
+    """
+    from fiscalberry.common.printer_circuit_breaker import (
+        get_circuit_breaker, CircuitOpenError)
+
+    printer_name = ticket.get("printerName")
+    breaker = get_circuit_breaker()
+
+    if printer_name and not breaker.allow(printer_name):
+        raise CircuitOpenError(
+            f"Circuito abierto para '{printer_name}': impresora con fallos recientes")
+
+    try:
+        result = runTraductor(dict(ticket), Queue())
+
+        # runTraductor no siempre lanza: ante "impresora no encontrada" o un
+        # error de configuración DEVUELVE {"error": ...}. El spooler solo
+        # entiende excepciones, así que sin esto daba el trabajo por "impreso
+        # OK" y lo descartaba: el ticket se perdía en silencio y jamás se
+        # reintentaba, ni siquiera después de configurar la impresora.
+        if isinstance(result, dict) and result.get("error"):
+            raise PrintJobError(str(result["error"]))
+
+        if printer_name:
+            breaker.record_success(printer_name)
+        return result
+    except Exception:
+        if printer_name:
+            breaker.record_failure(printer_name)
+        raise
+
+
+def get_print_spooler():
+    """Spooler durable (singleton, lazy)."""
+    global _print_spooler
+    if _print_spooler is None:
+        with _print_spooler_lock:
+            if _print_spooler is None:
+                from fiscalberry.common.print_spooler import DurablePrintSpooler
+                _print_spooler = DurablePrintSpooler(_spooler_print_fn)
+    return _print_spooler
+
+
+def shutdown_print_spooler():
+    """Cierra el spooler durable de forma ordenada, si llegó a crearse.
+
+    NO lo instancia si nunca se usó (evita crear un .db solo para cerrarlo).
+    Pensado para invocarse al detener el servicio (SIGTERM/stop): antes el
+    proceso terminaba con `os._exit()` sin tocar el spooler en absoluto (ver
+    issue fiscalberry#165, propuesta 3). Con PRAGMA synchronous=FULL los jobs
+    ya son durables sin este cierre ordenado, pero cerrar bien evita dejar el
+    WAL creciendo entre reinicios frecuentes (ej. auto-actualización).
+    """
+    global _print_spooler
+    with _print_spooler_lock:
+        sp = _print_spooler
+        _print_spooler = None
+    if sp is not None:
+        try:
+            sp.stop()
+        except Exception as e:
+            logger.debug("Error deteniendo el spooler durable: %s", e)
+
+
+def _is_sync_print_mode():
+    """Modo legacy: responder de forma sincrona con el resultado real de impresion.
+
+    Por defecto False -> se usa el spooler durable (persiste y responde "aceptado",
+    imprime con reintentos, tolera impresora caida/reinicios). Activar solo si hay
+    clientes Socket.IO que dependan del resultado inmediato de impresion:
+        [Paxaprinter] sync_print_commands = true
+    """
+    try:
+        val = configberry.get("Paxaprinter", "sync_print_commands", fallback="false")
+    except Exception:
+        val = "false"
+    return str(val).strip().lower() in ("true", "1", "yes", "on")
+
+
+def _compute_job_id(jsonTicket):
+    """job_id estable para dedup en el spooler.
+
+    Usa 'jobId' si viene en el ticket; si no, un sha1 del payload normalizado.
+    Mismo criterio conceptual que RabbitMQConsumer._on_message() para que un mismo
+    ticket no se imprima dos veces.
+    """
+    import hashlib
+    jid = jsonTicket.get("jobId")
+    if jid:
+        return str(jid)
+    payload = json.dumps(jsonTicket, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
 
 
 class ComandosHandler:
@@ -470,6 +700,31 @@ class ComandosHandler:
                 # Log con JSON compacto del ticket
                 ticket_copy = {k: v for k, v in jsonTicket.items() if k != 'printerName'}
                 logger.info(f"Imprimiendo: '{printer_name}' {json.dumps(ticket_copy, ensure_ascii=False)}")
+
+                # Camino DURABLE por defecto: persistir en el spooler y responder
+                # "aceptado" de inmediato. La impresion real se hace con reintentos
+                # (tolera impresora caida / reinicios). Deduplica por job_id.
+                if not _is_sync_print_mode():
+                    job_id = _compute_job_id(jsonTicket)
+                    spooler = get_print_spooler()
+                    is_new = spooler.enqueue(job_id, jsonTicket, printer_name)
+                    rta["rta"] = {
+                        "accepted": True,
+                        "queued": True,
+                        "duplicate": not is_new,
+                        "job_id": job_id,
+                        "pending_count": spooler.pending_count(),
+                        "failed_count": spooler.failed_count(),
+                    }
+                    logger.info(
+                        "Encolado durable: '%s' job=%s (nuevo=%s, pending=%s, failed=%s)",
+                        printer_name, job_id, is_new,
+                        rta["rta"]["pending_count"], rta["rta"]["failed_count"])
+                    return rta
+
+                # Camino LEGACY sincrono ([Paxaprinter] sync_print_commands=true):
+                # workers en memoria + respuesta con el resultado real de impresion.
+                _ensure_legacy_workers_started()
 
                 # Procesamiento optimizado con cola de alta velocidad
                 q = Queue()
@@ -592,6 +847,18 @@ class ComandosHandler:
             elif 'removerImpresora' in jsonTicket:
                 rta["rta"] = self._removerImpresora(
                     jsonTicket["removerImpresora"])
+
+            # Acciones sobre la cola del spooler durable (issue #166): el
+            # equipo puede correr headless (CLI, sin GUI), así que el aviso
+            # visual no alcanza para toda la flota. Estos dos comandos son el
+            # "endpoint para drenar o descartar" operable de forma remota
+            # (server -> SIO/MQTT -> acá), guiado por los contadores que ya
+            # viajan por heartbeat/getStatus.
+            elif 'imprimirPendientes' in jsonTicket:
+                rta["rta"] = self._imprimirPendientes()
+
+            elif 'descartarPendientes' in jsonTicket:
+                rta["rta"] = self._descartarPendientes()
             else:
                 raise TraductorException("No se pasó un comando válido")
 
@@ -681,6 +948,41 @@ class ComandosHandler:
             else:
                 rta["rta"][tradu] = "OFFLINE"
         return rta
+
+    def _imprimirPendientes(self):
+        """Comando remoto 'imprimir todos' (issue #166): reintenta la cola.
+
+        Re-encola los 'failed' (dead-letter) para que el worker del spooler
+        los retome de inmediato. `requeue_failed()` ya existía pero nadie la
+        llamaba desde ningún comando: era código muerto.
+        """
+        spooler = get_print_spooler()
+        n = spooler.requeue_failed()
+        return {
+            "action": "imprimirPendientes",
+            "rta": {
+                "requeued": n,
+                "pending_count": spooler.pending_count(),
+                "failed_count": spooler.failed_count(),
+            },
+        }
+
+    def _descartarPendientes(self):
+        """Comando remoto 'descartar' (issue #166): vacía la cola sin imprimir.
+
+        Destructivo a propósito: se tiran comprobantes fiscales y comandas
+        sin imprimir. `discard_all()` deja constancia en el log (WARNING).
+        """
+        spooler = get_print_spooler()
+        n = spooler.discard_all()
+        return {
+            "action": "descartarPendientes",
+            "rta": {
+                "discarded": n,
+                "pending_count": spooler.pending_count(),
+                "failed_count": spooler.failed_count(),
+            },
+        }
 
     def _handleSocketError(self, err, jsonTicket, traductor):
         logging.error(format(err))
