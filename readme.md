@@ -116,7 +116,15 @@ Action**, no hace falta crearlo a mano.
 - `version.py` es la **única fuente de verdad** de la versión; no la edites a mano,
   usá `bump-my-version`.
 - También se puede disparar manualmente desde la pestaña **Actions → Build and
-  Release Fiscalberry → Run workflow** (`workflow_dispatch`).
+  Release Fiscalberry → Run workflow** (`workflow_dispatch`). Si la versión ya
+  está publicada, compila todo pero no publica nada: sirve para probar el build.
+- **Si falla el build de Android, el release se publica igual sin el APK**, con
+  un aviso arriba de las notas. Mientras tanto los equipos Android no se
+  actualizan y el link de descarga del APK da 404. Arreglado el build, se
+  completa con **Run workflow** sobre `v3.0.x` poniendo en `completar_tag` el
+  tag del release (ej. `v3.6.7`): compila Android con el código de ese tag, sube
+  el APK, agrega su línea a `SHA256SUMS` y saca el aviso. No toca los binarios
+  de Linux ni Windows.
 
 
 # ¿Qué es?
