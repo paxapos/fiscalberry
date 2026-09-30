@@ -14,6 +14,7 @@ Se mockea socketio.Client por completo: sin red.
 """
 
 import threading
+import time
 
 import pytest
 
@@ -59,6 +60,7 @@ class FakeSioClient:
             raise Exception("Already connected")
         self.connected = True
         self.connect_calls += 1
+        self.connect_kwargs = k
 
     def wait(self):
         # Solo retorna si el cliente fue realmente cerrado.
@@ -332,3 +334,25 @@ def test_watchdog_no_dispara_sin_adopcion():
     ctrl = _controller_para_watchdog(sio, adoptado=False)
     hace_rato = _time.monotonic() - 10_000
     assert ctrl._sio_looks_zombie(hace_rato) is False
+
+
+def test_connect_da_margen_al_namespace(fresh_sio):
+    """
+    El default de python-socketio (1s) para confirmar el namespace no alcanza
+    con la latencia de un local: connect() abortaba con "One or more namespaces
+    failed to connect:" en cada reintento y el equipo no conectaba nunca.
+    """
+    fresh_sio.stop_event.clear()
+    t = threading.Thread(target=fresh_sio._run, daemon=True)
+    t.start()
+    for _ in range(50):
+        if fresh_sio.sio is not None and getattr(fresh_sio.sio, "connect_calls", 0):
+            break
+        time.sleep(0.02)
+
+    kwargs = fresh_sio.sio.connect_kwargs
+    assert kwargs["wait_timeout"] >= 10
+    assert kwargs["headers"]["x-uuid"] == "fake-uuid"
+
+    fresh_sio.stop()
+    t.join(timeout=5)

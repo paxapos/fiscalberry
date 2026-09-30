@@ -14,6 +14,17 @@ environment = os.getenv('ENVIRONMENT', 'production')
 sioLogger = True if environment == 'development' else False
 logger = getLogger("SocketIO")
 
+# Cuánto esperar a que el servidor confirme el namespace después del handshake.
+#
+# python-socketio usa 1 segundo por defecto. Con la latencia de un local (wifi
+# mala, antivirus que inspecciona HTTPS) la confirmación de /paxaprinter llega
+# después, y connect() aborta con "One or more namespaces failed to connect:"
+# sin nombrar ningún namespace (no hubo rechazo, solo se venció el plazo). Se
+# reintentaba cada 5s con el mismo segundo de margen, así que el equipo no
+# conectaba nunca y el comercio quedaba sin imprimir.
+NAMESPACE_CONNECT_TIMEOUT = 15
+
+
 class FiscalberrySio:
     _instance = None
     _lock = threading.Lock()
@@ -299,7 +310,12 @@ class FiscalberrySio:
                 return
 
             logger.debug(f"SIO run: {self.server_url}")
-            client.connect(self.server_url, namespaces=self.namespaces, headers={'x-uuid': self.uuid, 'x-version': VERSION})
+            client.connect(
+                self.server_url,
+                namespaces=self.namespaces,
+                headers={'x-uuid': self.uuid, 'x-version': VERSION},
+                wait_timeout=NAMESPACE_CONNECT_TIMEOUT,
+            )
             client.wait()
         except Exception as e:
             logger.error(f"SIO Error al conectar: {e}")
