@@ -2,7 +2,6 @@ DIAGNÓSTICO DEL ASISTENTE DE IMPRESORAS — Fiscalberry
 Generado: 2026-09-25 14:30:00
 Versión: 3.9.9 (windows-installer)
 Sistema: Windows 11 (build 22631), AMD64
-Permisos: administrador con UAC (puede aprobar el cartel de Windows)
 Comercio: Pizzeria Don Pepe (vinculado)
 Equipo: id …9c0d
 Servicio: conectado al servidor (MQTT: sí)
@@ -31,9 +30,6 @@ Impresoras:
 == Redes de la PC
 - Ethernet (físico, conectado): 192.168.1.27/24; gateway 192.168.1.1; DHCP sí; placa A4:BB:6D:xx:xx:xx
 - VPN Oficina (VPN, conectado): 10.8.0.6/24; DHCP no; no se revisa
-
-== Escenario 5 (otra subred con IP temporal)
-No disponible en esta versión: no se usó IP temporal, ni dhcpstaticipcoexistence, ni el fallback de #178; no hay diario de red.
 
 == Impresoras configuradas
 - Caja: driver=Win32Raw, printer_name=EPSON TM-T20II Receipt, _setup_id=windows:EPSON TM-T20II Receipt

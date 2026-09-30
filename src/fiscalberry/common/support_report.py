@@ -6,7 +6,7 @@ para reproducir el paso exacto donde falló, sin exponer nada que no haga
 falta:
 
 - **Se arma solo con campos permitidos** (nada de volcar el config.ini): la
-  versión, el sistema, el comercio, el nivel de privilegio, el estado del
+  versión, el sistema, el comercio, el estado del
   servicio, las redes de la PC, lo que encontró la búsqueda, la última
   prueba (transporte, DLE EOT, LPT), la dirección escrita y su diagnóstico,
   las impresoras configuradas y el recorrido paso a paso.
@@ -20,9 +20,6 @@ falta:
   config.ini y todo lo que parezca un JWT o un token por "[oculto]".
 - Del registro solo entran advertencias y errores de los módulos del
   asistente (nunca el contenido de un ticket).
-
-El escenario 5 (IP temporal, dhcpstaticipcoexistence, fallback, diario de
-red) es de la fase 3: el reporte lo dice explícitamente.
 """
 
 import ipaddress
@@ -258,21 +255,18 @@ def _linea_encontrada(f):
 
 
 def collect_lines(wizard=None, config_data=None, now=None, version=None, installation=None,
-                  system=None, privilege=None, service=None, log_lines=None, adapters=None):
+                  system=None, service=None, log_lines=None, adapters=None):
     """Las líneas del reporte, antes de la pasada final de secretos."""
     from fiscalberry.common.printer_guides import guide_url
-    from fiscalberry.common.windows_privilege import DESCRIPTIONS, detect_privilege
 
     w = wizard
     datos = config_data or {}
     ahora = now or datetime.now()
-    privilegio = privilege or detect_privilege()
     lineas = [
         "DIAGNÓSTICO DEL ASISTENTE DE IMPRESORAS — Fiscalberry",
         f"Generado: {ahora:%Y-%m-%d %H:%M:%S}",
         f"Versión: {version or _version()} ({installation or _instalacion()})",
         f"Sistema: {system or _sistema()}",
-        f"Permisos: {DESCRIPTIONS.get(privilegio, privilegio)}",
     ]
 
     paxa = next((v for k, v in datos.items() if k.lower() == "paxaprinter"), {}) or {}
@@ -382,10 +376,6 @@ def collect_lines(wizard=None, config_data=None, now=None, version=None, install
             if not a.usable:
                 partes.append("no se revisa")
             lineas.append("; ".join(partes))
-
-    lineas += ["", "== Escenario 5 (otra subred con IP temporal)",
-               "No disponible en esta versión: no se usó IP temporal, ni "
-               "dhcpstaticipcoexistence, ni el fallback de #178; no hay diario de red."]
 
     # -- impresoras configuradas
     from fiscalberry.common.printer_setup import PrinterSetupService, is_valid_printer_config

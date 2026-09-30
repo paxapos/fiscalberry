@@ -85,7 +85,6 @@ guarda nada. **Sin verificar con hardware.**
 - **Tabla ARP** (`GetIpNetTable`): la MAC de lo que se encontró. Se muestra solo
   el fabricante de la placa (`00:26:AB:xx:xx:xx`). Algunos prefijos de Epson y
   Star están en `MAC_VENDORS`: es una pista para la pantalla, no decide nada.
-- **ICMP** (`IcmpSendEcho`, sin admin) solo como señal en `address_in_use()`.
 
 ### Clasificación de una dirección (`diagnose_address`)
 
@@ -95,7 +94,7 @@ guarda nada. **Sin verificar con hardware.**
 |---|---|
 | `misma_subred` | Está en el rango (máscara real) de un adaptador físico y el 9100 acepta |
 | `otra_subred_alcanzable` | Fuera de los rangos, pero hay ruta y el 9100 acepta: se puede usar |
-| `otra_subred_marca_conocida` | Fuera de los rangos, no responde y es una IP de fábrica (escenario 5) |
+| `otra_subred_marca_conocida` | Fuera de los rangos, no responde y es una IP de fábrica |
 | `otra_subred_desconocida` | Fuera de los rangos, no responde (p. ej. 192.168.123.68 con la PC en 192.168.1.27/24) |
 | `apagada` | En el rango, nadie responde |
 | `puerto_cerrado` | Responde el equipo pero no el 9100 (`is_gateway` dice si es el router) |
@@ -115,16 +114,10 @@ La IP no identifica la marca (tres comparten la misma). **192.168.1.1 no se
 agrega**: es la IP típica del router (#180). SAM4S y SerForce no tienen IP de
 fábrica publicada.
 
-Sin una IP en el rango de la impresora, la PC no puede hablarle: por eso el
-escenario 5 solo se **detecta** (cuando la persona escribe la dirección que
-imprimió la hoja de autotest) y se ofrece la guía. Cambiarle la IP es #178
-(IP temporal con UAC) y #182 (adaptadores por marca), en la fase 3.
-
-### Conflictos de IP
-
-`address_in_use()` junta evidencia de que alguien usa una dirección antes de
-proponerla (lo usará el escenario 5): TCP 80/443/9100 (aceptar o rechazar =
-hay alguien), la tabla ARP e ICMP. Devuelve `None` si no se pudo saber.
+Sin una IP en el rango de la impresora, la PC no puede hablarle: por eso
+solo se **detecta** (cuando la persona escribe la dirección que imprimió la
+hoja de autotest) y se explica el motivo. Fiscalberry no cambia la red de la PC
+ni de la impresora.
 
 ## USB directo y COM (escenarios 2 y 3) — #183
 
@@ -270,15 +263,15 @@ apareció la sección en `config.ini`. Con el servicio MQTT sin poder conectar
 
 ## Diagnóstico para soporte — #185
 
-Código: `common/support_report.py` y `common/windows_privilege.py`.
+Código: `common/support_report.py`.
 
 Ante un error o aviso del asistente aparecen **"Copiar diagnóstico para
 soporte"** (al portapapeles y a `diagnostico-impresoras.txt`, junto al
 registro) y **"Ver registro"** (la pantalla de logs, que vuelve al asistente).
 
 El reporte se arma **solo con campos permitidos**: versión e instalación,
-sistema, nivel de privilegio, comercio (nombre, no el tenant), estado del
-servicio, dónde quedó (paso, mensaje, guía), la última prueba (transporte,
+sistema, comercio (nombre, no el tenant), estado del
+servicio, dónde quedó (paso, mensaje, guía ofrecida: solo se nombra, la app no abre enlaces), la última prueba (transporte,
 identidad, DLE EOT, LPT, si se borró el trabajo de la cola, si se confirmó el
 papel), la dirección escrita y su diagnóstico, la búsqueda (qué encontró cada
 fuente, tiempos, avisos, ocultas y por qué), las redes de la PC, las
@@ -294,16 +287,6 @@ reemplaza por `[oculto]` todo valor del `config.ini` cuya clave sea sensible,
 todo lo que parezca un JWT y lo que siga a `password=`, `token=`, `Bearer`.
 Del registro entran solo advertencias y errores de los módulos del asistente.
 
-**Privilegio** (`detect_privilege`, sin pedir nada): `TokenElevationType`
-distingue administrador con UAC (token filtrado), ya elevado o "default"; en
-el último caso `IsUserAnAdmin` separa administrador sin UAC de cuenta
-estándar. #178 lo va a usar para no mostrar un cartel de UAC que la persona no
-puede aprobar.
-
-El escenario 5 (IP temporal, `dhcpstaticipcoexistence` antes y después,
-fallback, diario de red) es de la fase 3: el reporte dice explícitamente que
-no se usó.
-
 Snapshots aprobados en `tests/snapshots/diagnostico_*.txt` (éxito, USB con
 tapa abierta, cola trabada, nada encontrado, otra subred). Si un cambio es a
 propósito: `FISCALBERRY_UPDATE_SNAPSHOTS=1 pytest tests/test_diagnostico_soporte.py`
@@ -318,7 +301,7 @@ SetupDi (usbprint y todos los USB) y los puertos COM de verdad, y lista las
 colas con el subproceso `--list-printers` del exe instalado. Falla si alguna
 sección revienta, si no hay al menos un adaptador físico con IPv4, si el
 listado de colas tarda más de 5 s, si las colas PDF/XPS del runner no quedan
-como virtuales y ocultas o si no se puede leer el nivel de privilegio. El runner no
+como virtuales y ocultas. El runner no
 tiene impresoras: el barrido y las impresoras se prueban con fakes y sockets
 locales en `tests/test_red_impresoras.py`.
 

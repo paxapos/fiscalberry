@@ -23,9 +23,6 @@ from fiscalberry.common.printer_setup import PrinterSetupService, TCP_NO_RESPONS
 from fiscalberry.common.printer_test import (
     PROBLEM_COVER_OPEN, PROBLEM_JOB_STUCK, PrinterStatus, PrintTestResult)
 from fiscalberry.common.usb_discovery import UsbPrintDevice, UsbSearchResult
-from fiscalberry.common.windows_privilege import (
-    PRIVILEGE_ADMIN_NO_UAC, PRIVILEGE_ADMIN_UAC, PRIVILEGE_ELEVATED, PRIVILEGE_NOT_APPLICABLE,
-    PRIVILEGE_STANDARD, PRIVILEGE_UNKNOWN, detect_privilege)
 from fiscalberry.common.windows_queues import QueueListResult, WindowsQueue
 
 SNAPSHOTS = os.path.join(os.path.dirname(__file__), "snapshots")
@@ -105,7 +102,7 @@ def reporte(w, config):
     return sr.build_report(
         w, config.get_actual_config(), now=datetime(2026, 9, 25, 14, 30, 0), version="3.9.9",
         installation="windows-installer", system="Windows 11 (build 22631), AMD64",
-        privilege=PRIVILEGE_ADMIN_UAC, service="conectado al servidor (MQTT: sí)", log_lines=LOG,
+        service="conectado al servidor (MQTT: sí)", log_lines=LOG,
         adapters=[PC, VPN])
 
 
@@ -244,7 +241,7 @@ def test_jwt_y_tokens_sueltos_se_ocultan():
 
 def test_sin_asistente_igual_hay_reporte():
     texto = sr.build_report(None, dict(SECRETOS), now=datetime(2026, 9, 25), version="3.9.9",
-                            installation="source", system="Linux", privilege=PRIVILEGE_NOT_APPLICABLE,
+                            installation="source", system="Linux",
                             service="sin datos", log_lines=[], adapters=[])
     assert "El asistente no se abrió en esta sesión." in texto
     assert "- Caja: driver=Win32Raw" in texto
@@ -261,39 +258,6 @@ def test_si_algo_revienta_el_reporte_igual_sale(monkeypatch):
 def test_se_guarda_junto_al_registro(tmp_path):
     ruta = sr.save_report("hola", carpeta=str(tmp_path))
     assert open(ruta, encoding="utf-8").read() == "hola"
-
-
-# ---------------------------------------------------------------------------
-# Nivel de privilegio (antes de cualquier UAC)
-# ---------------------------------------------------------------------------
-
-class Token:
-    def __init__(self, tipo, admin=False, falla=False):
-        self.tipo, self.admin, self.falla = tipo, admin, falla
-
-    def elevation_type(self):
-        if self.falla:
-            raise OSError(5, "acceso denegado")
-        return self.tipo
-
-    def is_admin(self):
-        return self.admin
-
-
-@pytest.mark.parametrize("api,esperado", [
-    (Token(3), PRIVILEGE_ADMIN_UAC),
-    (Token(2), PRIVILEGE_ELEVATED),
-    (Token(1, admin=True), PRIVILEGE_ADMIN_NO_UAC),
-    (Token(1, admin=False), PRIVILEGE_STANDARD),
-    (Token(9), PRIVILEGE_UNKNOWN),
-    (Token(3, falla=True), PRIVILEGE_UNKNOWN),
-])
-def test_privilegio(api, esperado):
-    assert detect_privilege(api) == esperado
-
-
-def test_fuera_de_windows_el_privilegio_no_aplica():
-    assert detect_privilege(platform="linux") == PRIVILEGE_NOT_APPLICABLE
 
 
 # ---------------------------------------------------------------------------

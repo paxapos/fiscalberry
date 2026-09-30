@@ -334,7 +334,7 @@ def test_mostrar_todas():
     assert len(w.found) == 2
 
 
-# ---- escenario 5: solo detección, con la guía --------------------------------
+# ---- otra subred: solo detección --------------------------------
 
 @pytest.mark.parametrize("direccion,respuesta,guia,texto", [
     ("192.168.123.100", TCP_NO_RESPONSE, GUIDE_OTHER_NETWORK_KNOWN, "Xprinter"),

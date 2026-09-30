@@ -3,7 +3,8 @@ Enlaces a las guías de paxapos/documentation (doc.paxapos.com) para los casos
 que el asistente no resuelve solo (#184): otra subred, IP desconocida, driver
 del fabricante, cable directo sin router.
 
-Las guías viven allá, no dentro de la app. Todos los enlaces están acá para
+La app no abre estos enlaces: solo se listan acá (el diagnóstico para
+soporte los menciona). Todos los enlaces están acá para
 poder corregirlos en un solo lugar. Las guías específicas del asistente
 (paxapos/documentation#117 a #125) todavía no están publicadas: mientras
 tanto cada caso apunta a la página existente más cercana. Cuando se publiquen,
@@ -39,16 +40,3 @@ def guide_url(key):
     """URL de la guía, o "" si la clave no existe."""
     return GUIDES.get(key, "")
 
-
-def open_guide(key, opener=None):
-    """Abre la guía en el navegador. Devuelve False si no se pudo."""
-    url = guide_url(key)
-    if not url:
-        return False
-    if opener is None:
-        import webbrowser
-        opener = webbrowser.open
-    try:
-        return bool(opener(url))
-    except Exception:
-        return False

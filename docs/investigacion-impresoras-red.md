@@ -1,8 +1,8 @@
 # Hasar, SAM4S y SerForce por Ethernet (#180)
 
-Investigación para el escenario 5 del asistente: una impresora de red que quedó
-con su IP de fábrica, en otra subred que la PC. Sus datos van a la tabla de IPs
-de fábrica de #175, al transporte USB de #183 y a los adaptadores de #182.
+Investigación sobre una impresora de red que quedó con su IP de fábrica, en otra
+subred que la PC. Sus datos van a la tabla de IPs de fábrica de #175 y al
+transporte USB de #183. Fiscalberry solo detecta el caso: no cambia la red.
 
 **Qué tan firme es cada dato.** Todo sale de documentación pública: manuales de
 las marcas, de los fabricantes originales (OEM) y de integradores. Desde el
@@ -10,7 +10,7 @@ entorno de trabajo no se pudo abrir la mayoría de los PDF, así que varios dato
 se tomaron del extracto que muestra el buscador. **Nada se probó con hardware.**
 Cada dato lleva su confianza, y la
 [verificación con hardware](#verificación-con-hardware) dice qué hay que
-confirmar antes de escribir un adaptador.
+confirmar antes de cargar un dato en la tabla.
 
 - **Alta**: documento oficial de la marca o del fabricante del modelo.
 - **Media**: documento del OEM aplicado al modelo con marca, o de un integrador.
@@ -28,8 +28,7 @@ confirmar antes de escribir un adaptador.
   las tres marcas, es la única que ya se puede cargar en la tabla de #175.
 - **192.168.123.100 no identifica una marca.** La usan Xprinter, Gprinter y, por
   lo tanto, la HTP-250. Con la IP alcanza para clasificar el caso como "otra
-  subred, marca conocida", pero el adaptador se elige por fingerprint, como ya
-  exige #182.
+  subred, marca conocida".
 - **SAM4S (GIANT-100, ELLIX) no publica su IP de fábrica**, y sus manuales dan el
   **puerto 6001** como predeterminado. Si no escucha también en el 9100, el
   barrido de #175 no la encuentra y el asistente no la puede agregar: hoy solo
@@ -39,19 +38,17 @@ confirmar antes de escribir un adaptador.
 - **Las fiscales Hasar 2G (SMH/PT-250F, SMH/PT-1000F) quedan fuera del
   asistente.** No hablan ESC/POS y Fiscalberry v3 no tiene driver fiscal (el
   readme todavía menciona la SMH/PT-250F).
-- **Adaptador viable en papel: uno solo, Gprinter (incluye la HTP-250)**, sujeto a
-  la verificación con hardware. SAM4S y SerForce siguen con la guía manual.
 
 ## Matriz
 
-| Modelo | Qué es | IP de fábrica | Puerto de impresión | USB (#183) | DLE EOT | Escenario 5 |
-|---|---|---|---|---|---|---|
-| Hasar HTP-250 (comandera: Ethernet, USB y RS-232) | Gprinter GP-80250N (media) | **192.168.123.100** (alta); máscara sin publicar | 9100, por ser Gprinter (baja) | Probable clase Impresora (`usbprint`): el instalador la agrega en un puerto USB de Windows (baja) | Probable: Gprinter declara ESC/POS con monitoreo de estado (baja) | **Candidata** (adaptador Gprinter) |
-| SAM4S GIANT-100 (USB, serie y Ethernet; la SAM4S que más se ofrece en Argentina) | SAM4S, fabricada por ShinHeung | No publicada: se lee en el autotest | **6001** según SAM4S (media); 9100 según un integrador (baja) | Dos modos: COM virtual con el driver de SAM4S, o USB (media) | Documentado en el manual de comandos de SAM4S (media) | No por ahora |
-| SAM4S ELLIX 30/35/40/45/50 | SAM4S | No publicada | 6001 (media) | Sin datos | Mismo manual de comandos (media) | No por ahora |
-| SerForce TP85E | OEM desconocido | Desconocida | Desconocido | Desconocido | Desconocido | No por ahora |
-| SerForce TP85U (solo USB) | OEM desconocido | No aplica | No aplica | Desconocido | Desconocido | No aplica |
-| Hasar SMH/PT-250F y SMH/PT-1000F (fiscales 2G) | Controladores fiscales | Un solo resultado dice 192.168.1.1 (baja) | Protocolo fiscal propio, no ESC/POS | No aplica | No aplica | **Fuera de alcance** |
+| Modelo | Qué es | IP de fábrica | Puerto de impresión | USB (#183) | DLE EOT |
+|---|---|---|---|---|---|
+| Hasar HTP-250 (comandera: Ethernet, USB y RS-232) | Gprinter GP-80250N (media) | **192.168.123.100** (alta); máscara sin publicar | 9100, por ser Gprinter (baja) | Probable clase Impresora (`usbprint`): el instalador la agrega en un puerto USB de Windows (baja) | Probable: Gprinter declara ESC/POS con monitoreo de estado (baja) |
+| SAM4S GIANT-100 (USB, serie y Ethernet; la SAM4S que más se ofrece en Argentina) | SAM4S, fabricada por ShinHeung | No publicada: se lee en el autotest | **6001** según SAM4S (media); 9100 según un integrador (baja) | Dos modos: COM virtual con el driver de SAM4S, o USB (media) | Documentado en el manual de comandos de SAM4S (media) |
+| SAM4S ELLIX 30/35/40/45/50 | SAM4S | No publicada | 6001 (media) | Sin datos | Mismo manual de comandos (media) |
+| SerForce TP85E | OEM desconocido | Desconocida | Desconocido | Desconocido | Desconocido |
+| SerForce TP85U (solo USB) | OEM desconocido | No aplica | No aplica | Desconocido | Desconocido |
+| Hasar SMH/PT-250F y SMH/PT-1000F (fiscales 2G) | Controladores fiscales | Un solo resultado dice 192.168.1.1 (baja) | Protocolo fiscal propio, no ESC/POS | No aplica | No aplica |
 
 "DLE EOT" dice si el juego de comandos lo documenta. Si también responde por red
 y por USB se confirma con el equipo: algunas placas de red no devuelven datos.
@@ -77,11 +74,6 @@ No bloquea al asistente: si la impresora no contesta, `read_status` devuelve
   de Gprinter menciona soltarlo a los 6 segundos para imprimir la hoja larga con
   la IP.
 - **Restauración de la red de fábrica:** no documentada en lo encontrado.
-
-Consecuencia para #182: cambiar la IP por red exige estar en el mismo segmento,
-que es justamente lo que resuelve la IP temporal de #178. Si la impresora además
-está conectada por cable serie, la herramienta de Gprinter cambia la IP por COM,
-sin IP temporal ni UAC. Vale la pena confirmarlo con el equipo.
 
 ### SAM4S (GIANT-100 y ELLIX)
 
@@ -126,35 +118,22 @@ coincide con la IP típica del router: **no hay que agregarla a la tabla de
 | IP | Marcas | Qué hacer |
 |---|---|---|
 | 192.168.192.168 | Epson TM | Ya está en #175 |
-| 192.168.123.100 | Xprinter, Gprinter y Hasar HTP-250 | Sumar Gprinter y la HTP-250 a esa entrada. La IP no elige el adaptador: lo elige el fingerprint |
+| 192.168.123.100 | Xprinter, Gprinter y Hasar HTP-250 | Sumar Gprinter y la HTP-250 a esa entrada. La IP no identifica la marca |
 | Sin datos | SAM4S y SerForce | No entran hasta verificar la IP con el equipo |
 | 192.168.1.1 (sin confirmar) | Hasar fiscal 2G | No agregar: es la IP típica del router y el modelo está fuera de alcance |
 
 ## Riesgos y límites de soporte
 
 1. **IP compartida.** Una impresora en 192.168.123.100 puede ser Xprinter, Gprinter
-   o una HTP-250 (Gprinter con otra marca). Si el fingerprint no coincide
-   exactamente, se va al fallback de #182: panel web y guía manual, sin escribir
-   nada.
+   o una HTP-250 (Gprinter con otra marca): la IP no identifica la marca.
 2. **SAM4S en el 6001.** Si no escucha en el 9100, ni el barrido de #175 ni el
    asistente la encuentran. `PrinterWizard.submit_address` ya acepta un puerto,
    pero la pantalla no lo muestra. Esto se decide en #175 después de la
    verificación: sumar el 6001 como señal de identificación y, si imprime por
    ahí, dejar elegir el puerto.
-3. **Cambio de IP solo en el mismo segmento** (Gprinter y Xprinter). Confirma el
-   diseño de #178. Según la guía de Xprinter, tampoco funciona a través de un
-   router.
-4. **Contraseñas de fábrica** (SAM4S 0821). Un adaptador no cambia ni guarda
-   credenciales. Si el panel pide una contraseña distinta de la de fábrica, se va
-   al fallback.
-5. **Restauración desconocida.** Ningún modelo tiene documentado el reset de red.
-   El `restore` de #182 se habilita por modelo recién cuando se haya probado.
-6. **Firmware.** Los OEM cambian el firmware entre lotes sin cambiar el nombre.
-   El match de #182 incluye la versión de firmware, y cada versión nueva se
-   verifica antes de habilitarla.
-7. **Fiscales.** Nunca se les manda ESC/POS. Si alguna escucha en el 9100, #175 no
+3. **Fiscales.** Nunca se les manda ESC/POS. Si alguna escucha en el 9100, #175 no
    la tiene que clasificar como impresora del asistente.
-8. **DLE EOT por red.** Si no contesta, el asistente sigue: decide la
+4. **DLE EOT por red.** Si no contesta, el asistente sigue: decide la
    confirmación del papel.
 
 ## Verificación con hardware
@@ -225,20 +204,6 @@ está en ninguna documentación:
 | Hasar HTP-250 | | | |
 | SAM4S GIANT-100 | | | |
 | SerForce TP85E | | | |
-
-## Issues propuestas
-
-Todavía no están creadas:
-
-1. **Adaptador Gprinter (incluye Hasar HTP-250).** Depende de #175, #178, #182 y de
-   la verificación con hardware. `default_ips`: 192.168.123.100. `detect`: match
-   exacto por `GS I`, panel web o SNMP, más la versión de firmware. `configure`:
-   el mecanismo de la herramienta oficial, solo si se puede reproducir sin
-   heurísticas; si no, el panel web. `verify`: IP nueva, 9100 y prueba física de
-   #172. `restore`: el reset verificado.
-2. **SAM4S y SerForce**: por ahora no hay adaptador viable. Siguen en #180 como
-   verificación con hardware, o en una issue aparte si el equipo lo prefiere. Si
-   la SAM4S resulta viable, el adaptador sale de ahí.
 
 ## Fuentes
 

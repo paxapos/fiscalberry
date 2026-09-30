@@ -19,7 +19,7 @@ Pasos:
   a medida que cada fuente termina (PrinterSearch).
 - "Escribir la dirección" queda para una impresora de red que no apareció:
   se diagnostica con la máscara real de la PC y, si está en otra subred, se
-  explica por qué y se ofrece la guía (escenario 5: solo se detecta).
+  explica por qué (solo se detecta: no se cambia nada).
 - Todo candidato, venga de donde venga, se prueba con test_candidate().
 - Nada se guarda sin éxito técnico Y ticket confirmado en papel (#171/#172).
 - "Configurar después" está disponible en todos los pasos y nunca detiene el
@@ -128,14 +128,12 @@ def diagnosis_message(d):
     if d.kind == nd.KIND_OTHER_KNOWN:
         marcas = " / ".join(d.brands)
         return ((f"La impresora tiene la dirección de fábrica de {marcas}, que es de otra "
-                 f"red{f' (esta computadora está en {red})' if red else ''}. Fiscalberry "
-                 "todavía no puede cambiarla solo: seguí la guía para ponerla en la red "
-                 "del local."), GUIDE_OTHER_NETWORK_KNOWN)
+                 f"red{f' (esta computadora está en {red})' if red else ''}. Hay que "
+                 "ponerla en la red del local."), GUIDE_OTHER_NETWORK_KNOWN)
     if d.kind == nd.KIND_OTHER_UNKNOWN:
         return (("Esa dirección es de otra red" +
                  (f": esta computadora está en {red}" if red else "") +
-                 ". La impresora tiene que tener una dirección de la misma red. "
-                 "Seguí la guía para cambiarla."), GUIDE_OTHER_NETWORK)
+                 ". La impresora tiene que tener una dirección de la misma red."), GUIDE_OTHER_NETWORK)
     return PROBE_MESSAGES[TCP_NO_RESPONSE], ""
 
 

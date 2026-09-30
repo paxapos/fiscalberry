@@ -106,7 +106,6 @@ class ImpresoraItem(FocusBehavior, ButtonBehavior, BoxLayout):
 class PrinterSetupScreen(Screen):
     step = StringProperty(STEP_INTRO)
     message = StringProperty("")
-    guide = StringProperty("")
     busy = BooleanProperty(False)
     searching = BooleanProperty(False)
     show_all = BooleanProperty(False)
@@ -173,7 +172,6 @@ class PrinterSetupScreen(Screen):
         paso_anterior = self.step
         self.step = w.step
         self.message = w.message
-        self.guide = w.guide
         self.busy = w.busy
         self.searching = w.searching
         self.show_all = w.show_all
@@ -209,7 +207,7 @@ class PrinterSetupScreen(Screen):
                 detalles="\n".join(f.details),
                 configurada=f.configured_as,
                 oculta_por=f.hidden_reason if f.hidden else "",
-                seleccionable=f.selectable or bool(f.guide),
+                seleccionable=f.selectable,
                 mostrar_detalles=self.show_details,
                 pantalla=self,
             ))
@@ -269,11 +267,6 @@ class PrinterSetupScreen(Screen):
         self.show_details = not self.show_details
         self._firma_lista = None
         self._sync()
-
-    def open_guide(self):
-        from fiscalberry.common.printer_guides import open_guide
-        if self.guide and not open_guide(self.guide):
-            logger.warning(f"No se pudo abrir la guía '{self.guide}'")
 
     def copy_diagnosis(self):
         """"Copiar diagnóstico" (#185): al portapapeles y a un archivo junto al registro."""

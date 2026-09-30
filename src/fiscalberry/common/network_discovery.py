@@ -3,7 +3,7 @@ Impresoras de red y redes de la PC (#175).
 
 Encuentra solas las impresoras de red que están en el mismo rango que la PC
 (escenario 1 de #170) y explica por qué no se encuentra una que está en otro
-rango (detección del escenario 5; cambiarle la IP es trabajo de #178 y #182).
+rango (solo se detecta).
 **Nunca modifica nada**: ni la red de la PC ni la impresora.
 
 1. Adaptadores (`list_adapters`): en Windows, `GetAdaptersAddresses` con IPv4,
@@ -59,7 +59,7 @@ logger = getLogger("NetworkDiscovery")
 
 # La IP no identifica la marca: 192.168.123.100 la comparten Xprinter, Gprinter
 # y la Hasar HTP-250 (una Gprinter con otra marca). Alcanza para decir "otra
-# subred, marca conocida"; el adaptador de #182 se elige por fingerprint.
+# subred, marca conocida".
 # 192.168.1.1 (Hasar fiscal, sin confirmar) NO va: es la IP típica del router.
 FACTORY_ADDRESSES = {
     "192.168.192.168": ("Epson",),
@@ -451,7 +451,7 @@ def plan_sweep(adapter, max_hosts=MAX_SWEEP_HOSTS):
         return SweepPlan(adapter, unsupported=(
             f"\"{adapter.label}\" no recibió dirección de red (169.254.x.x): la "
             "computadora no encontró el router. Si la impresora está conectada "
-            "directo a la computadora, sin router, seguí la guía."))
+            "directo a la computadora, sin router, usá un router o switch entre la impresora y la computadora."))
     if adapter.prefix is None:
         return SweepPlan(adapter, unsupported=(
             f"\"{adapter.label}\" tiene una máscara que no se puede usar "
@@ -809,42 +809,6 @@ def read_arp_table(platform=None):
     return {}
 
 
-def windows_icmp_echo(host, timeout=1.0, iphlpapi=None):
-    """
-    Ping con IcmpSendEcho (sin admin). True si respondió, False si no, None si
-    no se pudo intentar. Es solo una señal: muchas impresoras no responden ping.
-    """
-    try:
-        api = iphlpapi
-        if api is None:
-            api = ctypes.WinDLL("iphlpapi")
-            # Sin esto ctypes trunca el HANDLE a 32 bits y no acepta un IPAddr
-            # mayor a 2^31 (toda IP que termine en .128 o más).
-            api.IcmpCreateFile.restype = c_void_p
-            api.IcmpSendEcho.argtypes = [c_void_p, c_uint32, c_void_p, ctypes.c_uint16,
-                                         c_void_p, c_void_p, c_uint32, c_uint32]
-            api.IcmpSendEcho.restype = c_uint32
-            api.IcmpCloseHandle.argtypes = [c_void_p]
-        destino = struct.unpack("<I", socket.inet_aton(host))[0]
-        handle = api.IcmpCreateFile()
-        if not handle or handle == -1:
-            return None
-        try:
-            datos = b"fiscalberry"
-            respuesta = ctypes.create_string_buffer(64 + len(datos) + 8)
-            n = api.IcmpSendEcho(handle, destino, datos, len(datos), None, respuesta,
-                                 len(respuesta), int(timeout * 1000))
-            if not n:
-                return False
-            estado = struct.unpack("<I", respuesta.raw[4:8])[0]
-            return estado == 0
-        finally:
-            api.IcmpCloseHandle(handle)
-    except Exception as e:
-        logger.debug(f"ICMP a {host} no disponible: {e}")
-        return None
-
-
 # -- Diagnóstico de una dirección ----------------------------------------------------
 
 KIND_SAME_SUBNET = "misma_subred"
@@ -932,35 +896,6 @@ def diagnose_address(host, port=DEFAULT_RAW_PORT, adapters=None, probe=probe_tcp
     return AddressDiagnosis(KIND_OTHER_KNOWN if marcas else KIND_OTHER_UNKNOWN, **comunes)
 
 
-def address_in_use(host, probe=probe_tcp, arp=None, icmp=None, ports=(80, 443, DEFAULT_RAW_PORT),
-                   platform=None):
-    """
-    ¿Hay algún equipo usando esta dirección? Para detectar conflictos antes de
-    proponer una IP (escenario 5). Devuelve (True/False/None, [evidencias]).
-
-    TCP 80/443/9100 son evidencia (aceptar o rechazar = hay alguien); la tabla
-    ARP e ICMP son señales. None = no se pudo saber (sin evidencia ni señales).
-    """
-    platform = sys.platform if platform is None else platform
-    evidencias = []
-    for puerto in ports:
-        resultado = probe(host, puerto, timeout=1.0)
-        if resultado in (TCP_OK, TCP_REFUSED):
-            evidencias.append(f"tcp{puerto}:{resultado}")
-    tabla = (arp or read_arp_table)()
-    if host in tabla:
-        evidencias.append("arp")
-    if icmp is None and platform == "win32":
-        icmp = windows_icmp_echo
-    eco = icmp(host) if icmp else None
-    if eco:
-        evidencias.append("icmp")
-    if evidencias:
-        return True, evidencias
-    # Sin respuestas: libre si al menos se pudo preguntar por ICMP.
-    return (False if eco is False else None), evidencias
-
-
 # -- Búsqueda completa -----------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -1023,7 +958,7 @@ def search_network(cancel=None, adapters=None, list_adapters_fn=list_adapters,
     Además de los rangos propios, prueba las IPs de fábrica que caen fuera de
     ellos: si una responde (hay una ruta hasta ella) se puede usar tal cual.
     Si no responde no se puede saber si está ahí: sin una IP en ese rango, la
-    PC no llega (eso es el escenario 5, #178).
+    PC no llega.
     """
     cancel = cancel or threading.Event()
     inicio = clock()

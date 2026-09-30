@@ -179,10 +179,9 @@ def _de_incompatible(i):
     from fiscalberry.common.usb_discovery import INCOMPATIBLE_WINUSB
     if i.reason == INCOMPATIBLE_WINUSB:
         nota = ("Tiene instalado un driver especial que Fiscalberry no usa. "
-                "No se cambia nada: seguí la guía.")
+                "No se cambia nada.")
     else:
-        nota = ("Windows no la reconoce. Hace falta el driver del fabricante: "
-                "seguí la guía.")
+        nota = ("Windows no la reconoce. Hace falta el driver del fabricante.")
     detalles = [f"USB {i.ids}"]
     if i.service:
         detalles.append(f"Driver actual: {i.service}")

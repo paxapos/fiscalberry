@@ -468,28 +468,6 @@ def test_parser_de_la_tabla_arp_de_windows():
     assert nd.parse_ip_net_table(buf) == {"192.168.1.50": "00:26:AB:12:34:56"}
 
 
-def test_icmp_con_api_falsa():
-    class Icmp:
-        def __init__(self, respuestas, estado=0):
-            self.respuestas, self.estado, self.cerrado = respuestas, estado, False
-
-        def IcmpCreateFile(self):
-            return 42
-
-        def IcmpSendEcho(self, h, destino, datos, n, opciones, respuesta, tam, timeout):
-            assert destino == struct.unpack("<I", socket.inet_aton("192.168.1.200"))[0]
-            ctypes.memmove(respuesta, struct.pack("<II", destino, self.estado), 8)
-            return self.respuestas
-
-        def IcmpCloseHandle(self, h):
-            self.cerrado = True
-
-    api = Icmp(1)
-    assert nd.windows_icmp_echo("192.168.1.200", iphlpapi=api) is True and api.cerrado
-    assert nd.windows_icmp_echo("192.168.1.200", iphlpapi=Icmp(0)) is False
-    assert nd.windows_icmp_echo("192.168.1.200", iphlpapi=Icmp(1, estado=11010)) is False
-
-
 # ---------------------------------------------------------------------------
 # Diagnóstico de una dirección (el DTO)
 # ---------------------------------------------------------------------------
@@ -592,29 +570,6 @@ def test_sin_adaptadores_se_diagnostica_igual_por_tcp():
                                probe=probe_fijo(TCP_OK)).kind == nd.KIND_SAME_SUBNET
     assert nd.diagnose_address("192.168.1.80", adapters=[],
                                probe=probe_fijo(TCP_NO_RESPONSE)).kind == nd.KIND_HOST_OFF
-
-
-def test_conflicto_de_ip():
-    def probe(host, port, timeout=None):
-        return TCP_REFUSED if port == 80 else TCP_NO_RESPONSE
-    en_uso, evidencia = nd.address_in_use("192.168.1.80", probe=probe, arp=lambda: {},
-                                          icmp=lambda h: None, platform="linux")
-    assert en_uso is True and evidencia == ["tcp80:rechazado"]
-
-    libre, evidencia = nd.address_in_use(
-        "192.168.1.81", probe=lambda h, p, timeout=None: TCP_NO_RESPONSE,
-        arp=lambda: {}, icmp=lambda h: False, platform="linux")
-    assert libre is False and evidencia == []
-
-    no_se, _ = nd.address_in_use(
-        "192.168.1.82", probe=lambda h, p, timeout=None: TCP_NO_RESPONSE,
-        arp=lambda: {}, icmp=None, platform="linux")
-    assert no_se is None
-
-    arp, evidencia = nd.address_in_use(
-        "192.168.1.83", probe=lambda h, p, timeout=None: TCP_NO_RESPONSE,
-        arp=lambda: {"192.168.1.83": "00:11:22:33:44:55"}, icmp=None, platform="linux")
-    assert arp is True and evidencia == ["arp"]
 
 
 # ---------------------------------------------------------------------------
