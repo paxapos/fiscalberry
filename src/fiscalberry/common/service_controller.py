@@ -230,6 +230,21 @@ class ServiceController:
         finally:
             logger.debug("Exiting _run_sio_instance.")
 
+    # Un poco más que el timeout HTTP del discover (30s): no bloquear para
+    # siempre si la red cuelga, pero sí darle al POST la chance de terminar.
+    DISCOVER_WAIT_TIMEOUT = 35
+
+    def _esperar_discover(self):
+        """Espera a que termine el discover antes de conectar SocketIO."""
+        hilo = self.discover_thread
+        if not hilo:
+            return
+        hilo.join(timeout=self.DISCOVER_WAIT_TIMEOUT)
+        if hilo.is_alive():
+            logger.warning(
+                "El discover sigue en curso tras %ss; se conecta SocketIO igual.",
+                self.DISCOVER_WAIT_TIMEOUT)
+
     def start(self):
         """Inicia y mantiene vivo el proceso de conexión SIO."""
         logger.debug("Iniciando Fiscalberry SIO Service Loop")
@@ -258,6 +273,18 @@ class ServiceController:
 
         self._start_updater()
         self._start_print_spooler()
+
+        # SocketIO NO puede conectar mientras el discover está en vuelo.
+        #
+        # Los dos crean la Paxaprinter si no existe: el discover en el backend
+        # PHP y el connect de SocketIO en el gateway de Nest (getOrCreate), y
+        # `machine_uuid` no es único en la base. Lanzados a la vez, con un uuid
+        # nuevo ambos ven "no existe" y crean DOS filas. Después la vinculación
+        # adopta una (PHP toma la primera) y el gateway sigue mirando la otra,
+        # sin comercio: nunca manda start_rabbit, la app se queda en "Vincular
+        # comercio", y al volver a apretar el botón el servidor responde 404
+        # "Paxaprinter ya adoptada".
+        self._esperar_discover()
 
         # Bucle principal de reconexión
         while not self._stop_event.is_set():
