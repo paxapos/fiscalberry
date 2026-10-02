@@ -1,6 +1,7 @@
 # coding=utf-8
 from pathlib import Path
 
+from fiscalberry.common.updater.selftest import OK_MARKER
 from fiscalberry.desktop.main import consume_start_minimized
 
 
@@ -48,6 +49,32 @@ def test_release_compila_y_prueba_el_instalador():
     assert "/VERYSILENT" in contenido
     assert "--selftest" in contenido
     assert "unins000.exe" in contenido
+
+
+def _paso(contenido, nombre):
+    """Texto de un step del workflow, desde su `- name:` hasta el siguiente."""
+    inicio = contenido.index(f"- name: {nombre}")
+    fin = contenido.find("- name: ", inicio + 1)
+    return contenido[inicio:fin if fin != -1 else None]
+
+
+def test_el_selftest_del_instalado_espera_al_exe_y_exige_la_marca_real():
+    """
+    Tres cosas que hacían que el paso no pudiera pasar nunca:
+
+    - `& exe` no espera a un ejecutable de subsistema GUI y deja $LASTEXITCODE
+      sin asignar: hay que usar Start-Process -Wait.
+    - Sin KIVY_NO_ARGS, Kivy aborta con código 2 al ver `--selftest` en argv.
+    - Buscaba "SELFTEST OK" cuando la marca real es OK_MARKER + versión.
+    """
+    paso = _paso(RELEASE_WORKFLOW.read_text(encoding="utf-8"), "Test Windows Installer")
+
+    assert '-ArgumentList "--selftest"' in paso
+    assert "-Wait -PassThru" in paso
+    assert '& "$installDir' not in paso
+    assert "KIVY_NO_ARGS: 1" in paso
+    assert f"{OK_MARKER} ${{{{ needs.version.outputs.version }}}}" in paso
+    assert "SELFTEST OK" not in paso
 
 
 def test_release_publica_el_instalador():
