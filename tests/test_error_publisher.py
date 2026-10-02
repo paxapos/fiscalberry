@@ -21,11 +21,23 @@ def _wait_until(predicate, timeout=3.0, interval=0.02):
     return predicate()
 
 
-def test_publish_error_is_non_blocking_and_never_raises():
+def test_publish_error_is_non_blocking_and_never_raises(monkeypatch):
     # No debe lanzar aunque no haya broker; retorna de inmediato.
+    entregados = []
+
+    class FakePublisher:
+        def publish_error(self, error_type, error_message, context=None, exception=None):
+            entregados.append(error_type)
+
+    monkeypatch.setattr(ep, "get_error_publisher", lambda: FakePublisher())
+
     t0 = time.time()
     ep.publish_error("TEST_TYPE", "mensaje", context={"password": "x"})
     assert (time.time() - t0) < 0.5
+
+    # Esperar a que el worker lo procese. Si queda encolado, lo publica después
+    # con el publisher REAL (conexión MQTT incluida) en medio de otro test.
+    assert _wait_until(lambda: entregados == ["TEST_TYPE"])
 
 
 def test_sanitize_masks_sensitive_keys():
@@ -68,12 +80,20 @@ def test_dispatcher_drops_when_full_without_blocking(monkeypatch):
         d.submit({"error_type": f"T{i}", "error_message": str(i), "context": None})
     assert (time.time() - t0) < 2.0  # no se colgó
 
+    # Que el worker termine de drenar ANTES de que se deshaga el monkeypatch:
+    # lo que quede en la cola se publicaría con el publisher real, y ese
+    # connect() en paralelo pisaba el resultado del test del client id.
+    assert _wait_until(lambda: d._q.empty(), timeout=10.0)
+    time.sleep(0.05)
+
 
 def test_client_id_incluye_tenant_y_uuid(monkeypatch):
     # El client id MQTT debe llevar tenant Y uuid del dispositivo: solo el
     # tenant colisiona cuando un comercio tiene mas de un fiscalberry y el
     # broker entra en un loop de desconexiones mutuas por duplicate id.
-    captured = {}
+    # Lista, no "el último valor": el worker de fondo del singleton puede crear
+    # su propio cliente en paralelo (con el tenant/uuid que tenga) y pisarlo.
+    creados = []
 
     class FakeClient:
         def username_pw_set(self, *a, **k):
@@ -86,7 +106,7 @@ def test_client_id_incluye_tenant_y_uuid(monkeypatch):
             pass
 
     def fake_make_client(client_id, clean_session=True, protocol=None):
-        captured["client_id"] = client_id
+        creados.append(client_id)
         return FakeClient()
 
     monkeypatch.setattr(ep.mqtt_compat, "make_client", fake_make_client)
@@ -97,6 +117,4 @@ def test_client_id_incluye_tenant_y_uuid(monkeypatch):
     pub.error_topic = "fiscalberry/errors/palote_pastas/b7b6c00f-ae49-48b0-a6c2-8876c97f27d2"
     pub.connect()
 
-    assert captured["client_id"] == (
-        "fiscalberry-errors-palote_pastas-b7b6c00f-ae49-48b0-a6c2-8876c97f27d2"
-    )
+    assert "fiscalberry-errors-palote_pastas-b7b6c00f-ae49-48b0-a6c2-8876c97f27d2" in creados
