@@ -108,14 +108,14 @@ GOLDEN_BASE_B64 = (
     "T1RVc0lDSnBiWEJ2Y25SbElqb2dNVEl4TGpBc0lDSnRiMjVsWkdFaU9pQWlVRVZUSWl3"
     "Z0ltTjBlaUk2SURFc0lDSjBhWEJ2UTI5a1FYVjBJam9nSWtVaUxDQWlZMjlrUVhWMElq"
     "b2dOelF6TlRNeE5UY3dOVGcwTlRGORtNABthAQpDQUU6IDc0MzUzMTU3MDU4NDUxICAg"
-    "IENBRSBWVE86IDIwMjQtMDktMDgKRmVjaGEgeSBob3JhIGRlIGltcHJlc2lvbjogChtF"
-    "ARtNABthAQoqKiBTb2Z0d2FyZSBQQVhBUE9TICoqG2QGHVYA"
+    "IENBRSBWVE86IDIwMjQtMDktMDgKRmVjaGE6IDI5LzA4LzIwMjQgMTI6MDAKG0UBG00A"
+    "G2EBCioqIFNvZnR3YXJlIFBBWEFQT1MgKiobZAYdVgA="
 )
 
 # sha256 de los otros dos tickets en moneda local que tambien deben quedar
 # congelados: con descuento y con detalle de IVAs (Factura A).
-SHA_BASE_CON_DESCUENTO = "e66da985bb455f775bee1f24f9040446062d5862d0ae0dddb87cdae9d9638fee"
-SHA_BASE_INSCRIPTO = "9cbeac3954331c0f167ba4098287a98641754e3d7e99604ae720bb7d0c451feb"
+SHA_BASE_CON_DESCUENTO = "be55874ff82cf6dbd0aacc244d804ea174e100076b396a679cda99a66064c24e"
+SHA_BASE_INSCRIPTO = "0fe19e4414799a6ea926506d4b88c48fd8a6e34ca2f2c08951bb3c80a5e01cdf"
 
 ENCABEZADO_INSCRIPTO = {
     "tipo_comprobante": "Factura A",
@@ -124,6 +124,22 @@ ENCABEZADO_INSCRIPTO = {
     "documento_cliente": "20111111112",
     "nombre_tipo_documento": "CUIT",
 }
+
+
+@pytest.fixture(autouse=True)
+def congelar_fecha(monkeypatch):
+    """Congela datetime.datetime.now() al momento del comprobante de prueba
+    para que la fecha y hora impresa en el pie sea deterministica."""
+    import datetime as dt_module
+
+    class FixedDatetime(dt_module.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2024, 8, 29, 12, 0, 0)
+
+    import fiscalberry.common.EscPComandos as escp_mod
+
+    monkeypatch.setattr(escp_mod.datetime, "datetime", FixedDatetime)
 
 
 @pytest.fixture(autouse=True)
