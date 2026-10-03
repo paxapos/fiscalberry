@@ -273,7 +273,10 @@ def runTraductor(jsonTicket, queue):
     driverName = driverName.lower()
 
     driverOps = dictSectionConf
-    driverOps.pop("_setup_id", None)
+    # Metadatos de Fiscalberry, no parámetros del driver (ej. `_setup_id`, la
+    # identidad con que el asistente guarda cada impresora).
+    for clave in [k for k in driverOps if k.startswith("_")]:
+        driverOps.pop(clave)
 
     if driverName == "Fiscalberry".lower():
         try:
@@ -322,6 +325,12 @@ def runTraductor(jsonTicket, queue):
 
     elif driverName == "Serial".lower():
         # printer.Serial(devfile='', baudrate=9600, bytesize=8, timeout=1, parity=None, stopbits=None, xonxoff=False, dsrdtr=True, *args, **kwargs)
+        # Igual que en Network: del config.ini llega texto, y pyserial rechaza
+        # un timeout que no sea número.
+        if 'baudrate' in driverOps:
+            driverOps['baudrate'] = int(driverOps['baudrate'])
+        if 'timeout' in driverOps:
+            driverOps['timeout'] = float(driverOps['timeout'])
         driverName = "Serial"
 
     elif driverName == "Bluetooth".lower():

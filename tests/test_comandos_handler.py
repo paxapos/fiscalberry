@@ -178,6 +178,33 @@ def test_setup_id_no_se_envia_al_constructor_del_driver(monkeypatch):
     assert response["message"] == "Impresión exitosa"
 
 
+def test_serial_recibe_baudrate_y_timeout_como_numeros_y_sin_metadatos(monkeypatch):
+    """Lo que guarda el asistente para un USB que aparece como COM (#171)."""
+    recibido = {}
+    real_dummy = CH.printer.Dummy
+
+    def serial_falso(**kwargs):
+        recibido.update(kwargs)
+        return real_dummy()
+
+    class FakeConfigberry:
+        def get_config_for_printer(self, name):
+            return {"driver": "Serial", "devfile": "COM3", "baudrate": "9600",
+                    "timeout": "2", "_setup_id": "serial:067b:2303:PL1",
+                    "_otro_metadato": "x"}
+
+    monkeypatch.setattr(CH, "configberry", FakeConfigberry())
+    monkeypatch.setattr(CH.printer, "Serial", serial_falso)
+
+    response = CH.runTraductor(
+        {"printerName": "Cocina", "printTexto": {"texto": "prueba"}},
+        None,
+    )
+
+    assert response["message"] == "Impresión exitosa"
+    assert recibido == {"devfile": "COM3", "baudrate": 9600, "timeout": 2.0}
+
+
 def test_network_recibe_el_timeout_del_config_como_numero(monkeypatch):
     """
     Del config.ini todo llega como texto. python-escpos le pasa `timeout` a

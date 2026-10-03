@@ -513,9 +513,12 @@ class Configberry:
             return dictConf[printerName]
 
     def get_actual_config(self):
-        dictConf = {s: dict(self.config.items(s)) for s in self.config.sections()}
-
-        return dictConf
+        # Se relee si el archivo cambió: el asistente decide con esto si una
+        # impresora ya está configurada, y config.ini también lo escriben el
+        # backend (adopción) y, en Android, el otro proceso.
+        with self._rlock:
+            self._reload_if_changed()
+            return {s: dict(self.config.items(s)) for s in self.config.sections()}
 
     def delete_section(self, section):
         with self._rlock:
