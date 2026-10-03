@@ -10,12 +10,15 @@ arranques normales del programa:
 - `--apply-update`: solo Windows. El binario nuevo hace de ayudante y reemplaza
   al viejo una vez que éste murió.
 - `--version`: útil para diagnosticar a distancia.
+- `--list-printers`: solo Windows. Lista las colas de impresión para el
+  asistente, en un proceso aparte que se puede matar si el spooler se cuelga
+  (ver common/windows_queues.py). Deja el resultado en `--report <archivo>`.
 """
 
 import os
 import sys
 
-MODES = ("--selftest", "--apply-update", "--version")
+MODES = ("--selftest", "--apply-update", "--version", "--list-printers")
 
 
 def _arg(argv, nombre, defecto=None):
@@ -59,6 +62,10 @@ def handle_early_modes(argv=None):
 
     if "--selftest" in argv:
         sys.exit(run_selftest(ruta_reporte=_arg(argv, "--report")))
+
+    if "--list-printers" in argv:
+        from fiscalberry.common.windows_queues import run_list_printers
+        sys.exit(run_list_printers(ruta_reporte=_arg(argv, "--report")))
 
     return False
 
@@ -120,6 +127,7 @@ def run_selftest(ruta_reporte=None):
             from kivy.app import App  # noqa: F401
             import fiscalberry.ui.fiscalberry_app  # noqa: F401
             import fiscalberry.desktop.tray  # noqa: F401
+            import fiscalberry.common.windows_queues  # noqa: F401
         probar("módulos de la interfaz", _gui)
 
         # En Windows la X oculta la ventana en la bandeja: si pystray o Pillow
