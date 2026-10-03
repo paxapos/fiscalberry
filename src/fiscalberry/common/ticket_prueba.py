@@ -88,7 +88,7 @@ ACCIONES = {
 }
 AVISO_PAPEL_POR_ACABARSE = "Al rollo le queda poco papel: tené uno a mano."
 
-_TIPOS_DE_CONEXION = {
+TIPOS_DE_CONEXION = {
     ps.WINDOWS: "Cola de Windows",
     ps.NETWORK: "Red",
     ps.USBPRINT: "USB",
@@ -300,6 +300,8 @@ class ResultadoPrueba:
     # USB directo: estado LPT de usbprint, solo como dato para soporte. Muchas
     # térmicas devuelven siempre lo mismo: no decide nada (lo decide DLE EOT).
     lpt: dict = field(default_factory=dict)
+    # Cola de Windows: si el trabajo de prueba se borró (para soporte, #185).
+    trabajo_borrado: bool = False
 
     @property
     def accion(self):
@@ -312,13 +314,15 @@ class ResultadoPrueba:
         pendiente que la impresora imprima sola más tarde.
         """
         if self.trabajo is not None:
-            return self.trabajo.cancelar()
+            borrado = self.trabajo.cancelar()
+            self.trabajo_borrado = self.trabajo_borrado or bool(borrado)
+            return borrado
         return False
 
 
 def contenido_del_ticket(candidato, alias, comercio, codigo, ahora):
     """Las líneas del ticket, para imprimir y para los tests."""
-    tipo = _TIPOS_DE_CONEXION.get(candidato.connection, candidato.connection)
+    tipo = TIPOS_DE_CONEXION.get(candidato.connection, candidato.connection)
     if candidato.detail:
         tipo = f"{tipo} ({candidato.detail})"
     return {
@@ -492,7 +496,7 @@ def probar(candidato, alias, comercio="", codigo=None, ahora=None,
         if problema:
             resultado.problema = problema
             # Trabado en la cola: se borra ya, para que no salga solo después.
-            trabajo.cancelar()
+            resultado.trabajo_borrado = bool(trabajo.cancelar())
             return resultado
 
     resultado.exito_tecnico = True

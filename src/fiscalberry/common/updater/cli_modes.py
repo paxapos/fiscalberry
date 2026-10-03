@@ -149,6 +149,7 @@ def run_selftest(ruta_reporte=None):
             import fiscalberry.common.usb_discovery  # noqa: F401
             import fiscalberry.common.usbprint_driver  # noqa: F401
             import fiscalberry.common.discovery_report  # noqa: F401
+            import fiscalberry.common.support_report  # noqa: F401
         probar("módulos de la interfaz", _gui)
 
         # En Windows la X oculta la ventana en la bandeja: si pystray o Pillow

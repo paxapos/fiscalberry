@@ -60,6 +60,7 @@ a = Analysis(
         'fiscalberry.common.usb_discovery',
         'fiscalberry.common.usbprint_driver',
         'fiscalberry.common.discovery_report',
+        'fiscalberry.common.support_report',
         # Puertos COM (pyserial elige el backend de Windows al importarse).
         'serial.tools.list_ports',
         'serial.tools.list_ports_windows',

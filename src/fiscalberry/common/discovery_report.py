@@ -48,6 +48,29 @@ def _dispositivos_usb():
             "servicios": sorted({d["service"] for d in dispositivos if d["service"]})}
 
 
+# Así empieza la ruta de una interfaz de dispositivo: \\?\
+_PREFIJO_RUTA = "\\\\?\\"
+
+
+def _control_setupdi():
+    """
+    La CI no tiene impresoras ni USB: que usbprint y los USB den cero no
+    prueba nada. Con el mismo código se enumeran los discos (interfaces) y
+    todos los dispositivos, que en cualquier PC son más de cero.
+    """
+    if sys.platform != "win32":
+        return {}
+    from fiscalberry.common.usb_discovery import (GUID_DEVINTERFACE_DISK, parse_device_path,
+                                                  windows_device_interfaces, windows_usb_devices)
+    discos = windows_device_interfaces(GUID_DEVINTERFACE_DISK)
+    todos = windows_usb_devices(enumerador=None)
+    return {"interfaces_de_disco": len(discos),
+            "rutas_legibles": sum(1 for ruta, _, _ in discos if ruta.startswith(_PREFIJO_RUTA)),
+            "dispositivos": len(todos),
+            "con_hardware_id": sum(1 for d in todos if d["hardware_ids"]),
+            "usb_en_rutas": sum(1 for ruta, _, _ in discos if parse_device_path(ruta))}
+
+
 def _puertos_com():
     from fiscalberry.common.usb_discovery import list_serial_ports
     return [dict(puerto=p.device, tipo=p.kind, descripcion=p.description)
@@ -71,6 +94,7 @@ SECTIONS = {
     "arp": _arp,
     "usbprint": _usbprint,
     "dispositivos_usb": _dispositivos_usb,
+    "control_setupdi": _control_setupdi,
     "puertos_com": _puertos_com,
     "colas_windows": _colas_windows,
 }

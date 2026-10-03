@@ -1,0 +1,47 @@
+DIAGNÓSTICO DEL ASISTENTE DE IMPRESORAS — Fiscalberry
+Generado: 2026-09-25 14:30:00
+Versión: 3.9.9 (windows-installer)
+Sistema: Windows 11 (build 22631), AMD64
+Comercio: Pizzeria Don Pepe (vinculado)
+Equipo: id …9c0d
+Servicio: conectado al servidor (MQTT: sí)
+
+== Dónde quedó
+Paso actual: problema
+Mensaje: La tapa de la impresora está abierta. Cerrala bien hasta que haga clic y probá otra vez.
+
+== Última prueba
+Impresora: EPSON TM-T20II (UsbPrint)
+Identidad: usb:04b8:0e15:…1234
+Conexión: USB (…1234)
+Resultado técnico: falló (tapa_abierta)
+Estado DLE EOT: en línea=no, tapa abierta=sí, sin papel=no, poco papel=no, error=no
+Papel confirmado: no
+
+== Búsqueda
+Duración: 2.6 s; encontradas: 1 (0 ocultas)
+Red: 0 direcciones revisadas en 0.0 s
+USB: 1 por usbprint, 0 puertos COM, 0 incompatibles
+Colas de Windows: no aplica
+Impresoras:
+- [usbprint] EPSON TM-T20II — USB 04B8:0E15; Con número de serie; Puerto de Windows: USB001
+
+== Redes de la PC
+- Ethernet (físico, conectado): 192.168.1.27/24; gateway 192.168.1.1; DHCP sí; placa A4:BB:6D:xx:xx:xx
+- VPN Oficina (VPN, conectado): 10.8.0.6/24; DHCP no; no se revisa
+
+== Impresoras configuradas
+- Caja: driver=Win32Raw, printer_name=EPSON TM-T20II Receipt, _setup_id=windows:epson tm-t20ii receipt
+
+== Recorrido
++0.0 s resultados · paso
++0.4 s resultados · busqueda encontradas=1 ocultas=0 segundos=2.6
++0.8 s resultados · paso
++1.2 s resultados · eligio clave=usb:04b8:0e15:…1234 conexion=usbprint
++1.6 s probando · prueba conexion=usbprint identidad=usb:04b8:0e15:…1234
++2.0 s probando · resultado tecnico=False problema=tapa_abierta estado={'responde': True, 'en_linea': False, 'tapa_abierta': True, 'sin_papel': False, 'papel_por_acabarse': False, 'error': False}
++2.4 s problema · paso mensaje=La tapa de la impresora está abierta. Cerrala bien hasta que haga clic y probá otra vez.
+
+== Errores recientes del asistente
+2026-09-25 14:29:58 [app:1] WARNING Asistente.Prueba: Prueba fallida (tapa_abierta): Authorization: Bearer [oculto]
+2026-09-25 14:29:59 [app:1] ERROR PrinterSearch: password=[oculto] no debería estar acá

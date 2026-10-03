@@ -31,6 +31,10 @@ from fiscalberry.common.fiscalberry_logger import getLogger
 logger = getLogger("UsbDiscovery")
 
 GUID_DEVINTERFACE_USBPRINT = "{28d78fad-5a12-11d1-ae5b-0000f803a8c2}"
+# Toda PC tiene al menos un disco: el informe de descubrimiento enumera esta
+# interfaz con el mismo código para comprobar que SetupDi se lee bien aun en
+# una PC sin impresoras USB (la CI).
+GUID_DEVINTERFACE_DISK = "{53f56307-b6bf-11d0-94f2-00a0c91efb8b}"
 
 # VID -> marca. Solo para mostrar un nombre si el dispositivo no dice su modelo.
 USB_VENDORS = {
@@ -340,9 +344,14 @@ def windows_usbprint_interfaces(setupapi=None, winreg=None):
     """
     [(ruta, puerto, descripción del bus)] de las interfaces usbprint presentes.
     """
+    return windows_device_interfaces(GUID_DEVINTERFACE_USBPRINT, setupapi, winreg)
+
+
+def windows_device_interfaces(guid_texto, setupapi=None, winreg=None):
+    """[(ruta, puerto, descripción del bus)] de las interfaces presentes de una clase."""
     ct, GUID, SP_DEVICE_INTERFACE_DATA, SP_DEVINFO_DATA, DEVPROPKEY = _structs()
     api = setupapi or _setupapi_real()
-    guid = guid_from_string(GUID_DEVINTERFACE_USBPRINT, GUID)
+    guid = guid_from_string(guid_texto, GUID)
     hdev = api.SetupDiGetClassDevsW(ct.byref(guid), None, None,
                                     DIGCF_PRESENT | DIGCF_DEVICEINTERFACE)
     if not _handle_valido(hdev):
@@ -386,18 +395,19 @@ def windows_usbprint_interfaces(setupapi=None, winreg=None):
     return resultado
 
 
-def windows_usb_devices(setupapi=None, cfgmgr=None):
+def windows_usb_devices(setupapi=None, cfgmgr=None, enumerador="USB"):
     """
     Todos los dispositivos USB presentes: [{hardware_ids, compatible_ids,
     service, description, problem}]. Para detectar impresoras que Windows no
-    reconoce o que tienen WinUSB.
+    reconoce o que tienen WinUSB. Con `enumerador=None`, todos los
+    dispositivos de la PC (lo usa el informe de descubrimiento como control).
     """
     ct, GUID, _ifdata, SP_DEVINFO_DATA, _k = _structs()
     api = setupapi or _setupapi_real()
     cm = cfgmgr if cfgmgr is not None else _cfgmgr_real()
-    hdev = api.SetupDiGetClassDevsW(None, "USB", None, DIGCF_PRESENT | DIGCF_ALLCLASSES)
+    hdev = api.SetupDiGetClassDevsW(None, enumerador, None, DIGCF_PRESENT | DIGCF_ALLCLASSES)
     if not _handle_valido(hdev):
-        raise OSError(api.last_error(), "SetupDiGetClassDevs(USB) falló")
+        raise OSError(api.last_error(), f"SetupDiGetClassDevs({enumerador}) falló")
     dispositivos = []
     try:
         indice = 0

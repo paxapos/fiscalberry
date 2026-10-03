@@ -253,6 +253,37 @@ Código: `common/onboarding.py` y `ui/fiscalberry_app.py`.
   backend) ya no saca a la persona de la pantalla en la que está: solo la
   vinculación lleva de "adopt" a la siguiente.
 
+## Diagnóstico para soporte — #185
+
+Código: `common/support_report.py`.
+
+Ante un error o aviso del asistente aparecen **"Copiar diagnóstico para
+soporte"** (al portapapeles y a `diagnostico-impresoras.txt`, junto al
+registro) y **"Ver registro"** (la pantalla de logs, que vuelve al asistente).
+
+El reporte se arma **solo con campos permitidos**: versión e instalación,
+sistema, comercio (el nombre, no el tenant), estado del servicio, dónde quedó
+(paso y mensaje), la última prueba (conexión, identidad, DLE EOT, LPT, si se
+borró el trabajo de la cola, si se confirmó el papel), la dirección escrita y
+su diagnóstico, la búsqueda (qué encontró cada fuente, avisos, ocultas y por
+qué), las redes de la PC, las impresoras configuradas (claves del driver
+solamente) y el **recorrido paso a paso** con tiempos relativos, que alcanza
+para reproducir dónde falló.
+
+Lo identificable se reduce: MAC al fabricante (`00:26:AB:xx:xx:xx`), números
+de serie a los últimos 4, id del equipo a 4 caracteres, IP pública oculta (las
+privadas del local quedan: sin ellas no se entiende un problema de subred),
+carpeta del usuario como `~`. Nunca entran credenciales MQTT, JWT,
+contraseñas, tokens ni tickets: no se incluyen y, además, una pasada final
+reemplaza por `[oculto]` todo valor del `config.ini` cuya clave sea sensible,
+todo lo que parezca un JWT y lo que siga a `password=`, `token=` o `Bearer`.
+Del registro entran solo advertencias y errores de los módulos del asistente.
+
+Snapshots aprobados en `tests/snapshots/diagnostico_*.txt` (éxito, USB con
+tapa abierta, cola trabada, nada encontrado, otra subred). Si un cambio es a
+propósito: `FISCALBERRY_UPDATE_SNAPSHOTS=1 pytest tests/test_diagnostico_soporte.py`
+y revisar el diff.
+
 ## Verificación en Windows real
 
 La prueba del instalador (`installer/test_installer.ps1`) corre
@@ -260,9 +291,13 @@ La prueba del instalador (`installer/test_installer.ps1`) corre
 verdad `GetAdaptersAddresses`, `GetIpNetTable`, SetupDi (usbprint y todos los
 USB), cfgmgr32 y los puertos COM, y lista las colas con el subproceso
 `--list-printers` del exe instalado. Falla si alguna sección revienta, si
-tarda más de 120 s, si no hay al menos un adaptador físico con IPv4 o si no
-trae la lista de dispositivos USB. El runner no tiene impresoras: el barrido y
-los dispositivos se prueban con sockets locales y APIs simuladas en
+tarda más de 120 s o si no hay al menos un adaptador físico con IPv4.
+
+El runner es una VM sin USB ni impresoras, así que esas listas dan cero y no
+prueban nada. Por eso el informe trae un **control**: el mismo código de
+SetupDi enumera las interfaces de disco y todos los dispositivos de la PC, que
+siempre son más de cero; la prueba falla si dan cero o si las rutas no se
+leen. Las impresoras se prueban con sockets locales y APIs simuladas en
 `tests/test_red_impresoras.py` y `tests/test_usb_directo.py`.
 
 ## Prueba con hardware

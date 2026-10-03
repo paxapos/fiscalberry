@@ -140,9 +140,19 @@ if ($fisicos.Count -eq 0) { throw "El informe no encontró ningún adaptador de 
 foreach ($a in $fisicos) {
     if (-not ($a.address -as [ipaddress])) { throw "Dirección inválida en el adaptador '$($a.name)': $($a.address)" }
 }
-# SetupDi con DIGCF_ALLCLASSES siempre ve algún USB (al menos los hubs raíz,
-# también en una VM): un total vacío es que se leyó mal.
+# El runner es una VM sin USB ni impresoras: que esas listas den cero no prueba
+# nada. El control enumera con el mismo código los discos y todos los
+# dispositivos, que en cualquier PC son más de cero: si dan cero, o las rutas
+# no se leen, los structs de SetupDi están mal declarados.
 if ($null -eq $datos.dispositivos_usb.total) { throw "El informe no trae la lista de dispositivos USB" }
+$control = $datos.control_setupdi
+Write-Host "Control SetupDi: $($control.interfaces_de_disco) discos ($($control.rutas_legibles) rutas legibles), $($control.dispositivos) dispositivos ($($control.con_hardware_id) con Id. de hardware)"
+if ($control.interfaces_de_disco -lt 1 -or $control.rutas_legibles -lt $control.interfaces_de_disco) {
+    throw "SetupDi no enumeró bien las interfaces de disco: el código de usbprint no es confiable"
+}
+if ($control.dispositivos -lt 1 -or $control.con_hardware_id -lt 1) {
+    throw "SetupDi no enumeró bien los dispositivos: la detección de USB incompatibles no es confiable"
+}
 Write-Host "USB: $($datos.dispositivos_usb.total) dispositivos, usbprint: $(@($datos.usbprint).Count), COM: $(@($datos.puertos_com).Count)"
 
 # ---------------------------------------------------------------------------

@@ -434,7 +434,9 @@
                 background_normal: ''
                 background_color: 0, 0, 0, 0
                 color: 1, 1, 1, 1
-                on_press: app.root.current = 'logs'
+                # "Volver" tiene que traer acá: si antes se entró al registro
+                # desde el asistente, quedaba apuntando al asistente.
+                on_press: app.root.get_screen('logs').volver_a = 'main'; app.root.current = 'logs'
                 canvas.before:
                     Color:
                         rgba: 0.1, 0.2, 0.5, 1

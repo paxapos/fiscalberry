@@ -117,11 +117,14 @@ class SetupApiFalsa:
 
     HDEV = 0x5000
 
-    def __init__(self, interfaces=(), dispositivos=()):
+    def __init__(self, interfaces=(), dispositivos=(), guid=(0x28D78FAD, 0x5A12, 0x11D1),
+                 enumerador="USB"):
         self.interfaces = list(interfaces)      # [(ruta, puerto, desc_bus)]
         self.dispositivos = list(dispositivos)  # [dict]
         self.destruidos = 0
         self.claves = {}
+        self.guid = guid
+        self.enumerador = enumerador
 
     def last_error(self):
         return 259
@@ -129,10 +132,10 @@ class SetupApiFalsa:
     def SetupDiGetClassDevsW(self, guid, enumerador, hwnd, flags):
         if flags & ud.DIGCF_DEVICEINTERFACE:
             g = guid._obj
-            assert (g.Data1, g.Data2, g.Data3) == (0x28D78FAD, 0x5A12, 0x11D1)
+            assert (g.Data1, g.Data2, g.Data3) == self.guid
             assert flags & ud.DIGCF_PRESENT
         else:
-            assert enumerador == "USB" and flags & ud.DIGCF_ALLCLASSES
+            assert enumerador == self.enumerador and flags & ud.DIGCF_ALLCLASSES
         return self.HDEV
 
     def SetupDiEnumDeviceInterfaces(self, hdev, devinfo, guid, indice, ifdata):
@@ -242,6 +245,20 @@ def test_enumeracion_de_interfaces_usbprint():
                           (RUTA_COMPUESTA, "", "TSP143")]
     assert api.destruidos == 1          # la lista de SetupDi se libera
     assert len(reg.cerradas) == 2       # y cada clave de registro abierta
+
+
+def test_el_control_del_informe_enumera_discos_y_todos_los_dispositivos():
+    """Lo que usa --discovery-report para probar SetupDi en una PC sin USB (la CI)."""
+    disco = r"\\?\scsi#disk&ven_msft&prod_virtual_disk#5&1ec51bf7&0&000000#" \
+        "{53f56307-b6bf-11d0-94f2-00a0c91efb8b}"
+    api = SetupApiFalsa(interfaces=[(disco, "", "")], guid=(0x53F56307, 0xB6BF, 0x11D0))
+    assert ud.windows_device_interfaces(ud.GUID_DEVINTERFACE_DISK, api, WinregFalso(api)) == [
+        (disco, "", "")]
+
+    api = SetupApiFalsa(dispositivos=[{"hardware_ids": ["ACPI\\PNP0A03"], "service": "pci",
+                                       "description": "Bus PCI"}], enumerador=None)
+    todos = ud.windows_usb_devices(api, CfgMgrFalso(api), enumerador=None)
+    assert todos[0]["hardware_ids"] == ["ACPI\\PNP0A03"] and todos[0]["service"] == "pci"
 
 
 def test_sin_impresoras_usb():
