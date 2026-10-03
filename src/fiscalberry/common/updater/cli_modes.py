@@ -136,8 +136,12 @@ def run_selftest(ruta_reporte=None):
             from kivy.app import App  # noqa: F401
             import fiscalberry.ui.fiscalberry_app  # noqa: F401
             import fiscalberry.desktop.tray  # noqa: F401
-            # El asistente de impresoras (todavía sin pantalla): importarlo
-            # acá también hace que PyInstaller lo empaquete.
+            # El asistente de impresoras: importarlo acá también hace que
+            # PyInstaller lo empaquete.
+            import fiscalberry.ui.printer_setup_screen  # noqa: F401
+            import fiscalberry.common.onboarding  # noqa: F401
+            import fiscalberry.common.printer_search  # noqa: F401
+            import fiscalberry.common.printer_wizard  # noqa: F401
             import fiscalberry.common.printer_setup  # noqa: F401
             import fiscalberry.common.windows_queues  # noqa: F401
             import fiscalberry.common.ticket_prueba  # noqa: F401

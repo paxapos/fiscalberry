@@ -86,5 +86,7 @@ def test_los_modulos_del_asistente_se_empaquetan_y_el_selftest_los_prueba():
                                                          "fiscalberry.common.windows_queues",
                                                          "fiscalberry.common.ticket_prueba",
                                                          "fiscalberry.common.discovery",
+                                                         "fiscalberry.common.onboarding",
+                                                         "fiscalberry.ui.printer_setup",
                                                          "fiscalberry.common.support"))}
     assert del_asistente <= selftest, sorted(del_asistente - selftest)

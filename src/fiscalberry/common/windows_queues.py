@@ -102,6 +102,21 @@ class ColaWindows:
     compartida: bool = False
     virtual: bool = False
     fuera_de_linea: bool = False
+    predeterminada: bool = False
+
+    @property
+    def oculta(self):
+        """Se muestra solo con "Mostrar todas": no es de tickets o Windows la da por apagada."""
+        return self.virtual or self.fuera_de_linea
+
+    @property
+    def puertos(self):
+        """
+        Los puertos de la cola, normalizados ("USB001", "COM3"). Una cola puede
+        tener varios (agrupación de impresoras: "USB001,USB002").
+        """
+        return tuple(p.strip().rstrip(":").upper() for p in self.puerto.split(",")
+                     if p.strip().rstrip(":"))
 
     @property
     def lista(self):
@@ -138,6 +153,7 @@ def clasificar(cruda):
         nombre=nombre, driver=driver, puerto=puerto, servidor=servidor,
         atributos=atributos, estado=estado, local=not compartida,
         compartida=compartida, virtual=virtual, fuera_de_linea=fuera_de_linea,
+        predeterminada=bool(cruda.get("predeterminada")),
     )
 
 
@@ -168,7 +184,8 @@ def ordenar(colas, mostrar_todas=False):
 
 
 def _prioridad(cola):
-    return (cola.virtual, cola.fuera_de_linea, cola.compartida, not cola.lista)
+    return (cola.virtual, cola.fuera_de_linea, cola.compartida, not cola.lista,
+            not cola.predeterminada)
 
 
 def _orden(cola):
@@ -185,6 +202,10 @@ def enumerar_crudas(win32print=None):
         import win32print  # noqa: F811  (solo existe en Windows)
 
     flags = PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS
+    try:
+        predeterminada = (win32print.GetDefaultPrinter() or "").casefold()
+    except Exception:
+        predeterminada = ""     # sin predeterminada (o la API no la da): no importa
     crudas = []
     for info in win32print.EnumPrinters(flags, None, 2):
         # Solo campos simples: pDevMode y pSecurityDescriptor no son JSON.
@@ -195,6 +216,8 @@ def enumerar_crudas(win32print=None):
             "servidor": info.get("pServerName") or "",
             "atributos": int(info.get("Attributes") or 0),
             "estado": int(info.get("Status") or 0),
+            "predeterminada": bool(predeterminada) and
+                              (info.get("pPrinterName") or "").casefold() == predeterminada,
         })
     return crudas
 

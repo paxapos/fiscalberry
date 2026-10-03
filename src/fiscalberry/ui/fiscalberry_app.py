@@ -78,6 +78,9 @@ class FiscalberryApp(App):
     # que las pantallas suman estos valores a su padding para no quedar tapadas.
     inset_top = NumericProperty(0)
     inset_bottom = NumericProperty(0)
+
+    # Asistente de impresoras (#173): solo Windows de escritorio.
+    printer_wizard_available = BooleanProperty(False)
     
     def __init__(self, **kwargs):
         logger.debug("Inicializando FiscalberryApp...")
@@ -270,6 +273,18 @@ class FiscalberryApp(App):
                 logger.debug("Archivo KV cargado")
         except Exception as e:
             logger.error(f"Error cargando archivo KV: {e}")
+
+        # Asistente de impresoras (#173): solo Windows; Linux y Android siguen
+        # como siempre.
+        try:
+            from fiscalberry.common.onboarding import wizard_supported
+            self.printer_wizard_available = (not is_android) and wizard_supported()
+            if self.printer_wizard_available:
+                Builder.load_file(os.path.join(os.path.dirname(__file__), "kv",
+                                               "printer_setup.kv"))
+        except Exception as e:
+            logger.error(f"No se pudo preparar el asistente de impresoras: {e}")
+            self.printer_wizard_available = False
         
         # Escuchar cambios en configberry
         self._configberry.add_listener(self._on_config_change)
@@ -282,6 +297,9 @@ class FiscalberryApp(App):
         sm.add_widget(MainScreen(name='main'))
         sm.add_widget(LoginScreen(name='login'))
         sm.add_widget(LogScreen(name='logs'))  # Consistencia en naming
+        if self.printer_wizard_available:
+            from fiscalberry.ui.printer_setup_screen import PrinterSetupScreen
+            sm.add_widget(PrinterSetupScreen(name='printer_setup'))
         
         # Configurar el cierre de ventana (solo Desktop)
         if not is_android:
@@ -294,9 +312,13 @@ class FiscalberryApp(App):
         # CRÍTICO: Determinar pantalla inicial basada en estado de adopción
         # (Los permisos se solicitan automáticamente en __init__)
         if self._configberry.is_comercio_adoptado():
-            # Comercio YA adoptado → ir a main directamente
-            sm.current = 'main'
-            logger.debug("Iniciando en pantalla principal (comercio adoptado)")
+            # Comercio YA adoptado → ir a main, salvo que sea una instalación
+            # nueva que todavía no configuró impresoras (#173).
+            destino = self._pantalla_tras_adopcion()
+            if destino == 'printer_setup':
+                sm.get_screen('printer_setup').open_fresh()
+            sm.current = destino
+            logger.debug(f"Iniciando en '{destino}' (comercio adoptado)")
             self.on_start_service()
             if self._is_android:
                 logger.debug("Iniciando servicio Android...")
@@ -526,6 +548,8 @@ class FiscalberryApp(App):
                 al_abrir=self.mostrar_ventana,
                 al_salir=self.salir_desde_bandeja,
                 icono=os.path.join(self.assetpath, "fiscalberry.ico"),
+                al_configurar=(self.abrir_asistente_desde_bandeja
+                               if self.printer_wizard_available else None),
             )
             if bandeja.iniciar():
                 self._bandeja = bandeja
@@ -1049,11 +1073,12 @@ class FiscalberryApp(App):
             current_screen = sm.current
             
             if self.tenant and self.tenant.strip():
-                # Si hay un tenant, ir a la pantalla principal (solo si no estamos ya ahí)
-                if current_screen != "main" and sm.has_screen("main"):
-                    sm.current = "main"
-                elif not sm.has_screen("main"):
-                    print("Advertencia: No se encontró la pantalla 'main'.")
+                # Recién vinculado: salir de la pantalla de vinculación. Solo
+                # desde ahí: cualquier otro cambio del config (guardar una
+                # impresora en el asistente, un `configure` del backend) sacaba
+                # a la persona de la pantalla en la que estaba.
+                if current_screen == "adopt":
+                    self.after_adoption()
             else:
                 # Si no hay tenant, ir a la pantalla de adopción (solo si no estamos ya ahí)
                 if current_screen != "adopt" and sm.has_screen("adopt"):
@@ -1064,6 +1089,90 @@ class FiscalberryApp(App):
         else:
             print("Error: self.root (ScreenManager) aún no está disponible.")
         
+
+    # -- Después de vincular y asistente de impresoras (#173) ---------------
+
+    def _pantalla_tras_adopcion(self):
+        """'printer_setup' en una instalación nueva sin impresoras; si no, 'main'."""
+        if not self.printer_wizard_available:
+            return "main"
+        try:
+            from fiscalberry.common.onboarding import should_show_wizard
+            if should_show_wizard(self._configberry):
+                return "printer_setup"
+        except Exception as e:
+            logger.error(f"No se pudo decidir si mostrar el asistente: {e}")
+        return "main"
+
+    def after_adoption(self):
+        """
+        El comercio se acaba de vincular: se arranca el servicio y, en una
+        instalación nueva, se abre el asistente de impresoras. El servicio
+        (MQTT incluido) queda activo aunque la persona esté en el asistente.
+
+        Lo disparan la pantalla de vinculación y el cambio de configuración:
+        solo el primero que llega hace algo.
+        """
+        sm = self.root
+        if sm is None or sm.current != "adopt":
+            return
+        self.updatePropertiesWithConfig()
+
+        if self.printer_wizard_available:
+            try:
+                from fiscalberry.common.onboarding import OnboardingStore
+                OnboardingStore().mark_pending()
+            except Exception as e:
+                logger.error(f"No se pudo marcar el asistente como pendiente: {e}")
+
+        destino = self._pantalla_tras_adopcion()
+        if destino == "printer_setup":
+            sm.get_screen("printer_setup").open_fresh()
+        sm.current = destino
+        logger.info(f"Comercio vinculado: se sigue en '{destino}'")
+
+        self.on_start_service()
+        if self._is_android:
+            try:
+                self._start_android_service()
+            except Exception as e:
+                logger.error(f"Error servicio Android: {e}")
+
+    def open_printer_setup(self):
+        """Botón "Impresoras" de la pantalla principal (y la bandeja)."""
+        sm = self.root
+        if not self.printer_wizard_available or sm is None or not sm.has_screen("printer_setup"):
+            return
+        if not self._configberry.is_comercio_adoptado():
+            sm.current = "adopt"
+            return
+        sm.get_screen("printer_setup").open_fresh()
+        sm.current = "printer_setup"
+
+    def abrir_asistente_desde_bandeja(self):
+        """"Configurar impresoras" en la bandeja. Llega en el hilo de la bandeja."""
+        self.mostrar_ventana()
+        Clock.schedule_once(lambda _dt: self.open_printer_setup(), 0)
+
+    def leave_printer_setup(self, motivo):
+        """
+        Fin del asistente. "Configurar después" lo deja omitido (se puede
+        reabrir desde la pantalla principal o la bandeja); nada de esto toca
+        el servicio.
+        """
+        try:
+            from fiscalberry.common.onboarding import OnboardingStore
+            from fiscalberry.common.printer_wizard import EXIT_SKIPPED
+
+            store = OnboardingStore()
+            if motivo == EXIT_SKIPPED:
+                store.mark_skipped()
+            else:
+                store.mark_done()
+        except Exception as e:
+            logger.error(f"No se pudo actualizar el estado del asistente: {e}")
+        if self.root is not None:
+            self.root.current = "main"
 
     def _stop_local_sio(self):
         """

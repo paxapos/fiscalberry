@@ -1,8 +1,9 @@
-# Asistente de impresoras: búsqueda de red, USB y COM
+# Asistente de impresoras
 
 Cómo encuentra Fiscalberry las impresoras de red (#175), USB (#183,
-escenario 2) y USB que aparecen como COM (#183, escenario 3). Las colas de
-Windows ya instaladas (#174) están en `common/windows_queues.py`.
+escenario 2) y USB que aparecen como COM (#183, escenario 3), y cómo es la
+pantalla del asistente (#184) y cuándo aparece (#173). Las colas de Windows
+ya instaladas (#174) están en `common/windows_queues.py`.
 
 Las tres reglas que valen para todo:
 
@@ -189,6 +190,69 @@ responder" en vez de colgarse. Lo guardado no cambia (`dsrdtr` sigue siendo el
 de python-escpos); `dsrdtr = false` en `config.ini` ahora sí lo desactiva
 (antes el texto "false" se tomaba como verdadero).
 
+## La pantalla: "Buscar impresoras" — #184
+
+Código: `common/printer_search.py` y `common/printer_wizard.py` (sin Kivy),
+`ui/printer_setup_screen.py` y `ui/kv/printer_setup.kv` (solo dibujan).
+
+- Un solo botón **"Buscar impresoras"** corre red, USB/COM y colas de Windows
+  en paralelo (un hilo por fuente) y muestra un solo listado que se va
+  llenando: la red y el USB aparecen en ~2 s aunque las colas tarden. Nada
+  corre en el hilo de Kivy: los resultados vuelven con `Clock`.
+- Cada impresora es una fila grande con un nombre (el modelo si se conoce) y
+  una frase sin jerga: "Conectada a la red", "Conectada por USB", "Conectada
+  por cable USB", "Instalada en Windows". IP, puerto, driver y lo que dice el
+  spooler aparecen solo con **"Ver detalles"**.
+- Una misma impresora vista por dos caminos se muestra una vez: la cola de
+  Windows tapa a la usbprint o al COM del mismo puerto (es lo que el local ya
+  usa); la impresora de red tapa a la cola TCP/IP de la misma dirección (se
+  usa directo y se lee su estado). Lo oculto (virtuales, fuera de línea,
+  duplicados, COM de la placa) se ve con **"Mostrar todas (N más)"**. La
+  predeterminada de Windows va primero entre las colas.
+- Las ya configuradas aparecen marcadas ("Ya está configurada como Caja") y
+  no se vuelven a probar.
+- Una impresora que no se puede usar (USB sin driver o con WinUSB) se explica
+  con palabras; no se abre ninguna guía desde la app.
+- **"Sé la dirección de la impresora"**: para una de red que no apareció. Se
+  diagnostica con la máscara real (#175) y, si es de otra red o una IP de
+  fábrica, se explica por qué.
+- Estados: buscando (con "Dejar de buscar", que deja lo encontrado), lista,
+  vacío, avisos por fuente, probando, "¿salió el ticket con este código?",
+  problema (con "Probar de nuevo"), nombre, guardada ("Terminar" o "Agregar
+  otra", que vuelve a la lista con la guardada marcada).
+- Si la prueba no se confirma en papel (o la persona sale), lo pendiente se
+  descarta: en una cola de Windows el trabajo se borra.
+- **Teclado**: Tab / Shift+Tab recorren botones e impresoras (recuadro azul),
+  Enter o Espacio tocan, Escape vuelve atrás y nunca cierra la app. El foco va
+  a la acción principal de cada paso, salvo en "¿salió el ticket?": un Enter
+  por costumbre no puede confirmar el papel.
+- `journal` registra cada paso con su resultado y su tiempo, para el
+  diagnóstico de soporte (#185).
+
+## Navegación — #173
+
+Código: `common/onboarding.py` y `ui/fiscalberry_app.py`.
+
+- Solo Windows de escritorio. Linux y Android no cambian
+  (`FISCALBERRY_PRINTER_WIZARD=1` lo fuerza para desarrollar).
+- Al vincular el comercio se deja una marca "pendiente"
+  (`onboarding.json`, aparte del `config.ini`) y, si no hay ninguna impresora
+  válida configurada, se abre el asistente. El servicio (MQTT incluido) se
+  arranca igual: el asistente no lo toca.
+- El estado sale de la configuración, no solo de la marca: con una impresora
+  válida (del asistente, del backend o de soporte) no se muestra. Una
+  instalación que ya existía (sin marca) arranca como siempre.
+- Si la PC se reinicia en medio del asistente, al volver a abrir Fiscalberry
+  sigue en el asistente.
+- "Configurar después" lleva a la principal y no vuelve a aparecer solo. Se
+  reabre con el botón **"Impresoras"** o desde la bandeja (**"Configurar
+  impresoras"**).
+- Cerrar la ventana en medio del asistente la oculta en la bandeja (#187): el
+  servicio sigue y al reabrir se retoma el mismo paso.
+- Un cambio del `config.ini` (guardar una impresora, un `configure` del
+  backend) ya no saca a la persona de la pantalla en la que está: solo la
+  vinculación lleva de "adopt" a la siguiente.
+
 ## Verificación en Windows real
 
 La prueba del instalador (`installer/test_installer.ps1`) corre
@@ -206,8 +270,8 @@ los dispositivos se prueban con sockets locales y APIs simuladas en
 Pendiente (#186). Todo con una **cuenta estándar** de Windows 10 y 11, sin
 permisos de administrador.
 
-Hasta que esté la pantalla del asistente (#184) se puede correr desde la raíz
-del repo, con las dependencias instaladas:
+Para probar una pieza sin la pantalla, desde la raíz del repo y con las
+dependencias instaladas:
 
 ```python
 import sys

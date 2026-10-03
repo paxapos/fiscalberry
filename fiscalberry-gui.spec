@@ -49,7 +49,11 @@ a = Analysis(
         'PIL.Image',
         # Asistente de impresoras. El selftest de la GUI los importa todos:
         # tests/test_informe_descubrimiento.py exige que estén acá también.
+        'fiscalberry.ui.printer_setup_screen',
+        'fiscalberry.common.onboarding',
         'fiscalberry.common.printer_setup',
+        'fiscalberry.common.printer_search',
+        'fiscalberry.common.printer_wizard',
         'fiscalberry.common.windows_queues',
         'fiscalberry.common.ticket_prueba',
         'fiscalberry.common.network_discovery',

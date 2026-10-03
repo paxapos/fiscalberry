@@ -21,6 +21,7 @@ logger = getLogger("GUI.Bandeja")
 
 TITULO = "Fiscalberry"
 TEXTO_ABRIR = "Abrir Fiscalberry"
+TEXTO_IMPRESORAS = "Configurar impresoras"
 TEXTO_SALIR = "Salir (deja de imprimir)"
 AVISO_SEGUNDO_PLANO = (
     "Fiscalberry sigue imprimiendo en segundo plano. Para volver a abrirlo, "
@@ -83,16 +84,18 @@ def confirmar_salida():
 
 class BandejaDelSistema:
     """
-    Ícono con menú "Abrir Fiscalberry" (también con clic) y "Salir".
+    Ícono con menú "Abrir Fiscalberry" (también con clic), "Configurar
+    impresoras" (si se pasa `al_configurar`, #173) y "Salir".
 
     `iniciar()` no bloquea: el ícono corre en su propio hilo. `activa` pasa a
     True recién cuando Windows lo muestra.
     """
 
     def __init__(self, al_abrir, al_salir, icono, confirmar=confirmar_salida,
-                 pystray_mod=None):
+                 pystray_mod=None, al_configurar=None):
         self._al_abrir = al_abrir
         self._al_salir = al_salir
+        self._al_configurar = al_configurar
         self._ruta_icono = icono
         self._confirmar = confirmar
         self._pystray = pystray_mod
@@ -105,10 +108,11 @@ class BandejaDelSistema:
         try:
             pystray = self._pystray or importlib.import_module("pystray")
             imagen = self._cargar_imagen()
-            menu = pystray.Menu(
-                pystray.MenuItem(TEXTO_ABRIR, self._abrir, default=True),
-                pystray.MenuItem(TEXTO_SALIR, self._salir),
-            )
+            items = [pystray.MenuItem(TEXTO_ABRIR, self._abrir, default=True)]
+            if self._al_configurar is not None:
+                items.append(pystray.MenuItem(TEXTO_IMPRESORAS, self._configurar))
+            items.append(pystray.MenuItem(TEXTO_SALIR, self._salir))
+            menu = pystray.Menu(*items)
             self._icono = pystray.Icon("fiscalberry", imagen, TITULO, menu)
         except Exception as e:
             logger.warning("No se pudo crear el ícono de la bandeja: %s", e)
@@ -148,6 +152,12 @@ class BandejaDelSistema:
             self._al_abrir()
         except Exception as e:
             logger.error("No se pudo abrir la ventana desde la bandeja: %s", e)
+
+    def _configurar(self):
+        try:
+            self._al_configurar()
+        except Exception as e:
+            logger.error("No se pudo abrir el asistente de impresoras: %s", e)
 
     def _salir(self):
         try:

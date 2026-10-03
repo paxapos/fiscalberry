@@ -438,6 +438,15 @@ class AdoptScreen(Screen):
         """
         try:
             app = App.get_running_app()
+
+            # La App decide a dónde seguir (pantalla principal, o el asistente
+            # de impresoras en una instalación nueva, #173) y arranca los
+            # servicios. Es el mismo camino que cuando lo detecta el cambio de
+            # configuración, y solo actúa una vez.
+            if hasattr(app, "after_adoption"):
+                app.after_adoption()
+                return
+
             app.updatePropertiesWithConfig()
             
             if self.manager:

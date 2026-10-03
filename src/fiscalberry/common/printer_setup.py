@@ -387,6 +387,26 @@ class PrinterSetupService:
         # backend también escribe config.ini (adopción, cambio de comercio).
         return getattr(self.config, "_rlock", None) or nullcontext()
 
+    def impresoras_configuradas(self):
+        """{nombre: valores} de las secciones que describen una impresora usable."""
+        return {seccion: valores
+                for seccion, valores in self.config.get_actual_config().items()
+                if seccion.casefold() not in self.RESERVED_SECTIONS
+                and es_impresora_valida(valores)}
+
+    def hay_impresoras_configuradas(self):
+        return bool(self.impresoras_configuradas())
+
+    def sugerir_nombre(self, base="Impresora"):
+        """Un nombre libre para proponer: "Impresora", "Impresora 2", ..."""
+        existentes = {s.casefold() for s in self.config.get_actual_config()}
+        if base.casefold() not in existentes:
+            return base
+        numero = 2
+        while f"{base} {numero}".casefold() in existentes:
+            numero += 1
+        return f"{base} {numero}"
+
     def buscar_duplicado(self, candidate, current=None):
         """Nombre de la impresora ya guardada que es esta misma, o None."""
         current = self.config.get_actual_config() if current is None else current
@@ -436,6 +456,35 @@ class PrinterSetupService:
             if not self.config.set(section, values_to_save):
                 raise SetupPersistenceError("No se pudo guardar la impresora")
         return section
+
+
+# Lo mínimo que necesita cada driver para imprimir.
+_REQUERIDOS = {
+    "win32raw": ("printer_name",),
+    "network": ("host",),
+    "usbprint": ("idvendor", "idproduct"),
+    "usb": ("idvendor", "idproduct"),
+    "serial": ("devfile",),
+    "bluetooth": ("mac_address",),
+}
+
+
+def es_impresora_valida(valores):
+    """
+    ¿Esta sección de config.ini describe una impresora que se puede usar?
+
+    Solo se exige lo mínimo de cada driver: también cuentan las que configuró
+    el backend (comando `configure`) o soporte a mano.
+    """
+    if not isinstance(valores, dict):
+        return False
+    claves = {str(k).lower(): str(v).strip() for k, v in valores.items()}
+    driver = claves.get("driver", "").lower()
+    if not driver:
+        return False
+    if driver == "bluetooth" and claves.get("macaddress"):
+        return True
+    return all(claves.get(k) for k in _REQUERIDOS.get(driver, ()))
 
 
 def _config_fingerprint(values):

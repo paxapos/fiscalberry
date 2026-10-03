@@ -130,6 +130,31 @@ def test_el_menu_abre_y_sale_con_los_textos_para_el_usuario(bandeja_falsa):
     assert reg.abiertas == 1
 
 
+def test_sin_asistente_el_menu_no_ofrece_configurar_impresoras(bandeja_falsa):
+    bandeja, _, mod = bandeja_falsa
+    assert bandeja.iniciar()
+    textos = [i.texto for i in mod.iconos[0].menu.items]
+    assert textos == [tray.TEXTO_ABRIR, tray.TEXTO_SALIR]
+
+
+def test_con_asistente_el_menu_lo_abre(tmp_path):
+    reg = Registro()
+    abiertos = []
+    mod = _pystray_falso()
+    bandeja = tray.BandejaDelSistema(reg.abrir, reg.salir, str(tmp_path / "x.ico"),
+                                     confirmar=reg.confirmar, pystray_mod=mod,
+                                     al_configurar=lambda: abiertos.append(1))
+    try:
+        assert bandeja.iniciar()
+        icono = mod.iconos[0]
+        assert [i.texto for i in icono.menu.items] == [
+            tray.TEXTO_ABRIR, tray.TEXTO_IMPRESORAS, tray.TEXTO_SALIR]
+        icono.item(tray.TEXTO_IMPRESORAS).accion()
+        assert abiertos == [1] and reg.salidas == 0
+    finally:
+        bandeja.detener()
+
+
 def test_salir_pide_confirmacion_y_si_no_confirma_no_sale(tmp_path):
     reg = Registro(confirma=False)
     mod = _pystray_falso()

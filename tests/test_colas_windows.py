@@ -138,10 +138,16 @@ def test_elegir_una_cola_la_configura_por_win32raw(colas):
 # --------------------------------------------------------------------------
 
 class Win32PrintFalso:
-    def __init__(self, colas=None, error=None):
+    def __init__(self, colas=None, error=None, predeterminada=None):
         self.colas = colas or []
         self.error = error
         self.pedidos = []
+        self.predeterminada = predeterminada
+
+    def GetDefaultPrinter(self):
+        if self.predeterminada is None:
+            raise RuntimeError("(2, 'GetDefaultPrinter', 'No hay impresora predeterminada')")
+        return self.predeterminada
 
     def EnumPrinters(self, flags, name=None, level=1):
         self.pedidos.append((flags, name, level))
@@ -166,6 +172,35 @@ def test_el_modo_listado_pide_locales_y_conexiones_nivel_2(tmp_path):
     assert datos["ok"] is True
     assert [c["nombre"] for c in datos["colas"]] == ["Microsoft Print to PDF",
                                                     "Microsoft XPS Document Writer"]
+
+
+def test_la_predeterminada_va_primero_entre_las_locales_listas(tmp_path):
+    caja = dict(PC_DEL_LOCAL[0], nombre="Caja", puerto="USB002", driver="Generic / Text Only",
+                atributos=wq.PRINTER_ATTRIBUTE_LOCAL, estado=0)
+    barra = dict(caja, nombre="Barra", puerto="USB001")
+    w32 = Win32PrintFalso([barra, caja], predeterminada="CAJA")
+    reporte = tmp_path / "colas.json"
+    wq.run_list_printers(str(reporte), win32print=w32)
+
+    colas = [wq.clasificar(c) for c in json.loads(reporte.read_text(encoding="utf-8"))["colas"]]
+    assert [(c.nombre, c.predeterminada) for c in wq.ordenar(colas)] == [
+        ("Caja", True), ("Barra", False)]
+
+
+def test_sin_predeterminada_el_listado_sigue():
+    w32 = Win32PrintFalso(PC_DEL_LOCAL[:1])
+    assert [c["predeterminada"] for c in wq.enumerar_crudas(w32)] == [False]
+
+
+@pytest.mark.parametrize("puerto,puertos", [
+    ("USB001", ("USB001",)),
+    ("COM3:", ("COM3",)),
+    ("usb001,USB002", ("USB001", "USB002")),
+    ("IP_192.168.1.50", ("IP_192.168.1.50",)),
+    ("", ()),
+])
+def test_puertos_de_una_cola(puerto, puertos):
+    assert wq.ColaWindows("X", puerto=puerto).puertos == puertos
 
 
 def test_el_modo_listado_reporta_el_error_del_spooler(tmp_path):
