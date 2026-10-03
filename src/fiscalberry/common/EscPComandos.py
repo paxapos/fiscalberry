@@ -1109,6 +1109,13 @@ class EscPComandos():
         fechaHasta = safe_parse_date(encabezado.get('fechaHasta'), '%d-%m-%Y %H:%M').strftime('%d/%m %H:%M',)
         fechaArqueo = safe_parse_date(encabezado.get('ArqueoDateTime'), '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%y %H:%M',)
 
+        # ID del arqueo: identifica de qué cierre es el papel. Se acepta en el
+        # encabezado o al nivel de printArqueo; si no viene (backends viejos),
+        # simplemente no se imprime la línea.
+        arqueoId = encabezado.get('arqueo_id')
+        if arqueoId in (None, ""):
+            arqueoId = kwargs.get('arqueo_id')
+
 
         def imprimirEncabezado():            
             printer.set(font='a', height=1, bold=True, align='center')
@@ -1120,6 +1127,8 @@ class EscPComandos():
             printer.set(font='a', height=1, align='center', normal_textsize=True)
             printer.text("-" * self.total_cols + "\n")
             printer.set(font='a', height=1, align='left', normal_textsize=True)
+            if arqueoId not in (None, ""):
+                printer.text(f"'Arqueo ID': {arqueoId}\n")
             printer.text(f"'Fecha de Cierre': {fechaArqueo}\n")
             printer.text(f"'Fecha de Turno': {fechaDesde} al {fechaHasta}\n")
             printer.text(f"'Reporte de Caja': {encabezado.get('nombreCaja', '')}\n")
