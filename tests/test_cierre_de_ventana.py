@@ -93,3 +93,81 @@ def test_el_handler_viejo_reproduce_el_typeerror():
     with pytest.raises(TypeError, match="source"):
         ventana.dispatch("on_request_close", source="keyboard")
 
+
+
+# --------------------------------------------------------------------------
+# Windows: la X oculta la ventana en la bandeja y el servicio sigue
+# --------------------------------------------------------------------------
+
+class VentanaKivyFalsa:
+    def __init__(self):
+        self.ocultada = 0
+        self.minimizada = 0
+
+    def hide(self):
+        self.ocultada += 1
+
+    def minimize(self):
+        self.minimizada += 1
+
+
+class BandejaFalsa:
+    def __init__(self, activa=True):
+        self.activa = activa
+        self.avisos = []
+
+    def avisar(self, mensaje):
+        self.avisos.append(mensaje)
+        return True
+
+
+class AppWindows(AppFalsa):
+    def __init__(self, bandeja):
+        super().__init__()
+        self._bandeja = bandeja
+        self._is_android = False
+        self.ventana = VentanaKivyFalsa()
+
+    def _ventana(self):
+        return self.ventana
+
+
+@pytest.fixture
+def en_windows(monkeypatch):
+    import fiscalberry.ui.fiscalberry_app as modulo
+    monkeypatch.setattr(modulo.sys, "platform", "win32")
+
+
+def test_en_windows_la_x_oculta_y_no_sale(en_windows, caplog):
+    app = AppWindows(BandejaFalsa())
+
+    with caplog.at_level(logging.INFO):
+        cancelado = FiscalberryApp._on_window_close(app)
+
+    assert cancelado is True
+    assert app.salidas == 0
+    assert app.ventana.ocultada == 1
+    assert "sigue imprimiendo" in caplog.text
+
+
+def test_el_aviso_de_segundo_plano_sale_una_sola_vez(en_windows):
+    from fiscalberry.desktop import tray
+
+    bandeja = BandejaFalsa()
+    app = AppWindows(bandeja)
+
+    FiscalberryApp._on_window_close(app)
+    FiscalberryApp._on_window_close(app)
+
+    assert app.ventana.ocultada == 2
+    assert bandeja.avisos == [tray.AVISO_SEGUNDO_PLANO]
+
+
+def test_sin_bandeja_la_x_minimiza_en_vez_de_cerrar(en_windows):
+    app = AppWindows(BandejaFalsa(activa=False))
+
+    FiscalberryApp._on_window_close(app)
+
+    assert app.salidas == 0
+    assert app.ventana.minimizada == 1
+    assert app.ventana.ocultada == 0

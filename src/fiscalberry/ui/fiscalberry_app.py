@@ -490,17 +490,105 @@ class FiscalberryApp(App):
             except Exception as e:
                 logger.error(f"Error en on_start configurando icono: {e}")
 
-            if self.start_minimized and sys.platform == 'win32':
-                Clock.schedule_once(self._minimize_windows, 1.5)
+            self._iniciar_bandeja()
 
-    def _minimize_windows(self, _dt):
+            if self.start_minimized:
+                if self._bandeja is not None:
+                    logger.info("Fiscalberry arrancó con la sesión: queda en la "
+                                "bandeja del sistema, con la ventana oculta.")
+                elif sys.platform == 'win32':
+                    # La ventana arrancó oculta (window_state=hidden) pero no
+                    # hay ícono desde donde abrirla: se muestra minimizada.
+                    Clock.schedule_once(self._mostrar_minimizada, 0)
+
+    # ------------------------------------------------------------------
+    # Bandeja del sistema y visibilidad de la ventana (escritorio)
+    # ------------------------------------------------------------------
+
+    _bandeja = None
+    _aviso_segundo_plano_mostrado = False
+
+    def _ventana(self):
+        from kivy.core.window import Window
+        return Window
+
+    def _es_windows_escritorio(self):
+        return sys.platform == 'win32' and not getattr(self, '_is_android', False)
+
+    def _iniciar_bandeja(self):
+        """Ícono en la bandeja (solo Windows). Sin él, la X minimiza."""
+        if not self._es_windows_escritorio():
+            return
         try:
-            from kivy.core.window import Window
+            from fiscalberry.desktop.tray import BandejaDelSistema
 
-            Window.minimize()
-            logger.info("Fiscalberry iniciado minimizado con Windows")
+            bandeja = BandejaDelSistema(
+                al_abrir=self.mostrar_ventana,
+                al_salir=self.salir_desde_bandeja,
+                icono=os.path.join(self.assetpath, "fiscalberry.ico"),
+            )
+            if bandeja.iniciar():
+                self._bandeja = bandeja
+                return
+        except Exception as e:
+            logger.error(f"Error iniciando la bandeja del sistema: {e}")
+        logger.warning("Sin ícono en la bandeja: cerrar la ventana la va a "
+                       "minimizar en vez de ocultarla.")
+
+    def _bandeja_activa(self):
+        bandeja = getattr(self, '_bandeja', None)
+        return bool(bandeja is not None and bandeja.activa)
+
+    def mostrar_ventana(self):
+        """
+        Muestra y trae al frente la ventana. Se puede llamar desde cualquier
+        hilo: la bandeja y el pedido de una segunda instancia llegan en hilos
+        propios, y la ventana solo se toca desde el hilo de Kivy.
+        """
+        Clock.schedule_once(self._mostrar_ventana_ahora, 0)
+
+    def _mostrar_ventana_ahora(self, *_):
+        ventana = self._ventana()
+        for accion in ("show", "restore", "raise_window"):
+            try:
+                getattr(ventana, accion)()
+            except Exception as e:
+                logger.debug(f"Window.{accion}() falló: {e}")
+        logger.info("Ventana de Fiscalberry mostrada.")
+
+    def _mostrar_minimizada(self, *_):
+        ventana = self._ventana()
+        try:
+            ventana.show()
+            ventana.minimize()
+            logger.info("Fiscalberry arrancó con la sesión, minimizado.")
         except Exception as e:
             logger.warning(f"No se pudo minimizar la ventana al iniciar: {e}")
+
+    def salir_desde_bandeja(self):
+        """
+        "Salir (deja de imprimir)" ya confirmado. Corre en el hilo de la
+        bandeja: el cierre ordenado del servicio puede tardar unos segundos y
+        no tiene que congelar ni la bandeja ni la ventana.
+        """
+        logger.warning("Salida pedida desde la bandeja: Fiscalberry deja de "
+                       "imprimir hasta que se vuelva a abrir.")
+
+        def salir():
+            try:
+                controlador = getattr(self, '_service_controller', None)
+                if controlador is not None:
+                    controlador._stop_services_only()
+            except Exception as e:
+                logger.error(f"Error deteniendo los servicios al salir: {e}")
+            try:
+                bandeja = getattr(self, '_bandeja', None)
+                if bandeja is not None:
+                    bandeja.detener()
+            finally:
+                self._immediate_force_exit_standalone()
+
+        Thread(target=salir, daemon=True, name="fiscalberry-salida").start()
     
     def _check_and_request_battery_exemption(self):
         """
@@ -1189,11 +1277,38 @@ class FiscalberryApp(App):
         cierre hecho por alguien (X, Alt+F4, "Finalizar tarea") era indistinguible
         de un crash al mirar el registro.
         """
-        if kwargs.get("source") == "keyboard":
+        from fiscalberry.desktop import tray
+
+        accion = tray.accion_al_cerrar(
+            es_windows=FiscalberryApp._es_windows_escritorio(self),
+            bandeja_activa=FiscalberryApp._bandeja_activa(self),
+            origen=kwargs.get("source"),
+        )
+
+        if accion == tray.IGNORAR:
             # Con exit_on_escape desactivado no debería llegar acá. Si llega, un
             # servidor de impresión no se cierra por una tecla.
             logger.info("Se ignoró un pedido de cierre por teclado (Escape).")
             return True
+
+        if accion == tray.OCULTAR:
+            # El servicio vive en este proceso: la ventana se esconde y MQTT,
+            # el websocket y el spooler siguen. Se vuelve desde la bandeja o
+            # abriendo Fiscalberry otra vez.
+            self._ventana().hide()
+            logger.info("Ventana oculta en la bandeja; Fiscalberry sigue "
+                        "imprimiendo en segundo plano.")
+            if not getattr(self, '_aviso_segundo_plano_mostrado', False):
+                self._aviso_segundo_plano_mostrado = True
+                self._bandeja.avisar(tray.AVISO_SEGUNDO_PLANO)
+            return True
+
+        if accion == tray.MINIMIZAR:
+            self._ventana().minimize()
+            logger.info("Ventana minimizada (sin bandeja); Fiscalberry sigue "
+                        "imprimiendo.")
+            return True
+
         logger.warning(
             "Ventana cerrada por el usuario (X, Alt+F4 o Finalizar tarea). "
             "No se imprimen comandas hasta volver a abrir Fiscalberry.")

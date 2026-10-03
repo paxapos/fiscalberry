@@ -41,6 +41,12 @@ a = Analysis(
         'fiscalberry.common.Configberry',
         'fiscalberry.common.fiscalberry_logger',
         'pywin32',
+        # Bandeja del sistema. pystray elige su backend al importarse
+        # (pystray._win32): PyInstaller no lo ve solo.
+        'fiscalberry.desktop.tray',
+        'pystray',
+        'pystray._win32',
+        'PIL.Image',
     ],
     hookspath=[],
     hooksconfig={},

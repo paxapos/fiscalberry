@@ -119,7 +119,17 @@ def run_selftest(ruta_reporte=None):
             import kivy  # noqa: F401
             from kivy.app import App  # noqa: F401
             import fiscalberry.ui.fiscalberry_app  # noqa: F401
+            import fiscalberry.desktop.tray  # noqa: F401
         probar("módulos de la interfaz", _gui)
+
+        # En Windows la X oculta la ventana en la bandeja: si pystray o Pillow
+        # no quedaron empaquetados, la app arranca igual pero cerrar la ventana
+        # ya no la esconde. Eso se tiene que descubrir acá, no en el local.
+        if sys.platform == "win32":
+            def _bandeja():
+                import pystray  # noqa: F401
+                from PIL import Image  # noqa: F401
+            probar("bandeja del sistema", _bandeja)
 
     if fallas:
         lineas = [f"SELFTEST FALLO -> {f}" for f in fallas]
