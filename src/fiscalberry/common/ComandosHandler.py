@@ -313,6 +313,11 @@ def runTraductor(jsonTicket, queue):
         # printer.Network(host='', port=9100, timeout=60, *args, **kwargs)[source]
         if 'port' in driverOps:
             driverOps['port'] = int(driverOps['port'])
+        # Del config.ini todo llega como texto, y python-escpos se lo pasa tal
+        # cual a socket.settimeout(), que exige un número: un `timeout = 10`
+        # en la sección de la impresora rompía cada impresión.
+        if 'timeout' in driverOps:
+            driverOps['timeout'] = float(driverOps['timeout'])
         driverName = "Network"
 
     elif driverName == "Serial".lower():

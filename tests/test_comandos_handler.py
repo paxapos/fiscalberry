@@ -178,6 +178,38 @@ def test_setup_id_no_se_envia_al_constructor_del_driver(monkeypatch):
     assert response["message"] == "Impresión exitosa"
 
 
+def test_network_recibe_el_timeout_del_config_como_numero(monkeypatch):
+    """
+    Del config.ini todo llega como texto. python-escpos le pasa `timeout` a
+    socket.settimeout(), que con "10" lanza TypeError y la impresión falla.
+    """
+    recibido = {}
+    real_dummy = CH.printer.Dummy
+
+    def network_falso(**kwargs):
+        import socket
+        socket.socket().settimeout(kwargs["timeout"])  # lo que hace escpos
+        recibido.update(kwargs)
+        return real_dummy()
+
+    class FakeConfigberry:
+        def get_config_for_printer(self, name):
+            return {"driver": "Network", "host": "192.168.1.80",
+                    "port": "9100", "timeout": "10"}
+
+    monkeypatch.setattr(CH, "configberry", FakeConfigberry())
+    monkeypatch.setattr(CH.printer, "Network", network_falso)
+
+    response = CH.runTraductor(
+        {"printerName": "Barra", "printTexto": {"texto": "prueba"}},
+        None,
+    )
+
+    assert response["message"] == "Impresión exitosa"
+    assert recibido["timeout"] == 10.0
+    assert recibido["port"] == 9100
+
+
 # ---------------------------------------------------------------------------
 # Issue #166: comandos remotos "imprimir todos" / "descartar" sobre la cola.
 # ---------------------------------------------------------------------------
