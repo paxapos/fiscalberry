@@ -14,8 +14,9 @@ arranques normales del programa:
   asistente, en un proceso aparte que se puede matar si el spooler se cuelga
   (ver common/windows_queues.py). Deja el resultado en `--report <archivo>`.
 - `--discovery-report`: lo que ve el asistente de impresoras en esta PC
-  (redes, colas), en JSON. Solo lee. Lo corre la prueba del instalador en un
-  Windows real y lo puede pedir soporte (ver common/discovery_report.py).
+  (redes, USB, puertos COM, colas), en JSON. Solo lee. Lo corre la prueba
+  del instalador en un Windows real y lo puede pedir soporte (ver
+  common/discovery_report.py).
 """
 
 import os
@@ -141,6 +142,8 @@ def run_selftest(ruta_reporte=None):
             import fiscalberry.common.windows_queues  # noqa: F401
             import fiscalberry.common.ticket_prueba  # noqa: F401
             import fiscalberry.common.network_discovery  # noqa: F401
+            import fiscalberry.common.usb_discovery  # noqa: F401
+            import fiscalberry.common.usbprint_driver  # noqa: F401
             import fiscalberry.common.discovery_report  # noqa: F401
         probar("módulos de la interfaz", _gui)
 

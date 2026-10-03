@@ -47,6 +47,10 @@ LARGO_CODIGO = 4
 # cola de Windows antes de decir que no salió.
 ESPERA_ESTADO = 2.0
 ESPERA_COLA_WINDOWS = 20.0
+# Tope para mandar el ticket de prueba por un puerto COM. python-escpos abre el
+# puerto con control de flujo DSR/DTR y sin límite de escritura: si la
+# impresora (o el cable) no levanta DSR, la escritura esperaría para siempre.
+ESPERA_ESCRITURA_SERIE = 10.0
 
 # Problemas, con la acción concreta que se le muestra a la persona.
 FUERA_DE_LINEA = "fuera_de_linea"
@@ -172,8 +176,10 @@ def _acortar_espera(driver, segundos):
     try:
         if hasattr(dispositivo, "settimeout"):      # Network (socket)
             dispositivo.settimeout(segundos)
-        elif hasattr(dispositivo, "timeout"):       # Serial (pyserial)
+        elif hasattr(dispositivo, "timeout"):       # Serial (pyserial) y UsbPrint
             dispositivo.timeout = segundos
+        if hasattr(dispositivo, "write_timeout"):   # Serial y UsbPrint: escribir con tope
+            dispositivo.write_timeout = ESPERA_ESCRITURA_SERIE
     except Exception:
         pass
 
@@ -291,6 +297,9 @@ class ResultadoPrueba:
     estado_despues: EstadoImpresora = None
     trabajo: TrabajoWindows = None
     avisos: list = field(default_factory=list)
+    # USB directo: estado LPT de usbprint, solo como dato para soporte. Muchas
+    # térmicas devuelven siempre lo mismo: no decide nada (lo decide DLE EOT).
+    lpt: dict = field(default_factory=dict)
 
     @property
     def accion(self):
@@ -355,16 +364,20 @@ _POR_ERRNO = {
 }
 _POR_WINERROR = {
     RECHAZADA: {10061},
-    TIMEOUT: {10060},
+    TIMEOUT: {10060, 121, 1460},              # WSAETIMEDOUT, ERROR_SEM_TIMEOUT, ERROR_TIMEOUT
     NO_RESPONDE: {10051, 10065},
-    ACCESO_DENEGADO: {5},                     # ERROR_ACCESS_DENIED
-    NO_ENCONTRADA: {2, 1801},                 # no existe, nombre de impresora inválido
+    # ERROR_ACCESS_DENIED; UsbPrint: ERROR_SHARING_VIOLATION y ERROR_BUSY (el
+    # spooler la está usando y no la soltó después de los reintentos).
+    ACCESO_DENEGADO: {5, 32, 170},
+    # No existe, nombre de impresora inválido; UsbPrint: desenchufada
+    # (ERROR_DEVICE_NOT_CONNECTED, ERROR_NO_SUCH_DEVICE, ERROR_GEN_FAILURE).
+    NO_ENCONTRADA: {2, 3, 1801, 1167, 433, 31},
 }
 
 # Por si no hay código: los textos vienen en el idioma de Windows.
 _POR_TEXTO = (
     (RECHAZADA, ("refused", "denegó", "rechaz")),
-    (TIMEOUT, ("timed out", "no respondió", "tiempo de espera")),
+    (TIMEOUT, ("timed out", "write timeout", "no respondió", "tiempo de espera")),
     (NO_RESPONDE, ("no route", "unreachable", "inaccesible", "no accesible")),
     (ACCESO_DENEGADO, ("access is denied", "acceso denegado", "permissionerror")),
     (NO_ENCONTRADA, ("not found", "incorrect printer name", "no se encontr",
@@ -450,6 +463,9 @@ def probar(candidato, alias, comercio="", codigo=None, ahora=None,
             if job_id:
                 trabajo = TrabajoWindows(candidato.driver_config["printer_name"],
                                          job_id, win32print)
+
+        if hasattr(driver, "lpt_status"):
+            resultado.lpt = driver.lpt_status()
 
         if candidato.status_readable:
             resultado.estado_despues = leer_estado(driver, espera_estado)

@@ -101,13 +101,22 @@ def test_usbprint_guarda_la_identidad_y_no_la_ruta():
     assert candidate.connection == ps.USBPRINT
     assert candidate.driver_config == {
         "driver": "UsbPrint", "idVendor": "0x04b8", "idProduct": "0x0202",
-        "serial": "ABC123",
+        "serial_number": "ABC123",
     }
-    # La ruta cambia al enchufarla en otro USB: sirve para probarla, no se guarda.
+    # La ruta cambia al enchufarla en otro USB: con número de serie no se guarda.
     assert candidate.ubicacion == ruta
     assert ruta not in candidate.driver_config.values()
     assert candidate.stable_id == "usb:04b8:0202:ABC123"
     assert candidate.status_readable is True
+
+
+def test_usbprint_sin_serie_guarda_la_ruta_para_distinguir_dos_iguales():
+    ruta = r"\\?\usb#vid_0fe6&pid_811e#6&2c5b3a7&0&1#{28d78fad-5a12-11d1-ae5b-0000f803a8c2}"
+    candidate = PrinterCandidate.usbprint("0FE6", "811E", device_path=ruta)
+
+    assert candidate.driver_config["device_path"] == ruta
+    assert "serial_number" not in candidate.driver_config
+    assert candidate.stable_id == "usb:0fe6:811e@" + ruta.casefold()
 
 
 def test_serial_por_com_con_identidad_del_adaptador():

@@ -238,6 +238,47 @@ def test_si_no_se_puede_crear_el_driver_no_explota():
     assert resultado.problema == tp.RECHAZADA
 
 
+class PuertoComSinDsr:
+    """
+    Un COM cuya impresora (o cable) no levanta DSR: con el control de flujo que
+    python-escpos activa por defecto, pyserial no manda nada. Sin tope de
+    escritura, write() esperaría para siempre.
+    """
+
+    def __init__(self):
+        self.timeout = 1
+        self.write_timeout = None
+
+    def write(self, datos):
+        import serial
+        assert self.write_timeout is not None, "sin tope: la prueba se colgaría"
+        raise serial.SerialTimeoutException("Write timeout")
+
+    def read(self, n=1):
+        return b""
+
+
+class DriverSerieSinDsr(printer.Dummy):
+    def open(self, raise_not_found=True):
+        self.device = PuertoComSinDsr()
+
+    def _raw(self, msg):
+        self.device.write(msg)
+
+    def _read(self):
+        return self.device.read()
+
+
+def test_un_com_que_no_acepta_datos_no_cuelga_la_prueba():
+    pytest.importorskip("serial")
+    driver = DriverSerieSinDsr()
+    resultado = _probar(PrinterCandidate.serial("COM3"), driver)
+
+    assert driver.device.write_timeout == tp.ESPERA_ESCRITURA_SERIE
+    assert not resultado.exito_tecnico
+    assert resultado.problema == tp.TIMEOUT and resultado.accion
+
+
 # --------------------------------------------------------------------------
 # Cola de Windows: seguir el trabajo y no dejar tickets fantasma
 # --------------------------------------------------------------------------

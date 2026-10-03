@@ -152,16 +152,26 @@ class PrinterCandidate:
 
     @classmethod
     def usbprint(cls, vendor_id, product_id, serial="", device_path=""):
-        """USB clase impresora, directo por usbprint.sys (#183)."""
+        """
+        USB clase impresora, directo por usbprint.sys (#183).
+
+        Se guarda VID/PID/serie: la ruta del dispositivo incluye el puerto USB
+        y cambia al enchufarla en otro. Sin número de serie también se guarda
+        la ruta, porque es lo único que distingue dos impresoras iguales; si
+        la impresora cambia de puerto y es la única con ese VID/PID, el driver
+        la encuentra igual.
+        """
         vendor, product, serie = _usb_identidad(vendor_id, product_id, serial)
+        ubicacion = str(device_path or "").strip()
         config = {
             "driver": "UsbPrint",
             "idVendor": f"0x{vendor:04x}",
             "idProduct": f"0x{product:04x}",
         }
         if serie:
-            config["serial"] = serie
-        ubicacion = str(device_path or "").strip()
+            config["serial_number"] = serie
+        elif ubicacion:
+            config["device_path"] = ubicacion
         return cls._crear(
             USBPRINT,
             display_name=f"USB {vendor:04X}:{product:04X}",

@@ -53,7 +53,12 @@ a = Analysis(
         'fiscalberry.common.windows_queues',
         'fiscalberry.common.ticket_prueba',
         'fiscalberry.common.network_discovery',
+        'fiscalberry.common.usb_discovery',
+        'fiscalberry.common.usbprint_driver',
         'fiscalberry.common.discovery_report',
+        # Puertos COM (pyserial elige el backend de Windows al importarse).
+        'serial.tools.list_ports',
+        'serial.tools.list_ports_windows',
     ],
     hookspath=[],
     hooksconfig={},

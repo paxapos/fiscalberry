@@ -227,6 +227,25 @@ def _ensure_legacy_workers_started():
 
 
 
+_VERDADEROS = {"1", "true", "yes", "si", "sí", "on"}
+_FALSOS = {"0", "false", "no", "off", ""}
+
+
+def _como_bool(clave, valor):
+    """
+    Un sí/no del config.ini. Llega como texto, y bool("false") es True: un
+    `dsrdtr = false` terminaba ACTIVANDO el control de flujo.
+    """
+    if isinstance(valor, bool):
+        return valor
+    texto = str(valor).strip().lower()
+    if texto in _VERDADEROS:
+        return True
+    if texto in _FALSOS:
+        return False
+    raise DriverError(f"Valor inválido en la configuración: {clave}={valor!r}")
+
+
 def build_driver(driver_config):
     """
     Crea el driver de impresión para una configuración, sin leer ni escribir
@@ -249,6 +268,8 @@ def build_driver(driver_config):
     # candidato del asistente) no se toca.
     driverOps = dict(driver_config)
     driverName = str(driverOps.pop("driver", "Dummy")).lower()
+    # Drivers propios (no de python-escpos): cada rama asigna su clase.
+    driver_class = None
 
     # Metadatos de Fiscalberry, no parámetros del driver (ej. `_setup_id`, la
     # identidad con que el asistente guarda cada impresora).
@@ -291,12 +312,37 @@ def build_driver(driver_config):
     elif driverName == "Serial".lower():
         # printer.Serial(devfile='', baudrate=9600, bytesize=8, timeout=1, parity=None, stopbits=None, xonxoff=False, dsrdtr=True, *args, **kwargs)
         # Igual que en Network: del config.ini llega texto, y pyserial rechaza
-        # un timeout que no sea número.
-        if 'baudrate' in driverOps:
-            driverOps['baudrate'] = int(driverOps['baudrate'])
+        # un timeout, bytesize o stopbits que no sea número.
+        for clave in ('baudrate', 'bytesize'):
+            if clave in driverOps:
+                driverOps[clave] = int(driverOps[clave])
         if 'timeout' in driverOps:
             driverOps['timeout'] = float(driverOps['timeout'])
+        if 'stopbits' in driverOps:
+            bits = float(driverOps['stopbits'])        # 1, 1.5 o 2
+            driverOps['stopbits'] = int(bits) if bits.is_integer() else bits
+        for clave in ('xonxoff', 'dsrdtr'):
+            if clave in driverOps:
+                driverOps[clave] = _como_bool(clave, driverOps[clave])
         driverName = "Serial"
+
+    elif driverName == "UsbPrint".lower():
+        # USB directo por usbprint.sys (#183): solo existe en Windows. En otra
+        # plataforma, un error que diga eso y no "driver inválido".
+        if sys.platform != "win32":
+            raise DriverError("El driver UsbPrint solo está disponible en Windows")
+        from fiscalberry.common.usbprint_driver import UsbPrint
+        for clave in ('idVendor', 'idProduct'):
+            if clave in driverOps:
+                try:
+                    driverOps[clave] = int(str(driverOps[clave]), 16)
+                except ValueError:
+                    raise DriverError(
+                        f"Valor inválido en la configuración: {clave}={driverOps[clave]!r}")
+        if 'timeout' in driverOps:
+            driverOps['timeout'] = float(driverOps['timeout'])
+        driver_class = UsbPrint
+        driverName = "UsbPrint"
 
     elif driverName == "Bluetooth".lower():
         # Bluetooth printer for Android
@@ -339,11 +385,8 @@ def build_driver(driver_config):
     else:
         raise DriverError(f"Invalid driver: {driverName}")
     
-    # Manejar drivers custom (ej: Bluetooth) que ya tienen driver_class asignado
-    if driverName == "Bluetooth":
-        # Ya está configurado arriba con BluetoothPrinter
-        pass
-    else:
+    # Los drivers propios (Bluetooth, UsbPrint) ya tienen driver_class.
+    if driver_class is None:
         try:
             driver_class = getattr(printer, driverName)
             if not callable(driver_class):

@@ -140,6 +140,10 @@ if ($fisicos.Count -eq 0) { throw "El informe no encontró ningún adaptador de 
 foreach ($a in $fisicos) {
     if (-not ($a.address -as [ipaddress])) { throw "Dirección inválida en el adaptador '$($a.name)': $($a.address)" }
 }
+# SetupDi con DIGCF_ALLCLASSES siempre ve algún USB (al menos los hubs raíz,
+# también en una VM): un total vacío es que se leyó mal.
+if ($null -eq $datos.dispositivos_usb.total) { throw "El informe no trae la lista de dispositivos USB" }
+Write-Host "USB: $($datos.dispositivos_usb.total) dispositivos, usbprint: $(@($datos.usbprint).Count), COM: $(@($datos.puertos_com).Count)"
 
 # ---------------------------------------------------------------------------
 Paso "4. Actualización silenciosa con Fiscalberry abierto"

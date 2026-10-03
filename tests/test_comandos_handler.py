@@ -205,6 +205,26 @@ def test_serial_recibe_baudrate_y_timeout_como_numeros_y_sin_metadatos(monkeypat
     assert recibido == {"devfile": "COM3", "baudrate": 9600, "timeout": 2.0}
 
 
+@pytest.mark.parametrize("texto,valor", [("false", False), ("False", False), ("0", False),
+                                         ("no", False), ("true", True), ("1", True),
+                                         ("sí", True)])
+def test_serial_lee_los_si_no_del_config(texto, valor, monkeypatch):
+    """bool("false") es True: un `dsrdtr = false` activaba el control de flujo."""
+    recibido = {}
+    monkeypatch.setattr(CH.printer, "Serial", lambda **kw: recibido.update(kw) or object())
+    CH.build_driver({"driver": "Serial", "devfile": "COM3", "dsrdtr": texto,
+                     "xonxoff": texto, "bytesize": "7", "stopbits": "1.5"})
+    assert recibido["dsrdtr"] is valor and recibido["xonxoff"] is valor
+    assert recibido["bytesize"] == 7 and recibido["stopbits"] == 1.5
+
+
+def test_serial_con_un_si_no_invalido_es_un_error_claro(monkeypatch):
+    monkeypatch.setattr(CH.printer, "Serial", lambda **kw: object())
+    with pytest.raises(CH.DriverError, match="dsrdtr"):
+        CH.build_driver({"driver": "Serial", "devfile": "COM3", "dsrdtr": "quizas"})
+    assert CH.build_driver({"driver": "Serial", "devfile": "COM3", "stopbits": "2"})
+
+
 def test_network_recibe_el_timeout_del_config_como_numero(monkeypatch):
     """
     Del config.ini todo llega como texto. python-escpos le pasa `timeout` a

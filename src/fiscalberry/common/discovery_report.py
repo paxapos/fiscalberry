@@ -6,9 +6,9 @@ Lo que el asistente de impresoras ve en esta PC, en JSON.
 Solo lee: no barre la red, no abre impresoras ni imprime. Lo corre la prueba
 del instalador en un Windows real de la CI (sin impresoras) para comprobar que
 las APIs de Windows que el asistente llama por ctypes (GetAdaptersAddresses,
-GetIpNetTable) no revientan y devuelven datos con la forma esperada: un struct
-mal declarado no lo detecta ningún test en Linux. Soporte también lo puede
-pedir.
+GetIpNetTable, SetupDi de usbprint, cfgmgr32) no revientan y devuelven datos
+con la forma esperada: un struct mal declarado no lo detecta ningún test en
+Linux. Soporte también lo puede pedir.
 
 Cada sección se arma por separado: si una falla, queda su error y las demás
 siguen. El código de salida es 1 si alguna falló.
@@ -30,6 +30,30 @@ def _arp():
     return {"entradas": len(read_arp_table())}
 
 
+def _usbprint():
+    from fiscalberry.common.usb_discovery import list_usbprint_devices
+    # Sin abrir los dispositivos: el informe solo lee.
+    return [dict(ruta=d.device_path, ids=d.ids, con_serie=bool(d.serial), puerto=d.port_name,
+                 descripcion=d.bus_description)
+            for d in list_usbprint_devices(with_details=False)]
+
+
+def _dispositivos_usb():
+    if sys.platform != "win32":
+        return {}
+    from fiscalberry.common.usb_discovery import windows_usb_devices
+    dispositivos = windows_usb_devices()
+    return {"total": len(dispositivos),
+            "con_problema": sum(1 for d in dispositivos if d["problem"]),
+            "servicios": sorted({d["service"] for d in dispositivos if d["service"]})}
+
+
+def _puertos_com():
+    from fiscalberry.common.usb_discovery import list_serial_ports
+    return [dict(puerto=p.device, tipo=p.kind, descripcion=p.description)
+            for p in list_serial_ports()]
+
+
 def _colas_windows():
     if sys.platform != "win32":
         return []
@@ -45,6 +69,9 @@ def _colas_windows():
 SECTIONS = {
     "adaptadores": _adaptadores,
     "arp": _arp,
+    "usbprint": _usbprint,
+    "dispositivos_usb": _dispositivos_usb,
+    "puertos_com": _puertos_com,
     "colas_windows": _colas_windows,
 }
 
