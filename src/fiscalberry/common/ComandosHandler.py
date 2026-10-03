@@ -227,68 +227,33 @@ def _ensure_legacy_workers_started():
 
 
 
-def runTraductor(jsonTicket, queue):
-    printerName = jsonTicket.pop('printerName')
-    # jobId es metadata de dedup del spooler, no un comando: si quedara en el
-    # ticket, EscPComandos.run() lo tomaria como accion inexistente.
-    jsonTicket.pop('jobId', None)
+def build_driver(driver_config):
+    """
+    Crea el driver de impresión para una configuración, sin leer ni escribir
+    config.ini.
 
-    try:
-        dictSectionConf = configberry.get_config_for_printer(printerName)
-    except KeyError as e:
-        error_msg = f"Printer not found in configuration: '{printerName}'"
-        logger.error(error_msg)
-        
-        # Publicar error a RabbitMQ
-        publish_error(
-            error_type="PRINTER_NOT_FOUND",
-            error_message=error_msg,
-            context={
-                "printer_name": printerName,
-                "command": jsonTicket
-            },
-            exception=e
-        )
-        
-        return {"error": f"Impresora no encontrada: {printerName}"}
-    except Exception as e:
-        error_msg = f"Error reading printer configuration: '{printerName}' - {str(e)}"
-        logger.error(error_msg)
-        
-        # Publicar error a RabbitMQ
-        publish_error(
-            error_type="PRINTER_CONFIG_ERROR",
-            error_message=error_msg,
-            context={
-                "printer_name": printerName,
-                "command": jsonTicket
-            },
-            exception=e
-        )
-        
-        return {"error": f"Error de configuración: {str(e)}"}
+    Es el mismo camino para las impresoras guardadas (runTraductor) y para el
+    ticket de prueba del asistente, que prueba un candidato ANTES de guardarlo
+    (#172): lo que pasa la prueba es exactamente lo que después imprime.
 
+    Returns:
+        (driver, nombre_del_driver, opciones_usadas, columns)
 
-    driverName = dictSectionConf.pop("driver", "Dummy")
-    driverName = driverName.lower()
+    Raises:
+        DriverError si el driver no existe o no se puede crear.
+    """
+    if str(driver_config.get("driver", "")).lower() == "fiscalberry":
+        raise DriverError("El driver Fiscalberry no imprime directo en una impresora")
 
-    driverOps = dictSectionConf
+    # Copia: la configuración del llamador (una sección de config.ini o un
+    # candidato del asistente) no se toca.
+    driverOps = dict(driver_config)
+    driverName = str(driverOps.pop("driver", "Dummy")).lower()
+
     # Metadatos de Fiscalberry, no parámetros del driver (ej. `_setup_id`, la
     # identidad con que el asistente guarda cada impresora).
     for clave in [k for k in driverOps if k.startswith("_")]:
         driverOps.pop(clave)
-
-    if driverName == "Fiscalberry".lower():
-        try:
-            comando = FiscalberryComandos()
-            host = driverOps.get('host', 'localhost')
-            printerName = driverOps.get('printerName', printerName)
-            jsonTicket['printerName'] = printerName
-            result = comando.run(host, jsonTicket)
-            return queue.put(result)
-        except Exception as e:
-            logger.error(f"Error FiscalberryComandos: {e}")
-            return queue.put({"error": f"Error en FiscalberryComandos: {str(e)}"})
 
     if driverName == "Win32Raw".lower():
         driverName = "Win32Raw"
@@ -372,7 +337,7 @@ def runTraductor(jsonTicket, queue):
 
 
     else:
-        raise DriverError(f"Invalid driver: {driver}")
+        raise DriverError(f"Invalid driver: {driverName}")
     
     # Manejar drivers custom (ej: Bluetooth) que ya tienen driver_class asignado
     if driverName == "Bluetooth":
@@ -395,6 +360,69 @@ def runTraductor(jsonTicket, queue):
         driver = driver_class(**driverOps)
     except Exception as e:
         raise DriverError(f"Error creando driver {driverName}: {e}")
+
+    return driver, driverName, driverOps, columns
+
+
+def runTraductor(jsonTicket, queue):
+    printerName = jsonTicket.pop('printerName')
+    # jobId es metadata de dedup del spooler, no un comando: si quedara en el
+    # ticket, EscPComandos.run() lo tomaria como accion inexistente.
+    jsonTicket.pop('jobId', None)
+
+    try:
+        dictSectionConf = configberry.get_config_for_printer(printerName)
+    except KeyError as e:
+        error_msg = f"Printer not found in configuration: '{printerName}'"
+        logger.error(error_msg)
+        
+        # Publicar error a RabbitMQ
+        publish_error(
+            error_type="PRINTER_NOT_FOUND",
+            error_message=error_msg,
+            context={
+                "printer_name": printerName,
+                "command": jsonTicket
+            },
+            exception=e
+        )
+        
+        return {"error": f"Impresora no encontrada: {printerName}"}
+    except Exception as e:
+        error_msg = f"Error reading printer configuration: '{printerName}' - {str(e)}"
+        logger.error(error_msg)
+        
+        # Publicar error a RabbitMQ
+        publish_error(
+            error_type="PRINTER_CONFIG_ERROR",
+            error_message=error_msg,
+            context={
+                "printer_name": printerName,
+                "command": jsonTicket
+            },
+            exception=e
+        )
+        
+        return {"error": f"Error de configuración: {str(e)}"}
+
+
+    driverName = str(dictSectionConf.get("driver", "Dummy")).lower()
+
+    if driverName == "Fiscalberry".lower():
+        driverOps = {k: v for k, v in dictSectionConf.items()
+                     if k != "driver" and not k.startswith("_")}
+        try:
+            comando = FiscalberryComandos()
+            host = driverOps.get('host', 'localhost')
+            printerName = driverOps.get('printerName', printerName)
+            jsonTicket['printerName'] = printerName
+            result = comando.run(host, jsonTicket)
+            return queue.put(result)
+        except Exception as e:
+            logger.error(f"Error FiscalberryComandos: {e}")
+            return queue.put({"error": f"Error en FiscalberryComandos: {str(e)}"})
+
+    driver, driverName, driverOps, columns = build_driver(dictSectionConf)
 
     # ---- Modo RAW: el backend manda bytes ESC/POS ya renderizados ----
     # Permite cambiar cualquier formato (arqueo, comanda, etc.) deployando solo el

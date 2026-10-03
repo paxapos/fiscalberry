@@ -127,7 +127,10 @@ def run_selftest(ruta_reporte=None):
             from kivy.app import App  # noqa: F401
             import fiscalberry.ui.fiscalberry_app  # noqa: F401
             import fiscalberry.desktop.tray  # noqa: F401
+            # El asistente de impresoras (todavía sin pantalla): importarlo
+            # acá también hace que PyInstaller lo empaquete.
             import fiscalberry.common.windows_queues  # noqa: F401
+            import fiscalberry.common.ticket_prueba  # noqa: F401
         probar("módulos de la interfaz", _gui)
 
         # En Windows la X oculta la ventana en la bandeja: si pystray o Pillow
