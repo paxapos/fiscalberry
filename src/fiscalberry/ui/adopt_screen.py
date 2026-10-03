@@ -265,6 +265,9 @@ class AdoptScreen(Screen):
 
             nuevo = generate_device_uuid()
             configberry.set("SERVIDOR", {"uuid": nuevo})
+            # Si faltaba el uuid, el resto de [SERVIDOR] tampoco está: sin
+            # sio_host el discover no sabe a qué servidor registrar el equipo.
+            configberry.asegurar_claves_servidor()
             logger.info(f"UUID regenerado: {nuevo[:8]}...")
             return nuevo
         except Exception as e:
