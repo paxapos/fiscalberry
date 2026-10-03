@@ -12,7 +12,17 @@ import sys
 # Variantes soportadas.
 LINUX_GUI = "linux-gui"
 LINUX_CLI = "linux-cli"
+# La GUI de Windows ya no se actualiza con el zip: toda GUI congelada en
+# Windows usa WINDOWS_INSTALLER (FiscalberrySetup.exe), que pisa la versión
+# anterior completa, mantiene el desinstalador al día y migra las copias
+# portables a la carpeta instalada.
+#
+# WINDOWS_GUI queda SOLO por la transición: el zip se sigue publicando para que
+# las 3.6.x (que lo buscan con su propio código) reciban el updater nuevo, y el
+# test que compara estos nombres con el workflow evita que alguien lo saque
+# antes de tiempo. detect() ya no lo devuelve.
 WINDOWS_GUI = "windows-gui"
+WINDOWS_INSTALLER = "windows-installer"
 WINDOWS_CLI = "windows-cli"
 ANDROID = "android"
 SOURCE = "source"
@@ -21,6 +31,7 @@ ASSET_BY_KIND = {
     LINUX_GUI: "fiscalberry-linux-gui.tar.gz",
     LINUX_CLI: "fiscalberry-linux-cli.tar.gz",
     WINDOWS_GUI: "fiscalberry-windows-gui.zip",
+    WINDOWS_INSTALLER: "FiscalberrySetup.exe",
     WINDOWS_CLI: "fiscalberry-windows-cli.zip",
     ANDROID: "fiscalberry-android-gui.apk",
     # SOURCE no tiene asset: se actualiza desde el tarball de código del release.
@@ -31,6 +42,7 @@ BINARY_IN_ARCHIVE = {
     LINUX_GUI: "fiscalberry-gui",
     LINUX_CLI: "fiscalberry-cli",
     WINDOWS_GUI: "fiscalberry-gui.exe",
+    WINDOWS_INSTALLER: "fiscalberry-gui.exe",
     WINDOWS_CLI: "fiscalberry-cli.exe",
 }
 
@@ -78,7 +90,7 @@ def detect():
         # Instalado desde código: Raspberry, o un dev corriendo `pip install -e .`
         return SOURCE
     if sys.platform.startswith("win"):
-        return WINDOWS_GUI if is_gui() else WINDOWS_CLI
+        return WINDOWS_INSTALLER if is_gui() else WINDOWS_CLI
     return LINUX_GUI if is_gui() else LINUX_CLI
 
 
@@ -98,8 +110,13 @@ def app_dir_name(kind):
 
 
 def is_packaged(kind):
-    """True si esta variante se distribuye como carpeta empaquetada."""
-    return kind in (LINUX_GUI, LINUX_CLI, WINDOWS_GUI, WINDOWS_CLI)
+    """True si esta variante corre como binario empaquetado (no desde código)."""
+    return kind in (LINUX_GUI, LINUX_CLI, WINDOWS_GUI, WINDOWS_INSTALLER, WINDOWS_CLI)
+
+
+def uses_installer(kind):
+    """True si esta variante se actualiza corriendo FiscalberrySetup.exe."""
+    return kind == WINDOWS_INSTALLER
 
 
 def current_executable(kind):

@@ -21,6 +21,8 @@ logger = getLogger("Updater")
 
 DEFAULT_REPO = "paxapos/fiscalberry"
 API_URL = "https://api.github.com/repos/{repo}/releases/latest"
+# Descarga directa de un asset de un release ya publicado. No pasa por la API.
+DOWNLOAD_URL = "https://github.com/{repo}/releases/download/{tag}/{name}"
 HTTP_TIMEOUT = 20
 
 # Archivo de checksums que publica la CI junto a los binarios.
@@ -117,6 +119,10 @@ def fetch_latest(repo=DEFAULT_REPO, session=None):
     else:
         raise ReleaseUnavailable(f"GitHub respondió {resp.status_code}")
 
+    return _release_desde_json(data)
+
+
+def _release_desde_json(data):
     tag = data.get("tag_name") or ""
     assets = {}
     for a in data.get("assets") or []:
@@ -126,6 +132,22 @@ def fetch_latest(repo=DEFAULT_REPO, session=None):
                 "url": a.get("browser_download_url"),
                 "size": a.get("size"),
             }
+    return Release(tag=tag, version=tag.lstrip("vV"), assets=assets)
+
+
+def release_for_tag(tag, names, repo=DEFAULT_REPO):
+    """
+    Un release ya publicado, con las URLs de descarga directa de `names`.
+
+    No consulta la API de GitHub a propósito: sin autenticar, la API admite 60
+    consultas por hora por IP, y esa cuota la comparten todos los equipos del
+    local detrás del mismo router. Las descargas directas no la consumen. Si un
+    asset no existe, su descarga falla y quien lo pidió decide qué hacer.
+    """
+    assets = {
+        name: {"url": DOWNLOAD_URL.format(repo=repo, tag=tag, name=name), "size": None}
+        for name in names
+    }
     return Release(tag=tag, version=tag.lstrip("vV"), assets=assets)
 
 

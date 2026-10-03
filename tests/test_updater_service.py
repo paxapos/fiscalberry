@@ -41,6 +41,10 @@ def entorno(monkeypatch, tmp_path):
     """
     reg = Registro()
 
+    from fiscalberry.common.updater import commit_guard
+    monkeypatch.setattr(commit_guard, "_state_path",
+                        lambda: str(tmp_path / "update_pending.json"))
+
     # Instalación onedir: una CARPETA con el ejecutable y sus dependencias.
     destino = tmp_path / "inst" / "fiscalberry-cli"
     destino.mkdir(parents=True)
