@@ -84,6 +84,10 @@ def test_red_guarda_un_timeout_corto_y_lee_estado():
     ("192.168.1.80", 70000),
     ("192.168.1.80", "puerto"),
     ("fe80::1", 9100),
+    # No son la dirección de un equipo.
+    ("0.0.0.0", 9100),
+    ("224.0.0.1", 9100),
+    ("255.255.255.255", 9100),
 ])
 def test_red_rechaza_datos_invalidos(host, port):
     with pytest.raises(SetupValidationError):

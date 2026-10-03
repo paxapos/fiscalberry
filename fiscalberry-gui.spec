@@ -47,6 +47,13 @@ a = Analysis(
         'pystray',
         'pystray._win32',
         'PIL.Image',
+        # Asistente de impresoras. El selftest de la GUI los importa todos:
+        # tests/test_informe_descubrimiento.py exige que estén acá también.
+        'fiscalberry.common.printer_setup',
+        'fiscalberry.common.windows_queues',
+        'fiscalberry.common.ticket_prueba',
+        'fiscalberry.common.network_discovery',
+        'fiscalberry.common.discovery_report',
     ],
     hookspath=[],
     hooksconfig={},

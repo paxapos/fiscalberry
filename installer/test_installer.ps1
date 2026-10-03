@@ -6,11 +6,14 @@
 #   1. Instalación limpia en silencio: deja el programa, el desinstalador y el
 #      arranque con la sesión (--minimized).
 #   2. El binario INSTALADO pasa el selftest.
-#   3. Actualización silenciosa con Fiscalberry abierto: el setup espera a que
+#   3. El asistente de impresoras puede leer esta PC (--discovery-report):
+#      las APIs de Windows que llama por ctypes no revientan. Un struct mal
+#      declarado solo se ve en un Windows de verdad.
+#   4. Actualización silenciosa con Fiscalberry abierto: el setup espera a que
 #      se libere el mutex de instancia única antes de tocar archivos, y no
 #      borra el desinstalador.
-#   4. Con /RELAUNCH=1 el setup vuelve a abrir Fiscalberry.
-#   5. La desinstalación borra el programa y el arranque con la sesión, pero
+#   5. Con /RELAUNCH=1 el setup vuelve a abrir Fiscalberry.
+#   6. La desinstalación borra el programa y el arranque con la sesión, pero
 #      conserva el config.ini (la vinculación con el comercio).
 #
 # Detalles que no son obvios y que ya hicieron fallar esta prueba antes:
@@ -112,7 +115,34 @@ if (-not $contenido.Contains($esperado)) {
 }
 
 # ---------------------------------------------------------------------------
-Paso "3. Actualización silenciosa con Fiscalberry abierto"
+Paso "3. Lo que ve el asistente de impresoras"
+$informe = Join-Path $tmp "fiscalberry-discovery.json"
+# Sin -Wait: si una API de Windows se colgara, la prueba tiene que fallar, no
+# quedarse esperando hasta que GitHub corte el job.
+$proceso = Start-Process $exe -ArgumentList @("--discovery-report", "--report", "`"$informe`"") -PassThru
+$null = $proceso.Handle
+if (-not $proceso.WaitForExit(120000)) {
+    Stop-Process -Id $proceso.Id -Force -ErrorAction SilentlyContinue
+    throw "--discovery-report no terminó en 120 s"
+}
+$codigo = $proceso.ExitCode
+if (-not (Test-Path $informe)) { throw "--discovery-report no escribió el informe en $informe (código $codigo)" }
+$texto = Get-Content $informe -Raw -Encoding UTF8
+Write-Host $texto
+$datos = $texto | ConvertFrom-Json
+if ($codigo -ne 0 -or @($datos.fallas).Count -gt 0) {
+    throw "El informe del asistente tuvo fallas (código $codigo): $($datos.fallas -join ', ')"
+}
+# El runner tiene red: si no aparece ningún adaptador, GetAdaptersAddresses se
+# está leyendo mal.
+$fisicos = @($datos.adaptadores | Where-Object { $_.kind -eq "fisico" -and $_.up -and $_.prefix -gt 0 })
+if ($fisicos.Count -eq 0) { throw "El informe no encontró ningún adaptador de red físico con IPv4" }
+foreach ($a in $fisicos) {
+    if (-not ($a.address -as [ipaddress])) { throw "Dirección inválida en el adaptador '$($a.name)': $($a.address)" }
+}
+
+# ---------------------------------------------------------------------------
+Paso "4. Actualización silenciosa con Fiscalberry abierto"
 $arranquesAntes = ArranquesRegistrados
 $logActualizacion = Join-Path $tmp "fiscalberry-update.log"
 # Este mutex es el que tendría tomado un Fiscalberry abierto.
@@ -142,7 +172,7 @@ if (-not (Test-Path $uninstaller)) { throw "La actualización borró unins000.ex
 if (-not (Test-Path $exe)) { throw "La actualización dejó la instalación sin $exe" }
 
 # ---------------------------------------------------------------------------
-Paso "4. El setup volvió a abrir Fiscalberry"
+Paso "5. El setup volvió a abrir Fiscalberry"
 Esperar { (ArranquesRegistrados) -gt $arranquesAntes } 90 `
     "El setup no volvió a abrir Fiscalberry después de actualizar (/RELAUNCH=1)"
 Select-String -Path $logActualizacion -SimpleMatch "--minimized" -ErrorAction SilentlyContinue |
@@ -152,7 +182,7 @@ Get-Process -Name "fiscalberry-gui" -ErrorAction SilentlyContinue | Stop-Process
 Esperar { -not (MutexAbierto) } 30 "Fiscalberry no liberó el mutex después de cerrarlo"
 
 # ---------------------------------------------------------------------------
-Paso "5. Desinstalación"
+Paso "6. Desinstalación"
 $configs = @(CarpetasDeDatos | ForEach-Object {
         Get-ChildItem $_ -Recurse -Filter "config.ini" -ErrorAction SilentlyContinue
     })

@@ -47,6 +47,9 @@ _ESTADO_LEGIBLE = {
     USB: True,
 }
 
+# Puerto de impresión directa (RAW / JetDirect) de casi todas las térmicas.
+PUERTO_RAW = 9100
+
 # Python-escpos espera 60 s por defecto a que conecte una impresora de red: con
 # la impresora apagada, cada ticket colgaba un minuto la cola. Se guarda este.
 NETWORK_TIMEOUT_SEGUNDOS = 10
@@ -130,7 +133,7 @@ class PrinterCandidate:
         )
 
     @classmethod
-    def network(cls, host, port=9100):
+    def network(cls, host, port=PUERTO_RAW):
         address = _ipv4(host)
         port_value = _puerto(port)
         host_normalized = str(address)
@@ -227,6 +230,9 @@ def _ipv4(host):
         raise SetupValidationError("Ingresá una dirección IP válida") from error
     if address.version != 4:
         raise SetupValidationError("Por ahora se admite únicamente IPv4")
+    # 0.0.0.0, multicast y el broadcast de todas las redes no son de un equipo.
+    if address.is_unspecified or address.is_multicast or int(address) == 0xFFFFFFFF:
+        raise SetupValidationError("Esa dirección no puede ser una impresora")
     return address
 
 
@@ -238,6 +244,11 @@ def _puerto(port):
     if not 1 <= valor <= 65535:
         raise SetupValidationError("El puerto debe estar entre 1 y 65535")
     return valor
+
+
+def validar_direccion(host, port=PUERTO_RAW):
+    """(IPv4 normalizada, puerto) o SetupValidationError con el motivo."""
+    return str(_ipv4(host)), _puerto(port)
 
 
 def _usb_id(value, label):
@@ -285,7 +296,7 @@ def _id_usb(vendor, product, serie, ubicacion=""):
 # Diagnóstico rápido de red
 # --------------------------------------------------------------------------
 
-def probe_tcp(host, port=9100, timeout=PROBE_TIMEOUT_MAXIMO, conectar=None):
+def probe_tcp(host, port=PUERTO_RAW, timeout=PROBE_TIMEOUT_MAXIMO, conectar=None):
     """
     ¿Hay algo escuchando en host:port? Antes de imprimir, para explicar rápido.
 
