@@ -17,12 +17,20 @@ cambiarlos cuando sale una nueva.
 | Android | [fiscalberry-android-gui.apk](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-android-gui.apk) | — |
 
 En Windows, descargá y ejecutá `FiscalberrySetup.exe`. Se instala para el usuario
-actual, crea el acceso en el menú Inicio y queda configurado para arrancar
-minimizado con Windows. En el primer inicio, Fiscalberry muestra el enlace para
-iniciar sesión en Paxapos y elegir el comercio que querés vincular.
+actual (sin pedir permisos de administrador), crea el acceso en el menú Inicio y
+queda configurado para arrancar con Windows, oculto en la bandeja del sistema. En
+el primer inicio, Fiscalberry muestra el enlace para iniciar sesión en Paxapos y
+elegir el comercio que querés vincular.
+
+Cerrar la ventana con la X no detiene Fiscalberry: se oculta junto al reloj y
+sigue imprimiendo. Se vuelve a abrir tocando su ícono en la bandeja o abriéndolo
+de nuevo desde el menú Inicio, que nunca levanta una segunda copia. Para
+detenerlo de verdad, clic derecho en el ícono y **Salir (deja de imprimir)**.
+Las actualizaciones se instalan solas con el mismo instalador y conservan la
+vinculación con el comercio; desinstalarlo tampoco la borra.
 
 El ZIP de interfaz gráfica sigue disponible como alternativa portable para
-soporte técnico:
+soporte técnico (al actualizarse, pasa a la versión instalada):
 [fiscalberry-windows-gui.zip](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-windows-gui.zip).
 Hay que descomprimir la carpeta completa y ejecutar el binario desde adentro;
 si se mueve el ejecutable solo, no arranca.

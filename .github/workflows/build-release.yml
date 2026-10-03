@@ -257,65 +257,16 @@ jobs:
             throw "Inno Setup finalizó con código $LASTEXITCODE"
           }
 
-      # Instala de verdad en el runner, corre el selftest del binario INSTALADO
-      # y desinstala. Tres detalles que no son obvios:
-      #
-      # - fiscalberry-gui.exe es un ejecutable de subsistema GUI (console=False).
-      #   PowerShell NO espera a ese tipo de ejecutable cuando se lo invoca con
-      #   `&`, y tampoco asigna $LASTEXITCODE: el chequeo corría antes de que el
-      #   selftest terminara. Start-Process -Wait sí espera.
-      # - Kivy parsea sys.argv al importarse y, sin KIVY_NO_ARGS, aborta con
-      #   código 2 al ver `--selftest` (opción que no conoce). El updater le
-      #   pasa esa variable al selftest; acá hay que hacer lo mismo.
-      # - La marca de éxito es la de updater/selftest.py (OK_MARKER + versión),
-      #   no un texto parecido. Se exige la versión para que un instalador que
-      #   empaquetó otro build no pase.
+      # Prueba de punta a punta del instalador: instalación limpia, selftest del
+      # binario INSTALADO, actualización silenciosa con la app abierta (espera
+      # al mutex y relanza con /RELAUNCH=1) y desinstalación que conserva el
+      # config.ini. Ver installer/test_installer.ps1.
       - name: Test Windows Installer
         env:
           KIVY_NO_CONSOLELOG: 1
           KIVY_NO_ARGS: 1
           KIVY_GL_BACKEND: mock
-        run: |
-          $setup = (Resolve-Path "dist\FiscalberrySetup.exe").Path
-          $installDir = Join-Path $env:LOCALAPPDATA "Programs\Fiscalberry"
-          $report = Join-Path $env:RUNNER_TEMP "fiscalberry-installed-selftest.txt"
-          $esperado = "FISCALBERRY_SELFTEST_OK ${{ needs.version.outputs.version }}"
-
-          $install = Start-Process $setup -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
-          if ($install.ExitCode -ne 0) {
-            throw "El instalador finalizó con código $($install.ExitCode)"
-          }
-          if (-not (Test-Path "$installDir\fiscalberry-gui.exe")) {
-            throw "El instalador no dejó fiscalberry-gui.exe en $installDir"
-          }
-
-          $selftest = Start-Process "$installDir\fiscalberry-gui.exe" -ArgumentList "--selftest", "--report", "`"$report`"" -Wait -PassThru
-          if ($selftest.ExitCode -ne 0) {
-            throw "El selftest del binario instalado salió con código $($selftest.ExitCode)"
-          }
-          if (-not (Test-Path $report)) {
-            throw "El selftest no escribió el reporte en $report"
-          }
-          $contenido = Get-Content $report -Raw
-          Write-Host "--- reporte del selftest ---"
-          Write-Host $contenido
-          if (-not $contenido.Contains($esperado)) {
-            throw "El binario instalado no superó el selftest: se esperaba '$esperado'"
-          }
-
-          $uninstall = Start-Process "$installDir\unins000.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
-          if ($uninstall.ExitCode -ne 0) {
-            throw "El desinstalador finalizó con código $($uninstall.ExitCode)"
-          }
-          # El desinstalador de Inno corre en dos fases (se copia a %TEMP% y
-          # relanza la copia): se le da margen a la segunda para terminar.
-          $limite = (Get-Date).AddSeconds(60)
-          while ((Test-Path "$installDir\fiscalberry-gui.exe") -and ((Get-Date) -lt $limite)) {
-            Start-Sleep -Seconds 2
-          }
-          if (Test-Path "$installDir\fiscalberry-gui.exe") {
-            throw "La desinstalación de prueba no se completó: sigue existiendo $installDir\fiscalberry-gui.exe"
-          }
+        run: ./installer/test_installer.ps1 -Version "${{ needs.version.outputs.version }}"
 
       # Los builds son ONEDIR: dist/fiscalberry-gui es una CARPETA (ejecutable +
       # _internal), no un .exe suelto. Se comprime la carpeta entera.
