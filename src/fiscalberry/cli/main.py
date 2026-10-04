@@ -7,6 +7,12 @@ import os
 
 # Solo imports livianos al inicio
 from fiscalberry.common.Configberry import Configberry
+from fiscalberry.common.fiscalberry_logger import setup_file_logging
+
+# Log a archivo, igual que la GUI y el servicio de Android: los tres escriben el
+# mismo archivo rotativo, con su rol y PID en cada línea. Sin esto el CLI —que es
+# el que corre en las Raspberry— era el único que no dejaba rastro en disco.
+setup_file_logging(role="cli")
 
 # Variable global para reintentos (estilo v1.0.26)
 cantRetries = 0
@@ -107,9 +113,30 @@ def wait_for_adoption(uuid_value, host):
 def main():
     """Función principal que ejecuta el controlador de servicios."""
     global cantRetries
-    
+
+    # --selftest / --apply-update / --version terminan el proceso acá: no son
+    # arranques normales del servidor.
+    from fiscalberry.common.updater.cli_modes import handle_early_modes
+    handle_early_modes()
+
     print("Iniciando Fiscalberry Server")
-    
+
+    # Reversión automática: si la versión anterior se actualizó y nunca llegó a
+    # confirmar que levantaba, volvemos al binario que sí funcionaba.
+    try:
+        from fiscalberry.common.updater.service import on_process_start
+        on_process_start()
+    except Exception as e:
+        print(f"Aviso: no se pudo evaluar el estado de actualizacion: {e}")
+
+    # Instancia única por máquina: dos fiscalberry con el mismo config.ini
+    # comparten client id MQTT y se patean mutuamente contra el broker.
+    from fiscalberry.common.single_instance import acquire_single_instance_lock
+    if not acquire_single_instance_lock():
+        print("ERROR: ya hay otro Fiscalberry corriendo en esta maquina.")
+        print("Detene el que esta corriendo (ej: systemctl stop fiscalberry) y volve a intentar.")
+        sys.exit(1)
+
     # Verificar si el comercio está adoptado
     configberry = Configberry()
     

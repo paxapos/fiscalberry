@@ -8,11 +8,15 @@ Permite que RabbitMQ y SocketIO funcionen en segundo plano
 incluso cuando la app no está en primer plano.
 """
 
-from time import sleep
+from time import sleep, monotonic
 import os
 import sys
 
-from fiscalberry.common.fiscalberry_logger import getLogger
+from fiscalberry.common.fiscalberry_logger import getLogger, setup_file_logging
+
+# A archivo desde el arranque: este proceso no tiene UI y sus logs solo irían a
+# logcat, invisible para el usuario. La pantalla "Ver Logs" lee este archivo.
+setup_file_logging(role="service")
 logger = getLogger("AndroidService")
 
 from fiscalberry.common.service_controller import ServiceController
@@ -182,10 +186,11 @@ def show_foreground_notification():
         if ANDROID_API_LEVEL >= 34:
             try:
                 ServiceInfo = autoclass('android.content.pm.ServiceInfo')
-                foreground_types = (
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC | 
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
-                )
+                # Debe coincidir con el foregroundServiceType del manifest
+                # (p4a_hooks/manifest_hook.py) o startForeground lanza excepción.
+                # NO agregar DATA_SYNC: en API 35 tiene límite de 6h/día y este
+                # servicio es 24/7. Ver el comentario del hook.
+                foreground_types = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
                 service.startForeground(1, notification, foreground_types)
             except:
                 service.startForeground(1, notification)
@@ -217,7 +222,7 @@ def run_service_logic():
     
     try:
         configberry = Configberry()
-        
+
         # Esperar adopción si es necesario
         if not configberry.is_comercio_adoptado():
             logger.debug("Comercio no adoptado. Esperando adopción...")
@@ -226,31 +231,64 @@ def run_service_logic():
                 if configberry.is_comercio_adoptado():
                     logger.info("Comercio adoptado exitosamente")
                     break
-        
-        # Iniciar servicios
+
+        # Loop de vida del servicio con retry + backoff. Antes, cualquier
+        # excepción (config a medias, red caída al arrancar, etc.) terminaba
+        # el proceso Python y dejaba la notificación "Fiscalberry Activo"
+        # zombie: ícono visible, cero MQTT/SocketIO detrás. El servicio NUNCA
+        # debe morir por un error transitorio: reintenta para siempre.
         logger.info("Comercio adoptado. Iniciando servicios...")
-        service_controller = ServiceController()
-        
-        logger.debug("Iniciando controlador de servicios...")
-        service_controller.start()
-        logger.debug("Controlador de servicios iniciado exitosamente")
-        
-        # Mantener servicio activo
+        backoff = 5
         while True:
-            sleep(60)
-            
+            started_at = monotonic()
+            try:
+                service_controller = ServiceController()
+
+                logger.debug("Iniciando controlador de servicios...")
+                # Bloqueante: solo retorna si su loop interno de reconexión corta.
+                service_controller.start()
+                logger.warning("ServiceController.start() retornó inesperadamente")
+            except Exception as e:
+                logger.error(f"Error en servicio: {e}", exc_info=True)
+            finally:
+                # SIEMPRE frenar y esperar a los hilos ANTES de reciclar, incluso
+                # si start() retornó sin excepción. El orden importa: los hilos
+                # viejos leen self._stop_event del singleton, así que si se
+                # resetea antes de que mueran pasan a mirar el evento nuevo (en
+                # limpio), nunca ven el stop y siguen vivos — dos consumers MQTT
+                # con el mismo client id peleándose contra el broker.
+                if service_controller:
+                    try:
+                        # NO usar stop(): en este proceso (sin Kivy) cae en
+                        # stop_for_cli(), que hace sys.exit(0) y mata el servicio.
+                        service_controller._stop_services_only()
+                    except Exception as stop_err:
+                        logger.error(f"Error al detener servicios: {stop_err}")
+
+            # Recién ahora que los hilos murieron, estado limpio para la próxima.
+            ServiceController.reset_singleton()
+            service_controller = None
+
+            if monotonic() - started_at > 600:
+                # Corrió estable un buen rato: el problema es nuevo, resetear backoff.
+                backoff = 5
+            logger.warning(f"Reiniciando servicios en {backoff}s...")
+            sleep(backoff)
+            backoff = min(backoff * 2, 300)
+
     except KeyboardInterrupt:
         logger.debug("Interrupción detectada")
     except Exception as e:
-        logger.error(f"Error en servicio: {e}", exc_info=True)
+        logger.error(f"Error fatal en servicio: {e}", exc_info=True)
     finally:
         if service_controller:
             try:
-                service_controller.stop()
+                # _stop_services_only y no stop(): ver comentario de arriba.
+                service_controller._stop_services_only()
                 logger.info("Servicios detenidos correctamente")
             except Exception as e:
                 logger.error(f"Error al detener: {e}")
-        
+
         release_hardware_locks()
         logger.info("=== Finalizando Fiscalberry Android Service ===")
 

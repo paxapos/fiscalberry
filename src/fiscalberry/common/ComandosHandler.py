@@ -47,6 +47,17 @@ class TraductorException(Exception):
     pass
 
 
+class PrintJobError(Exception):
+    """
+    Falló la impresión de un trabajo del spooler.
+
+    Existe porque runTraductor a veces DEVUELVE el error en vez de lanzarlo
+    (impresora no configurada, config inválida) y el spooler solo interpreta
+    excepciones: sin convertirlo, daba el ticket por impreso y lo descartaba.
+    """
+    pass
+
+
 # Cola de trabajos de impresión optimizada - mayor capacidad y procesamiento más rápido  
 print_queue = Queue(maxsize=500)  # Aumentar capacidad para mayor throughput
 
@@ -446,6 +457,15 @@ def _spooler_print_fn(ticket):
 
     try:
         result = runTraductor(dict(ticket), Queue())
+
+        # runTraductor no siempre lanza: ante "impresora no encontrada" o un
+        # error de configuración DEVUELVE {"error": ...}. El spooler solo
+        # entiende excepciones, así que sin esto daba el trabajo por "impreso
+        # OK" y lo descartaba: el ticket se perdía en silencio y jamás se
+        # reintentaba, ni siquiera después de configurar la impresora.
+        if isinstance(result, dict) and result.get("error"):
+            raise PrintJobError(str(result["error"]))
+
         if printer_name:
             breaker.record_success(printer_name)
         return result
@@ -464,6 +484,27 @@ def get_print_spooler():
                 from fiscalberry.common.print_spooler import DurablePrintSpooler
                 _print_spooler = DurablePrintSpooler(_spooler_print_fn)
     return _print_spooler
+
+
+def shutdown_print_spooler():
+    """Cierra el spooler durable de forma ordenada, si llegó a crearse.
+
+    NO lo instancia si nunca se usó (evita crear un .db solo para cerrarlo).
+    Pensado para invocarse al detener el servicio (SIGTERM/stop): antes el
+    proceso terminaba con `os._exit()` sin tocar el spooler en absoluto (ver
+    issue fiscalberry#165, propuesta 3). Con PRAGMA synchronous=FULL los jobs
+    ya son durables sin este cierre ordenado, pero cerrar bien evita dejar el
+    WAL creciendo entre reinicios frecuentes (ej. auto-actualización).
+    """
+    global _print_spooler
+    with _print_spooler_lock:
+        sp = _print_spooler
+        _print_spooler = None
+    if sp is not None:
+        try:
+            sp.stop()
+        except Exception as e:
+            logger.debug("Error deteniendo el spooler durable: %s", e)
 
 
 def _is_sync_print_mode():
@@ -735,6 +776,18 @@ class ComandosHandler:
             elif 'removerImpresora' in jsonTicket:
                 rta["rta"] = self._removerImpresora(
                     jsonTicket["removerImpresora"])
+
+            # Acciones sobre la cola del spooler durable (issue #166): el
+            # equipo puede correr headless (CLI, sin GUI), así que el aviso
+            # visual no alcanza para toda la flota. Estos dos comandos son el
+            # "endpoint para drenar o descartar" operable de forma remota
+            # (server -> SIO/MQTT -> acá), guiado por los contadores que ya
+            # viajan por heartbeat/getStatus.
+            elif 'imprimirPendientes' in jsonTicket:
+                rta["rta"] = self._imprimirPendientes()
+
+            elif 'descartarPendientes' in jsonTicket:
+                rta["rta"] = self._descartarPendientes()
             else:
                 raise TraductorException("No se pasó un comando válido")
 
@@ -824,6 +877,41 @@ class ComandosHandler:
             else:
                 rta["rta"][tradu] = "OFFLINE"
         return rta
+
+    def _imprimirPendientes(self):
+        """Comando remoto 'imprimir todos' (issue #166): reintenta la cola.
+
+        Re-encola los 'failed' (dead-letter) para que el worker del spooler
+        los retome de inmediato. `requeue_failed()` ya existía pero nadie la
+        llamaba desde ningún comando: era código muerto.
+        """
+        spooler = get_print_spooler()
+        n = spooler.requeue_failed()
+        return {
+            "action": "imprimirPendientes",
+            "rta": {
+                "requeued": n,
+                "pending_count": spooler.pending_count(),
+                "failed_count": spooler.failed_count(),
+            },
+        }
+
+    def _descartarPendientes(self):
+        """Comando remoto 'descartar' (issue #166): vacía la cola sin imprimir.
+
+        Destructivo a propósito: se tiran comprobantes fiscales y comandas
+        sin imprimir. `discard_all()` deja constancia en el log (WARNING).
+        """
+        spooler = get_print_spooler()
+        n = spooler.discard_all()
+        return {
+            "action": "descartarPendientes",
+            "rta": {
+                "discarded": n,
+                "pending_count": spooler.pending_count(),
+                "failed_count": spooler.failed_count(),
+            },
+        }
 
     def _handleSocketError(self, err, jsonTicket, traductor):
         logging.error(format(err))

@@ -5,7 +5,7 @@
 <AdoptScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(20)
+        padding: [dp(20), dp(20) + app.inset_top, dp(20), dp(20) + app.inset_bottom]
         spacing: dp(20)
         canvas.before:
             Color:
@@ -27,8 +27,7 @@
                 source: app.logo_image
                 size_hint_y: None
                 height: dp(60)
-                allow_stretch: True
-                keep_ratio: True
+                fit_mode: 'contain'
                 
             Label:
                 text: "Vincula tu dispositivo con Paxapos"
@@ -62,7 +61,8 @@
                     halign: 'center'
                 
                 Button:
-                    text: "Abrir vinculación"
+                    text: "Registrando dispositivo..." if root.registrando else "Abrir vinculación"
+                    disabled: root.registrando
                     size_hint_y: None
                     height: dp(60)
                     background_color: 0.2, 0.4, 0.8, 1
@@ -78,7 +78,33 @@
                     height: dp(40)
                     halign: 'center'
                     text_size: self.width, None
-                
+
+                # Solo aparece si la vinculación no se pudo preparar. Antes, sin
+                # uuid, el botón de arriba se veía normal pero llevaba a un error
+                # 500 del servidor, sin ninguna explicación para el usuario.
+                Label:
+                    text: root.linkError
+                    opacity: 1 if root.linkError else 0
+                    size_hint_y: None
+                    height: self.texture_size[1] if root.linkError else 0
+                    font_size: '13sp'
+                    color: 0.8, 0.1, 0.1, 1
+                    halign: 'center'
+                    text_size: self.width, None
+
+                # Los logs solo se podían ver DESPUÉS de vincular, que es justo
+                # cuando ya no hacen falta: si la vinculación falla, no había
+                # forma de ver por qué desde el dispositivo.
+                Button:
+                    text: "Ver registro"
+                    size_hint_y: None
+                    height: dp(40)
+                    font_size: '13sp'
+                    background_normal: ''
+                    background_color: 0.85, 0.85, 0.9, 1
+                    color: 0.1, 0.2, 0.5, 1
+                    on_press: root.ir_a_logs()
+
                 Widget:
             
             # Lado derecho - QR
@@ -107,8 +133,7 @@
                         size_hint: None, None
                         size: dp(160), dp(160)
                         pos_hint: {'center_x': 0.5, 'center_y': 0.5}
-                        allow_stretch: True
-                        keep_ratio: True
+                        fit_mode: 'contain'
                         
                     # Loading fallback
                     Label:
@@ -188,7 +213,7 @@
 <LoginScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: 20
+        padding: [dp(20), dp(20) + app.inset_top, dp(20), dp(20) + app.inset_bottom]
         spacing: 15
         canvas.before:
             Color:
@@ -202,8 +227,7 @@
             source: app.logo_image
             size_hint_y: None
             height: 96
-            allow_stretch: True
-            keep_ratio: True
+            fit_mode: 'contain'
 
 
         Label:
@@ -286,7 +310,7 @@
 <MainScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(28)
+        padding: [dp(28), dp(28) + app.inset_top, dp(28), dp(28) + app.inset_bottom]
         spacing: dp(14)
         canvas.before:
             Color:
@@ -433,7 +457,7 @@
 <LogScreen>:
     BoxLayout:
         orientation: 'vertical'
-        padding: dp(15)
+        padding: [dp(15), dp(15) + app.inset_top, dp(15), dp(15) + app.inset_bottom]
         spacing: dp(10)
         canvas.before:
             Color:
@@ -466,7 +490,9 @@
                 background_normal: ''
                 background_color: 0, 0, 0, 0
                 color: 0.1, 0.2, 0.5, 1
-                on_press: app.root.current = "main"
+                # Vuelve a donde se entró: 'main' no existe como destino válido
+                # si el comercio todavía no está vinculado.
+                on_press: app.root.current = root.volver_a
 
             Label:
                 text: "Logs en Tiempo Real"

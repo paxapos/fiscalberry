@@ -26,6 +26,9 @@ class FakeSpooler:
     def __init__(self):
         self.calls = []
         self._jobs = set()
+        self.requeue_failed_calls = 0
+        self.discard_all_calls = 0
+        self._failed = set()
 
     def enqueue(self, job_id, ticket, printer_name=None):
         self.calls.append((job_id, ticket, printer_name))
@@ -37,7 +40,23 @@ class FakeSpooler:
         return len(self._jobs)
 
     def failed_count(self):
-        return 0
+        return len(self._failed)
+
+    def requeue_failed(self):
+        """Simula mover 'failed' -> 'pending' (issue #166, 'imprimir todos')."""
+        self.requeue_failed_calls += 1
+        n = len(self._failed)
+        self._jobs |= self._failed
+        self._failed.clear()
+        return n
+
+    def discard_all(self):
+        """Simula vaciar 'pending' + 'failed' (issue #166, 'descartar')."""
+        self.discard_all_calls += 1
+        n = len(self._jobs) + len(self._failed)
+        self._jobs.clear()
+        self._failed.clear()
+        return n
 
 
 @pytest.fixture
@@ -135,3 +154,79 @@ def test_jobid_is_stripped_before_translating(monkeypatch):
     assert "printTexto" in actions
     assert "jobId" not in actions
     assert not any(item.get("rta") == "Function not found" for item in resp["result"])
+
+
+# ---------------------------------------------------------------------------
+# Issue #166: comandos remotos "imprimir todos" / "descartar" sobre la cola.
+# ---------------------------------------------------------------------------
+
+def test_imprimir_pendientes_command_requeues_failed(fake_spooler):
+    fake_spooler._failed.add("job-failed-1")
+
+    handler = CH.ComandosHandler()
+    resp = handler.send_command({"imprimirPendientes": True})
+
+    assert fake_spooler.requeue_failed_calls == 1
+    # Mismo formato que el resto de los comandos genéricos (getStatus, etc.):
+    # {"rta": {"action": ..., "rta": {...datos...}}}
+    action_response = resp["rta"]
+    assert action_response["action"] == "imprimirPendientes"
+    r = action_response["rta"]
+    assert r["requeued"] == 1
+    assert r["pending_count"] == 1
+    assert r["failed_count"] == 0
+
+
+def test_descartar_pendientes_command_discards_everything(fake_spooler):
+    fake_spooler.enqueue("job-1", {"a": 1}, "cocina")
+    fake_spooler._failed.add("job-failed-1")
+
+    handler = CH.ComandosHandler()
+    resp = handler.send_command({"descartarPendientes": True})
+
+    assert fake_spooler.discard_all_calls == 1
+    action_response = resp["rta"]
+    assert action_response["action"] == "descartarPendientes"
+    r = action_response["rta"]
+    assert r["discarded"] == 2
+    assert r["pending_count"] == 0
+    assert r["failed_count"] == 0
+
+
+def test_imprimir_pendientes_with_nothing_pending_is_a_noop(fake_spooler):
+    handler = CH.ComandosHandler()
+    resp = handler.send_command({"imprimirPendientes": True})
+
+    r = resp["rta"]["rta"]
+    assert r["requeued"] == 0
+    assert r["pending_count"] == 0
+    assert r["failed_count"] == 0
+
+
+def test_shutdown_print_spooler_stops_and_clears_singleton_if_created(fake_spooler):
+    """shutdown_print_spooler() (cierre ordenado, issue #165 propuesta 3) debe
+    llamar a stop() sobre el spooler existente y dejar el singleton en None,
+    sin crear uno nuevo si nunca se usó."""
+    fake_spooler.stop_calls = 0
+    fake_spooler.stop = lambda: setattr(
+        fake_spooler, "stop_calls", fake_spooler.stop_calls + 1)
+
+    CH.shutdown_print_spooler()
+
+    assert fake_spooler.stop_calls == 1
+    assert CH._print_spooler is None
+
+
+def test_shutdown_print_spooler_is_noop_when_never_created(monkeypatch):
+    """Si nunca se llamó a get_print_spooler(), shutdown_print_spooler() no
+    debe instanciar uno (evita crear un .db real solo para cerrarlo)."""
+    monkeypatch.setattr(CH, "_print_spooler", None)
+    created = []
+    monkeypatch.setattr(
+        CH, "get_print_spooler",
+        lambda: created.append(True) or None)
+
+    CH.shutdown_print_spooler()
+
+    assert created == []
+    assert CH._print_spooler is None

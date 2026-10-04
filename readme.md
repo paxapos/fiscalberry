@@ -3,12 +3,35 @@
 
 Para enviar un JSON (mediante websocket), que fiscalberry lo reciba, lo transforme en un conjunto de comandos compatible con la impresora instalada, conecte con la impresora y responda al websocket con la respuesta que nos envió la impresora.
 
-Descarga la última versión socketio para windows
+# Descargas
 
-[fiscalberry-win]([https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-win.exe))
+**Página de descargas: <https://github.com/paxapos/fiscalberry/releases/latest>**
 
-Para Linux
-[fiscalberry-lin]([https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-lin))
+Estos enlaces apuntan **siempre a la última versión publicada**; no hace falta
+cambiarlos cuando sale una nueva.
+
+| Sistema | Con interfaz gráfica | Solo consola |
+| --- | --- | --- |
+| Windows | [fiscalberry-windows-gui.zip](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-windows-gui.zip) | [fiscalberry-windows-cli.zip](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-windows-cli.zip) |
+| Linux | [fiscalberry-linux-gui.tar.gz](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-linux-gui.tar.gz) | [fiscalberry-linux-cli.tar.gz](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-linux-cli.tar.gz) |
+| Android | [fiscalberry-android-gui.apk](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-android-gui.apk) | — |
+
+Cada archivo trae **una carpeta** con el ejecutable y sus dependencias al lado.
+Hay que descomprimirla y ejecutar el binario **desde adentro de esa carpeta**:
+si se mueve el ejecutable solo, no arranca.
+
+Para verificar la descarga:
+[SHA256SUMS](https://github.com/paxapos/fiscalberry/releases/latest/download/SHA256SUMS)
+
+```sh
+sha256sum -c SHA256SUMS --ignore-missing
+```
+
+Una vez instalado **no hace falta volver a descargar nada**: Fiscalberry se
+actualiza solo. Ver [Actualización automática](#actualización-automática).
+
+Los binarios de Linux se compilan en Ubuntu 22.04, así que corren en esa
+versión y en cualquiera más nueva.
 
 Para Raspberry pi (ARM) no hay binario precompilado (PyInstaller no hace
 cross-compile a ARM): se instala desde código y se corre el CLI.
@@ -93,7 +116,15 @@ Action**, no hace falta crearlo a mano.
 - `version.py` es la **única fuente de verdad** de la versión; no la edites a mano,
   usá `bump-my-version`.
 - También se puede disparar manualmente desde la pestaña **Actions → Build and
-  Release Fiscalberry → Run workflow** (`workflow_dispatch`).
+  Release Fiscalberry → Run workflow** (`workflow_dispatch`). Si la versión ya
+  está publicada, compila todo pero no publica nada: sirve para probar el build.
+- **Si falla el build de Android, el release se publica igual sin el APK**, con
+  un aviso arriba de las notas. Mientras tanto los equipos Android no se
+  actualizan y el link de descarga del APK da 404. Arreglado el build, se
+  completa con **Run workflow** sobre `v3.0.x` poniendo en `completar_tag` el
+  tag del release (ej. `v3.6.7`): compila Android con el código de ese tag, sube
+  el APK, agrega su línea a `SHA256SUMS` y saca el aviso. No toca los binarios
+  de Linux ni Windows.
 
 
 # ¿Qué es?
@@ -236,3 +267,72 @@ Aquellos que son un mensaje directo de algun dispositivo conectado, vienen con "
 #### NOTA
 
 Deberás enviar JSON válidos al servidor. Recomendamos usar la pagina <http://jsonlint.com/> para verificar como tu programa esta generando los JSON.
+
+# Licencia
+
+Fiscalberry se distribuye bajo licencia [MIT](LICENSE). Podés usarlo, modificarlo
+y redistribuirlo —incluso en productos comerciales— conservando el aviso de copyright.
+
+Las dependencias del proyecto son todas permisivas (MIT/BSD), con una excepción:
+el extra `python-escpos[all]` arrastra `pycups`, que es GPLv2+. Solo lo usa el
+driver CUPS; si necesitás empaquetar sin código GPL, instalá `python-escpos` sin
+el extra `[all]` y usá el driver `LP` en su lugar.
+
+# Actualización automática
+
+Desde la 3.5.0 Fiscalberry se actualiza solo. Funciona en Linux, Windows,
+Raspberry (instalación desde código) y Android.
+
+## Cómo decide qué versión instalar
+
+La regla no es "actualizar si hay algo más nuevo" sino **tener instalado
+exactamente lo que dice el último release** de GitHub. La diferencia importa:
+si una versión sale mala, **borrar ese release en GitHub hace que toda la flota
+vuelva sola a la anterior**, sin tocar ningún dispositivo. Es el botón de pánico.
+
+Los *prereleases* quedan afuera automáticamente, así que se pueden publicar
+builds de prueba sin que los dispositivos los agarren.
+
+## Qué verifica antes de instalar
+
+1. **Checksum**: el release publica un `SHA256SUMS` y el archivo descargado
+   tiene que coincidir. Si un release no lo trae, no se actualiza.
+2. **Que el binario arranque**: se ejecuta el binario nuevo con `--selftest`
+   (importa los módulos pesados, lee la config, abre la base del spooler) y
+   solo se instala si sale limpio. Compilar no prueba que arranque.
+3. **Que no haya impresiones pendientes**: nunca se actualiza con la cola
+   ocupada. Actualizar con un ticket en vuelo es perder el ticket.
+
+## Si la versión nueva no levanta
+
+Antes de reemplazar el binario se guarda el anterior. Si la versión nueva no
+llega a conectar el servicio en 3 arranques seguidos, **se revierte sola** al
+binario que funcionaba. El local no queda sin imprimir.
+
+## Diferencias por plataforma
+
+| | Cómo se aplica | Automático |
+| --- | --- | --- |
+| Linux / Raspberry | Reemplazo atómico del binario, reinicia systemd | Sí |
+| Windows | El binario nuevo hace de ayudante y se reemplaza tras cerrarse | Sí |
+| Android | Abre el instalador del sistema | Requiere un toque del usuario |
+
+En Android **no existe** la instalación silenciosa fuera de Play Store, ni la
+reversión automática: son límites del sistema operativo.
+
+## Configuración
+
+En el `config.ini`, sección opcional:
+
+```ini
+[Updater]
+enabled = true              ; false para desactivarlo
+check_interval_hours = 6    ; mínimo efectivo: 10 minutos
+```
+
+## Comandos útiles
+
+```sh
+fiscalberry_cli --version    # qué versión es ésta
+fiscalberry_cli --selftest   # ¿este binario arranca bien?
+```
