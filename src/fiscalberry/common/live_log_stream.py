@@ -222,6 +222,8 @@ class LiveLogStreamManager:
         self._on_idle = None
         self._tenant = ""
         self._uuid = ""
+        # Las perdidas son de las sesiones que se cerraron: la proxima no las hereda.
+        self._dropped_count = 0
 
         for pending in (self._pending, self._snapshots):
             while True:

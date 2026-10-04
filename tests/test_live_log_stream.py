@@ -265,3 +265,29 @@ def test_stream_incluye_el_traceback_de_logger_exception():
     assert "Traceback" in entry["exception"]
     assert "impresora sin papel" in entry["exception"]
     manager.stop_session("session-1")
+
+
+def test_las_perdidas_de_una_sesion_cerrada_no_pasan_a_la_siguiente():
+    manager = LiveLogStreamManager()
+    published = []
+    logger = logging.getLogger("test.live.dropped_reset")
+    manager.start_session(
+        "vieja", "resto", "uuid-1", lambda topic, payload, qos: False, snapshot_lines=0
+    )
+    logger.error("se pierde")
+    assert _wait_until(lambda: manager._dropped_count > 0)
+    manager.stop_session("vieja")
+
+    manager.start_session(
+        "nueva",
+        "resto",
+        "uuid-1",
+        lambda topic, payload, qos: published.append(json.loads(payload)) or True,
+        snapshot_lines=0,
+    )
+    logger.error("llega")
+    assert _wait_until(
+        lambda: any(e["message"] == "llega" for b in published for e in b["entries"])
+    )
+    assert all(batch["droppedCount"] == 0 for batch in published)
+    manager.stop_session("nueva")
