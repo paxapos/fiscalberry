@@ -55,6 +55,14 @@ class FakeSioClient:
 
         return decorator
 
+    def on(self, event, namespace=None):
+        # Eventos cuyo nombre no es un identificador Python (paxaprinter:logs:start).
+        def decorator(fn):
+            self.handlers[event] = fn
+            return fn
+
+        return decorator
+
     def connect(self, *a, **k):
         if self.connected:
             raise Exception("Already connected")

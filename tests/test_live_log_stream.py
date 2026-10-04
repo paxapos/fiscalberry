@@ -149,4 +149,119 @@ def test_stream_accepts_null_snapshot_lines():
         lambda topic, payload, qos: published.append(json.loads(payload)),
         snapshot_lines=None,
     )
+    assert _wait_until(lambda: len(published) >= 1)
     assert published[0]["entries"] == []
+
+
+def test_start_session_no_bloquea_aunque_el_publisher_tarde():
+    # start_session corre en el hilo de Socket.IO: el primer publish (que puede
+    # esperar la conexion MQTT) lo hace el hilo del manager.
+    manager = LiveLogStreamManager()
+    published = []
+
+    def publisher_lento(topic, payload, qos):
+        time.sleep(0.5)
+        published.append(json.loads(payload))
+        return True
+
+    inicio = time.monotonic()
+    assert manager.start_session("session-1", "resto", "uuid-1", publisher_lento)
+    assert time.monotonic() - inicio < 0.2
+    assert _wait_until(lambda: len(published) >= 1)
+
+
+def test_el_historial_llega_antes_que_las_lineas_nuevas():
+    manager = LiveLogStreamManager()
+    published = []
+    logger = logging.getLogger("test.live.order")
+    logger.setLevel(logging.DEBUG)
+    logger.warning("viejo")
+
+    manager.start_session(
+        "session-1",
+        "resto",
+        "uuid-1",
+        lambda topic, payload, qos: published.append(json.loads(payload)),
+    )
+    logger.warning("nuevo")
+
+    assert _wait_until(
+        lambda: any(e["message"] == "nuevo" for b in published for e in b["entries"])
+    )
+    mensajes = [e["message"] for b in published for e in b["entries"]]
+    assert mensajes.index("viejo") < mensajes.index("nuevo")
+
+
+def test_lease_lejano_se_recorta_al_tope():
+    from fiscalberry.common.live_log_stream import MAX_LEASE_SECONDS
+
+    manager = LiveLogStreamManager()
+    manager.start_session(
+        "session-1",
+        "resto",
+        "uuid-1",
+        lambda topic, payload, qos: True,
+        expires_at="2999-01-01T00:00:00+00:00",
+        snapshot_lines=0,
+    )
+    expira = manager._sessions["session-1"]["expires_at"]
+    assert expira <= time.time() + MAX_LEASE_SECONDS + 1
+    manager.stop_session("session-1")
+
+
+def test_on_idle_se_llama_solo_al_cerrar_la_ultima_sesion():
+    manager = LiveLogStreamManager()
+    cierres = []
+    publish = lambda topic, payload, qos: True
+
+    manager.start_session("a", "resto", "uuid-1", publish, snapshot_lines=0,
+                          on_idle=lambda: cierres.append("cerrado"))
+    manager.start_session("b", "resto", "uuid-1", publish, snapshot_lines=0,
+                          on_idle=lambda: cierres.append("cerrado"))
+
+    manager.stop_session("a")
+    assert cierres == []
+    manager.stop_session("b")
+    assert cierres == ["cerrado"]
+
+
+def test_on_idle_tambien_al_vencer_el_lease():
+    manager = LiveLogStreamManager()
+    cierres = []
+    manager.start_session(
+        "session-1",
+        "resto",
+        "uuid-1",
+        lambda topic, payload, qos: True,
+        expires_at="2000-01-01T00:00:00+00:00",
+        snapshot_lines=0,
+        on_idle=lambda: cierres.append("cerrado"),
+    )
+    assert _wait_until(lambda: cierres == ["cerrado"])
+
+
+def test_stream_incluye_el_traceback_de_logger_exception():
+    manager = LiveLogStreamManager()
+    published = []
+    logger = logging.getLogger("test.live.exception")
+    manager.start_session(
+        "session-1",
+        "resto",
+        "uuid-1",
+        lambda topic, payload, qos: published.append(json.loads(payload)),
+        snapshot_lines=0,
+    )
+    try:
+        raise ValueError("impresora sin papel")
+    except ValueError:
+        logger.exception("fallo imprimiendo")
+
+    assert _wait_until(
+        lambda: any(e["message"] == "fallo imprimiendo" for b in published for e in b["entries"])
+    )
+    entry = next(
+        e for b in published for e in b["entries"] if e["message"] == "fallo imprimiendo"
+    )
+    assert "Traceback" in entry["exception"]
+    assert "impresora sin papel" in entry["exception"]
+    manager.stop_session("session-1")

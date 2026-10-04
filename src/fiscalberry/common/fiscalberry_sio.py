@@ -8,6 +8,7 @@ from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.Configberry import Configberry
 from fiscalberry.common.rabbitmq.process_handler import RabbitMQProcessHandler
 from fiscalberry.common.live_log_stream import get_live_log_stream_manager
+from fiscalberry.common.rabbitmq.live_log_publisher import get_live_log_publisher
 from fiscalberry.version import VERSION
 
 
@@ -159,14 +160,18 @@ class FiscalberrySio:
             if not isinstance(data, dict) or data.get("uuid") != self.uuid:
                 return
             tenant = self.config.get("Paxaprinter", "tenant", fallback="") or ""
+            # Conexion MQTT propia, nunca la de la cola de impresion: si el broker
+            # rechaza el topic de logs corta esa conexion (ver live_log_publisher).
+            publisher = get_live_log_publisher(self.uuid)
             get_live_log_stream_manager().start_session(
                 session_id=data.get("sessionId"),
                 tenant=tenant,
                 uuid=self.uuid,
-                publisher=self.rabbit_handler.publish_message,
+                publisher=publisher.publish,
                 expires_at=data.get("expiresAt"),
                 min_level=data.get("minLevel", "DEBUG"),
                 snapshot_lines=data.get("snapshotLines", 200),
+                on_idle=publisher.close,
             )
 
         @client.on("paxaprinter:logs:renew", namespace=ns)

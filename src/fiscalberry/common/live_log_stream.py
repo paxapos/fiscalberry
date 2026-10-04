@@ -15,6 +15,9 @@ MAX_BATCH_LINES = 50
 MAX_MESSAGE_LENGTH = 8192
 FLUSH_INTERVAL_SECONDS = 0.25
 DEFAULT_LEASE_SECONDS = 90
+# Tope del lease (mismo valor que paxa-core): aunque llegue un expiresAt lejano,
+# el equipo deja de mandar logs si el panel no renueva.
+MAX_LEASE_SECONDS = 600
 
 _LEVELS = {
     "DEBUG": logging.DEBUG,
@@ -38,6 +41,8 @@ class _CaptureHandler(logging.Handler):
     def __init__(self, manager):
         super().__init__(level=logging.DEBUG)
         self._manager = manager
+        # Sin formatter, `logger.exception(...)` llegaba al panel sin traceback.
+        self.setFormatter(logging.Formatter())
 
     def emit(self, record):
         if record.name.startswith("fiscalberry.live_logs"):
@@ -67,7 +72,11 @@ class LiveLogStreamManager:
         self._history = deque(maxlen=MAX_SNAPSHOT_LINES)
         self._pending = queue.Queue(maxsize=MAX_BUFFERED_LINES)
         self._sessions = {}
+        # Historial inicial de cada sesion nueva: lo publica el hilo del manager
+        # (start_session corre en el hilo de Socket.IO y no debe bloquearlo).
+        self._snapshots = queue.Queue()
         self._publisher = None
+        self._on_idle = None
         self._tenant = ""
         self._uuid = ""
         self._sequence = 0
@@ -109,7 +118,14 @@ class LiveLogStreamManager:
         expires_at=None,
         min_level="DEBUG",
         snapshot_lines=MAX_SNAPSHOT_LINES,
+        on_idle=None,
     ):
+        """Abre (o reabre) una sesion de visualizacion.
+
+        `publisher(topic, payload, qos) -> bool` publica un batch; `on_idle()` se
+        llama (fuera del lock) cuando se cierra la ultima sesion, para liberar
+        la conexion dedicada.
+        """
         if not session_id or not tenant or not uuid or not callable(publisher):
             return False
         level = _LEVELS.get(str(min_level).upper(), logging.DEBUG)
@@ -126,6 +142,7 @@ class LiveLogStreamManager:
                 "started_sequence": self._sequence,
             }
             self._publisher = publisher
+            self._on_idle = on_idle
             self._tenant = tenant
             self._uuid = uuid
             if first_session:
@@ -140,7 +157,8 @@ class LiveLogStreamManager:
                 for entry in snapshot
                 if _LEVELS.get(entry["level"], logging.INFO) >= level
             ]
-        self._publish(snapshot, [session_id], dropped_count=0)
+            # Se publica aunque este vacio: es la confirmacion que espera el panel.
+            self._snapshots.put((session_id, snapshot))
         return True
 
     def renew_session(self, session_id, expires_at=None):
@@ -154,8 +172,9 @@ class LiveLogStreamManager:
     def stop_session(self, session_id):
         with self._lock:
             removed = self._sessions.pop(session_id, None) is not None
-            self._restore_level_if_idle()
-            return removed
+            on_idle = self._restore_level_if_idle()
+        self._call_on_idle(on_idle)
+        return removed
 
     def active_session_count(self):
         with self._lock:
@@ -164,15 +183,20 @@ class LiveLogStreamManager:
     def stop_all_sessions(self):
         with self._lock:
             self._sessions.clear()
-            self._restore_level_if_idle()
+            on_idle = self._restore_level_if_idle()
+        self._call_on_idle(on_idle)
 
     def _expires_epoch(self, expires_at):
+        now = time.time()
         if expires_at:
             try:
-                return datetime.fromisoformat(str(expires_at).replace("Z", "+00:00")).timestamp()
+                parsed = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                return min(parsed.timestamp(), now + MAX_LEASE_SECONDS)
             except (TypeError, ValueError):
                 pass
-        return time.time() + DEFAULT_LEASE_SECONDS
+        return now + DEFAULT_LEASE_SECONDS
 
     def _expire_sessions(self):
         now = time.time()
@@ -184,26 +208,53 @@ class LiveLogStreamManager:
             ]
             for session_id in expired:
                 self._sessions.pop(session_id, None)
-            self._restore_level_if_idle()
+            on_idle = self._restore_level_if_idle()
+        self._call_on_idle(on_idle)
 
     def _restore_level_if_idle(self):
+        """Sin sesiones: restaura el nivel y devuelve el `on_idle` a llamar (bajo lock)."""
         if self._sessions or self._previous_root_level is None:
-            return
+            return None
         logging.getLogger().setLevel(self._previous_root_level)
         self._previous_root_level = None
         self._publisher = None
+        on_idle = self._on_idle
+        self._on_idle = None
         self._tenant = ""
         self._uuid = ""
 
+        for pending in (self._pending, self._snapshots):
+            while True:
+                try:
+                    pending.get_nowait()
+                except queue.Empty:
+                    break
+        return on_idle
+
+    @staticmethod
+    def _call_on_idle(on_idle):
+        if on_idle is None:
+            return
+        try:
+            on_idle()
+        except Exception:  # noqa: BLE001 - cerrar la conexion nunca debe romper al caller
+            pass
+
+    def _flush_snapshots(self):
         while True:
             try:
-                self._pending.get_nowait()
+                session_id, entries = self._snapshots.get_nowait()
             except queue.Empty:
-                break
+                return
+            with self._lock:
+                active = session_id in self._sessions
+            if active:
+                self._publish(entries, [session_id], dropped_count=0)
 
     def _run(self):
         while True:
             self._expire_sessions()
+            self._flush_snapshots()
             try:
                 first = self._pending.get(timeout=FLUSH_INTERVAL_SECONDS)
             except queue.Empty:
@@ -218,6 +269,9 @@ class LiveLogStreamManager:
                     batch.append(self._pending.get(timeout=remaining))
                 except queue.Empty:
                     break
+            # Una sesion abierta mientras se juntaba el batch manda primero su
+            # historial: el panel recibe las lineas en orden.
+            self._flush_snapshots()
             with self._lock:
                 sessions = dict(self._sessions)
                 dropped_count = self._dropped_count
