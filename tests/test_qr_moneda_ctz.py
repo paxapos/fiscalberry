@@ -18,7 +18,7 @@ def _encabezado_base(**overrides):
     encabezado = {
         "nombre_comercio": "Comercio",
         "razon_social": "Ejemplos SRL",
-        "cuit_empresa": "30123456781",
+        "cuit_empresa": "30000000007",
         "domicilio_comercial": "Ejemplo 123",
         "tipo_responsable": "Resp. Inscripto",
         "inicio_actividades": "",

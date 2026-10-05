@@ -32,7 +32,7 @@ from fiscalberry.common.EscPComandos import EscPComandos, convertirDesdeBase
 ENCABEZADO_BASE = {
     "nombre_comercio": "Comercio",
     "razon_social": "Ejemplos SRL",
-    "cuit_empresa": "30123456781",
+    "cuit_empresa": "30000000007",
     "domicilio_comercial": "Ejemplo 123",
     "tipo_responsable": "Resp. Inscripto",
     "inicio_actividades": "",
@@ -84,7 +84,7 @@ ADD_ADDITIONAL_PESOS = {
 # moneda/ctz) tal como los emitia el cliente antes de este cambio.
 GOLDEN_BASE_B64 = (
     "GyEAGyEAGyEAG3sAHWIAG0UAGy0AG00AG2EAHUIAG0UBG00AG2EBG3QAQ29tZXJjaW8KChsh"
-    "ABshABshABtNABthAEVqZW1wbG9zIFNSTApDVUlUOiAzMDEyMzQ1Njc4MQpFamVtcGxvIDEy"
+    "ABshABshABtNABthAEVqZW1wbG9zIFNSTApDVUlUOiAzMDAwMDAwMDAwNwpFamVtcGxvIDEy"
     "MwpJbmljaW8gZGUgYWN0aXZpZGFkZXM6IApSZXNwLiBJbnNjcmlwdG8KG00AG2EBLS0tLS0t"
     "LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQobRQEbTQAbYQEiQiIgTnJvLiAw"
     "MDExLTAwMDEyMzQ1CkZlY2hhIDIwMjQtMDgtMjkKG00AG2EBLS0tLS0tLS0tLS0tLS0tLS0t"
@@ -102,7 +102,7 @@ GOLDEN_BASE_B64 = (
     "IQAbIQAbTQAbYQAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgob"
     "TQAbYQEbTQAbYQFDb21wcm9iYW50ZSBBdXRvcml6YWRvIHBvciBBRklQCmh0dHBzOi8vd3d3"
     "LmFmaXAuZ29iLmFyL2ZlL3FyLz9wPWV5SjJaWElpT2lBeExDQWlabVZqYUdFaU9pQWlNamt0"
-    "TURndE1qQXlOQ0lzSUNKamRXbDBJam9nTXpBeE1qTTBOVFkzT0RFc0lDSndkRzlXZEdFaU9p"
+    "TURndE1qQXlOQ0lzSUNKamRXbDBJam9nTXpBd01EQXdNREF3TURjc0lDSndkRzlXZEdFaU9p"
     "QXhNU3dnSW5ScGNHOURiWEFpT2lBMkxDQWlibkp2UTIxd0lqb2dNVEl6TkRVc0lDSnBiWEJ2"
     "Y25SbElqb2dNVEl4TGpBc0lDSnRiMjVsWkdFaU9pQWlVRVZUSWl3Z0ltTjBlaUk2SURFc0lD"
     "SjBhWEJ2UTI5a1FYVjBJam9nSWtVaUxDQWlZMjlrUVhWMElqb2dOekV5TXpRMU5qYzRPVEF4"
@@ -113,14 +113,14 @@ GOLDEN_BASE_B64 = (
 
 # sha256 de los otros dos tickets en moneda local que tambien deben quedar
 # congelados: con descuento y con detalle de IVAs (Factura A).
-SHA_BASE_CON_DESCUENTO = "d38db65f48c524b6f22618add4cf2b9298ee3c98fcfdc80fd3c0767958a0c7a6"
-SHA_BASE_INSCRIPTO = "af6a64bc61304cc59b8001a61fcd4bf1b1b294e486156f57f712555ea60899f2"
+SHA_BASE_CON_DESCUENTO = "ccd3ab98d16e8c0b22823c6a3c3a8a1027206579e496446fca39ef1dd40710a4"
+SHA_BASE_INSCRIPTO = "405ddadc1bb97a7b8a5c4b09a376a173ee0eb3f0b6f78e5f2495135f9394481e"
 
 ENCABEZADO_INSCRIPTO = {
     "tipo_comprobante": "Factura A",
     "tipo_comprobante_codigo": "001",
     "nombre_cliente": "Juan",
-    "documento_cliente": "20111111112",
+    "documento_cliente": "20000000028",
     "nombre_tipo_documento": "CUIT",
 }
 
