@@ -12,7 +12,7 @@ from fiscalberry.common.EscPComandos import EscPComandos
 
 def _encabezado(**extra):
     enc = {
-        "nombreComercio": "Paxapoga",
+        "nombreComercio": "Comercio de Prueba",
         "fechaDesde": "01-10-2026 08:00",
         "fechaHasta": "01-10-2026 20:00",
         "ArqueoDateTime": "2026-10-01 20:05:00",

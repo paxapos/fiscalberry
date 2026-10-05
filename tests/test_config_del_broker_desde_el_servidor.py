@@ -57,7 +57,7 @@ def handler(monkeypatch):
     h.config = ConfigFalso({
         # Un equipo ya instalado: arrastra host/port viejos en el archivo.
         "RabbitMq": {"host": "broker.viejo", "port": "5672", "vhost": "/", "queue": "cola-vieja"},
-        "Paxaprinter": {"tenant": "paxapoga_cangas", "alias": "Ale celu", "site_name": "Cangas"},
+        "Paxaprinter": {"tenant": "comercio_demo", "alias": "Equipo de prueba", "site_name": "Sucursal Centro"},
         "SERVIDOR": {"uuid": "uuid-del-equipo"},
     })
     monkeypatch.setattr(h, "stop", lambda *a, **k: None, raising=False)
@@ -81,7 +81,7 @@ def _del_servidor(**extra):
             "password": "secreto",
             "queue": "cola-vieja",
         },
-        "Paxaprinter": {"tenant": "paxapoga_cangas", "alias": "Ale celu", "site_name": "Cangas"},
+        "Paxaprinter": {"tenant": "comercio_demo", "alias": "Equipo de prueba", "site_name": "Sucursal Centro"},
     }
     cfg["RabbitMq"].update(extra)
     return cfg

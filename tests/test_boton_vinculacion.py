@@ -55,7 +55,7 @@ except ImportError:
 from fiscalberry.common import discover  # noqa: E402
 from fiscalberry.ui import adopt_screen  # noqa: E402
 
-URL = "https://beta.paxapos.com/adopt/263ae979-f969-4630-bc49-3bb44e04f86c"
+URL = "https://beta.paxapos.com/adopt/00000000-0000-4000-8000-000000000001"
 
 
 class Navegador:
