@@ -220,6 +220,24 @@ class EscPComandos():
         totalTxt = pad(totalProducto, self.price_cols + extraPrecio, " ", "r")
         return dsTxt, totalTxt
 
+    def _lineaImporte(self, etiqueta, importe, signo=None):
+        """Linea "etiqueta + signo + importe" (subtotal, descuento, IVA, pagos...) sin truncar el importe.
+
+        El importe va alineado a la derecha en price_cols (10 en 58mm, 12 en 80mm).
+        Si no entra, en vez de cortarlo (pad() corta por la derecha y se
+        imprimiria otro importe) se ensancha esa columna a costa de la etiqueta,
+        que es lo que se acorta; la linea sigue midiendo total_cols. Si entra, el
+        resultado es el de siempre, byte a byte.
+        """
+        signo = self.signo if signo is None else signo
+        extra = max(0, len(importe) - self.price_cols)
+        anchoEtiqueta = max(0, self.total_cols - len(signo) - self.price_cols - extra)
+        return (
+            pad(etiqueta, anchoEtiqueta, " ", "l")
+            + signo
+            + pad(importe, self.price_cols + extra, " ", "r")
+        )
+
     # Acciones que imprimen un comprobante y terminan con corte de papel.
     # Si una falla a mitad de render, igual debe cortarse (ver run()).
     TICKET_ACTIONS = (
@@ -675,15 +693,13 @@ class EscPComandos():
             descuentoRatio = (1 - (desporcentaje/100)) if desporcentaje != 0 else 1
 
             # 5.1- SUBTOTAL
-            dsSubtotal = pad("SUBTOTAL:", self.desc_cols_ext - 1, " ", "l")
-            importeSubtotal = pad(f"{round(total - sAmount,2):,.2f}",self.price_cols, " ", "r")
-            dsDescuento = pad(descuentoDesc, self.desc_cols_ext - 1, " ", "l")
-            importeDescuento = pad(f"{round(sAmount, 2):,.2f}",self.price_cols, " ", "r")
+            lineaSubtotal = self._lineaImporte("SUBTOTAL:", f"{round(total - sAmount,2):,.2f}")
+            lineaDescuento = self._lineaImporte(descuentoDesc, f"{round(sAmount, 2):,.2f}")
 
             printer.set(font='a', bold=True, height=1, width=1, align='left')
-            printer.text(f'{dsSubtotal}{self.signo}{importeSubtotal}\n')
+            printer.text(f'{lineaSubtotal}\n')
             printer.set(font='a', height=1, align='left', normal_textsize=True)
-            printer.text(f'{dsDescuento}{self.signo}{importeDescuento}\n\n')
+            printer.text(f'{lineaDescuento}\n\n')
 
         # 6- DETALLE IVAS (INSCRIPTO)
         # si tiene el array de ivas tiene items, se detallan los IVAs
@@ -691,25 +707,22 @@ class EscPComandos():
         es_inscripto = tipoComprobante in tiposInscriptoString or tipoCmp in tiposInscriptoCod
         
         if ivas and es_inscripto:
-            dsTotal = pad("SUBTOTAL:", self.desc_cols_ext - 1, " ", "l")
-            importeTotal = pad(f"{round(float(total),2):,.2f}",self.price_cols, " ", "r")
-            escpos.writelines(f'{dsTotal}{self.signo}{importeTotal}', bold=True, align='left', height=2, width=2)
+            lineaTotal = self._lineaImporte("SUBTOTAL:", f"{round(float(total),2):,.2f}")
+            escpos.writelines(lineaTotal, bold=True, align='left', height=2, width=2)
             printer.ln();
 
-            dsSinIva = pad("Neto sin IVA:", self.desc_cols_ext - 1, " ", "l")
-            importeSinIva = pad(f"{round(float(totalNeto), 2):,.2f}",self.price_cols, " ", "r")
+            lineaSinIva = self._lineaImporte("Neto sin IVA:", f"{round(float(totalNeto), 2):,.2f}")
             printer.set(font='a', height=1, align='left', normal_textsize=True)
 
-            printer.text(f'{dsSinIva}{self.signo}{importeSinIva}\n')
+            printer.text(f'{lineaSinIva}\n')
 
             for iva in ivas:
                 alicIva = iva["alic_iva"]
-                dsIva = pad(f"IVA {alicIva}:", self.desc_cols_ext - 1, " ", "l")
                 importeIva = iva["importe"]
-                importeIva = pad(f"{round(float(importeIva), 2):,.2f}",self.price_cols, " ", "r")
+                lineaIva = self._lineaImporte(f"IVA {alicIva}:", f"{round(float(importeIva), 2):,.2f}")
                 printer.set(font='a', height=1, align='left', normal_textsize=True)
 
-                printer.text(f'{dsIva}{self.signo}{importeIva}\n')
+                printer.text(f'{lineaIva}\n')
 
         # 7- TOTAL
         # Imprimir total
@@ -906,13 +919,11 @@ class EscPComandos():
             sAmount = -sAmount
             importeTotal += sAmount
 
-            dsSubtotal = pad("SUBTOTAL:", self.desc_cols_ext - 1, " ", "l")
-            importeSubTotal = pad(f"{round(importeSubTotal,2):,.2f}",self.price_cols, " ", "r")
-            dsDescuento = pad(descuentoDesc, self.desc_cols_ext - 1, " ", "l")
-            importeDescuento = pad(f"{round(sAmount, 2):,.2f}",self.price_cols, " ", "r")
+            lineaSubtotal = self._lineaImporte("SUBTOTAL:", f"{round(importeSubTotal,2):,.2f}")
+            lineaDescuento = self._lineaImporte(descuentoDesc, f"{round(sAmount, 2):,.2f}")
 
-            escpos.writelines(f'{dsSubtotal}{self.signo}{importeSubTotal}')
-            escpos.writelines(f'{dsDescuento}{self.signo}{importeDescuento}' )
+            escpos.writelines(lineaSubtotal)
+            escpos.writelines(lineaDescuento)
             printer.ln()
 
         # Imprimir total
@@ -955,10 +966,7 @@ class EscPComandos():
             desc = pago.get('ds', "Pago")[0:20]
             importe = float(pago.get('importe'))
 
-            dsTxt = pad(desc, self.desc_cols_ext - 1," ","l")
-            importeTxt = pad(f"{importe:,.2f}",self.price_cols," ","r")
-            
-            escpos.writelines(f"{dsTxt}{self.signo}{importeTxt}")
+            escpos.writelines(self._lineaImporte(desc, f"{importe:,.2f}"))
         
         return True
 
@@ -978,16 +986,16 @@ class EscPComandos():
             if importe > 0:
                 totalPagos += importe
                 desc = str(pago.get('ds')[0:20]).upper()
-                printer.text(f'{pad(desc, self.desc_cols_ext, " ", "l")}{pad(f"{importe:,.2f}",self.price_cols," ", "r")}\n')
+                printer.text(self._lineaImporte(desc, f"{importe:,.2f}", signo="") + "\n")
                 cantPagos += 1
             else:
                 vuelto += importe
         if totalPagos > 0 and cantPagos > 1:
             printer.set(font='a', bold=True, height=1, width=1, align='left')
-            printer.text(f'{pad("La suma de sus pagos:", self.desc_cols_ext, " ", "l")}{pad(f"{totalPagos:,.2f}", self.price_cols, " ", "r")}\n')
+            printer.text(self._lineaImporte("La suma de sus pagos:", f"{totalPagos:,.2f}", signo="") + "\n")
         if vuelto < 0: 
             printer.set(font='a', bold=True, height=1, width=1, align='left')
-            printer.text(f'{pad("Su vuelto:", self.desc_cols_ext, " ", "l")}{pad(f"{abs(vuelto):,.2f}", self.price_cols, " ", "r")}\n')
+            printer.text(self._lineaImporte("Su vuelto:", f"{abs(vuelto):,.2f}", signo="") + "\n")
         
         return True
 
@@ -1034,14 +1042,10 @@ class EscPComandos():
             printer.set(font='a', height=1, align='left', normal_textsize=True)
             
             if iva_contenido > 0:
-                ds_iva = pad("IVA Contenido:", self.desc_cols_ext - 1, " ", "l")
-                imp_iva = pad(f"{iva_contenido:,.2f}", self.price_cols, " ", "r")
-                printer.text(f"{ds_iva}{self.signo}{imp_iva}\n")
+                printer.text(self._lineaImporte("IVA Contenido:", f"{iva_contenido:,.2f}") + "\n")
             
             if otros_imp > 0:
-                ds_otros = pad("Otros Imp. Nac. Indirectos:", self.desc_cols_ext - 1, " ", "l")
-                imp_otros = pad(f"{otros_imp:,.2f}", self.price_cols, " ", "r")
-                printer.text(f"{ds_otros}{self.signo}{imp_otros}\n")
+                printer.text(self._lineaImporte("Otros Imp. Nac. Indirectos:", f"{otros_imp:,.2f}") + "\n")
             
             printer.text("\n")
 

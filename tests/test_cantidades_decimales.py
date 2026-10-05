@@ -14,6 +14,8 @@ tests fijan que:
   * el total de linea (PRECIO/IMPORTE) tampoco se trunca: si no entra, la
     columna se ensancha a costa de la descripcion (issue #198), y si todo entra
     la linea sale igual que siempre;
+  * subtotal, descuento, IVA, pagos y transparencia fiscal tampoco se truncan:
+    el importe se ensancha a costa de la etiqueta (issue #198);
   * el pedido alinea la descripcion con espacios, no con tabuladores.
 """
 
@@ -75,31 +77,33 @@ def _item(qty, ds="Queso cremoso", importe=800.0):
     return {"alic_iva": 21.0, "importe": importe, "ds": ds, "qty": qty}
 
 
-def _render_factura(items, encabezado=None, columns=None):
+def _render_factura(items, encabezado=None, columns=None, **extra):
     printer = Dummy()
     comandos = EscPComandos(printer, columns=columns)
+    kwargs = dict(
+        encabezado=dict(encabezado or ENCABEZADO_FACTURA_B),
+        items=items,
+        ivas=IVAS,
+        pagos=PAGOS,
+    )
+    kwargs.update(extra)  # ivas, pagos, addAdditional, otros_impuestos
     with EscposIO(printer, autocut=False, autoclose=False) as escpos:
-        ok = comandos.printFacturaElectronica(
-            escpos,
-            encabezado=dict(encabezado or ENCABEZADO_FACTURA_B),
-            items=items,
-            ivas=IVAS,
-            pagos=PAGOS,
-        )
+        ok = comandos.printFacturaElectronica(escpos, **kwargs)
     assert ok is True
     return printer.output.decode("latin-1")
 
 
-def _render_remito(items, columns=None):
+def _render_remito(items, columns=None, **extra):
     printer = Dummy()
     comandos = EscPComandos(printer, columns=columns)
+    kwargs = dict(
+        encabezado={"nombre_cliente": "Cliente de Prueba"},
+        items=items,
+        pagos=[],
+    )
+    kwargs.update(extra)  # pagos, addAdditional
     with EscposIO(printer, autocut=False, autoclose=False) as escpos:
-        ok = comandos.printRemito(
-            escpos,
-            encabezado={"nombre_cliente": "Cliente de Prueba"},
-            items=items,
-            pagos=[],
-        )
+        ok = comandos.printRemito(escpos, **kwargs)
     assert ok is True
     return printer.output.decode("latin-1")
 
@@ -388,6 +392,209 @@ def test_factura_a_total_que_entra_no_cambia():
 
     linea = _linea_con(salida, "Queso cremoso")
     assert linea == "Queso cremoso" + " " * (40 - len("Queso cremoso") - len("100.00")) + "100.00"
+
+
+# ---------------------------------------------------------------------------
+# subtotal, descuento, IVA, pagos y transparencia fiscal (issue #198)
+# ---------------------------------------------------------------------------
+
+# 16 caracteres: no entra ni en la columna de 58mm (10) ni en la de 80mm (12)
+IMPORTE_LARGO = 9876543210.12
+IMPORTE_LARGO_TXT = "9,876,543,210.12"
+# 12 caracteres: entra en 80mm, no en 58mm
+IMPORTE_MEDIO = 1234567.89
+IMPORTE_MEDIO_TXT = "1,234,567.89"
+
+# (columns, ancho del papel, price_cols)
+PAPELES = [(32, 32, 10), (None, 40, 12)]
+
+
+def _enc_inscripto(total, neto, iva):
+    return dict(
+        ENCABEZADO_FACTURA_A,
+        importe_total=f"{total:.2f}",
+        importe_neto=f"{neto:.2f}",
+        importe_iva=f"{iva:.2f}",
+    )
+
+
+def _linea_importe_ok(linea, etiqueta, importe, ancho):
+    """El importe aparece completo al final, precedido por el signo, y la linea mide el papel."""
+    assert len(linea) == ancho, linea
+    assert re.search(r"\$ *" + re.escape(importe) + r"$", linea), linea
+    assert linea.startswith(etiqueta), linea
+
+
+@pytest.mark.parametrize("columns, ancho, price_cols", PAPELES)
+def test_factura_a_subtotal_neto_e_iva_largos_no_se_truncan(columns, ancho, price_cols):
+    salida = _render_factura(
+        [_item(1, importe=100.0)],
+        encabezado=_enc_inscripto(IMPORTE_LARGO, 8161854471.17, 1714688738.95),
+        ivas=[{"alic_iva": "21.00", "importe": "1714688738.95"}],
+        columns=columns,
+    )
+
+    _linea_importe_ok(_linea_con(salida, "SUBTOTAL:"), "SUBTOTAL:", IMPORTE_LARGO_TXT, ancho)
+    _linea_importe_ok(
+        _linea_con(salida, "Neto sin IVA:"), "Neto sin IVA:", "8,161,854,471.17", ancho
+    )
+    _linea_importe_ok(_linea_con(salida, "IVA 21.00:"), "IVA 21.00:", "1,714,688,738.95", ancho)
+
+
+@pytest.mark.parametrize("columns, ancho, price_cols", PAPELES)
+def test_factura_descuento_y_subtotal_largos_no_se_truncan(columns, ancho, price_cols):
+    salida = _render_factura(
+        [_item(1, importe=100.0)],
+        encabezado=dict(ENCABEZADO_FACTURA_B, importe_total="9876543210.12"),
+        addAdditional={
+            "amount": "1234567890.12",
+            "description": "Descuento",
+            "descuento_porcentaje": "10",
+        },
+        columns=columns,
+    )
+
+    # subtotal = total + descuento (11.111.111.100,24); el descuento viaja en negativo
+    _linea_importe_ok(_linea_con(salida, "SUBTOTAL:"), "SUBTOTAL:", "11,111,111,100.24", ancho)
+    _linea_importe_ok(_linea_con(salida, "Descuento"), "Descuento", "-1,234,567,890.12", ancho)
+
+
+@pytest.mark.parametrize("columns, ancho, price_cols", PAPELES)
+def test_remito_subtotal_y_descuento_largos_no_se_truncan(columns, ancho, price_cols):
+    salida = _render_remito(
+        [_item(1, importe=IMPORTE_LARGO)],
+        columns=columns,
+        addAdditional={"amount": 1234567890.12, "description": "Descuento"},
+    )
+
+    _linea_importe_ok(_linea_con(salida, "SUBTOTAL:"), "SUBTOTAL:", IMPORTE_LARGO_TXT, ancho)
+    _linea_importe_ok(_linea_con(salida, "Descuento"), "Descuento", "-1,234,567,890.12", ancho)
+
+
+@pytest.mark.parametrize("columns, ancho, price_cols", PAPELES)
+def test_remito_pago_largo_no_se_trunca(columns, ancho, price_cols):
+    salida = _render_remito(
+        [_item(1, importe=100.0)],
+        columns=columns,
+        pagos=[{"ds": "Efectivo", "importe": "9876543210.12"}],
+    )
+
+    _linea_importe_ok(_linea_con(salida, "Efectivo"), "Efectivo", IMPORTE_LARGO_TXT, ancho)
+
+
+@pytest.mark.parametrize("columns, ancho, price_cols", PAPELES)
+def test_factura_pagos_detallados_largos_no_se_truncan(columns, ancho, price_cols):
+    # formato de factura B: "Recibimos:" con cada pago, la suma y el vuelto (sin signo $)
+    salida = _render_factura(
+        [_item(1, importe=100.0)],
+        columns=columns,
+        pagos=[
+            {"ds": "Efectivo", "importe": "9876543210.12"},
+            {"ds": "Tarjeta", "importe": "1000.00"},
+            {"ds": "Vuelto", "importe": "-500.00"},
+        ],
+    )
+
+    def sin_signo(inicio, importe):
+        # sin signo $; la etiqueta larga se acorta para dejar lugar al importe
+        linea = _linea_con(salida, inicio)
+        assert len(linea) == ancho, linea
+        assert linea.startswith(inicio), linea
+        assert linea.endswith(importe), linea
+
+    sin_signo("EFECTIVO", IMPORTE_LARGO_TXT)
+    sin_signo("La suma de", "9,876,544,210.12")
+    sin_signo("Su vuelto", "500.00")
+
+
+@pytest.mark.parametrize("columns, ancho, price_cols", PAPELES)
+def test_factura_transparencia_fiscal_importes_largos_no_se_truncan(columns, ancho, price_cols):
+    salida = _render_factura(
+        [_item(1, importe=100.0)],
+        encabezado=dict(ENCABEZADO_FACTURA_B, importe_iva="1714688738.95"),
+        ivas=[{"alic_iva": "21.00", "importe": "1714688738.95"}],
+        otros_impuestos=1234567890.12,
+        columns=columns,
+    )
+
+    _linea_importe_ok(
+        _linea_con(salida, "IVA Contenido:"), "IVA Contenido:", "1,714,688,738.95", ancho
+    )
+    # la etiqueta larga se acorta para dejar lugar al importe; el importe no
+    _linea_importe_ok(_linea_con(salida, "Otros Imp."), "Otros Imp.", "1,234,567,890.12", ancho)
+
+
+def test_importe_medio_entra_en_80mm_y_se_ensancha_en_58mm():
+    # 1,234,567.89 (12): justo la columna de 80mm, no la de 58mm (10)
+    ancho80 = _linea_con(
+        _render_remito([_item(1, importe=100.0)], addAdditional={"amount": 10, "description": "Descuento"}),
+        "SUBTOTAL:",
+    )
+    assert len(ancho80) == 40
+
+    salida58 = _render_remito(
+        [_item(1, importe=IMPORTE_MEDIO)],
+        columns=32,
+        addAdditional={"amount": 10, "description": "Descuento"},
+    )
+    _linea_importe_ok(_linea_con(salida58, "SUBTOTAL:"), "SUBTOTAL:", IMPORTE_MEDIO_TXT, 32)
+
+    salida80 = _render_remito(
+        [_item(1, importe=IMPORTE_MEDIO)],
+        addAdditional={"amount": 10, "description": "Descuento"},
+    )
+    _linea_importe_ok(_linea_con(salida80, "SUBTOTAL:"), "SUBTOTAL:", IMPORTE_MEDIO_TXT, 40)
+
+
+def _legacy_importe(comandos, etiqueta, importe, signo="$"):
+    """La linea tal como se armaba antes: dos pad() sin ensanchar nada."""
+    ancho_etiqueta = comandos.desc_cols_ext - (1 if signo else 0)
+    return (
+        pad(etiqueta, ancho_etiqueta, " ", "l")
+        + signo
+        + pad(importe, comandos.price_cols, " ", "r")
+    )
+
+
+@pytest.mark.parametrize("columns", [None, 32])
+def test_si_los_importes_entran_las_lineas_son_las_de_siempre(columns):
+    comandos = EscPComandos(Dummy(), columns=columns)
+
+    # factura A: subtotal, neto sin IVA e IVA
+    salida = _render_factura(
+        [_item(1, importe=100.0)],
+        encabezado=_enc_inscripto(1234.56, 1020.30, 214.26),
+        ivas=[{"alic_iva": "21.00", "importe": "214.26"}],
+        columns=columns,
+    )
+    assert _linea_con(salida, "SUBTOTAL:") == _legacy_importe(comandos, "SUBTOTAL:", "1,234.56")
+    assert _linea_con(salida, "Neto sin IVA:") == _legacy_importe(
+        comandos, "Neto sin IVA:", "1,020.30"
+    )
+    assert _linea_con(salida, "IVA 21.00:") == _legacy_importe(comandos, "IVA 21.00:", "214.26")
+
+    # factura B con descuento y pagos detallados; remito con descuento y pago simple
+    salida = _render_factura(
+        [_item(1, importe=100.0)],
+        encabezado=dict(ENCABEZADO_FACTURA_B, importe_total="100.00"),
+        addAdditional={"amount": "10.00", "description": "Descuento", "descuento_porcentaje": "10"},
+        pagos=[{"ds": "Efectivo", "importe": "150.00"}, {"ds": "Vuelto", "importe": "-50.00"}],
+        columns=columns,
+    )
+    assert _linea_con(salida, "SUBTOTAL:") == _legacy_importe(comandos, "SUBTOTAL:", "110.00")
+    assert _linea_con(salida, "Descuento") == _legacy_importe(comandos, "Descuento", "-10.00")
+    assert _linea_con(salida, "EFECTIVO") == _legacy_importe(comandos, "EFECTIVO", "150.00", signo="")
+    assert _linea_con(salida, "Su vuelto:") == _legacy_importe(comandos, "Su vuelto:", "50.00", signo="")
+
+    salida = _render_remito(
+        [_item(1, importe=100.0)],
+        columns=columns,
+        addAdditional={"amount": 10, "description": "Descuento"},
+        pagos=[{"ds": "Efectivo", "importe": "100.00"}],
+    )
+    assert _linea_con(salida, "SUBTOTAL:") == _legacy_importe(comandos, "SUBTOTAL:", "100.00")
+    assert _linea_con(salida, "Descuento") == _legacy_importe(comandos, "Descuento", "-10.00")
+    assert _linea_con(salida, "Efectivo") == _legacy_importe(comandos, "Efectivo", "100.00")
 
 
 # ---------------------------------------------------------------------------
