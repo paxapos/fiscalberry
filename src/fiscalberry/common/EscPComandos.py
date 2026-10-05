@@ -67,6 +67,22 @@ def floatToString(inputValue):
         inputValue = float(inputValue)
     return ('%.2f' % inputValue).rstrip('0').rstrip('.')
 
+# Cantidad maxima de decimales que se imprimen en una cantidad (kg, lts, etc.).
+# Coincide con la precision que maneja el servidor (decimal(14,4)).
+CANTIDAD_DECIMALES = 4
+
+def cantidadToString(inputValue):
+    """Formatea una CANTIDAD (no un importe): hasta 4 decimales, sin ceros colgantes.
+
+    0.125 -> '0.125', 2.0 -> '2', 1.5 -> '1.5', 3.3751 -> '3.3751'.
+    Los importes siguen usando floatToString (2 decimales).
+    """
+    if ( not isinstance(inputValue, float) ):
+        inputValue = float(inputValue)
+    texto = ('%.*f' % (CANTIDAD_DECIMALES, inputValue)).rstrip('0').rstrip('.')
+    # un valor que redondea a cero no debe salir como '-0'
+    return '0' if texto in ('', '-0') else texto
+
 def pad(texto, size, relleno, float = 'l'):
     text = str(texto)
     if float.lower() == 'l':
@@ -176,6 +192,20 @@ class EscPComandos():
         self.signo = "$"
         
         logger.debug(f"EscPComandos inicializado: total_cols={self.total_cols}, price={self.price_cols}, cant={self.cant_cols}, desc={self.desc_cols}")
+
+    def _columnasCantDescripcion(self, itemCant, ds):
+        """Arma las columnas CANT y DESCRIPCION de un item sin truncar la cantidad.
+
+        La columna CANT mide cant_cols (4 en 58mm, 6 en 80mm). Una cantidad con
+        decimales (0.125, 3.3751) puede no entrar: en vez de cortarla (se
+        imprimiria otro valor) o pegarla a la descripcion, se ensancha CANT y se
+        achica DESCRIPCION lo mismo, para que el PRECIO siga alineado. Si entra con
+        al menos un espacio de separacion el resultado es el de siempre.
+        """
+        extra = max(0, len(itemCant) + 1 - self.cant_cols)
+        cantTxt = pad(itemCant, self.cant_cols + extra, " ", "l")
+        dsTxt = pad(ds[0:max(0, self.desc_cols - 2 - extra)], self.desc_cols - extra, " ", "l")
+        return cantTxt, dsTxt
 
     # Acciones que imprimen un comprobante y terminan con corte de papel.
     # Si una falla a mitad de render, igual debe cortarse (ver run()).
@@ -369,7 +399,7 @@ class EscPComandos():
             can_tabs_final = cant_tabs - ceil(len(desc) / 8)
             strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            printer.text(u"%.2f%s%s\t%s\n" % (cant," ",unidad_de_medida, strTabs))
+            printer.text(u"%s%s%s\t%s\n" % (cantidadToString(cant)," ",unidad_de_medida, strTabs))
 
             if observacion:
                 printer.set(font='b', bold=True, align='left', normal_textsize=True)
@@ -596,7 +626,7 @@ class EscPComandos():
             importe = convertirImporte(float(item.get('importe')))
             ds = item.get('ds')[0:self.desc_cols-2]
            
-            itemCant = floatToString( qty )
+            itemCant = cantidadToString( qty )
             importeUnitario = floatToString( importe )
             totalProducto = f"{round( qty * importe , 2 ):,.2f}"
             
@@ -607,8 +637,7 @@ class EscPComandos():
                 printer.text(f'{pad(ds, self.desc_cols_ext, " ", "l")}{pad( totalProducto, self.price_cols , " ", "r")}\n' )
             else:
                 printer.set(font='a', height=1, align='left', normal_textsize=True)
-                cantTxt = pad(itemCant, self.cant_cols, " ", "l")
-                dsTxt = pad(ds, self.desc_cols, " ", "l")
+                cantTxt, dsTxt = self._columnasCantDescripcion(itemCant, ds)
                 totalTxt = pad(totalProducto, self.price_cols, " ", "r")
                 printer.text(f'{cantTxt}{dsTxt}{totalTxt}\n')
 
@@ -838,11 +867,10 @@ class EscPComandos():
             ds = item.get('ds')[0:self.desc_cols-2]
             total = importe * qty
 
-            itemCant = floatToString( qty )
+            itemCant = cantidadToString( qty )
             totalProducto = f"{round( qty * importe , 2 ):,.2f}"
 
-            cantTxt = pad(itemCant, self.cant_cols, " ", "l")
-            dsTxt = pad(ds, self.desc_cols, " ", "l")
+            cantTxt, dsTxt = self._columnasCantDescripcion(itemCant, ds)
             totalTxt = pad(totalProducto, self.price_cols, " ", "r")
 
             escpos.writelines(f'{cantTxt}{dsTxt}{totalTxt}')            
