@@ -2,7 +2,6 @@
 import datetime
 import logging
 from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
-from math import ceil
 import json
 import base64
 from fiscalberry.common.fiscalberry_logger import getLogger
@@ -193,19 +192,33 @@ class EscPComandos():
         
         logger.debug(f"EscPComandos inicializado: total_cols={self.total_cols}, price={self.price_cols}, cant={self.cant_cols}, desc={self.desc_cols}")
 
-    def _columnasCantDescripcion(self, itemCant, ds):
-        """Arma las columnas CANT y DESCRIPCION de un item sin truncar la cantidad.
+    def _columnasItem(self, itemCant, ds, totalProducto):
+        """Arma las columnas CANT, DESCRIPCION y PRECIO de un item sin truncar ni la cantidad ni el total.
 
-        La columna CANT mide cant_cols (4 en 58mm, 6 en 80mm). Una cantidad con
-        decimales (0.125, 3.3751) puede no entrar: en vez de cortarla (se
-        imprimiria otro valor) o pegarla a la descripcion, se ensancha CANT y se
-        achica DESCRIPCION lo mismo, para que el PRECIO siga alineado. Si entra con
-        al menos un espacio de separacion el resultado es el de siempre.
+        CANT mide cant_cols (4 en 58mm, 6 en 80mm) y PRECIO price_cols (10 y 12).
+        Una cantidad con decimales (0.125, 3.3751) o un total de linea alto
+        (9,876,543.12 en 58mm) puede no entrar: en vez de cortarlo (pad() corta
+        por la derecha y se imprimiria otro valor) o pegarlo a la columna de al
+        lado, se ensancha esa columna y se achica DESCRIPCION lo mismo, para que
+        la linea siga midiendo total_cols y PRECIO quede alineado al borde.
+        Si todo entra (CANT con al menos un espacio de separacion) el resultado
+        es el de siempre, byte a byte.
         """
-        extra = max(0, len(itemCant) + 1 - self.cant_cols)
-        cantTxt = pad(itemCant, self.cant_cols + extra, " ", "l")
-        dsTxt = pad(ds[0:max(0, self.desc_cols - 2 - extra)], self.desc_cols - extra, " ", "l")
-        return cantTxt, dsTxt
+        extraCant = max(0, len(itemCant) + 1 - self.cant_cols)
+        extraPrecio = max(0, len(totalProducto) - self.price_cols)
+        anchoDs = max(0, self.desc_cols - extraCant - extraPrecio)
+        cantTxt = pad(itemCant, self.cant_cols + extraCant, " ", "l")
+        dsTxt = pad(ds[0:max(0, anchoDs - 2)], anchoDs, " ", "l")
+        totalTxt = pad(totalProducto, self.price_cols + extraPrecio, " ", "r")
+        return cantTxt, dsTxt, totalTxt
+
+    def _columnasDescImporte(self, ds, totalProducto):
+        """Igual que _columnasItem para el formato de factura A (la cantidad va en la linea de arriba)."""
+        extraPrecio = max(0, len(totalProducto) - self.price_cols)
+        anchoDs = max(0, self.desc_cols_ext - extraPrecio)
+        dsTxt = pad(ds[0:anchoDs], anchoDs, " ", "l")
+        totalTxt = pad(totalProducto, self.price_cols + extraPrecio, " ", "r")
+        return dsTxt, totalTxt
 
     # Acciones que imprimen un comprobante y terminan con corte de papel.
     # Si una falla a mitad de render, igual debe cortarse (ver run()).
@@ -386,20 +399,26 @@ class EscPComandos():
                     printer.text(u"Esta orden de compra ya ha sido recepcionada\n")
         printer.text(u"Fecha: %s \n\n\n" % fecha)
 
-        printer.text(u"CANT\tDESCRIPCIÓN\n")
+        # Columna CANT de ancho fijo con espacios (no tabuladores): con 3 o 4
+        # decimales ("0.125 kg") el texto pasaba el tab stop y la descripcion
+        # saltaba de columna. Mide 8 como siempre, y se ensancha solo si alguna
+        # cantidad no entra, igual para todos los renglones.
+        cantidades = [
+            u"%s %s" % (cantidadToString(float(item.get('qty'))), item.get('unidad_de_medida'))
+            for item in items
+        ]
+        anchoCant = max([8] + [len(c) + 1 for c in cantidades])
+        anchoDesc = max(0, min(24, self.total_cols - anchoCant))
+
+        printer.text(pad(u"CANT", anchoCant, " ", "l") + u"DESCRIPCIÓN\n")
         printer.text("\n")
         
-        for item in items:
+        for item, cantidad in zip(items, cantidades):
             printer.set(font='a', height=1, align='left', normal_textsize=True)
-            desc = item.get('ds')[0:24]
-            cant = float(item.get('qty'))
-            unidad_de_medida = item.get('unidad_de_medida')
+            desc = item.get('ds')[0:anchoDesc]
             observacion = item.get('observacion')
-            cant_tabs = 3
-            can_tabs_final = cant_tabs - ceil(len(desc) / 8)
-            strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            printer.text(u"%s%s%s\t%s\n" % (cantidadToString(cant)," ",unidad_de_medida, strTabs))
+            printer.text(pad(cantidad, anchoCant, " ", "l") + desc + u"\n")
 
             if observacion:
                 printer.set(font='b', bold=True, align='left', normal_textsize=True)
@@ -634,11 +653,11 @@ class EscPComandos():
                 printer.set(font='b', bold=True, align='left', normal_textsize=True)
                 printer.text(f"{itemCant} x {importeUnitario} ({floatToString(alicIva)})\n")
                 printer.set(font='a', height=1, align='left', normal_textsize=True)
-                printer.text(f'{pad(ds, self.desc_cols_ext, " ", "l")}{pad( totalProducto, self.price_cols , " ", "r")}\n' )
+                dsTxt, totalTxt = self._columnasDescImporte(ds, totalProducto)
+                printer.text(f'{dsTxt}{totalTxt}\n' )
             else:
                 printer.set(font='a', height=1, align='left', normal_textsize=True)
-                cantTxt, dsTxt = self._columnasCantDescripcion(itemCant, ds)
-                totalTxt = pad(totalProducto, self.price_cols, " ", "r")
+                cantTxt, dsTxt, totalTxt = self._columnasItem(itemCant, ds, totalProducto)
                 printer.text(f'{cantTxt}{dsTxt}{totalTxt}\n')
 
         printer.text("-" * self.total_cols + "\n")
@@ -870,8 +889,7 @@ class EscPComandos():
             itemCant = cantidadToString( qty )
             totalProducto = f"{round( qty * importe , 2 ):,.2f}"
 
-            cantTxt, dsTxt = self._columnasCantDescripcion(itemCant, ds)
-            totalTxt = pad(totalProducto, self.price_cols, " ", "r")
+            cantTxt, dsTxt, totalTxt = self._columnasItem(itemCant, ds, totalProducto)
 
             escpos.writelines(f'{cantTxt}{dsTxt}{totalTxt}')            
             
