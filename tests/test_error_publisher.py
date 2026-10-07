@@ -92,11 +92,11 @@ def test_client_id_incluye_tenant_y_uuid(monkeypatch):
     monkeypatch.setattr(ep.mqtt_compat, "make_client", fake_make_client)
 
     pub = ep.ErrorPublisher()
-    pub.tenant = "palote_pastas"
-    pub.uuid = "b7b6c00f-ae49-48b0-a6c2-8876c97f27d2"
-    pub.error_topic = "fiscalberry/errors/palote_pastas/b7b6c00f-ae49-48b0-a6c2-8876c97f27d2"
+    pub.tenant = "comercio_demo"
+    pub.uuid = "11111111-2222-4333-8444-555555555555"
+    pub.error_topic = "fiscalberry/errors/comercio_demo/11111111-2222-4333-8444-555555555555"
     pub.connect()
 
     assert captured["client_id"] == (
-        "fiscalberry-errors-palote_pastas-b7b6c00f-ae49-48b0-a6c2-8876c97f27d2"
+        "fiscalberry-errors-comercio_demo-11111111-2222-4333-8444-555555555555"
     )

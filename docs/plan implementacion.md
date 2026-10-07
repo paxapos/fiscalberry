@@ -24,8 +24,7 @@ Resumen de la Migración
 Objetivo: Migrar el sistema de mensajería de Fiscalberry desde AMQP (usando la librería pika) hacia MQTT (usando la librería paho-mqtt).
 
 Fecha del commit original: 2026-01-16 19:46:39 -0300
-Autor: Santiago gay 
-gaysantiago4@gmail.com
+Autor: colaborador
 
 Commit hash: 4250b9bc049e053031ed13833958d655bd7d2799
 
@@ -374,7 +373,7 @@ import json
 MQTT_BROKER = "tu-servidor.com"  # o IP del servidor
 MQTT_PORT = 1883
 MQTT_USER = "fiscalberry"
-MQTT_PASSWORD = "hiperquantum"
+MQTT_PASSWORD = "<password>"
 PRINTER_UUID = "12345678-1234-1234-1234-123456789abc"  # UUID de tu impresora
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
@@ -423,7 +422,7 @@ client.loop_forever()
 🔑 Puntos Clave:
 1. Credenciales
 python
-client.username_pw_set("fiscalberry", "hiperquantum")
+client.username_pw_set("fiscalberry", "<password>")
 Usa el mismo usuario que en AMQP/Pika
 RabbitMQ valida los permisos del usuario fiscalberry
 2. Sesión Persistente (CRÍTICO)
