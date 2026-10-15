@@ -7,13 +7,21 @@ Centraliza:
     En 2.x se fuerza `callback_api_version=VERSION1` para conservar las firmas de
     callbacks v1 que usa el resto del código, evitando una reescritura riesgosa.
   - Interpretación del "reason code" de conexión en ambas versiones.
+  - Un solo cliente vivo por client id dentro del proceso (core#473).
   - Lectura de configuración TLS local y aplicación de `tls_set()` (Fase 5).
 
 Todo es opt-in y retrocompatible: sin configuración TLS, el comportamiento es el
 mismo de siempre (MQTT sin TLS en 1883).
 """
 
+import threading
+import weakref
+
 import paho.mqtt.client as mqtt
+
+from fiscalberry.common.fiscalberry_logger import getLogger
+
+logger = getLogger()
 
 try:  # paho-mqtt >= 2.0
     from paho.mqtt.enums import CallbackAPIVersion
@@ -28,25 +36,62 @@ def has_v2():
     return _HAS_CALLBACK_API_VERSION
 
 
+# Último cliente creado por client id en este proceso. Dos clientes vivos con el
+# mismo id se patean mutuamente en el broker para siempre ("duplicate id"): cada
+# uno tiene su loop de red y paho lo reconecta solo (core#473).
+_clientes_por_id = weakref.WeakValueDictionary()
+_clientes_lock = threading.Lock()
+
+
+def _esta_vivo(client):
+    hilo = getattr(client, "_thread", None)
+    return (hilo is not None and hilo.is_alive()) or client.socket() is not None
+
+
+def _frenar(client):
+    try:
+        client.disconnect()
+    except Exception:
+        pass
+    try:
+        client.loop_stop()
+    except Exception:
+        pass
+
+
 def make_client(client_id, clean_session=True, protocol=None):
     """Crea un `mqtt.Client` compatible con paho 1.x y 2.x.
 
     En 2.x se pasa `callback_api_version=CallbackAPIVersion.VERSION1` para mantener
     las firmas de callbacks v1 (on_connect(client, userdata, flags, rc), etc.).
+
+    Si en este proceso ya hay un cliente vivo con el mismo `client_id`, lo frena
+    antes de crear el nuevo: dos clientes con el mismo id nunca conviven bien.
     """
     protocol = protocol if protocol is not None else mqtt.MQTTv311
-    if _HAS_CALLBACK_API_VERSION:
-        return mqtt.Client(
-            callback_api_version=CallbackAPIVersion.VERSION1,
-            client_id=client_id,
-            clean_session=clean_session,
-            protocol=protocol,
-        )
-    return mqtt.Client(
-        client_id=client_id,
-        clean_session=clean_session,
-        protocol=protocol,
-    )
+    with _clientes_lock:
+        previo = _clientes_por_id.get(client_id)
+        if previo is not None and _esta_vivo(previo):
+            logger.warning(
+                "MQTT: ya había un cliente vivo con id '%s' en este proceso; se lo "
+                "frena para que no se pateen en el broker (bug: no se cerró el anterior)",
+                client_id)
+            _frenar(previo)
+        if _HAS_CALLBACK_API_VERSION:
+            client = mqtt.Client(
+                callback_api_version=CallbackAPIVersion.VERSION1,
+                client_id=client_id,
+                clean_session=clean_session,
+                protocol=protocol,
+            )
+        else:
+            client = mqtt.Client(
+                client_id=client_id,
+                clean_session=clean_session,
+                protocol=protocol,
+            )
+        _clientes_por_id[client_id] = client
+        return client
 
 
 def rc_is_success(rc):
