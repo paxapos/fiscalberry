@@ -27,16 +27,17 @@ class ErrorPublisher:
     
     Funcionalidades:
     - Publica errores a topics con formato: fiscalberry/errors/{tenant}/{uuid}
-    - Mantiene una conexión persistente pero resiliente
-    - Maneja reconexiones automáticas
+    - Mantiene UN cliente MQTT por proceso; paho se reconecta solo
     - Formatea los errores con metadata útil
     """
     
     MQTT_PORT_DEFAULT = 1883
+    CONNECT_TIMEOUT = 5  # segundos que se espera el primer CONNACK
     
     def __init__(self):
         self.config = Configberry()
         self.client = None
+        self._client_config = None  # config del broker con la que se creó self.client
         self.tenant = None
         self.uuid = None
         self.error_topic = None
@@ -122,6 +123,8 @@ class ErrorPublisher:
     
     def _on_connect(self, client, userdata, flags, rc):
         """Callback cuando se conecta al broker MQTT."""
+        if client is not self.client:
+            return  # evento tardío de un cliente que ya se reemplazó
         if mqtt_compat.rc_is_success(rc):
             self._connected = True
             logger.debug("ErrorPublisher: MQTT conectado")
@@ -131,6 +134,8 @@ class ErrorPublisher:
             
     def _on_disconnect(self, client, userdata, rc):
         """Callback cuando se desconecta del broker MQTT."""
+        if client is not self.client:
+            return  # evento tardío de un cliente que ya se reemplazó
         self._connected = False
         if rc != 0:
             logger.debug("ErrorPublisher: Desconexión inesperada (rc=%s)", rc)
@@ -141,22 +146,30 @@ class ErrorPublisher:
     
     def connect(self) -> bool:
         """
-        Establece conexión con el broker MQTT.
-        
+        Asegura que haya un cliente MQTT para publicar errores.
+
+        Hay UN solo cliente por proceso: una vez creado, paho se reconecta solo
+        (loop_start + reconnect_delay_set). Crear otro sin frenar el anterior
+        deja dos clientes con el mismo client id que el broker patea
+        mutuamente para siempre (core#473). Solo se recrea si cambió la config
+        del broker, y en ese caso se frena el viejo primero.
+
         Returns:
-            bool: True si la conexión fue exitosa, False en caso contrario
+            bool: True si el cliente está conectado, False en caso contrario
         """
         with self._lock:
-            if self._connected and self.client:
-                logger.debug("ErrorPublisher: Already connected")
-                return True
-                
             if not self.tenant or not self.error_topic:
                 return False
-                
+
+            config = self._get_mqtt_config()
+            if self.client is not None:
+                if config == self._client_config:
+                    # paho ya se está reconectando solo: no crear otro cliente.
+                    return self._connected
+                logger.info("ErrorPublisher: cambió la config del broker, se recrea el cliente MQTT")
+                self._teardown_client()
+
             try:
-                config = self._get_mqtt_config()
-                
                 logger.debug("ErrorPublisher: Connecting to MQTT - Host: %s:%s, User: %s",
                            config['host'], config['port'], config['user'])
                 
@@ -164,65 +177,81 @@ class ErrorPublisher:
                 # El client id lleva el uuid del dispositivo: solo el tenant colisiona
                 # cuando un comercio tiene más de un fiscalberry (el broker patea al
                 # conectado y ambos entran en un loop infinito de reconexión mutua).
-                self.client = mqtt_compat.make_client(
+                client = mqtt_compat.make_client(
                     client_id=f"fiscalberry-errors-{self.tenant}-{self.uuid}",
                     clean_session=True,  # Para errores no necesitamos sesión persistente
                     protocol=mqtt.MQTTv311,
                 )
                 
                 # Configurar credenciales
-                self.client.username_pw_set(config['user'], config['password'])
+                client.username_pw_set(config['user'], config['password'])
 
                 # TLS opt-in (misma config local que el consumer).
                 try:
                     tls_cfg = mqtt_compat.read_mqtt_tls_config(self.config)
-                    mqtt_compat.apply_tls(self.client, tls_cfg)
+                    mqtt_compat.apply_tls(client, tls_cfg)
                 except Exception as tls_err:
                     logger.debug("ErrorPublisher: no se pudo aplicar TLS: %s", tls_err)
+
+                # Reconexión automática con backoff (la hace el loop de paho).
+                client.reconnect_delay_set(min_delay=1, max_delay=120)
                 
                 # Configurar callbacks
-                self.client.on_connect = self._on_connect
-                self.client.on_disconnect = self._on_disconnect
-                self.client.on_publish = self._on_publish
+                client.on_connect = self._on_connect
+                client.on_disconnect = self._on_disconnect
+                client.on_publish = self._on_publish
+
+                # Se asigna antes de arrancar el loop: los callbacks descartan
+                # eventos de cualquier cliente que no sea self.client.
+                self.client = client
+                self._client_config = config
                 
-                # Conectar
-                self.client.connect(config['host'], config['port'], keepalive=60)
-                
-                # Iniciar loop en segundo plano
-                self.client.loop_start()
-                
-                # Esperar conexión con timeout
-                timeout = 5
-                start = time.time()
-                while not self._connected and (time.time() - start) < timeout:
-                    time.sleep(0.1)
-                
-                if self._connected:
-                    logger.debug("ErrorPublisher connected - Tenant: %s, Topic: %s",
-                               self.tenant, self.error_topic)
-                    return True
-                else:
-                    logger.error("ErrorPublisher: Connection timeout")
-                    return False
+                # Conectar en segundo plano: si el broker no está, el loop
+                # reintenta solo (también el primer intento).
+                client.connect_async(config['host'], config['port'], keepalive=60)
+                client.loop_start()
                 
             except Exception as e:
                 logger.error("ErrorPublisher: Connection failed - %s", e)
                 logger.debug(traceback.format_exc())
-                self._connected = False
+                self._teardown_client()
                 return False
+
+            # Esperar el primer CONNACK con timeout
+            deadline = time.time() + self.CONNECT_TIMEOUT
+            while not self._connected and time.time() < deadline:
+                time.sleep(0.1)
+            
+            if self._connected:
+                logger.debug("ErrorPublisher connected - Tenant: %s, Topic: %s",
+                           self.tenant, self.error_topic)
+                return True
+            # El cliente NO se descarta: paho sigue intentando y el próximo
+            # error lo reusa en vez de crear otro con el mismo client id.
+            logger.error("ErrorPublisher: Connection timeout")
+            return False
+
+    def _teardown_client(self):
+        """Desconecta y frena el loop del cliente actual. Llamar con self._lock tomado."""
+        client, self.client = self.client, None
+        self._client_config = None
+        self._connected = False
+        if client is None:
+            return
+        try:
+            client.disconnect()
+        except Exception as e:
+            logger.debug("ErrorPublisher: disconnect falló (ignorado): %s", e)
+        try:
+            client.loop_stop()
+        except Exception as e:
+            logger.debug("ErrorPublisher: loop_stop falló (ignorado): %s", e)
     
     def disconnect(self):
         """Cierra la conexión con el broker MQTT."""
         with self._lock:
-            try:
-                if self.client:
-                    self.client.loop_stop()
-                    self.client.disconnect()
-                self._connected = False
-                logger.debug("ErrorPublisher disconnected")
-            except Exception as e:
-                logger.error("ErrorPublisher: Disconnect failed - %s", e)
-                logger.debug(traceback.format_exc())
+            self._teardown_client()
+            logger.debug("ErrorPublisher disconnected")
     
     def publish_error(self, error_type: str, error_message: str, 
                      context: Optional[Dict[str, Any]] = None, 
@@ -284,10 +313,11 @@ class ErrorPublisher:
                                error_type, self.tenant, self.error_topic, result.mid)
                     
         except Exception as e:
+            # El estado de conexión lo manejan solo los callbacks de paho: marcar
+            # desconectado acá dejaba al publisher creyendo que no hay conexión
+            # (o creaba otro cliente con el mismo id, core#473).
             logger.error("ErrorPublisher: Failed to publish error - %s", e)
             logger.debug(traceback.format_exc())
-            # Marcar como desconectado para forzar reconexión
-            self._connected = False
 
 
 # Singleton global para el publisher de errores
