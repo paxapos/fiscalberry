@@ -70,6 +70,13 @@ class FiscalberryApp(App):
     status_level = StringProperty("error")
 
     status_message = StringProperty("Esperando conexión...")
+
+    # Problema de impresión activo, en palabras simples (vacío = todo bien).
+    # Tiene prioridad sobre el estado de conexión: si no sale el ticket, eso
+    # es lo único que le importa al cajero.
+    printer_problem_title = StringProperty("")
+    printer_problem_message = StringProperty("")
+    printer_problem_hint = StringProperty("")
     logs = StringProperty("")  # Logs en tiempo real para MainScreen
 
     # Espacio que ocupan la barra de estado y la de navegación del sistema, en
@@ -142,6 +149,7 @@ class FiscalberryApp(App):
             try:
                 Clock.schedule_interval(self._check_sio_status, 5)
                 Clock.schedule_interval(self._check_rabbit_status, 5)
+                Clock.schedule_interval(self._check_printer_status, 3)
                 Clock.schedule_interval(self._update_logs, 1)  # Actualizar logs cada segundo
                 logger.debug("Schedulers de verificación de estado configurados")
             except Exception as e:
@@ -641,6 +649,7 @@ class FiscalberryApp(App):
             try:
                 Clock.schedule_interval(self._check_sio_status, 5)
                 Clock.schedule_interval(self._check_rabbit_status, 5)
+                Clock.schedule_interval(self._check_printer_status, 3)
                 logger.debug("Schedulers re-programados")
             except Exception as e:
                 logger.warning(f"Error re-programando schedulers: {e}")
@@ -844,10 +853,14 @@ class FiscalberryApp(App):
         En Desktop el ServiceController es local y se consulta directo.
         """
         if not self._is_android:
-            return {
+            from fiscalberry.common.ComandosHandler import print_status_snapshot
+
+            snap = {
                 "sio_connected": self._service_controller.isSocketIORunning(),
                 "mqtt_connected": self._service_controller.isRabbitRunning(),
             }
+            snap.update(print_status_snapshot())
+            return snap
         from fiscalberry.common.service_status import read_status
 
         return read_status() or {"sio_connected": False, "mqtt_connected": False}
@@ -895,6 +908,27 @@ class FiscalberryApp(App):
             self.rabbitMqConnected = False
             self._recompute_status()
 
+    def _check_printer_status(self, dt):
+        """Muestra en grande si una impresora dejó de imprimir y qué hacer."""
+        try:
+            from fiscalberry.common.printer_health import resumen_para_pantalla
+
+            snap = self._service_status_snapshot()
+            resumen = resumen_para_pantalla(snap.get("printer_problems") or [],
+                                            snap.get("pending_jobs") or 0)
+        except Exception as e:
+            logger.debug(f"Error verificando impresoras: {e}")
+            return
+
+        titulo, mensaje, aviso = resumen or ("", "", "")
+        if (titulo, mensaje, aviso) != (self.printer_problem_title,
+                                        self.printer_problem_message,
+                                        self.printer_problem_hint):
+            self.printer_problem_title = titulo
+            self.printer_problem_message = mensaje
+            self.printer_problem_hint = aviso
+            self._recompute_status()
+
     def _recompute_status(self):
         """
         Recalcula el nivel global de salud y el mensaje para la UI
@@ -903,7 +937,10 @@ class FiscalberryApp(App):
         sio = self.sioConnected
         rabbit = self.rabbitMqConnected
 
-        if sio and rabbit:
+        if self.printer_problem_title:
+            self.status_level = "error"
+            self.status_message = "No está imprimiendo"
+        elif sio and rabbit:
             self.status_level = "ok"
             self.status_message = "Listo para imprimir"
         elif sio and not rabbit:
@@ -1114,6 +1151,7 @@ class FiscalberryApp(App):
         try:
             Clock.unschedule(self._check_sio_status)
             Clock.unschedule(self._check_rabbit_status)
+            Clock.unschedule(self._check_printer_status)
         except:
             pass
 

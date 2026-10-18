@@ -316,9 +316,11 @@ class ServiceController:
                 if now - last_status_write >= self.STATUS_WRITE_INTERVAL_SECONDS:
                     last_status_write = now
                     try:
+                        from fiscalberry.common.ComandosHandler import print_status_snapshot
                         write_status(
                             sio_connected=self.sio.isSioConnected(),
                             mqtt_connected=self.sio.isRabbitMQRunning(),
+                            extra=print_status_snapshot(),
                         )
                     except Exception as e:
                         logger.debug(f"No se pudo publicar el estado: {e}")
