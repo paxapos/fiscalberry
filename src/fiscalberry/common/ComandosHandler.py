@@ -357,7 +357,7 @@ def runTraductor(jsonTicket, queue):
 
 
     else:
-        raise DriverError(f"Invalid driver: {driver}")
+        raise DriverError(f"Invalid driver: {driverName}")
     
     # Manejar drivers custom (ej: Bluetooth) que ya tienen driver_class asignado
     if driverName == "Bluetooth":
@@ -389,17 +389,7 @@ def runTraductor(jsonTicket, queue):
     if not raw_cmd and jsonTicket.get("type") == "raw":
         raw_cmd = jsonTicket  # variante: envelope plano {type:raw,data,encoding}
     if raw_cmd:
-        import base64, gzip
-        data = base64.b64decode(raw_cmd["data"])
-        if (raw_cmd.get("encoding") or "gzip+base64") in ("gzip", "gzip+base64"):
-            data = gzip.decompress(data)
-        driver._raw(data)
-        try:
-            driver.close()
-        except Exception:
-            pass
-        logger.info(f"Impresión RAW OK en '{printerName}' ({len(data)} bytes)")
-        return {"message": "Impresion RAW exitosa", "result": "ok", "bytes": len(data)}
+        return _print_raw(driver, raw_cmd, printerName, driverName)
 
     try:
         comando = EscPComandos(driver, columns=columns)
@@ -425,6 +415,56 @@ def runTraductor(jsonTicket, queue):
         )
         
         raise e
+
+
+def decode_raw_payload(raw_cmd):
+    """Bytes ESC/POS de un comando printRaw ({data, encoding}).
+
+    encoding: 'gzip+base64' (default, lo que manda paxapos), 'gzip' (alias) o
+    'base64' (sin comprimir).
+    """
+    import base64, gzip
+    if not isinstance(raw_cmd, dict) or not raw_cmd.get("data"):
+        raise ValueError("printRaw sin 'data'")
+    data = base64.b64decode(raw_cmd["data"])
+    if (raw_cmd.get("encoding") or "gzip+base64") in ("gzip", "gzip+base64"):
+        data = gzip.decompress(data)
+    return data
+
+
+def _print_raw(driver, raw_cmd, printerName, driverName):
+    """Escupe los bytes que renderizó paxapos. Fiscalberry no interpreta nada.
+
+    Cualquier fallo LANZA: el spooler solo reintenta ante excepciones, y un
+    ticket raw que "falla en silencio" es un ticket perdido. El close() va
+    adentro del try a propósito: en CupsPrinter / LP / Win32Raw es el close()
+    el que manda el trabajo al sistema, así que un error ahí es un error de
+    impresión, no un detalle de limpieza.
+    """
+    data = decode_raw_payload(raw_cmd)
+    try:
+        driver._raw(data)
+        driver.close()
+    except Exception as e:
+        try:
+            driver.close()
+        except Exception:
+            pass
+        error_msg = f"Print RAW error en '{printerName}': {e}"
+        logger.error(error_msg)
+        PrinterErrorDetector.detect_and_publish_error(
+            error_message=error_msg,
+            exception=e,
+            context={
+                "printer_name": printerName,
+                "driver": driverName,
+                "command": "printRaw",
+                "bytes": len(data),
+            }
+        )
+        raise
+    logger.info(f"Impresión RAW OK en '{printerName}' ({len(data)} bytes)")
+    return {"message": "Impresion RAW exitosa", "result": "ok", "bytes": len(data)}
 
 
 # ---------------------------------------------------------------------------
@@ -752,13 +792,13 @@ class ComandosHandler:
                 rta["rta"] = self._getStatus()
 
             elif 'reboot' in jsonTicket:
-                rta["rta"] = self._reboot()
+                rta["rta"] = self._rebootFiscalberry()
 
             elif 'restart' in jsonTicket:
                 rta["rta"] = self._restartService()
 
             elif 'upgrade' in jsonTicket:
-                rta["rta"] = self._upgrade()
+                rta["rta"] = self._upgrade(jsonTicket['upgrade'])
 
             elif 'getPrinterInfo' in jsonTicket:
                 rta["rta"] = self._getPrinterInfo(jsonTicket["getPrinterInfo"])
@@ -806,13 +846,30 @@ class ComandosHandler:
 
         return rta
 
-    def _upgrade(self):
-        ret = self.fbApp.upgradeGitPull()
-        rta = {
-            "rta": ret
+    def _upgrade(self, params=None):
+        """Comando remoto 'upgrade' que manda paxapos.
+
+        Formatos aceptados:
+            {"upgrade": true}                        -> chequear ya (respeta el pin)
+            {"upgrade": {"version": "3.7.0"}}        -> fijar y aplicar esa versión
+            {"upgrade": {"version": "latest"}}       -> quitar el pin y seguir latest
+
+        Antes llamaba a `self.fbApp.upgradeGitPull()`, que no existe en ningún
+        lado: el comando fallaba siempre. Ahora delega en el updater (mismas
+        garantías que la auto-actualización: checksum, selftest, cola vacía y
+        rollback si la versión nueva no levanta).
+        """
+        from fiscalberry.common.updater.service import request_remote_update
+
+        version = None
+        if isinstance(params, dict):
+            version = params.get("version")
+        elif isinstance(params, str) and params.strip():
+            version = params
+        return {
+            "action": "upgrade",
+            "rta": request_remote_update(version, config=configberry),
         }
-        self.fbApp.restart_service()
-        return rta
 
     def _getPrinterInfo(self, printerName):
         rta = {

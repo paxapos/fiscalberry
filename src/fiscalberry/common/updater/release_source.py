@@ -21,6 +21,7 @@ logger = getLogger("Updater")
 
 DEFAULT_REPO = "paxapos/fiscalberry"
 API_URL = "https://api.github.com/repos/{repo}/releases/latest"
+TAG_API_URL = "https://api.github.com/repos/{repo}/releases/tags/{tag}"
 HTTP_TIMEOUT = 20
 
 # Archivo de checksums que publica la CI junto a los binarios.
@@ -117,6 +118,40 @@ def fetch_latest(repo=DEFAULT_REPO, session=None):
     else:
         raise ReleaseUnavailable(f"GitHub respondió {resp.status_code}")
 
+    return _release_from_payload(data)
+
+
+def fetch_tag(version, repo=DEFAULT_REPO, session=None):
+    """
+    Devuelve el Release de una versión puntual ('3.6.8' o 'v3.6.8').
+
+    Es lo que usa el pin remoto: paxapos le dice a un dispositivo "quedate en
+    esta versión" (para probar un release en un local antes que en la flota, o
+    para sostener uno mientras se investiga un problema del vigente). Sin caché
+    de ETag: se consulta solo cuando cambia el pin o en el chequeo periódico.
+    """
+    import requests
+
+    sess = session or requests
+    tag = version if str(version).lower().startswith("v") else "v" + str(version)
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    try:
+        resp = sess.get(TAG_API_URL.format(repo=repo, tag=tag), headers=headers,
+                        timeout=HTTP_TIMEOUT)
+    except Exception as e:
+        raise ReleaseUnavailable(f"no se pudo consultar GitHub: {e}")
+
+    if resp.status_code == 404:
+        raise ReleaseUnavailable(f"no existe el release {tag}")
+    if resp.status_code != 200:
+        raise ReleaseUnavailable(f"GitHub respondió {resp.status_code}")
+    return _release_from_payload(resp.json())
+
+
+def _release_from_payload(data):
     tag = data.get("tag_name") or ""
     assets = {}
     for a in data.get("assets") or []:

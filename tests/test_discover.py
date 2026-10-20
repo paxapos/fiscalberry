@@ -62,6 +62,25 @@ def test_discover_payload_includes_version(monkeypatch):
     assert raw["installed_printers"] == ["POS-80"]
 
 
+def test_discover_reporta_capacidades_en_raw_data(monkeypatch):
+    """paxapos decide qué mandarle (printRaw, upgrade remoto) por capacidad."""
+    sent = {}
+
+    def fake_post(url, headers=None, data=None, timeout=None, verify=None):
+        sent["body"] = json.loads(data)
+        return FakeResponse()
+
+    monkeypatch.setattr(discover, "configberry", FakeConfigberry())
+    monkeypatch.setattr(discover, "listar_impresoras", lambda: [])
+    monkeypatch.setattr(discover.requests, "post", fake_post)
+
+    assert discover.send_discover() is True
+    raw = json.loads(sent["body"]["raw_data"])
+    assert "printRaw" in raw["capabilities"]
+    assert "upgrade" in raw["capabilities"]
+    assert "upgradePin" in raw["capabilities"]
+
+
 def test_discover_without_uuid_does_not_post(monkeypatch):
     called = []
     monkeypatch.setattr(discover, "configberry", FakeConfigberry(uuid=""))

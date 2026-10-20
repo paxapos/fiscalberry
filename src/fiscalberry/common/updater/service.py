@@ -12,6 +12,7 @@ trabajo pendiente.
 """
 
 import os
+import re
 import threading
 import time
 
@@ -37,6 +38,18 @@ DEFAULT_INTERVAL_HOURS = 6
 BUSY_RETRY_SECONDS = 600
 
 TARBALL_URL = "https://github.com/{repo}/archive/refs/tags/{tag}.tar.gz"
+
+# El updater que está corriendo en este proceso, para que un comando remoto
+# ('upgrade' que manda paxapos) pueda pedirle un chequeo ya, sin esperar el
+# intervalo. Lo registra start().
+_active = None
+
+PIN_LATEST = ("", "latest")
+_VERSION_RE = re.compile(r"^\d+(\.\d+){1,3}$")
+
+
+class InvalidVersion(ValueError):
+    """El servidor pidió fijar una versión con formato inválido."""
 
 
 def spooler_idle():
@@ -65,6 +78,7 @@ class UpdaterService:
         self._repo = repo or release_source.DEFAULT_REPO
         self._stop = threading.Event()
         self._thread = None
+        self._check_lock = threading.Lock()
         self.last_result = None
 
     # -- configuración ----------------------------------------------------
@@ -82,6 +96,35 @@ class UpdaterService:
         valor = str(self._cfg("enabled", "true")).strip().lower()
         return valor not in ("false", "0", "no", "off")
 
+    def pinned_version(self):
+        """
+        Versión fijada desde paxapos ([Updater] pinned_version), o None.
+
+        Con pin, la regla "tener lo que dice latest" pasa a ser "tener esta
+        versión": sirve para probar un release en un local antes que en toda la
+        flota, o para sostener uno mientras se investiga un problema del vigente.
+        Sin pin (vacío o 'latest') se sigue a latest como siempre.
+        """
+        valor = str(self._cfg("pinned_version", "")).strip()
+        if valor.lower() in PIN_LATEST:
+            return None
+        valor = valor.lstrip("vV")
+        if not _VERSION_RE.match(valor):
+            logger.warning("[Updater] pinned_version inválido (%r): se ignora "
+                           "y se sigue a latest.", valor)
+            return None
+        return valor
+
+    def set_pinned_version(self, version):
+        """Persiste el pin. None / '' / 'latest' lo borra (vuelve a seguir latest)."""
+        valor = "" if version is None or str(version).strip().lower() in PIN_LATEST \
+            else str(version).strip().lstrip("vV")
+        if valor and not _VERSION_RE.match(valor):
+            raise InvalidVersion(f"versión inválida: {version!r}")
+        if self._config is not None:
+            self._config.set("Updater", {"pinned_version": valor})
+        return valor or None
+
     def interval_seconds(self):
         try:
             horas = float(self._cfg("check_interval_hours", DEFAULT_INTERVAL_HOURS))
@@ -92,6 +135,8 @@ class UpdaterService:
     # -- ciclo de vida ----------------------------------------------------
 
     def start(self):
+        global _active
+        _active = self
         if not self.enabled():
             logger.info("Auto-actualización desactivada por configuración.")
             return None
@@ -125,6 +170,34 @@ class UpdaterService:
 
     # -- el chequeo -------------------------------------------------------
 
+    def request_check(self, version=None):
+        """
+        Chequeo inmediato pedido por paxapos (comando remoto 'upgrade').
+
+        `version` fija esa versión ('3.6.8'); 'latest' quita el pin; None deja
+        el pin como está. Corre en otro hilo: el comando llega por MQTT y el
+        callback no puede quedar bloqueado durante la descarga. Las mismas
+        reglas de seguridad que el chequeo periódico (checksum, selftest, cola
+        vacía) aplican igual: si hay tickets pendientes se reintenta con el
+        loop normal.
+        """
+        if version is not None:
+            self.set_pinned_version(version)
+        objetivo = self.pinned_version() or "latest"
+
+        def _correr():
+            try:
+                self.last_result = self.check_once()
+            except Exception as e:
+                logger.error("Error en el chequeo pedido por el servidor: %s", e)
+                self.last_result = ("error", str(e))
+            logger.info("Actualización pedida por el servidor: %s", self.last_result)
+
+        hilo = threading.Thread(target=_correr, daemon=True,
+                                name="fiscalberry-updater-remoto")
+        hilo.start()
+        return {"accepted": True, "current": VERSION, "target": objetivo}
+
     def check_once(self):
         """
         Un ciclo completo. Devuelve (estado, detalle) para logs y tests.
@@ -132,6 +205,16 @@ class UpdaterService:
         Estados: al-dia, sin-artefacto, sin-checksums, ocupado, descartado,
                  aplicado, error.
         """
+        # El chequeo periódico y uno pedido por el servidor no pueden pisarse
+        # (bajarían y aplicarían dos veces sobre la misma instalación).
+        if not self._check_lock.acquire(blocking=False):
+            return ("ocupado", "ya hay un chequeo en curso")
+        try:
+            return self._check_once()
+        finally:
+            self._check_lock.release()
+
+    def _check_once(self):
         kind = install_kind.detect()
 
         # Restos de ciclos anteriores. Importa sobre todo en Android: el APK no
@@ -143,8 +226,12 @@ class UpdaterService:
         except Exception as e:
             logger.debug(f"No se pudo limpiar el staging viejo: {e}")
 
+        pin = self.pinned_version()
         try:
-            release = release_source.fetch_latest(self._repo)
+            if pin:
+                release = release_source.fetch_tag(pin, self._repo)
+            else:
+                release = release_source.fetch_latest(self._repo)
         except release_source.ReleaseUnavailable as e:
             logger.info("No se pudo consultar el release vigente (%s). "
                         "Se reintenta más tarde.", e)
@@ -270,6 +357,24 @@ class UpdaterService:
             except Exception as e:
                 logger.error("El cierre ordenado falló (%s); se sale igual.", e)
         os._exit(0)
+
+
+def request_remote_update(version=None, config=None):
+    """
+    Punto de entrada del comando remoto 'upgrade'.
+
+    Usa el updater que ya corre en el proceso. Si no hay (auto-actualización
+    desactivada, o un proceso sin service_controller), se arma uno al vuelo:
+    que el chequeo periódico esté apagado no significa que el servidor no pueda
+    pedir una actualización puntual.
+    """
+    updater = _active
+    if updater is None:
+        if config is None:
+            from fiscalberry.common.Configberry import Configberry
+            config = Configberry()
+        updater = UpdaterService(config=config)
+    return updater.request_check(version)
 
 
 # --------------------------------------------------------------------------
