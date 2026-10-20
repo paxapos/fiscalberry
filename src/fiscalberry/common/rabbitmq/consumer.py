@@ -16,6 +16,7 @@ from fiscalberry.common.Configberry import Configberry
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.rabbitmq.error_publisher import publish_error
 from fiscalberry.common.rabbitmq import mqtt_compat
+from fiscalberry.common import respuesta_comando
 from typing import Optional
 import queue
 
@@ -296,8 +297,16 @@ class RabbitMQConsumer:
                 from fiscalberry.common.ComandosHandler import get_print_spooler
                 job_id = json_data.get('jobId') or hashlib.sha1(
                     (body_str or json.dumps(json_data)).encode('utf-8')).hexdigest()
-                get_print_spooler().enqueue(
+                is_new = get_print_spooler().enqueue(
                     job_id, json_data, json_data.get('printerName'))
+                # Consola de Paxapos: avisar que llegó. El resultado de la
+                # impresión se reporta cuando el spooler la procesa.
+                respuesta_comando.reportar(json_data, {
+                    "encolado": True,
+                    "duplicado": not is_new,
+                    "job_id": job_id,
+                    "printerName": json_data.get('printerName'),
+                })
                 # ACK: el trabajo ya esta persistido en disco; se imprimira (con
                 # reintentos) aunque el proceso muera en este instante.
                 return
@@ -305,7 +314,9 @@ class RabbitMQConsumer:
             # Procesar comando (reutilizar handler para mejor rendimiento)
             if self._comandos_handler is None:
                 self._comandos_handler = ComandosHandler()
-            result = self._comandos_handler.send_command(json_data)
+            result = self._comandos_handler.send_command(
+                respuesta_comando.sin_metadatos(json_data))
+            respuesta_comando.reportar(json_data, result, ok="err" not in result)
             
             processing_time = time.time() - start_time
             

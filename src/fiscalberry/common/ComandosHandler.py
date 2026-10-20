@@ -11,6 +11,7 @@ from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.EscPComandos import EscPComandos
 from fiscalberry.common.rabbitmq.error_publisher import publish_error
 from fiscalberry.common.printer_error_detector import PrinterErrorDetector, analyze_printer_response
+from fiscalberry.common import respuesta_comando
 from escpos import printer
 from queue import Queue
 import traceback
@@ -232,6 +233,8 @@ def runTraductor(jsonTicket, queue):
     # jobId es metadata de dedup del spooler, no un comando: si quedara en el
     # ticket, EscPComandos.run() lo tomaria como accion inexistente.
     jsonTicket.pop('jobId', None)
+    # cmdId: marca de la consola de Paxapos para devolver la respuesta. Idem.
+    jsonTicket.pop('cmdId', None)
 
     try:
         dictSectionConf = configberry.get_config_for_printer(printerName)
@@ -468,10 +471,17 @@ def _spooler_print_fn(ticket):
 
         if printer_name:
             breaker.record_success(printer_name)
+        respuesta_comando.reportar(ticket, {"impreso": True, "printerName": printer_name, "rta": result})
         return result
-    except Exception:
+    except Exception as e:
         if printer_name:
             breaker.record_failure(printer_name)
+        respuesta_comando.reportar(ticket, {
+            "impreso": False,
+            "printerName": printer_name,
+            "err": str(e),
+            "nota": "el trabajo queda en la cola del dispositivo y se reintenta",
+        }, ok=False)
         raise
 
 
@@ -520,6 +530,15 @@ def _is_sync_print_mode():
     except Exception:
         val = "false"
     return str(val).strip().lower() in ("true", "1", "yes", "on")
+
+
+# Secciones del config.ini que son del servicio, no impresoras.
+_SECCIONES_DE_SISTEMA = ("SERVIDOR", "RabbitMq", "Paxaprinter", "Heartbeat")
+
+
+def _impresoras_configuradas():
+    """Nombres de las impresoras del config.ini (todo lo que no es del sistema)."""
+    return [s for s in configberry.sections() if s not in _SECCIONES_DE_SISTEMA]
 
 
 def _compute_job_id(jsonTicket):
@@ -860,10 +879,11 @@ class ComandosHandler:
 
     def _getAvailablePrinters(self):
 
-        # la primer seccion corresponde a SERVER, el resto son las impresoras
+        # Antes era sections()[1:] (asumía que solo SERVIDOR no es impresora) y
+        # listaba RabbitMq, Paxaprinter, etc. como si fueran impresoras.
         rta = {
             "action": "getAvailablePrinters",
-            "rta": configberry.sections()[1:]
+            "rta": _impresoras_configuradas()
         }
 
         return rta
@@ -876,6 +896,25 @@ class ComandosHandler:
                 rta["rta"][tradu] = "ONLINE"
             else:
                 rta["rta"][tradu] = "OFFLINE"
+
+        # `traductores` quedó de la época de las fiscales y en la práctica está
+        # siempre vacío: el estado útil para la consola de Paxapos es la versión,
+        # las impresoras configuradas y la cola del spooler.
+        try:
+            from fiscalberry.version import VERSION
+            rta["rta"]["version"] = VERSION
+        except Exception:
+            pass
+        try:
+            rta["rta"]["impresoras"] = _impresoras_configuradas()
+        except Exception as e:
+            rta["rta"]["impresoras"] = f"error: {e}"
+        try:
+            spooler = get_print_spooler()
+            rta["rta"]["pending_count"] = spooler.pending_count()
+            rta["rta"]["failed_count"] = spooler.failed_count()
+        except Exception as e:
+            rta["rta"]["spooler"] = f"error: {e}"
         return rta
 
     def _imprimirPendientes(self):

@@ -7,6 +7,7 @@ from fiscalberry.common.ComandosHandler import ComandosHandler, TraductorExcepti
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.Configberry import Configberry
 from fiscalberry.common.rabbitmq.process_handler import RabbitMQProcessHandler
+from fiscalberry.common import respuesta_comando
 from fiscalberry.version import VERSION
 
 
@@ -187,7 +188,13 @@ class FiscalberrySio:
                 def process_command():
                     try:
                         start_time = time.time()
-                        result = handler.send_command(cfg)
+                        if isinstance(cfg, dict) and 'printerName' in cfg:
+                            # El cmdId viaja con el ticket: el spooler reporta
+                            # el resultado cuando lo imprime.
+                            result = handler.send_command(cfg)
+                        else:
+                            result = handler.send_command(respuesta_comando.sin_metadatos(cfg))
+                        respuesta_comando.reportar(cfg, result, ok=not (result and "err" in result))
                         processing_time = time.time() - start_time
                         
                         # Log optimizado para comandos lentos
