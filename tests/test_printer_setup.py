@@ -492,3 +492,31 @@ def test_los_nombres_aceptados_los_resuelve_el_backend(config_real, alias):
     cfg, _ini = config_real
     _guardar(PrinterSetupService(cfg), alias, PrinterCandidate.windows_queue(f"Cola {alias}"))
     assert cfg.get_config_for_printer(alias)["printer_name"] == f"Cola {alias}"
+
+
+# ---------------------------------------------------------------------------
+# La misma impresora de red por otro camino (#171)
+# ---------------------------------------------------------------------------
+
+def test_cola_tcpip_y_red_directa_son_la_misma_impresora():
+    config = ConfigFalso()
+    service = PrinterSetupService(config)
+    service.save_confirmed("Cocina", PrinterCandidate.network("192.168.1.50"),
+                           technical_success=True, physical_confirmed=True)
+
+    cola = PrinterCandidate.windows_queue("EPSON TM-T20 Cocina", "IP_192.168.1.50")
+    assert service.buscar_duplicado(cola) == "Cocina"
+    # Otra IP u otro puerto de cola: no es la misma.
+    assert service.buscar_duplicado(
+        PrinterCandidate.windows_queue("Barra", "IP_192.168.1.51")) is None
+    assert service.buscar_duplicado(PrinterCandidate.windows_queue("Caja", "USB001")) is None
+
+
+def test_la_cola_guardada_recuerda_su_ip_para_la_red_directa():
+    config = ConfigFalso()
+    service = PrinterSetupService(config)
+    service.save_confirmed("Barra", PrinterCandidate.windows_queue("Barra", "192.168.1.60_1"),
+                           technical_success=True, physical_confirmed=True)
+
+    assert config.get_actual_config()["Barra"]["_host"] == "192.168.1.60"
+    assert service.buscar_duplicado(PrinterCandidate.network("192.168.1.60")) == "Barra"

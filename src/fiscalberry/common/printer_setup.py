@@ -25,6 +25,7 @@ Transportes (uno por candidato):
 """
 
 import ipaddress
+import re
 import socket
 from contextlib import nullcontext
 from dataclasses import dataclass, field
@@ -413,10 +414,15 @@ class PrinterSetupService:
         valores = dict(candidate.driver_config, _setup_id=candidate.stable_id)
         huella = _config_fingerprint(valores)
         huella_driver = _driver_fingerprint(valores)
+        ip = _ip_de(valores, candidate.detail if candidate.connection == WINDOWS else "")
         for seccion, existentes in current.items():
             if seccion.casefold() in self.RESERVED_SECTIONS:
                 continue
             if _config_fingerprint(existentes) == huella:
+                return seccion
+            # La misma impresora de red por otro camino: directo por la red y
+            # como cola de Windows con puerto TCP/IP a esa dirección.
+            if ip and _ip_de(existentes) == ip:
                 return seccion
             # Impresoras guardadas antes del asistente (sin _setup_id): solo
             # queda comparar los parámetros del driver.
@@ -453,6 +459,12 @@ class PrinterSetupService:
 
             values_to_save = dict(candidate.driver_config)
             values_to_save["_setup_id"] = candidate.stable_id
+            if candidate.connection == WINDOWS:
+                # Metadato (ComandosHandler descarta lo que empieza con "_"):
+                # para reconocerla si después la eligen directo por la red.
+                ip_de_la_cola = _host_de_puerto(candidate.detail)
+                if ip_de_la_cola:
+                    values_to_save["_host"] = ip_de_la_cola
             if not self.config.set(section, values_to_save):
                 raise SetupPersistenceError("No se pudo guardar la impresora")
         return section
@@ -485,6 +497,31 @@ def es_impresora_valida(valores):
     if driver == "bluetooth" and claves.get("macaddress"):
         return True
     return all(claves.get(k) for k in _REQUERIDOS.get(driver, ()))
+
+
+def _host_de_puerto(puerto):
+    """192.168.1.50 de un puerto de cola "IP_192.168.1.50", "192.168.1.50" o "..._1"."""
+    m = re.match(r"^(?:IP_)?(\d+\.\d+\.\d+\.\d+)(?:_\d+)?$", str(puerto or "").strip(), re.I)
+    if not m:
+        return None
+    try:
+        return str(ipaddress.IPv4Address(m.group(1)))
+    except ValueError:
+        return None
+
+
+def _ip_de(values, puerto_de_cola=""):
+    """La IP de la impresora física detrás de una configuración, si se sabe."""
+    driver = str(values.get("driver", "")).lower()
+    if driver == "network":
+        try:
+            return str(ipaddress.IPv4Address(str(values.get("host", "")).strip()))
+        except ValueError:
+            return None
+    if driver == "win32raw":
+        return (_host_de_puerto(values.get("_host", ""))
+                or _host_de_puerto(puerto_de_cola))
+    return None
 
 
 def _config_fingerprint(values):
