@@ -107,6 +107,40 @@ def _host_de_puerto(puerto):
         return None
 
 
+# Sin impresoras de red en la búsqueda: lo que se puede explicar sin saber más.
+# Una impresora en otro rango no contesta (sin una IP en ese rango la PC no
+# llega): no se la puede encontrar, pero sí decir qué hacer (#175).
+OTRO_RANGO = (
+    "Si la impresora es de red y ya está conectada al router, puede tener una "
+    "dirección de otro rango y la computadora no la ve. Imprimí su hoja de "
+    "configuración (prendela con el botón FEED apretado) y tocá "
+    "\"Sé la dirección de la impresora\" con el número que figura ahí."
+)
+
+
+def _titulo_de_red(p):
+    """Sin la IP: va en Detalles. El modelo o la marca, si se conocen."""
+    if p.model:
+        return p.model
+    if p.brand:
+        return f"Impresora {p.brand}"
+    return "Impresora de red"
+
+
+def _numerar(encontradas):
+    """Dos impresoras de red con el mismo título se distinguen con un número."""
+    vistos = {}
+    for f in encontradas:
+        if f.source == SOURCE_NETWORK:
+            vistos.setdefault(f.title, []).append(f)
+    cambios = {}
+    for titulo, grupo in vistos.items():
+        if len(grupo) > 1:
+            for n, f in enumerate(sorted(grupo, key=lambda f: f.key), 1):
+                cambios[id(f)] = f"{titulo} {n}"
+    return [replace(f, title=cambios[id(f)]) if id(f) in cambios else f for f in encontradas]
+
+
 def _de_red(p):
     subtitulo = ("Conectada a la red" if p.same_subnet
                  else "Conectada a la red (otro rango del local)")
@@ -122,7 +156,7 @@ def _de_red(p):
     if p.factory_brands:
         detalles.append("Tiene la IP de fábrica de: " + ", ".join(p.factory_brands))
     candidato = p.candidate()
-    return FoundPrinter(key=candidato.stable_id, title=p.title, subtitle=subtitulo,
+    return FoundPrinter(key=candidato.stable_id, title=_titulo_de_red(p), subtitle=subtitulo,
                         source=SOURCE_NETWORK, candidate=candidato, details=tuple(detalles),
                         rank=0 if p.same_subnet else 1)
 
@@ -275,6 +309,13 @@ def merge(network=None, usb=None, queues=None, service=None):
             marcadas.append(replace(f, configured_as=alias) if alias else f)
         encontradas = marcadas
 
+    encontradas = _numerar(encontradas)
+    # Nada usable en ningún lado y la PC sí tiene red: lo más probable es una
+    # impresora de red en otro rango. Si ya apareció alguna, es ruido.
+    if (network is not None and not network.error and not network.cancelled
+            and network.usable_adapters
+            and not any(f.selectable and not f.hidden for f in encontradas)):
+        avisos.append(OTRO_RANGO)
     encontradas.sort(key=lambda f: (f.hidden, bool(f.configured_as), f.rank, f.title.casefold(),
                                     f.key))
     return encontradas, list(dict.fromkeys(a for a in avisos if a))

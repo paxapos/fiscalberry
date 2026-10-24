@@ -216,6 +216,12 @@ class PrinterWizard:
     def notes(self):
         return list(self.search_result.notes) if self.search_result is not None else []
 
+    @property
+    def detail_notes(self):
+        """Avisos técnicos (adaptadores, máscaras): solo con "Ver detalles"."""
+        red = self.search_result.network if self.search_result is not None else None
+        return list(getattr(red, "technical_notes", None) or [])
+
     def _registrar(self, evento, **datos):
         self.journal.append(dict(t=round(self.clock(), 3), paso=self.step, evento=evento, **datos))
         del self.journal[:-JOURNAL_LIMIT]

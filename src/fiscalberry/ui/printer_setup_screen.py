@@ -119,6 +119,7 @@ class PrinterSetupScreen(Screen):
     hidden_count = NumericProperty(0)
     found_count = NumericProperty(0)
     notes = ListProperty([])
+    detail_notes = ListProperty([])
     test_code = StringProperty("")
     suggested_alias = StringProperty("")
     saved = ListProperty([])
@@ -183,6 +184,7 @@ class PrinterSetupScreen(Screen):
         self.show_all = w.show_all
         self.hidden_count = w.hidden_count
         self.notes = w.notes
+        self.detail_notes = w.detail_notes
         self.test_code = w.test_code
         self.suggested_alias = w.suggested_alias
         self.saved = list(w.saved)

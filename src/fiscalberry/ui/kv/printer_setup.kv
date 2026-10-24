@@ -230,7 +230,7 @@
                             spacing: dp(10)
                             padding: [dp(4), dp(4)]
                     AsistenteChico:
-                        text: "\n".join(root.notes)
+                        text: "\n".join(list(root.notes) + (list(root.detail_notes) if root.show_details else []))
                     GridLayout:
                         cols: 2
                         size_hint_y: None

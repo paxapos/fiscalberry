@@ -436,6 +436,14 @@ class SweepPlan:
     unsupported: str = ""   # por qué no se barre (en palabras)
 
     @property
+    def technical(self):
+        """
+        La nota es para "Ver detalles" (máscaras, rangos), no para la pantalla
+        principal. Sin router (169.254) sí va: es algo que la persona arregla.
+        """
+        return bool(self.note) and not self.adapter.link_local
+
+    @property
     def note(self):
         if self.unsupported:
             return self.unsupported
@@ -451,7 +459,7 @@ def plan_sweep(adapter, max_hosts=MAX_SWEEP_HOSTS):
     """Las direcciones a barrer de un adaptador, con la máscara real."""
     if adapter.link_local:
         return SweepPlan(adapter, unsupported=(
-            f"\"{adapter.label}\" no recibió dirección de red (169.254.x.x): la "
+            f"\"{adapter.label}\" no recibió dirección de red: la "
             "computadora no encontró el router. Si la impresora está conectada "
             "directo a la computadora, sin router, usá un router o switch entre la impresora y la computadora."))
     if adapter.prefix is None:
@@ -947,6 +955,9 @@ class NetworkSearchResult:
     plans: list = field(default_factory=list)
     printers: list = field(default_factory=list)
     notes: list = field(default_factory=list)          # avisos en palabras
+    # Lo que solo importa en "Ver detalles" o a soporte: adaptadores virtuales
+    # o VPN que no se revisaron, redes grandes revisadas en parte, máscaras.
+    technical_notes: list = field(default_factory=list)
     error: str = ""
     swept: int = 0
     seconds: float = 0.0
@@ -990,8 +1001,8 @@ def search_network(cancel=None, adapters=None, list_adapters_fn=list_adapters,
     for a in resultado.adapters:
         if a.up and a.kind in (ADAPTER_VPN, ADAPTER_VIRTUAL):
             nota = _nota_adaptador_excluido(a)
-            if nota and nota not in resultado.notes:
-                resultado.notes.append(nota)
+            if nota and nota not in resultado.technical_notes:
+                resultado.technical_notes.append(nota)
 
     fisicos = [a for a in resultado.adapters if a.kind == ADAPTER_PHYSICAL and a.up]
     if not fisicos:
@@ -1006,7 +1017,10 @@ def search_network(cancel=None, adapters=None, list_adapters_fn=list_adapters,
         plan = plan_sweep(a)
         resultado.plans.append(plan)
         if plan.note:
-            resultado.notes.append(plan.note)
+            (resultado.technical_notes if plan.technical else resultado.notes).append(plan.note)
+        if plan.adapter.link_local:
+            resultado.technical_notes.append(
+                f"\"{a.label}\" tiene una dirección 169.254.x.x (sin DHCP).")
         for h in plan.hosts:
             if h not in propias_ips:
                 adaptador_de.setdefault(h, a)

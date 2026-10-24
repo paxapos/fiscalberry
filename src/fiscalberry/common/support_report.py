@@ -372,9 +372,10 @@ def collect_lines(wizard=None, config_data=None, now=None, version=None, install
                 lineas.append(f"Colas de Windows: {len(q.colas)}"
                               + (f"; error: {q.error}" + (f" ({q.detalle})" if q.detalle else "")
                                  if q.error else ""))
-        if r.notes:
+        tecnicas = list(getattr(r.network, "technical_notes", None) or [])
+        if r.notes or tecnicas:
             lineas.append("Avisos:")
-            lineas += [f"- {n}" for n in r.notes]
+            lineas += [f"- {n}" for n in list(r.notes) + tecnicas]
         if r.found:
             lineas.append("Impresoras:")
             lineas += [_linea_encontrada(f) for f in r.found]

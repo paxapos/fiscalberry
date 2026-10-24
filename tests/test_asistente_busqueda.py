@@ -167,10 +167,11 @@ def test_avisos_de_cada_fuente():
     assert avisos[:2] == ["Se ignoró la conexión VPN \"Oficina\".",
                           "No se pudieron revisar los puertos COM."]
     assert "tardó demasiado" in avisos[2]
+    assert avisos[-1] == ps.OTRO_RANGO     # no se encontró nada usable
 
 
 def test_fuera_de_windows_no_se_avisa_que_no_hay_colas():
-    _, avisos = ps.merge(red(), None, colas(error=ERROR_NO_WINDOWS))
+    _, avisos = ps.merge(red(de_red("192.168.1.50")), None, colas(error=ERROR_NO_WINDOWS))
     assert avisos == []
 
 
@@ -639,3 +640,28 @@ def test_el_foco_va_a_la_accion_principal(pantalla):
     s.ids.principal_inicio.bind(on_press=lambda *_: tocado.append(1))
     s.ids.principal_inicio.keyboard_on_key_down(None, (13, "enter"), "", [])
     assert tocado == [1]
+
+
+def test_titulo_de_red_sin_ip_y_numerado_si_se_repite():
+    # La IP va en Detalles (#184); dos iguales se distinguen con un número.
+    encontradas, _ = ps.merge(red(de_red("192.168.1.50"), de_red("192.168.1.51"),
+                                  de_red("192.168.1.60", modelo="TM-T20III")), None, None)
+    titulos = sorted(f.title for f in encontradas)
+    assert titulos == ["Impresora de red 1", "Impresora de red 2", "TM-T20III"]
+    assert all("192.168" not in f.title + f.subtitle for f in encontradas)
+    assert any("192.168.1.50" in d for f in encontradas for d in f.details)
+
+
+def test_sin_impresoras_de_red_se_explica_el_otro_rango():
+    _, avisos = ps.merge(red(), None, None)
+    assert ps.OTRO_RANGO in avisos
+    assert "FEED" in ps.OTRO_RANGO
+
+    # Con alguna impresora usable (de red o USB), o sin red, no se sugiere.
+    _, avisos = ps.merge(red(de_red("192.168.1.50")), None, None)
+    assert ps.OTRO_RANGO not in avisos
+    _, avisos = ps.merge(red(), usb(usbprint=[EPSON_USB]), None)
+    assert ps.OTRO_RANGO not in avisos
+    sin_red = nd.NetworkSearchResult(adapters=[], printers=[])
+    _, avisos = ps.merge(sin_red, None, None)
+    assert ps.OTRO_RANGO not in avisos

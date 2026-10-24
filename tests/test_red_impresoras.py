@@ -91,13 +91,13 @@ def test_plan_de_un_22_se_barre_entero():
 
 def test_una_red_grande_se_barre_parcial_y_se_avisa():
     plan = nd.plan_sweep(adaptador("10.1.20.33", 16))
-    assert plan.partial
+    assert plan.partial and plan.technical
     assert plan.hosts[0] == "10.1.20.1" and len(plan.hosts) == 254
     assert "muy grande" in plan.note and "/16" in plan.note
 
 
 @pytest.mark.parametrize("ip,prefix,texto", [
-    ("169.254.10.20", 16, "169.254"),
+    ("169.254.10.20", 16, "no encontró el router"),
     ("192.168.1.27", 31, "/31"),
     ("192.168.1.27", 32, "/32"),
     ("192.168.1.27", None, "máscara"),
@@ -620,8 +620,10 @@ def test_vpn_e_hyperv_no_se_barren_y_se_avisa():
     ], sweep=barrido, snmp=lambda h, cancel=None: {}, arp=lambda: {})
     barridos = barrido.pedidos[0][0]
     assert not any(h.startswith(("10.8.0.", "172.29.")) for h in barridos)
-    assert any("VPN Oficina" in n for n in r.notes)
-    assert any("vEthernet" in n for n in r.notes)
+    # Es información para "Ver detalles", no para la pantalla principal (#184).
+    assert any("VPN Oficina" in n for n in r.technical_notes)
+    assert any("vEthernet" in n for n in r.technical_notes)
+    assert not any("VPN Oficina" in n or "vEthernet" in n for n in r.notes)
 
 
 def test_sam4s_en_el_6001_solo_en_equipos_vivos():
@@ -646,7 +648,10 @@ def test_ip_de_fabrica_alcanzable_desde_otra_subred():
 def test_sin_red_y_con_apipa_se_explica():
     r = nd.search_network(adapters=[adaptador("169.254.3.4", 16)], sweep=Barrido({}),
                           snmp=lambda h, cancel=None: {}, arp=lambda: {})
-    assert any("169.254" in n for n in r.notes)
+    # Lo que la persona puede arreglar va a la pantalla; la dirección, a Detalles.
+    assert any("no encontró el router" in n for n in r.notes)
+    assert not any("169.254" in n for n in r.notes)
+    assert any("169.254" in n for n in r.technical_notes)
     assert r.printers == []
 
     r = nd.search_network(adapters=[], sweep=Barrido({}),
