@@ -28,6 +28,7 @@ Por transporte:
   y aparece un "ticket fantasma" en medio del servicio.
 """
 
+import dataclasses
 import secrets
 import socket
 import time
@@ -46,6 +47,11 @@ LARGO_CODIGO = 4
 # Cuánto se espera una respuesta de estado, y cuánto se sigue un trabajo en la
 # cola de Windows antes de decir que no salió.
 ESPERA_ESTADO = 2.0
+# Puerto COM: velocidades a probar, la más común primero. Una impresora serie
+# a otra velocidad imprime basura y contesta bytes sin sentido: se elige la
+# primera a la que contesta DLE EOT con un byte válido (#183).
+VELOCIDADES_SERIE = (9600, 19200, 38400, 115200)
+ESPERA_VELOCIDAD = 0.5
 ESPERA_COLA_WINDOWS = 20.0
 # Tope para mandar el ticket de prueba por un puerto COM. python-escpos abre el
 # puerto con control de flujo DSR/DTR y sin límite de escritura: si la
@@ -143,6 +149,15 @@ class EstadoImpresora:
         return None
 
 
+def _estado_valido(byte):
+    """
+    Un byte de DLE EOT n tiene fijos el bit 1 y el 4 en 1 y el 0 y el 7 en 0
+    (ESC/POS). Otro valor es ruido: por ejemplo, un puerto serie a una
+    velocidad que no es la de la impresora.
+    """
+    return byte is not None and (byte & 0x93) == 0x12
+
+
 def _consultar(driver, comando):
     """Un byte de respuesta a DLE EOT n, o None si la impresora no contesta."""
     try:
@@ -191,7 +206,7 @@ def leer_estado(driver, espera=ESPERA_ESTADO):
     """
     _acortar_espera(driver, espera)
     general = _consultar(driver, b"\x10\x04\x01")
-    if general is None:
+    if not _estado_valido(general):
         return EstadoImpresora(responde=False)
     causa = _consultar(driver, b"\x10\x04\x02") or 0
     papel = _consultar(driver, b"\x10\x04\x04") or 0
@@ -302,6 +317,9 @@ class ResultadoPrueba:
     lpt: dict = field(default_factory=dict)
     # Cola de Windows: si el trabajo de prueba se borró (para soporte, #185).
     trabajo_borrado: bool = False
+    # El candidato con que se probó, si cambió (velocidad del puerto COM
+    # detectada): es el que hay que guardar.
+    candidato: object = None
 
     @property
     def accion(self):
@@ -428,6 +446,44 @@ def clasificar_error(error):
     return ERROR
 
 
+def detectar_velocidad(candidato, crear_driver, velocidades=VELOCIDADES_SERIE,
+                       espera=ESPERA_VELOCIDAD):
+    """
+    La velocidad a la que contesta una impresora en un puerto COM.
+
+    Prueba cada velocidad con DLE EOT 1 y se queda con la primera que da un
+    byte válido. Si ninguna contesta (hay impresoras que no responden estado)
+    queda la que ya tenía el candidato: la prueba en papel decide.
+    """
+    if candidato.connection != ps.SERIAL:
+        return candidato
+    actual = str(candidato.driver_config.get("baudrate", ""))
+    for velocidad in velocidades:
+        config = dict(candidato.driver_config, baudrate=str(velocidad))
+        driver = None
+        try:
+            driver = crear_driver(config)[0]
+            _acortar_espera(driver, espera)
+            byte = _consultar(driver, b"\x10\x04\x01")
+        except Exception as e:
+            logger.debug(f"{candidato.ubicacion} a {velocidad}: {e}")
+            byte = None
+        finally:
+            if driver is not None:
+                try:
+                    driver.close()
+                except Exception:
+                    pass
+        if _estado_valido(byte):
+            if str(velocidad) != actual:
+                logger.info(f"{candidato.ubicacion or 'El puerto serie'} contesta a "
+                            f"{velocidad} baudios.")
+            return dataclasses.replace(candidato, driver_config=config)
+    logger.info(f"{candidato.ubicacion or 'El puerto serie'} no contestó el estado a "
+                f"ninguna velocidad; se prueba a {actual or 'la configurada'}.")
+    return candidato
+
+
 def probar(candidato, alias, comercio="", codigo=None, ahora=None,
            crear_driver=None, win32print=None, espera_cola=ESPERA_COLA_WINDOWS,
            espera_estado=ESPERA_ESTADO):
@@ -442,8 +498,12 @@ def probar(candidato, alias, comercio="", codigo=None, ahora=None,
 
     codigo = codigo or nuevo_codigo()
     ahora = ahora or datetime.now()
-    contenido = contenido_del_ticket(candidato, alias, comercio, codigo, ahora)
     resultado = ResultadoPrueba(exito_tecnico=False, codigo=codigo)
+    if candidato.connection == ps.SERIAL:
+        detectado = detectar_velocidad(candidato, crear_driver)
+        if detectado is not candidato:
+            candidato = resultado.candidato = detectado
+    contenido = contenido_del_ticket(candidato, alias, comercio, codigo, ahora)
 
     try:
         driver = crear_driver(candidato.driver_config)[0]

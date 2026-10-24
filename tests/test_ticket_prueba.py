@@ -503,3 +503,68 @@ def test_red_real_impresora_encendida(contesta_estado):
     assert resultado.exito_tecnico, resultado.detalle
     assert resultado.estado_antes.responde is contesta_estado
     assert b"K7QX" in impresora.recibido
+
+
+# --------------------------------------------------------------------------
+# Puerto COM: la velocidad se detecta (#183)
+# --------------------------------------------------------------------------
+
+class ImpresoraSerie:
+    """Una impresora serie que solo contesta bien a su velocidad."""
+
+    def __init__(self, velocidad):
+        self.velocidad = velocidad
+        self.pedidas = []
+        self.drivers = []
+
+    def __call__(self, config):
+        baudios = int(config["baudrate"])
+        self.pedidas.append(baudios)
+        if baudios == self.velocidad:
+            driver = DriverConEstado(OK)
+        else:
+            # A otra velocidad llega ruido: bytes que no son un estado.
+            driver = DriverConEstado({DLE_EOT_1: b"\xff", DLE_EOT_2: b"\x00", DLE_EOT_4: b"\x80"})
+        self.drivers.append((baudios, driver))
+        return driver, "x", {}, None
+
+
+def test_detecta_la_velocidad_del_com_y_la_guarda():
+    impresora = ImpresoraSerie(38400)
+    resultado = tp.probar(PrinterCandidate.serial("COM4"), "Caja", codigo="K7QX",
+                          ahora=AHORA, crear_driver=impresora)
+
+    assert resultado.exito_tecnico
+    assert impresora.pedidas[:3] == [9600, 19200, 38400]
+    # Se imprimió a la velocidad buena, y es la que se va a guardar.
+    impresas = [b for b, d in impresora.drivers if d.impreso]
+    assert impresas == [38400]
+    assert resultado.candidato.driver_config["baudrate"] == "38400"
+    assert resultado.candidato.stable_id == PrinterCandidate.serial("COM4").stable_id
+
+
+def test_a_la_velocidad_de_siempre_no_cambia_nada():
+    impresora = ImpresoraSerie(9600)
+    resultado = tp.probar(PrinterCandidate.serial("COM4"), "Caja", codigo="K7QX",
+                          ahora=AHORA, crear_driver=impresora)
+
+    assert resultado.exito_tecnico
+    assert impresora.pedidas[0] == 9600 and 19200 not in impresora.pedidas
+    assert resultado.candidato.driver_config["baudrate"] == "9600"
+
+
+def test_si_no_contesta_a_ninguna_velocidad_queda_la_configurada():
+    driver = DriverConEstado(respuestas=None)
+    resultado = _probar(PrinterCandidate.serial("COM4"), driver)
+
+    assert resultado.exito_tecnico   # decide el papel
+    assert resultado.candidato is None
+
+
+def test_ruido_en_el_estado_no_es_fuera_de_linea():
+    """Un byte sin los bits fijos de ESC/POS no se interpreta como estado."""
+    driver = DriverConEstado({DLE_EOT_1: b"\xff", DLE_EOT_2: b"\xff", DLE_EOT_4: b"\xff"})
+    resultado = _probar(_red(), driver)
+
+    assert resultado.estado_antes.responde is False
+    assert resultado.exito_tecnico

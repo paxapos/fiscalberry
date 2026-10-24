@@ -466,6 +466,9 @@ class PrinterWizard:
                 self._registrar("resultado", error=str(resultado))
                 self._go(STEP_PROBLEM, TEST_FAILED)
                 return
+            if getattr(resultado, "candidato", None) is not None:
+                # Puerto COM: se guarda con la velocidad a la que contestó.
+                self.candidate = resultado.candidato
             self.result = resultado
             self.last_result = resultado
             self.paper_confirmed = False

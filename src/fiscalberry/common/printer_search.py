@@ -144,7 +144,7 @@ _RAZON_COM = {"bluetooth": "Es un puerto de Bluetooth", "modem": "Es un módem",
 
 
 def _de_com(p):
-    detalles = [f"Puerto {p.device}, velocidad 9600"]
+    detalles = [f"Puerto {p.device} (la velocidad se detecta al probarla)"]
     if p.vendor_id is not None:
         detalles.append(f"USB {p.vendor_id:04X}:{p.product_id or 0:04X}"
                         + (f" (chip {p.chip})" if p.chip else ""))

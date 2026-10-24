@@ -453,3 +453,24 @@ def test_la_pantalla_muestra_el_error_y_configurar_despues_sale(pantalla):
 
     s.skip()
     assert app.salidas == [pw.EXIT_SKIPPED]
+
+
+def test_el_com_se_guarda_con_la_velocidad_detectada():
+    import dataclasses
+
+    config = ConfigFalso()
+    servicio = PrinterSetupService(config)
+    com = PrinterCandidate.serial("COM4")
+    detectado = dataclasses.replace(com, driver_config=dict(com.driver_config, baudrate="19200"))
+
+    def prueba(candidato, alias, comercio, codigo):
+        return tp.ResultadoPrueba(exito_tecnico=True, codigo=codigo, candidato=detectado)
+
+    w = pw.PrinterWizard(servicio, print_test=prueba, runner=lambda fn, listo: listo(fn()),
+                         post=lambda fn: fn())
+    w.start()
+    w.test_candidate(com)
+    w.confirm_paper(True)
+    w.save("Caja")
+
+    assert config.data["Caja"]["baudrate"] == "19200"
