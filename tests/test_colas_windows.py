@@ -265,6 +265,51 @@ def test_spooler_colgado_se_mata_al_vencer_el_tiempo():
     assert colgado[0].poll() is not None
 
 
+def test_una_compartida_colgada_no_esconde_las_colas_locales(tmp_path):
+    # El listado completo se cuelga (una compartida de otra PC apagada); el
+    # segundo intento, solo con las locales, contesta: la del local aparece.
+    pedidos = []
+
+    def comando(reporte):
+        return [sys.executable, "-c", (
+            "import json, sys, time\n"
+            "if '--local-only' not in sys.argv: time.sleep(60)\n"
+            f"json.dump({{'ok': True, 'colas': {json.dumps(PC_DEL_LOCAL)}}}, open({reporte!r}, 'w'))\n"
+        )]
+
+    def popen(args, **kwargs):
+        pedidos.append(args)
+        return subprocess.Popen(args, **kwargs)
+
+    t0 = time.monotonic()
+    resultado = wq.listar_colas(timeout=0.5, popen=popen, comando=comando)
+
+    assert resultado.error is None
+    assert "EPSON TM-T20II Receipt" in [c.nombre for c in resultado.colas]
+    assert "compartida" in resultado.explicacion
+    assert pedidos[1][-1] == wq.ARG_SOLO_LOCALES
+    assert time.monotonic() - t0 < 5
+
+
+def test_solo_locales_no_pide_las_conexiones():
+    class Win32Print:
+        def __init__(self):
+            self.flags = None
+
+        def GetDefaultPrinter(self):
+            return ""
+
+        def EnumPrinters(self, flags, nombre, nivel):
+            self.flags = flags
+            return []
+
+    w = Win32Print()
+    wq.enumerar_crudas(w, solo_locales=True)
+    assert w.flags == wq.PRINTER_ENUM_LOCAL
+    wq.enumerar_crudas(w)
+    assert w.flags == wq.PRINTER_ENUM_LOCAL | wq.PRINTER_ENUM_CONNECTIONS
+
+
 def test_cancelar_mata_el_proceso_al_instante():
     colgado = []
     cancelar = threading.Event()
@@ -331,9 +376,11 @@ def test_el_modo_temprano_atiende_list_printers(monkeypatch, tmp_path):
 
     llamados = []
     monkeypatch.setattr(wq, "run_list_printers",
-                        lambda ruta_reporte=None: llamados.append(ruta_reporte) or 0)
-    with pytest.raises(SystemExit) as salida:
-        cli_modes.handle_early_modes(["fiscalberry-gui.exe", "--list-printers",
-                                      "--report", str(tmp_path / "c.json")])
-    assert salida.value.code == 0
-    assert llamados == [str(tmp_path / "c.json")]
+                        lambda ruta_reporte=None, solo_locales=False:
+                        llamados.append((ruta_reporte, solo_locales)) or 0)
+    for extra, solo_locales in (([], False), ([wq.ARG_SOLO_LOCALES], True)):
+        with pytest.raises(SystemExit) as salida:
+            cli_modes.handle_early_modes(["fiscalberry-gui.exe", "--list-printers",
+                                          "--report", str(tmp_path / "c.json")] + extra)
+        assert salida.value.code == 0
+    assert llamados == [(str(tmp_path / "c.json"), False), (str(tmp_path / "c.json"), True)]

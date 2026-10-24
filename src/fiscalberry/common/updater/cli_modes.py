@@ -69,8 +69,9 @@ def handle_early_modes(argv=None):
         sys.exit(run_selftest(ruta_reporte=_arg(argv, "--report")))
 
     if "--list-printers" in argv:
-        from fiscalberry.common.windows_queues import run_list_printers
-        sys.exit(run_list_printers(ruta_reporte=_arg(argv, "--report")))
+        from fiscalberry.common.windows_queues import ARG_SOLO_LOCALES, run_list_printers
+        sys.exit(run_list_printers(ruta_reporte=_arg(argv, "--report"),
+                                   solo_locales=ARG_SOLO_LOCALES in argv))
 
     if "--discovery-report" in argv:
         from fiscalberry.common.discovery_report import run

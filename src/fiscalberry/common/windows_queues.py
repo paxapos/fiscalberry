@@ -26,7 +26,10 @@ import threading
 import time
 from dataclasses import dataclass, field
 
+from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.printer_setup import PrinterCandidate
+
+logger = getLogger("Asistente.Colas")
 
 # EnumPrinters
 PRINTER_ENUM_LOCAL = 0x00000002
@@ -61,12 +64,24 @@ _PALABRAS_VIRTUALES = (
 
 # Una búsqueda normal termina en menos de 5 s. Esto es para el caso colgado.
 LISTADO_TIMEOUT = 10.0
+# Si el listado completo se cuelga (casi siempre por una impresora compartida
+# de otra PC que está apagada), se vuelve a pedir solo las colas locales, que
+# no dependen de la red: así una compartida caída no esconde la impresora del
+# local (escenario 4).
+LOCALES_TIMEOUT = 5.0
+ARG_SOLO_LOCALES = "--local-only"
 
 # Errores de listar_colas().
 ERROR_TIMEOUT = "timeout"
 ERROR_CANCELADO = "cancelado"
 ERROR_SPOOLER = "spooler"
 ERROR_NO_WINDOWS = "no_windows"
+
+AVISO_SOLO_LOCALES = (
+    "Hay una impresora compartida de otra computadora que no responde (puede "
+    "estar apagada): se muestran solo las impresoras instaladas en esta "
+    "computadora."
+)
 
 EXPLICACIONES = {
     ERROR_TIMEOUT: (
@@ -196,12 +211,12 @@ def _orden(cola):
 # El subproceso
 # --------------------------------------------------------------------------
 
-def enumerar_crudas(win32print=None):
+def enumerar_crudas(win32print=None, solo_locales=False):
     """Lo que corre DENTRO del subproceso: EnumPrinters nivel 2."""
     if win32print is None:
         import win32print  # noqa: F811  (solo existe en Windows)
 
-    flags = PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS
+    flags = PRINTER_ENUM_LOCAL if solo_locales else PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS
     try:
         predeterminada = (win32print.GetDefaultPrinter() or "").casefold()
     except Exception:
@@ -222,10 +237,10 @@ def enumerar_crudas(win32print=None):
     return crudas
 
 
-def run_list_printers(ruta_reporte=None, win32print=None):
+def run_list_printers(ruta_reporte=None, win32print=None, solo_locales=False):
     """Modo `--list-printers`. Devuelve el código de salida del proceso."""
     try:
-        datos = {"ok": True, "colas": enumerar_crudas(win32print)}
+        datos = {"ok": True, "colas": enumerar_crudas(win32print, solo_locales)}
         codigo = 0
     except ImportError:
         datos = {"ok": False, "error": ERROR_NO_WINDOWS}
@@ -257,10 +272,11 @@ class ResultadoListado:
     colas: list = field(default_factory=list)
     error: str = None
     detalle: str = ""
+    aviso: str = ""
 
     @property
     def explicacion(self):
-        return EXPLICACIONES.get(self.error, "") if self.error else ""
+        return EXPLICACIONES.get(self.error, "") if self.error else self.aviso
 
 
 def _matar(proceso):
@@ -274,50 +290,73 @@ def _matar(proceso):
         pass
 
 
+def _correr_listado(args, timeout, cancelar, popen, reporte):
+    """Corre el subproceso del listado. Devuelve (datos, None) o (None, error)."""
+    kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
+              "stdin": subprocess.DEVNULL}
+    if os.name == "nt":
+        kwargs["creationflags"] = _CREATE_NO_WINDOW
+    try:
+        proceso = popen(args, **kwargs)
+    except OSError as e:
+        return None, ResultadoListado(error=ERROR_SPOOLER, detalle=str(e))
+
+    limite = time.monotonic() + timeout
+    while proceso.poll() is None:
+        if cancelar is not None and cancelar.is_set():
+            _matar(proceso)
+            return None, ResultadoListado(error=ERROR_CANCELADO)
+        if time.monotonic() >= limite:
+            _matar(proceso)
+            return None, ResultadoListado(
+                error=ERROR_TIMEOUT,
+                detalle=f"el listado no terminó en {timeout:.0f} s")
+        time.sleep(0.05)
+
+    try:
+        with open(reporte, "r", encoding="utf-8") as fh:
+            return json.load(fh), None
+    except (OSError, ValueError) as e:
+        return None, ResultadoListado(
+            error=ERROR_SPOOLER,
+            detalle=f"el listado terminó con código {proceso.returncode} sin "
+                    f"dejar resultado ({e})")
+
+
 def listar_colas(timeout=LISTADO_TIMEOUT, cancelar=None, popen=subprocess.Popen,
-                 comando=comando_listado):
+                 comando=comando_listado, timeout_locales=LOCALES_TIMEOUT):
     """
     Las colas de Windows, clasificadas y sin ordenar (ver `ordenar`).
 
-    Nunca tarda más que `timeout`, y `cancelar` (un threading.Event) corta la
-    búsqueda al instante: en los dos casos el subproceso se termina.
+    Nunca tarda más que `timeout` (más `timeout_locales` si hace falta el
+    segundo intento), y `cancelar` (un threading.Event) corta la búsqueda al
+    instante: en todos los casos el subproceso se termina.
+
+    Si el listado completo se cuelga, se pide solo el de las colas locales:
+    una impresora compartida caída no puede esconder la del local.
     """
+    aviso = ""
     with tempfile.TemporaryDirectory(prefix="fiscalberry-colas-") as carpeta:
         reporte = os.path.join(carpeta, "colas.json")
-        kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
-                  "stdin": subprocess.DEVNULL}
-        if os.name == "nt":
-            kwargs["creationflags"] = _CREATE_NO_WINDOW
-        try:
-            proceso = popen(comando(reporte), **kwargs)
-        except OSError as e:
-            return ResultadoListado(error=ERROR_SPOOLER, detalle=str(e))
-
-        limite = time.monotonic() + timeout
-        while proceso.poll() is None:
-            if cancelar is not None and cancelar.is_set():
-                _matar(proceso)
-                return ResultadoListado(error=ERROR_CANCELADO)
-            if time.monotonic() >= limite:
-                _matar(proceso)
-                return ResultadoListado(
-                    error=ERROR_TIMEOUT,
-                    detalle=f"el listado no terminó en {timeout:.0f} s")
-            time.sleep(0.05)
-
-        try:
-            with open(reporte, "r", encoding="utf-8") as fh:
-                datos = json.load(fh)
-        except (OSError, ValueError) as e:
-            return ResultadoListado(
-                error=ERROR_SPOOLER,
-                detalle=f"el listado terminó con código {proceso.returncode} sin "
-                        f"dejar resultado ({e})")
+        datos, fallo = _correr_listado(comando(reporte), timeout, cancelar, popen, reporte)
+        if fallo is not None and fallo.error == ERROR_TIMEOUT:
+            logger.warning("El listado de colas no terminó en %.0f s; se reintenta "
+                           "solo con las colas locales.", timeout)
+            reporte = os.path.join(carpeta, "colas-locales.json")
+            datos, fallo_local = _correr_listado(
+                comando(reporte) + [ARG_SOLO_LOCALES], min(timeout, timeout_locales),
+                cancelar, popen, reporte)
+            if fallo_local is None:
+                fallo, aviso = None, AVISO_SOLO_LOCALES
+            elif fallo_local.error == ERROR_CANCELADO:
+                fallo = fallo_local
+        if fallo is not None:
+            return fallo
 
     if not datos.get("ok"):
         return ResultadoListado(error=datos.get("error") or ERROR_SPOOLER,
                                 detalle=datos.get("detalle", ""))
-    return ResultadoListado(colas=[clasificar(c) for c in datos.get("colas", [])])
+    return ResultadoListado(colas=[clasificar(c) for c in datos.get("colas", [])], aviso=aviso)
 
 
 class BusquedaDeColas:
@@ -367,4 +406,5 @@ if __name__ == "__main__":
                 return sys.argv[i + 1]
         return None
 
-    sys.exit(run_list_printers(ruta_reporte=_arg("--report")))
+    sys.exit(run_list_printers(ruta_reporte=_arg("--report"),
+                               solo_locales=ARG_SOLO_LOCALES in sys.argv))
