@@ -261,7 +261,7 @@
                     AsistenteEntrada:
                         id: direccion
                         hint_text: "Por ejemplo: 192.168.1.50"
-                        input_filter: lambda texto, deshacer: ''.join(c for c in texto if c in '0123456789.')
+                        input_filter: lambda texto, deshacer: ''.join(c for c in texto if c in '0123456789.:')
                         disabled: root.busy
                         on_text_validate: root.submit_address(self.text)
                     Label:
@@ -319,7 +319,7 @@
                     Widget:
                     AsistenteBoton:
                         id: principal_problema
-                        text: "Probar de nuevo"
+                        text: root.retry_label
                         disabled: root.busy
                         on_press: root.retry()
                     AsistenteSecundario:
@@ -376,8 +376,8 @@
 
             # Un botón que no aplica al paso se colapsa: no queda un hueco.
             AsistenteSecundario:
-                text: "Volver"
-                disabled: root.step in ('inicio', 'guardada', 'probando')
+                text: "Cancelar la prueba" if root.step == 'probando' else "Volver"
+                disabled: root.step in ('inicio', 'guardada')
                 opacity: 0 if self.disabled else 1
                 size_hint_x: None if self.disabled else 1
                 width: 0

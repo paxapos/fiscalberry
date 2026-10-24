@@ -474,3 +474,61 @@ def test_el_com_se_guarda_con_la_velocidad_detectada():
     w.save("Caja")
 
     assert config.data["Caja"]["baudrate"] == "19200"
+
+
+def test_cancelar_la_prueba_vuelve_y_no_deja_nada_en_la_cola():
+    """
+    "Cancelar la prueba" (Volver en el paso de prueba) vuelve en el acto; si
+    la prueba igual termina después, su trabajo en la cola se borra.
+    """
+    runner = RunnerDiferido()
+    trabajo = TrabajoFalso()
+    resultado = tp.ResultadoPrueba(exito_tecnico=True, codigo="K7QX", trabajo=trabajo)
+    w, _, _ = asistente(runner=runner, impresora=Impresora(resultado))
+    w.test_candidate(PrinterCandidate.windows_queue("EPSON TM-T20"))
+    assert w.step == pw.STEP_TESTING
+
+    w.back()
+    assert w.step != pw.STEP_TESTING and not w.busy
+
+    runner.terminar_todo()
+    assert w.step != pw.STEP_CONFIRM      # el resultado tardío no reabre nada
+    assert trabajo.cancelado == 1
+
+
+def test_borrar_el_trabajo_no_corre_en_el_hilo_de_la_interfaz():
+    runner = RunnerDiferido()
+    trabajo = TrabajoFalso()
+    resultado = tp.ResultadoPrueba(exito_tecnico=True, codigo="K7QX", trabajo=trabajo)
+    w, _, _ = asistente(runner=runner, impresora=Impresora(resultado))
+    w.test_candidate(PrinterCandidate.windows_queue("EPSON TM-T20"))
+    runner.terminar_todo()
+    assert w.step == pw.STEP_CONFIRM
+
+    w.confirm_paper(False)
+    assert trabajo.cancelado == 0         # todavía no: va al runner (otro hilo)
+    runner.terminar_todo()
+    assert trabajo.cancelado == 1
+
+
+def test_la_direccion_escrita_puede_traer_el_puerto():
+    """Una SAM4S en el 6001 se puede cargar a mano: "192.168.1.80:6001"."""
+    impresora = Impresora(ok)
+    w, _, _ = asistente(impresora=impresora)
+    w.choose_address()
+    w.submit_address("192.168.1.80:6001")
+
+    assert w.step == pw.STEP_CONFIRM
+    assert impresora.pruebas[0][0].driver_config["port"] == "6001"
+
+
+def test_el_boton_de_reintentar_dice_lo_que_hace():
+    w, _, _ = asistente(impresora=Impresora(tapa_abierta))
+    w.choose_address()
+    w.submit_address("192.168.1.80")
+    assert w.step == pw.STEP_PROBLEM and w.retry_label == "Probar de nuevo"
+
+    w2, _, config = asistente()
+    config.data["Cocina"] = {"driver": "Network", "host": "192.168.1.80", "port": "9100"}
+    w2.test_candidate(PrinterCandidate.network("192.168.1.80"))
+    assert w2.step == pw.STEP_PROBLEM and w2.retry_label == "Empezar de nuevo"

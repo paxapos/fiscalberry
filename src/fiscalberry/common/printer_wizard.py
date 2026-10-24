@@ -217,6 +217,15 @@ class PrinterWizard:
         return list(self.search_result.notes) if self.search_result is not None else []
 
     @property
+    def retry_label(self):
+        """Lo que hace de verdad el botón principal del paso de problema."""
+        if self.candidate is not None:
+            return "Probar de nuevo"
+        if self._desde_busqueda and self.search_result is not None:
+            return "Buscar de nuevo"
+        return "Empezar de nuevo"
+
+    @property
     def detail_notes(self):
         """Avisos técnicos (adaptadores, máscaras): solo con "Ver detalles"."""
         red = self.search_result.network if self.search_result is not None else None
@@ -250,6 +259,10 @@ class PrinterWizard:
         def listo(resultado):
             if token != self._op:
                 logger.debug("Resultado descartado: la persona ya siguió de largo")
+                # Una prueba cancelada que igual terminó: que no quede nada
+                # pendiente en la cola de Windows.
+                if hasattr(resultado, "descartar"):
+                    self._descartar_en_segundo_plano(resultado)
                 return
             self.busy = False
             on_done(resultado)
@@ -268,12 +281,18 @@ class PrinterWizard:
         cola de Windows, el trabajo se borra para que no salga solo después.
         """
         if self.result is not None and not self.paper_confirmed:
-            try:
-                self.result.descartar()
-            except Exception as e:
-                logger.warning(f"No se pudo descartar la prueba: {e}")
+            self._descartar_en_segundo_plano(self.result)
         self.result = None
         self.paper_confirmed = False
+
+    def _descartar_en_segundo_plano(self, resultado):
+        """Borrar el trabajo habla con el spooler: nunca en el hilo de la interfaz."""
+        def descartar():
+            try:
+                resultado.descartar()
+            except Exception as e:
+                logger.warning(f"No se pudo descartar la prueba: {e}")
+        self.runner(descartar, lambda _r: None)
 
     def _descartar_pendiente(self):
         """Invalida la operación en curso y cancela lo que haya quedado."""
@@ -421,6 +440,9 @@ class PrinterWizard:
     def submit_address(self, host, port=PUERTO_RAW):
         """Valida la dirección, la diagnostica (<= 3 s) y, si responde, prueba."""
         self.address = str(host or "").strip()
+        # "192.168.1.50:6001": algunas (SAM4S) no usan el 9100.
+        if ":" in self.address and port == PUERTO_RAW:
+            host, _, port = self.address.rpartition(":")
         try:
             candidate = PrinterCandidate.network(host, port)
         except SetupValidationError as e:

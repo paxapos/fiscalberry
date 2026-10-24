@@ -120,6 +120,7 @@ class PrinterSetupScreen(Screen):
     found_count = NumericProperty(0)
     notes = ListProperty([])
     detail_notes = ListProperty([])
+    retry_label = StringProperty("Probar de nuevo")
     test_code = StringProperty("")
     suggested_alias = StringProperty("")
     saved = ListProperty([])
@@ -135,18 +136,21 @@ class PrinterSetupScreen(Screen):
         from fiscalberry.common.Configberry import Configberry
         from fiscalberry.common.printer_setup import PrinterSetupService
 
-        app = App.get_running_app()
-        comercio = ""
-        if app is not None:
-            comercio = getattr(app, "siteName", "") or getattr(app, "siteAlias", "") or ""
         return PrinterWizard(
             PrinterSetupService(Configberry()),
-            commerce=comercio,
+            commerce=self._comercio(),
             runner=kivy_runner,
             post=kivy_post,
             on_change=self._sync,
             on_exit=self._exit,
         )
+
+    @staticmethod
+    def _comercio():
+        app = App.get_running_app()
+        if app is None:
+            return ""
+        return getattr(app, "siteName", "") or getattr(app, "siteAlias", "") or ""
 
     def ensure_wizard(self):
         if self.wizard is None:
@@ -155,7 +159,11 @@ class PrinterSetupScreen(Screen):
 
     def open_fresh(self):
         """Entrada desde la pantalla principal o la bandeja: desde el inicio."""
-        self.ensure_wizard().start()
+        w = self.ensure_wizard()
+        # El comercio puede haber cambiado desde la última vez (otra vinculación):
+        # el ticket de prueba tiene que decir el actual.
+        w.commerce = self._comercio() or w.commerce
+        w.start()
 
     def on_pre_enter(self, *args):
         # Volver a esta pantalla (por ejemplo, desde el registro) retoma el
@@ -185,6 +193,7 @@ class PrinterSetupScreen(Screen):
         self.hidden_count = w.hidden_count
         self.notes = w.notes
         self.detail_notes = w.detail_notes
+        self.retry_label = w.retry_label
         self.test_code = w.test_code
         self.suggested_alias = w.suggested_alias
         self.saved = list(w.saved)
