@@ -39,7 +39,7 @@ def _escribir_config(directorio, contenido):
 
 def test_completa_sio_host_si_falta(config_dir):
     """El caso exacto del celular: uuid presente, sio_host ausente."""
-    _escribir_config(config_dir, "[SERVIDOR]\nuuid = 009ee616-c2ad-592c-955d-2d2fb1118f4a\n")
+    _escribir_config(config_dir, "[SERVIDOR]\nuuid = 00000000-0000-5000-8000-000000000000\n")
 
     cfg = Configberry()
 
@@ -49,11 +49,11 @@ def test_completa_sio_host_si_falta(config_dir):
 
 def test_no_pisa_el_uuid_al_completar(config_dir):
     """El uuid es la identidad del equipo: reparar el config no puede rotarlo."""
-    _escribir_config(config_dir, "[SERVIDOR]\nuuid = 009ee616-c2ad-592c-955d-2d2fb1118f4a\n")
+    _escribir_config(config_dir, "[SERVIDOR]\nuuid = 00000000-0000-5000-8000-000000000000\n")
 
     cfg = Configberry()
 
-    assert cfg.get("SERVIDOR", "uuid") == "009ee616-c2ad-592c-955d-2d2fb1118f4a"
+    assert cfg.get("SERVIDOR", "uuid") == "00000000-0000-5000-8000-000000000000"
 
 
 def test_respeta_un_host_ya_configurado(config_dir):

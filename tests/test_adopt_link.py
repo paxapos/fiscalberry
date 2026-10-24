@@ -31,9 +31,9 @@ def test_rechaza_links_sin_uuid(url):
 
 
 @pytest.mark.parametrize("url", [
-    "https://beta.paxapos.com/adopt/263ae979-f969-4630-bc49-3bb44e04f86c",
+    "https://beta.paxapos.com/adopt/00000000-0000-4000-8000-000000000001",
     "https://paxapos.com/adopt/abc-123",
-    "https://dev2.paxapos.com/adopt/263ae979-f969-4630-bc49-3bb44e04f86c/",
+    "https://dev2.paxapos.com/adopt/00000000-0000-4000-8000-000000000001/",
 ])
 def test_acepta_links_con_uuid(url):
     assert link_de_adopcion_valido(url) is True

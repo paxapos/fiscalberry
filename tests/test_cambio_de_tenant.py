@@ -44,7 +44,7 @@ def handler(monkeypatch):
     h.active_credentials = None
     h.config = ConfigFalso({
         "RabbitMq": {"host": "broker.viejo", "port": "1883", "vhost": "/", "queue": "cola-vieja"},
-        "Paxaprinter": {"tenant": "paxapoga_cangas", "alias": "Ale celu", "site_name": "Cangas"},
+        "Paxaprinter": {"tenant": "comercio_demo", "alias": "Equipo de prueba", "site_name": "Sucursal Centro"},
         "SERVIDOR": {"uuid": "uuid-del-equipo"},
     })
     monkeypatch.setattr(h, "stop", lambda *a, **k: None, raising=False)
@@ -55,18 +55,18 @@ def handler(monkeypatch):
     RabbitMQProcessHandler._initialized = False
 
 
-def _config_del_servidor(tenant="alejandro", queue="cola-nueva"):
+def _config_del_servidor(tenant="otro_comercio", queue="cola-nueva"):
     return {
         "RabbitMq": {"host": "broker.nuevo", "user": "u", "password": "p", "queue": queue},
-        "Paxaprinter": {"tenant": tenant, "alias": "Ale celu", "site_name": "Alejandro"},
+        "Paxaprinter": {"tenant": tenant, "alias": "Equipo de prueba", "site_name": "Sucursal Norte"},
     }
 
 
 def test_el_tenant_se_actualiza_desde_el_servidor(handler):
     handler.configure_and_restart(_config_del_servidor(), None)
 
-    assert handler.config.get("Paxaprinter", "tenant") == "alejandro"
-    assert handler.config.get("Paxaprinter", "site_name") == "Alejandro"
+    assert handler.config.get("Paxaprinter", "tenant") == "otro_comercio"
+    assert handler.config.get("Paxaprinter", "site_name") == "Sucursal Norte"
 
 
 def test_la_cola_se_actualiza_desde_el_servidor(handler):
@@ -91,11 +91,11 @@ def test_sin_cambios_no_toca_nada(handler):
     """Si el servidor manda lo mismo, no hay reescritura."""
     mismo = {
         "RabbitMq": {"queue": "cola-vieja", "user": "u", "password": "p"},
-        "Paxaprinter": {"tenant": "paxapoga_cangas", "alias": "Ale celu", "site_name": "Cangas"},
+        "Paxaprinter": {"tenant": "comercio_demo", "alias": "Equipo de prueba", "site_name": "Sucursal Centro"},
     }
     handler.configure_and_restart(mismo, None)
 
-    assert handler.config.get("Paxaprinter", "tenant") == "paxapoga_cangas"
+    assert handler.config.get("Paxaprinter", "tenant") == "comercio_demo"
     assert handler.config.get("RabbitMq", "queue") == "cola-vieja"
 
 
@@ -103,5 +103,5 @@ def test_valores_vacios_del_servidor_no_borran_lo_que_hay(handler):
     vacio = {"RabbitMq": {"user": "u", "password": "p"}, "Paxaprinter": {}}
     handler.configure_and_restart(vacio, None)
 
-    assert handler.config.get("Paxaprinter", "tenant") == "paxapoga_cangas"
+    assert handler.config.get("Paxaprinter", "tenant") == "comercio_demo"
     assert handler.config.get("RabbitMq", "queue") == "cola-vieja"

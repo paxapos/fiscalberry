@@ -86,3 +86,49 @@ def test_apply_tls_enabled_calls_tls_set():
     assert applied is True
     assert client.tls_set_calls == ["/tmp/ca.pem"]
     assert client.tls_insecure_calls == [True]
+
+
+# ---------------------------------------------------------------------------
+# core#473: nunca dos clientes vivos con el mismo client id en un proceso
+# ---------------------------------------------------------------------------
+
+def _puerto_cerrado():
+    import socket
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+def _cliente_con_loop(client_id, port):
+    """Cliente paho real con su loop corriendo (reintenta contra un puerto cerrado)."""
+    c = mqtt_compat.make_client(client_id=client_id, clean_session=True)
+    c.connect_async("127.0.0.1", port, keepalive=60)
+    c.loop_start()
+    return c, c._thread
+
+
+def test_make_client_frena_el_cliente_previo_con_el_mismo_id():
+    port = _puerto_cerrado()
+    viejo, hilo_viejo = _cliente_con_loop("fiscalberry-test-dup-473", port)
+    assert hilo_viejo.is_alive()
+
+    nuevo, hilo_nuevo = _cliente_con_loop("fiscalberry-test-dup-473", port)
+    try:
+        hilo_viejo.join(timeout=5)
+        assert not hilo_viejo.is_alive()
+        assert hilo_nuevo.is_alive()
+    finally:
+        nuevo.loop_stop()
+
+
+def test_make_client_no_toca_clientes_con_otro_id():
+    port = _puerto_cerrado()
+    a, hilo_a = _cliente_con_loop("fiscalberry-test-a-473", port)
+    b, hilo_b = _cliente_con_loop("fiscalberry-test-b-473", port)
+    try:
+        assert hilo_a.is_alive() and hilo_b.is_alive()
+    finally:
+        a.loop_stop()
+        b.loop_stop()

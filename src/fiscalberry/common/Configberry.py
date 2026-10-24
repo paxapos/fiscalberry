@@ -66,14 +66,26 @@ class Configberry:
 
     def __init__(self):
 
-        if not hasattr(self, 'initialized'):
-            self.initialized = True
-            # Inicializa aquí los atributos de la instancia
-            
+        # `_inicializando` corta la reentrada: crear el config importa módulos
+        # (device_uuid, el logger) que a su vez piden Configberry(), y esas
+        # llamadas anidadas reciben la misma instancia sin volver a entrar acá.
+        if getattr(self, 'initialized', False) or getattr(self, '_inicializando', False):
+            return
+
+        self._inicializando = True
+        try:
+            if '_listeners' not in self.__dict__:
+                self._listeners = []
             self.configFilePath = self.getConfigFIle()
             self.__create_config_if_not_exists(self.configFilePath)
-            self._listeners = []
-            
+            # Recién ahora: si crear el config falla, el próximo Configberry()
+            # lo vuelve a intentar. Antes `initialized` se marcaba ANTES de
+            # crearlo, así que una excepción en el primer arranque (que alguien
+            # más arriba se tragaba) dejaba el config.ini vacío por el resto de
+            # la vida del proceso, y nada volvía a completarlo.
+            self.initialized = True
+        finally:
+            self._inicializando = False
 
 
     def getConfigFIle(self):
@@ -362,6 +374,18 @@ class Configberry:
             logger.error(f"No se pudieron completar las claves faltantes: {e}")
             return False
         return True
+
+    def asegurar_claves_servidor(self):
+        """
+        Versión pública de la reparación de [SERVIDOR]: completa las claves que
+        falten (sio_host, etc.) sin tocar las que ya están. Devuelve True si
+        tuvo que completar algo.
+
+        Para los que se encuentran con un config incompleto en caliente (el
+        discover, la pantalla de vinculación) y pueden repararlo en vez de
+        fallar.
+        """
+        return self._asegurar_claves_servidor()
 
     def resetConfigFile(self):
         # El uuid es la identidad del dispositivo ante Paxapos (y el topic MQTT):

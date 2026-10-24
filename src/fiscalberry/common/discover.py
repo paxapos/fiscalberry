@@ -59,7 +59,16 @@ def send_discover():
 
     # Obtener host y construir URL del discover
     host = configberry.config.get("SERVIDOR", "sio_host", fallback="")
-    
+
+    if not host:
+        # Un config sin sio_host es reparable: se completa con el default (sin
+        # pisar nada de lo que ya hay) en vez de fallar el registro.
+        try:
+            if configberry.asegurar_claves_servidor():
+                host = configberry.get("SERVIDOR", "sio_host", fallback="")
+        except Exception as e:
+            logger.error(f"DISCOVER:: no se pudo completar el config: {e}")
+
     if not host:
         # ERROR, no debug: esta rama es la que hizo que el discover fallara en
         # un celular sin dejar rastro. En el log solo se veía "Discover falló,
