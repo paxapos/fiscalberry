@@ -121,6 +121,16 @@ def main():
 
     print("Iniciando Fiscalberry Server")
 
+    # Instancia única por máquina: dos fiscalberry con el mismo config.ini
+    # comparten client id MQTT y se patean mutuamente contra el broker.
+    # Va ANTES de on_process_start(): una instancia rechazada no puede contar
+    # como un arranque sin confirmar de una actualización recién instalada.
+    from fiscalberry.common.single_instance import acquire_single_instance_lock
+    if not acquire_single_instance_lock():
+        print("ERROR: ya hay otro Fiscalberry corriendo en esta maquina.")
+        print("Detene el que esta corriendo (ej: systemctl stop fiscalberry) y volve a intentar.")
+        sys.exit(1)
+
     # Reversión automática: si la versión anterior se actualizó y nunca llegó a
     # confirmar que levantaba, volvemos al binario que sí funcionaba.
     try:
@@ -128,14 +138,6 @@ def main():
         on_process_start()
     except Exception as e:
         print(f"Aviso: no se pudo evaluar el estado de actualizacion: {e}")
-
-    # Instancia única por máquina: dos fiscalberry con el mismo config.ini
-    # comparten client id MQTT y se patean mutuamente contra el broker.
-    from fiscalberry.common.single_instance import acquire_single_instance_lock
-    if not acquire_single_instance_lock():
-        print("ERROR: ya hay otro Fiscalberry corriendo en esta maquina.")
-        print("Detene el que esta corriendo (ej: systemctl stop fiscalberry) y volve a intentar.")
-        sys.exit(1)
 
     # Verificar si el comercio está adoptado
     configberry = Configberry()

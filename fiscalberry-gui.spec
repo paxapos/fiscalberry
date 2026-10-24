@@ -41,6 +41,29 @@ a = Analysis(
         'fiscalberry.common.Configberry',
         'fiscalberry.common.fiscalberry_logger',
         'pywin32',
+        # Bandeja del sistema. pystray elige su backend al importarse
+        # (pystray._win32): PyInstaller no lo ve solo.
+        'fiscalberry.desktop.tray',
+        'pystray',
+        'pystray._win32',
+        'PIL.Image',
+        # Asistente de impresoras. El selftest de la GUI los importa todos:
+        # tests/test_informe_descubrimiento.py exige que estén acá también.
+        'fiscalberry.ui.printer_setup_screen',
+        'fiscalberry.common.onboarding',
+        'fiscalberry.common.printer_setup',
+        'fiscalberry.common.printer_search',
+        'fiscalberry.common.printer_wizard',
+        'fiscalberry.common.windows_queues',
+        'fiscalberry.common.ticket_prueba',
+        'fiscalberry.common.network_discovery',
+        'fiscalberry.common.usb_discovery',
+        'fiscalberry.common.usbprint_driver',
+        'fiscalberry.common.discovery_report',
+        'fiscalberry.common.support_report',
+        # Puertos COM (pyserial elige el backend de Windows al importarse).
+        'serial.tools.list_ports',
+        'serial.tools.list_ports_windows',
     ],
     hookspath=[],
     hooksconfig={},

@@ -12,12 +12,27 @@ cambiarlos cuando sale una nueva.
 
 | Sistema | Con interfaz gráfica | Solo consola |
 | --- | --- | --- |
-| Windows | [fiscalberry-windows-gui.zip](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-windows-gui.zip) | [fiscalberry-windows-cli.zip](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-windows-cli.zip) |
+| Windows | [FiscalberrySetup.exe](https://github.com/paxapos/fiscalberry/releases/latest/download/FiscalberrySetup.exe) | [fiscalberry-windows-cli.zip](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-windows-cli.zip) |
 | Linux | [fiscalberry-linux-gui.tar.gz](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-linux-gui.tar.gz) | [fiscalberry-linux-cli.tar.gz](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-linux-cli.tar.gz) |
 | Android | [fiscalberry-android-gui.apk](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-android-gui.apk) | — |
 
-Cada archivo trae **una carpeta** con el ejecutable y sus dependencias al lado.
-Hay que descomprimirla y ejecutar el binario **desde adentro de esa carpeta**:
+En Windows, descargá y ejecutá `FiscalberrySetup.exe`. Se instala para el usuario
+actual (sin pedir permisos de administrador), crea el acceso en el menú Inicio y
+queda configurado para arrancar con Windows, oculto en la bandeja del sistema. En
+el primer inicio, Fiscalberry muestra el enlace para iniciar sesión en Paxapos y
+elegir el comercio que querés vincular.
+
+Cerrar la ventana con la X no detiene Fiscalberry: se oculta junto al reloj y
+sigue imprimiendo. Se vuelve a abrir tocando su ícono en la bandeja o abriéndolo
+de nuevo desde el menú Inicio, que nunca levanta una segunda copia. Para
+detenerlo de verdad, clic derecho en el ícono y **Salir (deja de imprimir)**.
+Las actualizaciones se instalan solas con el mismo instalador y conservan la
+vinculación con el comercio; desinstalarlo tampoco la borra.
+
+El ZIP de interfaz gráfica sigue disponible como alternativa portable para
+soporte técnico (al actualizarse, pasa a la versión instalada):
+[fiscalberry-windows-gui.zip](https://github.com/paxapos/fiscalberry/releases/latest/download/fiscalberry-windows-gui.zip).
+Hay que descomprimir la carpeta completa y ejecutar el binario desde adentro;
 si se mueve el ejecutable solo, no arranca.
 
 Para verificar la descarga:

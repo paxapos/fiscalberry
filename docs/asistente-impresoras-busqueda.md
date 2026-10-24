@@ -1,0 +1,347 @@
+# Asistente de impresoras
+
+Cómo encuentra Fiscalberry las impresoras de red (#175), USB (#183,
+escenario 2) y USB que aparecen como COM (#183, escenario 3), y cómo es la
+pantalla del asistente (#184) y cuándo aparece (#173). Las colas de Windows
+ya instaladas (#174) están en `common/windows_queues.py`.
+
+Las tres reglas que valen para todo:
+
+- **Sin permisos de administrador** y fuera del hilo de la interfaz.
+- **No se modifica nada**: ni la red de la PC ni la de la impresora, ni
+  drivers ni colas. Nunca Zadig.
+- Cada búsqueda entrega `PrinterCandidate` (`common/printer_setup.py`): lo
+  que se prueba con el ticket (#172) y, si sale bien y se confirma en papel,
+  se guarda. Nada se guarda antes.
+
+Diseño portado de `feat/instalador-v3` (PR #189) y adaptado a esta rama.
+
+## Red — #175
+
+Código: `common/network_discovery.py`.
+
+### Adaptadores
+
+`list_adapters()` lee en Windows `GetAdaptersAddresses` (IPv4, con
+gateways): nombre, descripción, dirección, **prefijo real**
+(`OnLinkPrefixLength`), gateways, métrica, DHCP, MAC y estado.
+
+Solo se barren los adaptadores **físicos y conectados**. Se ignoran, con un
+aviso:
+
+| Tipo | Cómo se reconoce |
+|---|---|
+| Loopback | `IfType` 24 |
+| VPN | `IfType` 131 (túnel) o 23 (PPP), o la descripción: TAP-Windows, WireGuard, Wintun, OpenVPN, AnyConnect, Fortinet, GlobalProtect, ZeroTier, Tailscale, Hamachi… |
+| Virtual | `vEthernet` / "Hyper-V Virtual Ethernet Adapter" (Default Switch, WSL), VirtualBox Host-Only, VMware VMnet, Docker, Bluetooth PAN, Wi-Fi Direct… |
+
+Barrer la red de una VPN mandaría cientos de conexiones a la red de otra
+empresa. Dos excepciones:
+
+- "Microsoft Hyper-V Network Adapter" es la placa de una **PC virtual** (así
+  se ven los runners de GitHub): para esa PC es física.
+- Un `vEthernet` **con gateway** es un switch externo de Hyper-V: la red real
+  pasa por ahí.
+
+### Qué se barre
+
+`plan_sweep()` usa la máscara real:
+
+- Hasta 1022 direcciones (/22 o menor): el rango entero.
+- Una red más grande: las 254 direcciones vecinas a la PC, con aviso. La
+  clasificación sigue usando la máscara real.
+- 169.254.x.x (la PC no encontró el router), /31, /32 o una máscara que no es
+  un prefijo: no se barre y se informa. No se fuerza ninguna máscara.
+- **La PC misma no se barre**: otro sistema POS o un servidor de impresión que
+  escuche en el 9100 de esta computadora aparecería como impresora.
+
+También se prueban las **IPs de fábrica** que quedan fuera de los rangos de la
+PC: si una responde, hay una ruta hasta ella y se puede usar.
+
+### Barrido
+
+`tcp_sweep()`: conexiones no bloqueantes al 9100, hasta 256 a la vez, con
+1,5 s de espera por tanda. Un /24 tarda ~1,5 s (con SNMP, ~2,5 s). La espera
+no es más corta porque Windows reintenta el SYN después de un RST: con menos
+de ~1 s un "puerto cerrado" parece "nadie". Se cancela en cualquier momento y
+cierra todos los sockets.
+
+**SAM4S y el 6001** (#180): no se barre todo el rango en el 6001. Se prueba
+solo en los equipos que rechazaron el 9100 (están vivos pero no escuchan
+ahí). Si acepta, se ofrece en ese puerto y la prueba en papel decide.
+
+### Señales para mostrar el modelo
+
+- **SNMP v2c** unicast (UDP 161, comunidad `public`): `sysDescr`,
+  `sysObjectID`, `sysName`, `hrDeviceDescr`. Un solo socket para todas las
+  encontradas, 1 s. El firewall de Windows deja pasar la respuesta sin reglas
+  nuevas porque el pedido salió de la PC.
+- **Tabla ARP** (`GetIpNetTable`): la MAC. Solo se muestra el fabricante de la
+  placa (`00:26:AB:xx:xx:xx`).
+
+Son pistas para la pantalla: no deciden nada.
+
+### Diagnóstico de una dirección (`diagnose_address`)
+
+Para cuando la persona escribe la dirección que imprimió la hoja de autotest.
+
+| `kind` | Cuándo |
+|---|---|
+| `misma_subred` | En el rango (máscara real) de un adaptador físico y el puerto acepta |
+| `otra_subred_alcanzable` | Fuera de los rangos, pero hay ruta y el puerto acepta: se puede usar |
+| `otra_subred_marca_conocida` | Fuera de los rangos, no responde y es una IP de fábrica |
+| `otra_subred_desconocida` | Fuera de los rangos y no responde (192.168.123.68 con la PC en 192.168.1.27/24) |
+| `apagada` | En el rango, nadie responde |
+| `puerto_cerrado` | El equipo responde pero no el puerto (`is_gateway` dice si es el router) |
+| `invalido` | No es una IPv4 de un equipo, es la de red o broadcast, o es la de esta PC |
+
+La red de una VPN o de un adaptador virtual no cuenta como la red de la PC.
+Sin una IP en el rango de la impresora la PC no puede hablarle: el asistente
+lo explica, no cambia nada.
+
+### IPs de fábrica
+
+| IP | Marcas |
+|---|---|
+| 192.168.192.168 | Epson TM |
+| 192.168.123.100 | Xprinter, Gprinter, Hasar HTP-250 |
+
+La IP no identifica la marca. 192.168.1.1 no se agrega: es la IP típica del
+router. Evidencia y límites en `docs/investigacion-impresoras-red.md` (#180).
+
+## USB directo y COM — #183
+
+Código: `common/usb_discovery.py` (búsqueda) y `common/usbprint_driver.py`
+(driver `UsbPrint`).
+
+### Por qué no PyUSB
+
+Una térmica de clase Impresora USB (0x07) usa `usbprint.sys`, que viene con
+Windows y crea el puerto `USB00x` aunque no haya driver de impresora ni cola.
+PyUSB/libusb exigiría reemplazar ese driver por WinUSB (Zadig, con admin), y
+eso rompe la cola de Windows. El driver `Usb` (PyUSB) queda para Linux y para
+equipos que ya exponen WinUSB.
+
+### Búsqueda
+
+- **usbprint**: `SetupDiGetClassDevs` + `SetupDiEnumDeviceInterfaces` sobre
+  `GUID_DEVINTERFACE_USBPRINT` `{28d78fad-5a12-11d1-ae5b-0000f803a8c2}`. De
+  la ruta (`\\?\usb#vid_04b8&pid_0e15#<serie>#{guid}`) salen VID, PID y serie.
+  Si la instancia tiene `&` (Windows la inventó) o el dispositivo es compuesto
+  (`&mi_00`), no hay serie.
+- El puerto `USB001` sale de la clave de registro de la interfaz (`Port
+  Number` + `Base Name`): sirve para reconocer la cola de Windows que usa la
+  misma impresora.
+- El modelo: Device ID IEEE 1284 (`IOCTL_USBPRINT_GET_1284_ID`), después la
+  descripción que da el bus, después la marca por VID.
+- **COM** con `serial.tools.list_ports`: CDC (`usbser.sys`), CH340, PL2303,
+  FTDI y CP210x aparecen con VID/PID. Los COM de Bluetooth no se abren nunca
+  (abrirlos intenta conectar y puede colgar); los de la placa madre y los
+  módems se ocultan por defecto. Velocidad: 9600.
+- **Incompatibles**: con `SetupDiGetClassDevs("USB")` se revisan todos los
+  USB. Una impresora (clase 07 o VID de una marca conocida) sin driver o con
+  WinUSB/libusb se informa como "no se puede usar"; su driver no se toca.
+
+### Qué se guarda
+
+| Caso | En `config.ini` | Identidad (`_setup_id`) |
+|---|---|---|
+| USB con número de serie | `idVendor`, `idProduct`, `serial_number` | `usb:vvvv:pppp:serie` |
+| USB sin serie | `idVendor`, `idProduct`, `device_path` | `usb:vvvv:pppp@ruta` |
+| COM con serie (adaptador) | `devfile`, `baudrate` | `serial:vvvv:pppp:serie` |
+| COM sin serie (CH340, muchos PL2303) | `devfile`, `baudrate` | `serial:comN` |
+
+Con serie no se guarda la ruta: incluye el puerto USB físico y cambia al
+enchufarla en otro. Sin serie la ruta es lo único que distingue dos
+impresoras iguales; si se cambia de puerto y es la única con ese VID/PID, el
+driver la encuentra igual. Si hay dos iguales sin serie y ninguna está en la
+ruta guardada, el driver avisa en vez de adivinar.
+
+Con número de serie, la misma impresora vista por usbprint y por PyUSB tiene
+la misma identidad: no se guarda dos veces.
+
+### Driver `UsbPrint`
+
+- `CreateFile` + `WriteFile` / `ReadFile` / `DeviceIoControl` con E/S
+  superpuesta y timeout: una impresora sin papel puede dejar un `WriteFile`
+  colgado para siempre; al vencer se cancela con `CancelIoEx` y se espera a
+  que la cancelación termine antes de soltar el buffer.
+- **Convive con el spooler**: si un trabajo de Windows tiene el dispositivo,
+  `CreateFile` falla por "en uso" y se reintenta a los 0,25, 0,5, 1 y 2 s.
+  Cada ticket abre y cierra (`EscposIO(autoclose=True)`), así que Fiscalberry
+  tampoco lo retiene.
+- Estado real con DLE EOT 1, 2 y 4 si la impresora tiene endpoint de entrada.
+  Si no contesta, "no se sabe": decide la confirmación del papel (#172).
+- `IOCTL_USBPRINT_GET_LPT_STATUS` se guarda en el resultado de la prueba
+  (`ResultadoPrueba.lpt`) **solo como dato**: muchas térmicas devuelven
+  siempre lo mismo.
+- Desenchufada (`ERROR_DEVICE_NOT_CONNECTED`, `ERROR_FILE_NOT_FOUND`,
+  `ERROR_GEN_FAILURE`) es "no se encontró la impresora"; ocupada después de
+  los reintentos, "Windows no dejó usar la impresora".
+- Fuera de Windows, `build_driver` responde con un error claro.
+
+### COM: control de flujo
+
+python-escpos abre el `Serial` con control de flujo DSR/DTR y sin límite de
+escritura. Si la impresora o el cable no levantan DSR, pyserial no manda
+nada y la escritura espera para siempre. La prueba del asistente le pone un
+tope de 10 s (`ESPERA_ESCRITURA_SERIE`): falla con "tardó demasiado en
+responder" en vez de colgarse. Lo guardado no cambia (`dsrdtr` sigue siendo el
+de python-escpos); `dsrdtr = false` en `config.ini` ahora sí lo desactiva
+(antes el texto "false" se tomaba como verdadero).
+
+## La pantalla: "Buscar impresoras" — #184
+
+Código: `common/printer_search.py` y `common/printer_wizard.py` (sin Kivy),
+`ui/printer_setup_screen.py` y `ui/kv/printer_setup.kv` (solo dibujan).
+
+- Un solo botón **"Buscar impresoras"** corre red, USB/COM y colas de Windows
+  en paralelo (un hilo por fuente) y muestra un solo listado que se va
+  llenando: la red y el USB aparecen en ~2 s aunque las colas tarden. Nada
+  corre en el hilo de Kivy: los resultados vuelven con `Clock`.
+- Cada impresora es una fila grande con un nombre (el modelo si se conoce) y
+  una frase sin jerga: "Conectada a la red", "Conectada por USB", "Conectada
+  por cable USB", "Instalada en Windows". IP, puerto, driver y lo que dice el
+  spooler aparecen solo con **"Ver detalles"**.
+- Una misma impresora vista por dos caminos se muestra una vez: la cola de
+  Windows tapa a la usbprint o al COM del mismo puerto (es lo que el local ya
+  usa); la impresora de red tapa a la cola TCP/IP de la misma dirección (se
+  usa directo y se lee su estado). Lo oculto (virtuales, fuera de línea,
+  duplicados, COM de la placa) se ve con **"Mostrar todas (N más)"**. La
+  predeterminada de Windows va primero entre las colas.
+- Las ya configuradas aparecen marcadas ("Ya está configurada como Caja") y
+  no se vuelven a probar.
+- Una impresora que no se puede usar (USB sin driver o con WinUSB) se explica
+  con palabras; no se abre ninguna guía desde la app.
+- **"Sé la dirección de la impresora"**: para una de red que no apareció. Se
+  diagnostica con la máscara real (#175) y, si es de otra red o una IP de
+  fábrica, se explica por qué.
+- Estados: buscando (con "Dejar de buscar", que deja lo encontrado), lista,
+  vacío, avisos por fuente, probando, "¿salió el ticket con este código?",
+  problema (con "Probar de nuevo"), nombre, guardada ("Terminar" o "Agregar
+  otra", que vuelve a la lista con la guardada marcada).
+- Si la prueba no se confirma en papel (o la persona sale), lo pendiente se
+  descarta: en una cola de Windows el trabajo se borra.
+- **Teclado**: Tab / Shift+Tab recorren botones e impresoras (recuadro azul),
+  Enter o Espacio tocan, Escape vuelve atrás y nunca cierra la app. El foco va
+  a la acción principal de cada paso, salvo en "¿salió el ticket?": un Enter
+  por costumbre no puede confirmar el papel.
+- `journal` registra cada paso con su resultado y su tiempo, para el
+  diagnóstico de soporte (#185).
+
+## Navegación — #173
+
+Código: `common/onboarding.py` y `ui/fiscalberry_app.py`.
+
+- Solo Windows de escritorio. Linux y Android no cambian
+  (`FISCALBERRY_PRINTER_WIZARD=1` lo fuerza para desarrollar).
+- Al vincular el comercio se deja una marca "pendiente"
+  (`onboarding.json`, aparte del `config.ini`) y, si no hay ninguna impresora
+  válida configurada, se abre el asistente. El servicio (MQTT incluido) se
+  arranca igual: el asistente no lo toca.
+- El estado sale de la configuración, no solo de la marca: con una impresora
+  válida (del asistente, del backend o de soporte) no se muestra. Una
+  instalación que ya existía (sin marca) arranca como siempre.
+- Si la PC se reinicia en medio del asistente, al volver a abrir Fiscalberry
+  sigue en el asistente.
+- "Configurar después" lleva a la principal y no vuelve a aparecer solo. Se
+  reabre con el botón **"Impresoras"** o desde la bandeja (**"Configurar
+  impresoras"**).
+- Cerrar la ventana en medio del asistente la oculta en la bandeja (#187): el
+  servicio sigue y al reabrir se retoma el mismo paso.
+- Un cambio del `config.ini` (guardar una impresora, un `configure` del
+  backend) ya no saca a la persona de la pantalla en la que está: solo la
+  vinculación lleva de "adopt" a la siguiente.
+
+## Diagnóstico para soporte — #185
+
+Código: `common/support_report.py`.
+
+Ante un error o aviso del asistente aparecen **"Copiar diagnóstico para
+soporte"** (al portapapeles y a `diagnostico-impresoras.txt`, junto al
+registro) y **"Ver registro"** (la pantalla de logs, que vuelve al asistente).
+
+El reporte se arma **solo con campos permitidos**: versión e instalación,
+sistema, comercio (el nombre, no el tenant), estado del servicio, dónde quedó
+(paso y mensaje), la última prueba (conexión, identidad, DLE EOT, LPT, si se
+borró el trabajo de la cola, si se confirmó el papel), la dirección escrita y
+su diagnóstico, la búsqueda (qué encontró cada fuente, avisos, ocultas y por
+qué), las redes de la PC, las impresoras configuradas (claves del driver
+solamente) y el **recorrido paso a paso** con tiempos relativos, que alcanza
+para reproducir dónde falló.
+
+Lo identificable se reduce: MAC al fabricante (`00:26:AB:xx:xx:xx`), números
+de serie a los últimos 4, id del equipo a 4 caracteres, IP pública oculta (las
+privadas del local quedan: sin ellas no se entiende un problema de subred),
+carpeta del usuario como `~`. Nunca entran credenciales MQTT, JWT,
+contraseñas, tokens ni tickets: no se incluyen y, además, una pasada final
+reemplaza por `[oculto]` todo valor del `config.ini` cuya clave sea sensible,
+todo lo que parezca un JWT y lo que siga a `password=`, `token=` o `Bearer`.
+Del registro entran solo advertencias y errores de los módulos del asistente.
+
+Snapshots aprobados en `tests/snapshots/diagnostico_*.txt` (éxito, USB con
+tapa abierta, cola trabada, nada encontrado, otra subred). Si un cambio es a
+propósito: `FISCALBERRY_UPDATE_SNAPSHOTS=1 pytest tests/test_diagnostico_soporte.py`
+y revisar el diff.
+
+## Verificación en Windows real
+
+La prueba del instalador (`installer/test_installer.ps1`) corre
+`fiscalberry-gui.exe --discovery-report` con el ejecutable instalado: lee de
+verdad `GetAdaptersAddresses`, `GetIpNetTable`, SetupDi (usbprint y todos los
+USB), cfgmgr32 y los puertos COM, y lista las colas con el subproceso
+`--list-printers` del exe instalado. Falla si alguna sección revienta, si
+tarda más de 120 s o si no hay al menos un adaptador físico con IPv4.
+
+El runner es una VM sin USB ni impresoras, así que esas listas dan cero y no
+prueban nada. Por eso el informe trae un **control**: el mismo código de
+SetupDi enumera las interfaces de disco y todos los dispositivos de la PC, que
+siempre son más de cero; la prueba falla si dan cero o si las rutas no se
+leen. Las impresoras se prueban con sockets locales y APIs simuladas en
+`tests/test_red_impresoras.py` y `tests/test_usb_directo.py`.
+
+## Prueba con hardware
+
+Pendiente (#186). Todo con una **cuenta estándar** de Windows 10 y 11, sin
+permisos de administrador.
+
+Para probar una pieza sin la pantalla, desde la raíz del repo y con las
+dependencias instaladas:
+
+```python
+import sys
+sys.path.insert(0, "src")
+from fiscalberry.common import network_discovery, usb_discovery, ticket_prueba
+
+red = network_discovery.search_network()
+usb = usb_discovery.search_usb()
+print(red.notes, [(p.title, p.host, p.port) for p in red.printers])
+print([d.title for d in usb.usbprint], [p.title for p in usb.serial], usb.incompatible)
+
+candidato = (red.printers or usb.usbprint or usb.serial)[0].candidate()
+r = ticket_prueba.probar(candidato, "Prueba")
+print(r.exito_tecnico, r.problema, r.accion, r.estado_antes, r.lpt)
+```
+
+1. **Red, misma subred**: una Epson y una Xprinter/Gprinter por cable al
+   router. Tienen que aparecer solas en menos de 5 s. Que el firewall de
+   Windows no pida permiso la primera vez (son conexiones salientes).
+2. **Red, otra subred**: la impresora con su IP de fábrica y la PC en otro
+   rango. Escribir la IP: tiene que decir "otra subred, marca conocida".
+3. **SNMP y SAM4S**: anotar qué marcas contestan SNMP. Una SAM4S en el 6001.
+4. **USB clase 07 sin driver ni cola** (Epson TM-T20 y una
+   Xprinter/Gprinter), con y sin número de serie:
+   - que aparezca en la búsqueda y pase la prueba técnica y la de papel;
+   - estado real: tapa abierta y sin papel antes de imprimir;
+   - desenchufarla en medio de la prueba;
+   - enchufarla en otro puerto USB y que siga imprimiendo lo guardado.
+5. **Cola de Windows sobre `USB001`**: imprimir con `UsbPrint`, después
+   imprimir desde Windows (página de prueba) y que salga. Mandar un trabajo
+   largo desde Windows y, mientras sale, imprimir con `UsbPrint`: tiene que
+   esperar y salir después.
+6. **COM**: una impresora por CH340 o PL2303 y una CDC, a 9600. Anotar si
+   pasa la prueba con `dsrdtr` por defecto; si falla por tiempo, repetir con
+   `dsrdtr = false` en la sección y anotar el resultado.
+7. **Incompatible**: una impresora pasada a WinUSB con Zadig (en una PC de
+   prueba) o sin driver: tiene que aparecer como "no se puede usar" y su
+   driver tiene que quedar como estaba.

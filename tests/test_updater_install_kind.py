@@ -42,7 +42,9 @@ def test_sin_congelar_es_instalacion_desde_codigo(monkeypatch):
     ("/opt/fb/fiscalberry-cli", "linux", install_kind.LINUX_CLI),
     ("/opt/fb/fiscalberry-gui", "linux", install_kind.LINUX_GUI),
     (r"C:\fb\fiscalberry-cli.exe", "win32", install_kind.WINDOWS_CLI),
-    (r"C:\fb\fiscalberry-gui.exe", "win32", install_kind.WINDOWS_GUI),
+    # Toda GUI congelada en Windows se actualiza con FiscalberrySetup.exe,
+    # aunque haya llegado como copia portable (el setup la migra).
+    (r"C:\fb\fiscalberry-gui.exe", "win32", install_kind.WINDOWS_INSTALLER),
 ])
 def test_variante_segun_el_ejecutable(monkeypatch, ejecutable, plataforma, esperado):
     monkeypatch.delenv("ANDROID_ARGUMENT", raising=False)
@@ -56,7 +58,8 @@ def test_variante_segun_el_ejecutable(monkeypatch, ejecutable, plataforma, esper
 
 def test_toda_variante_empaquetada_sabe_su_asset_y_su_binario():
     for kind in (install_kind.LINUX_CLI, install_kind.LINUX_GUI,
-                 install_kind.WINDOWS_CLI, install_kind.WINDOWS_GUI):
+                 install_kind.WINDOWS_CLI, install_kind.WINDOWS_GUI,
+                 install_kind.WINDOWS_INSTALLER):
         assert install_kind.asset_name(kind), f"{kind} sin asset"
         assert install_kind.binary_name(kind), f"{kind} sin binario"
 
@@ -91,3 +94,12 @@ def test_el_workflow_publica_los_checksums():
     assert "SHA256SUMS" in contenido
     assert re.search(r"sha256sum\s", contenido), \
         "el workflow no genera los checksums"
+
+
+def test_solo_la_gui_de_windows_se_actualiza_con_instalador():
+    assert install_kind.uses_installer(install_kind.WINDOWS_INSTALLER)
+    for kind in (install_kind.WINDOWS_CLI, install_kind.WINDOWS_GUI,
+                 install_kind.LINUX_GUI, install_kind.LINUX_CLI,
+                 install_kind.ANDROID, install_kind.SOURCE):
+        assert not install_kind.uses_installer(kind)
+    assert install_kind.asset_name(install_kind.WINDOWS_INSTALLER) == "FiscalberrySetup.exe"

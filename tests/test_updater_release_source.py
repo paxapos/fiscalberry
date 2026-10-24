@@ -128,3 +128,17 @@ def test_sin_sha256sums_devuelve_vacio():
     """Sin checksums el updater debe abstenerse, no adivinar."""
     rel = release_source.Release("v3.5.0", "3.5.0", {})
     assert release_source.fetch_checksums(rel, session=FakeSession([])) == {}
+
+
+def test_release_por_tag_usa_descargas_directas_y_no_la_api():
+    """
+    La API sin autenticar admite 60 consultas por hora por IP, compartidas por
+    todos los equipos del local: el respaldo del instalador no la usa.
+    """
+    rel = release_source.release_for_tag(
+        "v3.7.0", ["FiscalberrySetup.exe", "SHA256SUMS"], "paxapos/fiscalberry")
+
+    assert rel.version == "3.7.0"
+    assert rel.asset("FiscalberrySetup.exe")["url"] == (
+        "https://github.com/paxapos/fiscalberry/releases/download/v3.7.0/FiscalberrySetup.exe")
+    assert all("api.github.com" not in a["url"] for a in rel.assets.values())

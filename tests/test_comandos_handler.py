@@ -156,6 +156,107 @@ def test_jobid_is_stripped_before_translating(monkeypatch):
     assert not any(item.get("rta") == "Function not found" for item in resp["result"])
 
 
+def test_setup_id_no_se_envia_al_constructor_del_driver(monkeypatch):
+    real_dummy = CH.printer.Dummy
+
+    def dummy_sin_metadata(**kwargs):
+        assert "_setup_id" not in kwargs
+        return real_dummy(**kwargs)
+
+    class FakeConfigberry:
+        def get_config_for_printer(self, name):
+            return {"driver": "Dummy", "_setup_id": "windows:Cocina"}
+
+    monkeypatch.setattr(CH, "configberry", FakeConfigberry())
+    monkeypatch.setattr(CH.printer, "Dummy", dummy_sin_metadata)
+
+    response = CH.runTraductor(
+        {"printerName": "Cocina", "printTexto": {"texto": "prueba"}},
+        None,
+    )
+
+    assert response["message"] == "Impresión exitosa"
+
+
+def test_serial_recibe_baudrate_y_timeout_como_numeros_y_sin_metadatos(monkeypatch):
+    """Lo que guarda el asistente para un USB que aparece como COM (#171)."""
+    recibido = {}
+    real_dummy = CH.printer.Dummy
+
+    def serial_falso(**kwargs):
+        recibido.update(kwargs)
+        return real_dummy()
+
+    class FakeConfigberry:
+        def get_config_for_printer(self, name):
+            return {"driver": "Serial", "devfile": "COM3", "baudrate": "9600",
+                    "timeout": "2", "_setup_id": "serial:067b:2303:PL1",
+                    "_otro_metadato": "x"}
+
+    monkeypatch.setattr(CH, "configberry", FakeConfigberry())
+    monkeypatch.setattr(CH.printer, "Serial", serial_falso)
+
+    response = CH.runTraductor(
+        {"printerName": "Cocina", "printTexto": {"texto": "prueba"}},
+        None,
+    )
+
+    assert response["message"] == "Impresión exitosa"
+    assert recibido == {"devfile": "COM3", "baudrate": 9600, "timeout": 2.0}
+
+
+@pytest.mark.parametrize("texto,valor", [("false", False), ("False", False), ("0", False),
+                                         ("no", False), ("true", True), ("1", True),
+                                         ("sí", True)])
+def test_serial_lee_los_si_no_del_config(texto, valor, monkeypatch):
+    """bool("false") es True: un `dsrdtr = false` activaba el control de flujo."""
+    recibido = {}
+    monkeypatch.setattr(CH.printer, "Serial", lambda **kw: recibido.update(kw) or object())
+    CH.build_driver({"driver": "Serial", "devfile": "COM3", "dsrdtr": texto,
+                     "xonxoff": texto, "bytesize": "7", "stopbits": "1.5"})
+    assert recibido["dsrdtr"] is valor and recibido["xonxoff"] is valor
+    assert recibido["bytesize"] == 7 and recibido["stopbits"] == 1.5
+
+
+def test_serial_con_un_si_no_invalido_es_un_error_claro(monkeypatch):
+    monkeypatch.setattr(CH.printer, "Serial", lambda **kw: object())
+    with pytest.raises(CH.DriverError, match="dsrdtr"):
+        CH.build_driver({"driver": "Serial", "devfile": "COM3", "dsrdtr": "quizas"})
+    assert CH.build_driver({"driver": "Serial", "devfile": "COM3", "stopbits": "2"})
+
+
+def test_network_recibe_el_timeout_del_config_como_numero(monkeypatch):
+    """
+    Del config.ini todo llega como texto. python-escpos le pasa `timeout` a
+    socket.settimeout(), que con "10" lanza TypeError y la impresión falla.
+    """
+    recibido = {}
+    real_dummy = CH.printer.Dummy
+
+    def network_falso(**kwargs):
+        import socket
+        socket.socket().settimeout(kwargs["timeout"])  # lo que hace escpos
+        recibido.update(kwargs)
+        return real_dummy()
+
+    class FakeConfigberry:
+        def get_config_for_printer(self, name):
+            return {"driver": "Network", "host": "192.168.1.80",
+                    "port": "9100", "timeout": "10"}
+
+    monkeypatch.setattr(CH, "configberry", FakeConfigberry())
+    monkeypatch.setattr(CH.printer, "Network", network_falso)
+
+    response = CH.runTraductor(
+        {"printerName": "Barra", "printTexto": {"texto": "prueba"}},
+        None,
+    )
+
+    assert response["message"] == "Impresión exitosa"
+    assert recibido["timeout"] == 10.0
+    assert recibido["port"] == 9100
+
+
 # ---------------------------------------------------------------------------
 # Issue #166: comandos remotos "imprimir todos" / "descartar" sobre la cola.
 # ---------------------------------------------------------------------------
