@@ -31,13 +31,30 @@ logger = getLogger("Updater")
 MAX_BOOTS = 3
 
 STATE_FILE = "update_pending.json"
+# La última versión que se revirtió en este equipo por no arrancar. El updater
+# no la vuelve a instalar: sin esto, cada pocos minutos se instalaba otra vez,
+# volvía a fallar y se revertía, y el local dejaba de imprimir en cada vuelta.
+REVERTED_FILE = "update_reverted.json"
+
+# Cómo se aplicó la actualización (y por lo tanto cómo se revierte).
+METODO_CARPETA = "carpeta"        # se reemplazó la carpeta; el respaldo es la vieja
+METODO_INSTALADOR = "instalador"  # corrió FiscalberrySetup.exe; el respaldo es
+                                  # el setup de la versión anterior
 
 
-def _state_path():
+def _data_dir():
     import platformdirs
     d = platformdirs.user_data_dir("fiscalberry")
     os.makedirs(d, exist_ok=True)
-    return os.path.join(d, STATE_FILE)
+    return d
+
+
+def _state_path():
+    return os.path.join(_data_dir(), STATE_FILE)
+
+
+def _reverted_path():
+    return os.path.join(os.path.dirname(_state_path()), REVERTED_FILE)
 
 
 class PendingUpdate:
@@ -48,6 +65,8 @@ class PendingUpdate:
         self.backup = data.get("backup")
         self.boots = int(data.get("boots") or 0)
         self.created_at = data.get("created_at")
+        # Marcas anteriores al instalador no lo traen: eran todas de carpeta.
+        self.method = data.get("method") or METODO_CARPETA
 
     def as_dict(self):
         return {
@@ -57,11 +76,12 @@ class PendingUpdate:
             "backup": self.backup,
             "boots": self.boots,
             "created_at": self.created_at,
+            "method": self.method,
         }
 
     def backup_exists(self):
-        # Es un directorio: los builds son onedir y se respalda la carpeta de
-        # instalación completa, no un ejecutable suelto.
+        # Con METODO_CARPETA es un directorio (la instalación onedir completa);
+        # con METODO_INSTALADOR, el FiscalberrySetup.exe de la versión anterior.
         return bool(self.backup) and os.path.exists(self.backup)
 
     def __repr__(self):
@@ -93,7 +113,7 @@ def read():
         return None
 
 
-def arm(version, previous_version, target, backup):
+def arm(version, previous_version, target, backup, method=METODO_CARPETA):
     """
     Deja la marca ANTES de reemplazar el binario.
 
@@ -108,6 +128,7 @@ def arm(version, previous_version, target, backup):
         "backup": backup,
         "boots": 0,
         "created_at": time.time(),
+        "method": method,
     })
     _write(pend.as_dict())
     logger.info("Actualización armada: %s -> %s (respaldo en %s)",
@@ -172,3 +193,34 @@ def confirm():
             logger.debug(f"No se pudo borrar el respaldo {pend.backup}: {e}")
     clear()
     return True
+
+
+def mark_reverted(version):
+    """
+    Anota que `version` se revirtió en este equipo por no arrancar.
+
+    El updater no la vuelve a instalar hasta que se publique otra. Nunca lanza:
+    no poder anotarlo no puede impedir la reversión.
+    """
+    try:
+        ruta = _reverted_path()
+        tmp = ruta + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump({"version": version, "at": time.time()}, fh)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, ruta)
+    except Exception as e:
+        logger.warning(f"No se pudo anotar la versión revertida {version}: {e}")
+
+
+def reverted_version():
+    """La última versión revertida en este equipo, o None."""
+    try:
+        with open(_reverted_path(), "r", encoding="utf-8") as fh:
+            return json.load(fh).get("version")
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        logger.debug(f"Marca de versión revertida ilegible: {e}")
+        return None

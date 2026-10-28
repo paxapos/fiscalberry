@@ -601,6 +601,12 @@ def _selftest_modulo(version_esperada):
 
 def rollback(pendiente, binario=None):
     """Restaura la instalación respaldada. Devuelve True si quedó restaurada."""
+    if getattr(pendiente, "method", None) == commit_guard.METODO_INSTALADOR:
+        # Se instaló con FiscalberrySetup.exe: se revierte reinstalando el
+        # setup de la versión anterior, no moviendo carpetas.
+        from fiscalberry.common.updater import installer
+        return installer.revertir(pendiente)
+
     if not pendiente.backup_exists():
         logger.error("No hay respaldo en %s: no se puede revertir.", pendiente.backup)
         commit_guard.clear()
@@ -653,6 +659,7 @@ def rollback(pendiente, binario=None):
         # terminar. La versión restaurada vería la marca con los arranques
         # agotados y "revertiría" a lo que quedó en el respaldo: la versión rota.
         # No hay carrera: el ayudante no toca nada hasta que este proceso muera.
+        commit_guard.mark_reverted(pendiente.version)
         commit_guard.clear()
         logger.warning("Reversión a %s lanzada; este proceso debe cerrarse.",
                        pendiente.previous_version)
@@ -672,6 +679,7 @@ def rollback(pendiente, binario=None):
     finally:
         _limpiar(entrante)
 
+    commit_guard.mark_reverted(pendiente.version)
     commit_guard.clear()
     logger.warning("Revertido a la versión %s.", pendiente.previous_version)
     return True

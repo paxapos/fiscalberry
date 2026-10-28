@@ -10,12 +10,20 @@ arranques normales del programa:
 - `--apply-update`: solo Windows. El binario nuevo hace de ayudante y reemplaza
   al viejo una vez que éste murió.
 - `--version`: útil para diagnosticar a distancia.
+- `--list-printers`: solo Windows. Lista las colas de impresión para el
+  asistente, en un proceso aparte que se puede matar si el spooler se cuelga
+  (ver common/windows_queues.py). Deja el resultado en `--report <archivo>`.
+- `--discovery-report`: lo que ve el asistente de impresoras en esta PC
+  (redes, USB, puertos COM, colas), en JSON. Solo lee. Lo corre la prueba
+  del instalador en un Windows real y lo puede pedir soporte (ver
+  common/discovery_report.py).
 """
 
 import os
 import sys
 
-MODES = ("--selftest", "--apply-update", "--version")
+MODES = ("--selftest", "--apply-update", "--version", "--list-printers",
+         "--discovery-report")
 
 
 def _arg(argv, nombre, defecto=None):
@@ -59,6 +67,15 @@ def handle_early_modes(argv=None):
 
     if "--selftest" in argv:
         sys.exit(run_selftest(ruta_reporte=_arg(argv, "--report")))
+
+    if "--list-printers" in argv:
+        from fiscalberry.common.windows_queues import ARG_SOLO_LOCALES, run_list_printers
+        sys.exit(run_list_printers(ruta_reporte=_arg(argv, "--report"),
+                                   solo_locales=ARG_SOLO_LOCALES in argv))
+
+    if "--discovery-report" in argv:
+        from fiscalberry.common.discovery_report import run
+        sys.exit(run(ruta_reporte=_arg(argv, "--report")))
 
     return False
 
@@ -119,7 +136,31 @@ def run_selftest(ruta_reporte=None):
             import kivy  # noqa: F401
             from kivy.app import App  # noqa: F401
             import fiscalberry.ui.fiscalberry_app  # noqa: F401
+            import fiscalberry.desktop.tray  # noqa: F401
+            # El asistente de impresoras: importarlo acá también hace que
+            # PyInstaller lo empaquete.
+            import fiscalberry.ui.printer_setup_screen  # noqa: F401
+            import fiscalberry.common.onboarding  # noqa: F401
+            import fiscalberry.common.printer_search  # noqa: F401
+            import fiscalberry.common.printer_wizard  # noqa: F401
+            import fiscalberry.common.printer_setup  # noqa: F401
+            import fiscalberry.common.windows_queues  # noqa: F401
+            import fiscalberry.common.ticket_prueba  # noqa: F401
+            import fiscalberry.common.network_discovery  # noqa: F401
+            import fiscalberry.common.usb_discovery  # noqa: F401
+            import fiscalberry.common.usbprint_driver  # noqa: F401
+            import fiscalberry.common.discovery_report  # noqa: F401
+            import fiscalberry.common.support_report  # noqa: F401
         probar("módulos de la interfaz", _gui)
+
+        # En Windows la X oculta la ventana en la bandeja: si pystray o Pillow
+        # no quedaron empaquetados, la app arranca igual pero cerrar la ventana
+        # ya no la esconde. Eso se tiene que descubrir acá, no en el local.
+        if sys.platform == "win32":
+            def _bandeja():
+                import pystray  # noqa: F401
+                from PIL import Image  # noqa: F401
+            probar("bandeja del sistema", _bandeja)
 
     if fallas:
         lineas = [f"SELFTEST FALLO -> {f}" for f in fallas]

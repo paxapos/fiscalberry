@@ -129,8 +129,8 @@ class UpdaterService:
         """
         Un ciclo completo. Devuelve (estado, detalle) para logs y tests.
 
-        Estados: al-dia, sin-artefacto, sin-checksums, ocupado, descartado,
-                 aplicado, error.
+        Estados: al-dia, revertida, sin-artefacto, sin-checksums, ocupado,
+                 descartado, aplicado, error.
         """
         kind = install_kind.detect()
 
@@ -156,6 +156,15 @@ class UpdaterService:
         if release.version == VERSION:
             logger.debug("Ya corriendo la versión vigente (%s).", VERSION)
             return ("al-dia", VERSION)
+
+        if release.version == commit_guard.reverted_version():
+            # Ya se instaló una vez en este equipo, no arrancó y se revirtió.
+            # Reinstalarla es repetir el ciclo: el local deja de imprimir en
+            # cada vuelta. Se espera a que salga otra versión (o a que se borre
+            # este release, y latest vuelva a la que está corriendo).
+            logger.warning("La versión %s se revirtió en este equipo porque no "
+                           "arrancaba: no se vuelve a instalar.", release.version)
+            return ("revertida", release.version)
 
         direccion = release_source.compare(release.version, VERSION)
         verbo = "Actualizando" if direccion > 0 else "Volviendo atrás"
@@ -189,6 +198,10 @@ class UpdaterService:
 
             if kind == install_kind.ANDROID:
                 return self._aplicar_android(descarga, release, dir_staging)
+
+            if install_kind.uses_installer(kind):
+                return self._aplicar_instalador(kind, descarga, release,
+                                                dir_staging)
 
             return self._aplicar_binario(kind, descarga, release, dir_staging)
         except staging.StagingError as e:
@@ -232,6 +245,32 @@ class UpdaterService:
         appliers.apply_for_kind(kind, nuevo_dir=nuevo_dir, destino_dir=destino,
                                 binario=nombre_binario,
                                 version=release.version, version_previa=VERSION)
+        staging.cleanup(dir_staging)
+        self._pedir_reinicio()
+        return ("aplicado", release.version)
+
+    def _aplicar_instalador(self, kind, setup, release, dir_staging):
+        """
+        GUI de Windows: corre FiscalberrySetup.exe, que pisa la versión
+        anterior completa. Ver updater/installer.py.
+        """
+        from fiscalberry.common.updater import installer
+
+        destino = install_kind.current_app_dir(kind)
+        if not destino:
+            staging.cleanup(dir_staging)
+            return ("error", "no se pudo determinar la instalación a reemplazar")
+
+        # El respaldo se baja ANTES de mirar la cola: puede tardar, y la cola
+        # tiene que estar vacía justo antes de cerrar, no un rato antes.
+        respaldo = installer.preparar_respaldo(VERSION, self._repo)
+
+        if not spooler_idle():
+            logger.info("Hay impresiones pendientes: se pospone la actualización.")
+            staging.cleanup(dir_staging)
+            return ("ocupado", "cola de impresión no vacía")
+
+        installer.aplicar(setup, destino, release.version, VERSION, respaldo)
         staging.cleanup(dir_staging)
         self._pedir_reinicio()
         return ("aplicado", release.version)
