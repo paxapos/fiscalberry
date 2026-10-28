@@ -35,13 +35,18 @@ def get_android_usb_printers():
         return []
     
     try:
-        # Obtener contexto de Android
-        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        # Contexto válido en ambos procesos: en el del servicio no hay
+        # Activity (mActivity es None) y esto reventaba con AttributeError.
+        from fiscalberry.common.android_context import get_android_context
+
         Context = autoclass('android.content.Context')
         UsbManager = autoclass('android.hardware.usb.UsbManager')
-        
-        activity = PythonActivity.mActivity
-        usb_service = activity.getSystemService(Context.USB_SERVICE)
+
+        contexto = get_android_context()
+        if contexto is None:
+            logger.debug("Sin contexto de Android para detectar impresoras USB")
+            return []
+        usb_service = contexto.getSystemService(Context.USB_SERVICE)
         usb_manager = cast('android.hardware.usb.UsbManager', usb_service)
         
         # Obtener lista de dispositivos USB
@@ -127,14 +132,19 @@ def request_android_usb_permission(device_name=None):
         if not check_permission(Permission.INTERNET):
             logger.warning("Permiso INTERNET no otorgado")
         
-        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        from fiscalberry.common.android_context import get_android_context
+
         Context = autoclass('android.content.Context')
         UsbManager = autoclass('android.hardware.usb.UsbManager')
         PendingIntent = autoclass('android.app.PendingIntent')
         Intent = autoclass('android.content.Intent')
-        
-        activity = PythonActivity.mActivity
-        usb_service = activity.getSystemService(Context.USB_SERVICE)
+
+        contexto = get_android_context()
+        if contexto is None:
+            logger.debug("Sin contexto de Android para pedir permiso USB")
+            return False
+        activity = contexto
+        usb_service = contexto.getSystemService(Context.USB_SERVICE)
         usb_manager = cast('android.hardware.usb.UsbManager', usb_service)
         
         # Crear intent para la solicitud de permiso

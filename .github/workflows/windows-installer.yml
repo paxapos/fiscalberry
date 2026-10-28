@@ -1,0 +1,95 @@
+name: Instalador de Windows
+
+# El workflow de release solo corre al publicar una versión: sin esto, un
+# cambio que rompe el instalador (o la instancia única, la bandeja o el
+# updater, que dependen de él) se descubriría recién al releasear. Corre la
+# misma prueba de punta a punta que el release (#187).
+on:
+  push:
+    paths:
+      - "installer/**"
+      - "build_tools/**"
+      - "fiscalberry-gui.spec"
+      - "requirements.txt"
+      - "requirements.kivy.txt"
+      - "src/fiscalberry/desktop/**"
+      - "src/fiscalberry/common/single_instance.py"
+      - "src/fiscalberry/common/updater/**"
+      # Asistente de impresoras: la prueba lee las APIs reales de Windows.
+      - "src/fiscalberry/common/discovery_report.py"
+      - "src/fiscalberry/common/network_discovery.py"
+      - "src/fiscalberry/common/usb_discovery.py"
+      - "src/fiscalberry/common/usbprint_driver.py"
+      - "src/fiscalberry/common/windows_queues.py"
+      - "src/fiscalberry/common/printer_*.py"
+      - "src/fiscalberry/common/support_report.py"
+      - "src/fiscalberry/ui/printer_setup_screen.py"
+      - "src/fiscalberry/ui/kv/printer_setup.kv"
+      - ".github/workflows/windows-installer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-installer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements.kivy.txt
+          pip install pyinstaller
+
+      - name: Build Windows GUI
+        env:
+          KIVY_NO_CONSOLELOG: 1
+          KIVY_NO_ARGS: 1
+          KIVY_GL_BACKEND: mock
+        run: |
+          $env:PYTHONPATH="src"
+          pyinstaller --clean -y fiscalberry-gui.spec
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Windows Installer
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            throw "No se encontró el compilador de Inno Setup en $iscc"
+          }
+          & $iscc installer/fiscalberry.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup finalizó con código $LASTEXITCODE"
+          }
+
+      - name: Test Windows Installer
+        env:
+          KIVY_NO_CONSOLELOG: 1
+          KIVY_NO_ARGS: 1
+          KIVY_GL_BACKEND: mock
+        run: |
+          $linea = Select-String -Path src/fiscalberry/version.py -Pattern 'VERSION\s*=\s*"([^"]+)"'
+          if (-not $linea) { throw "No se encontró VERSION en src/fiscalberry/version.py" }
+          ./installer/test_installer.ps1 -Version $linea.Matches[0].Groups[1].Value

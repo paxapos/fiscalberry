@@ -55,7 +55,6 @@ fiscalberry/
 │       │       └── crash_reporter.py
 │       ├── ui/                    # UI Kivy (compartida Desktop/Android)
 │       │   ├── fiscalberry_app.py # FiscalberryApp (846 líneas)
-│       │   ├── kivy_log_handler.py # Handler logs tiempo real
 │       │   ├── adopt_screen.py
 │       │   ├── login_screen.py
 │       │   ├── main_screen.py
@@ -213,46 +212,6 @@ background_image, logo_image, connected_image, disconnected_image = ""
 - Las imágenes causaban crash en `on_resume()` por destrucción del contexto OpenGL
 - **Solución**: Se removieron imágenes (propiedades vacías), UI usa colores sólidos
 
-### 5. Sistema de Logs en Tiempo Real
-
-#### [kivy_log_handler.py](src/fiscalberry/ui/kivy_log_handler.py)
-
-**✅ Multiplataforma** (Desktop + Android)
-
-Handler de logging personalizado que captura mensajes en un buffer circular y los muestra en la UI en tiempo real.
-
-**Características**:
-
-```python
-class KivyLogHandler(logging.Handler):
-    def __init__(self, max_lines=200):
-        self.log_buffer = deque(maxlen=200)  # Buffer circular
-
-    def emit(self, record):
-        msg = self.format(record)
-        self.log_buffer.append(msg)
-        # Actualiza UI en hilo principal (thread-safe)
-        Clock.schedule_once(lambda dt: self._update_app_logs(), 0)
-```
-
-**Por qué funciona en Android**:
-
-- ✅ `logging.Handler` → Python estándar
-- ✅ `deque` → Python estándar
-- ✅ `Clock.schedule_once()` → Kivy API multiplataforma
-- ❌ NO usa `subprocess`, `os.system`, ni APIs específicas de OS
-
-**Integración**:
-
-```python
-# En FiscalberryApp.__init__
-self.log_handler = KivyLogHandler(max_lines=200)
-self.log_handler.set_app(self)
-logging.getLogger().addHandler(self.log_handler)
-```
-
-**Resultado**: Los logs aparecen en tiempo real tanto en Desktop como en Android en el panel "REGISTRO DE ACTIVIDAD" de MainScreen.
-
 ---
 
 ## 🔄 Flujo de Ejecución
@@ -367,8 +326,8 @@ adb logcat | grep -E "(python|fiscalberry|kivy)"
 
 ## 📚 Documentación Adicional
 
-| Documento                                                                         | Descripción          |
-| --------------------------------------------------------------------------------- | -------------------- |
+| Documento                                                                                                           | Descripción          |
+| ------------------------------------------------------------------------------------------------------------------- | -------------------- |
 | [GUIA_COMPLETA_COMPILACION_ANDROID.md](docs/GUIA_COMPLETA_COMPILACION_ANDROID.md) | 60KB guía exhaustiva |
 | [ANDROID_BACKGROUND_EXECUTION.md](docs/ANDROID_BACKGROUND_EXECUTION.md)           | Servicios background |
 | [KNOWLEDGE_BASE.md](docs/KNOWLEDGE_BASE.md)                                       | Base de conocimiento |
