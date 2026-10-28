@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import datetime
 import logging
-from math import ceil
+from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
 import json
 import base64
 from fiscalberry.common.fiscalberry_logger import getLogger
@@ -66,12 +66,87 @@ def floatToString(inputValue):
         inputValue = float(inputValue)
     return ('%.2f' % inputValue).rstrip('0').rstrip('.')
 
+# Cantidad maxima de decimales que se imprimen en una cantidad (kg, lts, etc.).
+# Coincide con la precision que maneja el servidor (decimal(14,4)).
+CANTIDAD_DECIMALES = 4
+
+def cantidadToString(inputValue):
+    """Formatea una CANTIDAD (no un importe): hasta 4 decimales, sin ceros colgantes.
+
+    0.125 -> '0.125', 2.0 -> '2', 1.5 -> '1.5', 3.3751 -> '3.3751'.
+    Los importes siguen usando floatToString (2 decimales).
+    """
+    if ( not isinstance(inputValue, float) ):
+        inputValue = float(inputValue)
+    texto = ('%.*f' % (CANTIDAD_DECIMALES, inputValue)).rstrip('0').rstrip('.')
+    # un valor que redondea a cero no debe salir como '-0'
+    return '0' if texto in ('', '-0') else texto
+
 def pad(texto, size, relleno, float = 'l'):
     text = str(texto)
     if float.lower() == 'l':
         return text[0:size].ljust(size, relleno)
     else:
         return text[0:size].rjust(size,relleno)
+
+
+def cell(texto, size, relleno=" ", align='l'):
+    """pad() tolerante a None/ausente: un campo nulo nunca debe romper la impresion."""
+    return pad("" if texto is None else texto, size, relleno, align)
+
+
+def to_float(value, default=0.0):
+    """Convierte a float tolerando None, '', strings no numericos."""
+    try:
+        if value is None or value == "":
+            return default
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def money(value):
+    """Formatea un importe como '#,##0.00' sin romper ante None/str/valores invalidos."""
+    return "{:,.2f}".format(to_float(value))
+
+
+# Codigo de moneda de AFIP -> ISO 4217 legible para el ticket. Espejo (invertido)
+# del mapeo que usa el servidor al emitir; un codigo que no este en la tabla se
+# imprime tal cual, nunca se asume una moneda.
+MONEDA_COD_A_ISO = {
+    "PES": "ARS",
+    "DOL": "USD",
+    "060": "EUR",
+    "012": "BRL",
+    "029": "PYG",
+    "033": "CLP",
+    "011": "UYU",
+}
+
+# Redondeo de la conversion de moneda: se divide con 6 decimales de margen
+# (truncando, como bcdiv) y recien despues se redondea half-up al decimal del
+# documento. Mismo procedimiento que el backend al emitir el comprobante, para
+# que el papel cierre al centavo con lo autorizado.
+_CONVERSION_MARGEN = Decimal("0.00000001")
+_CONVERSION_DOCUMENTO = Decimal("0.01")
+
+
+def convertirDesdeBase(importe, cotizacion):
+    """Convierte un importe de la moneda funcional a la moneda del documento.
+
+    `cotizacion` son unidades de moneda funcional por 1 unidad de la moneda del
+    documento (misma convencion que el campo MonCotiz de AFIP), asi que la
+    conversion es una division. Cotizacion 0/invalida: devuelve el importe sin
+    tocar (el caller ya descarto ese caso antes de convertir nada).
+    """
+    rate = Decimal(str(to_float(cotizacion)))
+    if rate == 0:
+        return to_float(importe)
+
+    cociente = (Decimal(str(to_float(importe))) / rate).quantize(
+        _CONVERSION_MARGEN, rounding=ROUND_DOWN
+    )
+    return float(cociente.quantize(_CONVERSION_DOCUMENTO, rounding=ROUND_HALF_UP))
 
 
 class PrinterException(Exception):
@@ -85,14 +160,14 @@ class EscPComandos():
     printer = None
 
     # Columnas por defecto según ancho de papel:
-    # 58mm = 32 columnas
-    # 80mm = 48 columnas (default)
-    DEFAULT_COLUMNS = 48
+    # 58mm = 32 columnas (formato compacto)
+    # 80mm = 40 columnas (valores originales v1.0.26)
+    DEFAULT_COLUMNS = 40
 
     def __init__(self, printer, columns=None):
         self.printer = printer
         
-        # Usar columns del parámetro, o default 48 (80mm)
+        # Usar columns del parámetro, o default 40 (80mm según v1.0.26)
         self.total_cols = int(columns) if columns else self.DEFAULT_COLUMNS
         
         # Log informativo cuando se usa columns personalizado
@@ -100,12 +175,14 @@ class EscPComandos():
             logger.debug(f"Usando tamaño de {self.total_cols} caracteres (papel {'58mm' if self.total_cols <= 32 else '80mm'})")
         
         # Calcular proporciones de columnas según el total
-        # Para 48 cols: price=12, cant=6, desc=30
-        # Para 32 cols: price=10, cant=4, desc=18
+        # Para 40 cols (80mm v1.0.26): price=12, cant=6, desc=22
+        # Para 32 cols (58mm compacto): price=10, cant=4, desc=18
         if self.total_cols <= 32:
+            # Configuración compacta para 58mm
             self.price_cols = 10
             self.cant_cols = 4
         else:
+            # Configuración original v1.0.26 para 80mm
             self.price_cols = 12
             self.cant_cols = 6
         
@@ -114,6 +191,62 @@ class EscPComandos():
         self.signo = "$"
         
         logger.debug(f"EscPComandos inicializado: total_cols={self.total_cols}, price={self.price_cols}, cant={self.cant_cols}, desc={self.desc_cols}")
+
+    def _columnasItem(self, itemCant, ds, totalProducto):
+        """Arma las columnas CANT, DESCRIPCION y PRECIO de un item sin truncar ni la cantidad ni el total.
+
+        CANT mide cant_cols (4 en 58mm, 6 en 80mm) y PRECIO price_cols (10 y 12).
+        Una cantidad con decimales (0.125, 3.3751) o un total de linea alto
+        (9,876,543.12 en 58mm) puede no entrar: en vez de cortarlo (pad() corta
+        por la derecha y se imprimiria otro valor) o pegarlo a la columna de al
+        lado, se ensancha esa columna y se achica DESCRIPCION lo mismo, para que
+        la linea siga midiendo total_cols y PRECIO quede alineado al borde.
+        Si todo entra (CANT con al menos un espacio de separacion) el resultado
+        es el de siempre, byte a byte.
+        """
+        extraCant = max(0, len(itemCant) + 1 - self.cant_cols)
+        extraPrecio = max(0, len(totalProducto) - self.price_cols)
+        anchoDs = max(0, self.desc_cols - extraCant - extraPrecio)
+        cantTxt = pad(itemCant, self.cant_cols + extraCant, " ", "l")
+        dsTxt = pad(ds[0:max(0, anchoDs - 2)], anchoDs, " ", "l")
+        totalTxt = pad(totalProducto, self.price_cols + extraPrecio, " ", "r")
+        return cantTxt, dsTxt, totalTxt
+
+    def _columnasDescImporte(self, ds, totalProducto):
+        """Igual que _columnasItem para el formato de factura A (la cantidad va en la linea de arriba)."""
+        extraPrecio = max(0, len(totalProducto) - self.price_cols)
+        anchoDs = max(0, self.desc_cols_ext - extraPrecio)
+        dsTxt = pad(ds[0:anchoDs], anchoDs, " ", "l")
+        totalTxt = pad(totalProducto, self.price_cols + extraPrecio, " ", "r")
+        return dsTxt, totalTxt
+
+    def _lineaImporte(self, etiqueta, importe, signo=None):
+        """Linea "etiqueta + signo + importe" (subtotal, descuento, IVA, pagos...) sin truncar el importe.
+
+        El importe va alineado a la derecha en price_cols (10 en 58mm, 12 en 80mm).
+        Si no entra, en vez de cortarlo (pad() corta por la derecha y se
+        imprimiria otro importe) se ensancha esa columna a costa de la etiqueta,
+        que es lo que se acorta; la linea sigue midiendo total_cols. Si entra, el
+        resultado es el de siempre, byte a byte.
+        """
+        signo = self.signo if signo is None else signo
+        extra = max(0, len(importe) - self.price_cols)
+        anchoEtiqueta = max(0, self.total_cols - len(signo) - self.price_cols - extra)
+        return (
+            pad(etiqueta, anchoEtiqueta, " ", "l")
+            + signo
+            + pad(importe, self.price_cols + extra, " ", "r")
+        )
+
+    # Acciones que imprimen un comprobante y terminan con corte de papel.
+    # Si una falla a mitad de render, igual debe cortarse (ver run()).
+    TICKET_ACTIONS = (
+        "printPedido",
+        "printComanda",
+        "printFacturaElectronica",
+        "printRemito",
+        "printArqueo",
+    )
 
     def run(self, jsonTicket):
         try:
@@ -127,6 +260,10 @@ class EscPComandos():
                     if fnAction:
                         params = jsonTicket[action]
 
+                        if action == "openDrawer":
+                            # LOG 1: JSON completo que llega a fiscalberry
+                            logger.info("[CAJON] JSON recibido en fiscalberry: %s" % jsonTicket)
+
                         try:
                             if isinstance(params, list):
                                 res = fnAction(escpos, *params)
@@ -135,10 +272,26 @@ class EscPComandos():
                             else:
                                 res = fnAction(escpos, params)
 
+                            # LOG 3: El JSON se convirtio en comando correctamente
+                            if action == "openDrawer":
+                                logger.info("[CAJON] openDrawer ejecutado correctamente. Resultado: %s" % res)
                             rta.append({"action": action, "rta": res})
                         except Exception as e:
-                            logger.error(f"Error '{action}': {e}")
-                            
+                            # LOG 2: Donde se produce el error
+                            if action == "openDrawer":
+                                logger.error("[CAJON] ERROR al ejecutar openDrawer. Tipo: %s | Detalle: %s" % (type(e).__name__, e))
+                            logger.error(f"Error '{action}': {e}", exc_info=True)
+
+                            # 🔒 GARANTÍA: una acción de ticket que falla a mitad de camino NO debe
+                            # dejar el papel colgado sin cortar (era la causa del "ticket cortado a la
+                            # mitad"). Cortamos best-effort para terminar el comprobante y que el
+                            # siguiente arranque limpio. El contenido ya enviado se imprime igual.
+                            if action in self.TICKET_ACTIONS:
+                                try:
+                                    escpos.printer.cut()
+                                except Exception as cut_err:
+                                    logger.error(f"No se pudo cortar tras error en '{action}': {cut_err}")
+
                             try:
                                 PrinterErrorDetector.detect_and_publish_error(
                                     error_message=str(e),
@@ -147,7 +300,7 @@ class EscPComandos():
                                 )
                             except:
                                 pass
-                            
+
                             rta.append({"action": action, "rta": f"Error: {e}"})
                     else:
                         logger.error(f"Función '{action}' no encontrada")
@@ -224,40 +377,8 @@ class EscPComandos():
             raise ValueError("No bytes provided to print")
         
 
-    def openDrawer(self, escpos: EscposIO, *args, **kwargs):
-        """
-        Abre el cajón de dinero.
-        Acepta argumentos adicionales para compatibilidad con diferentes formatos de llamada.
-        """
-        try:
-            # Intenta abrir el cajón con el comando estándar
-            escpos.printer.cashdraw(CD_KICK_2)
-            return {"status": "success", "message": "Cajón abierto correctamente"}
-        except Exception as e:
-            # Si falla, intenta con comandos alternativos
-            try:
-                # Comando alternativo para impresoras que requieren secuencia diferente
-                escpos.printer.control("\x1b\x70\x00\x19\x19")
-                return {"status": "success", "message": "Cajón abierto con comando alternativo"}
-            except Exception as e2:
-                error_msg = f"Error al abrir cajón: {e}, comando alternativo falló: {e2}"
-                logger.error(error_msg)
-                
-                # Publicar error de cajón a RabbitMQ
-                try:
-                    publish_error(
-                        error_type="CASH_DRAWER_ERROR",
-                        error_message=error_msg,
-                        context={
-                            "primary_error": str(e),
-                            "secondary_error": str(e2),
-                            "exception_types": [type(e).__name__, type(e2).__name__]
-                        }
-                    )
-                except Exception as publish_err:
-                    logger.error(f"Error publicando error de cajón a RabbitMQ: {publish_err}")
-                
-                return {"status": "error", "message": error_msg}
+    def openDrawer(self, escpos: EscposIO, params=None, **kwargs):
+        escpos.printer.cashdraw(CD_KICK_2)
 
 
     def printPedido(self, escpos: EscposIO, **kwargs):
@@ -296,20 +417,26 @@ class EscPComandos():
                     printer.text(u"Esta orden de compra ya ha sido recepcionada\n")
         printer.text(u"Fecha: %s \n\n\n" % fecha)
 
-        printer.text(u"CANT\tDESCRIPCIÓN\n")
+        # Columna CANT de ancho fijo con espacios (no tabuladores): con 3 o 4
+        # decimales ("0.125 kg") el texto pasaba el tab stop y la descripcion
+        # saltaba de columna. Mide 8 como siempre, y se ensancha solo si alguna
+        # cantidad no entra, igual para todos los renglones.
+        cantidades = [
+            u"%s %s" % (cantidadToString(float(item.get('qty'))), item.get('unidad_de_medida'))
+            for item in items
+        ]
+        anchoCant = max([8] + [len(c) + 1 for c in cantidades])
+        anchoDesc = max(0, min(24, self.total_cols - anchoCant))
+
+        printer.text(pad(u"CANT", anchoCant, " ", "l") + u"DESCRIPCIÓN\n")
         printer.text("\n")
         
-        for item in items:
+        for item, cantidad in zip(items, cantidades):
             printer.set(font='a', height=1, align='left', normal_textsize=True)
-            desc = item.get('ds')[0:24]
-            cant = float(item.get('qty'))
-            unidad_de_medida = item.get('unidad_de_medida')
+            desc = item.get('ds')[0:anchoDesc]
             observacion = item.get('observacion')
-            cant_tabs = 3
-            can_tabs_final = cant_tabs - ceil(len(desc) / 8)
-            strTabs = desc.ljust(int(len(desc) + can_tabs_final), '\t')
 
-            printer.text(u"%.2f%s%s\t%s\n" % (cant," ",unidad_de_medida, strTabs))
+            printer.text(pad(cantidad, anchoCant, " ", "l") + desc + u"\n")
 
             if observacion:
                 printer.set(font='b', bold=True, align='left', normal_textsize=True)
@@ -379,7 +506,34 @@ class EscPComandos():
             logger.error("No hay datos en el encabezado para imprimir factura electronica")
             return False
 
-            
+        # COMPROBANTE EN MONEDA EXTRANJERA
+        # neto/iva/total del encabezado ya vienen en la moneda declarada, pero
+        # los items, el descuento y el desglose de IVA del payload son el
+        # snapshot de la venta en la moneda funcional. Se convierten al
+        # imprimir para que TODO el ticket quede en la moneda del comprobante
+        # (solo display: el redondeo por linea no altera lo autorizado).
+        # En PES el ticket queda byte a byte igual al de siempre.
+        monedaComprobante = str(encabezado.get("moneda", "PES") or "").strip().upper()
+        ctzComprobante = to_float(encabezado.get("ctz", 1))
+        esMonedaExtranjera = monedaComprobante not in ("", "PES") and ctzComprobante > 0
+
+        def convertirImporte(importe):
+            if not esMonedaExtranjera:
+                return float(importe)
+            return convertirDesdeBase(importe, ctzComprobante)
+
+        # El desglose de IVA se convierte una sola vez aca: lo consumen tanto el
+        # detalle de IVAs (solo inscripto) como la transparencia fiscal (solo B),
+        # que vuelve a sumar la lista por su cuenta. Se copia cada fila para no
+        # mutar el payload del caller.
+        if esMonedaExtranjera:
+            ivas = [
+                dict(iva, importe=convertirImporte(iva.get("importe")))
+                if isinstance(iva, dict) and iva.get("importe") is not None
+                else iva
+                for iva in ivas
+            ]
+
         tiposInscriptoString = ["Factura A", "NOTAS DE CREDITO A", "Factura M", "NOTAS DE CREDITO M", "Factura \"A\"", "NOTAS DE CREDITO \"A\"", "Factura \"M\"", "NOTAS DE CREDITO \"M\""]
         tiposInscriptoCod = ["001","051","003","053"]
         tiposNC = ["NOTAS DE CREDITO A", "NOTAS DE CREDITO B", "NOTAS DE CREDITO C", "NOTAS DE CREDITO M",
@@ -417,6 +571,7 @@ class EscPComandos():
         tipoCmp = encabezado.get('tipo_comprobante_codigo')
         nroComprobante = encabezado.get('numero_comprobante')
         fechaComprobante = encabezado.get('fecha_comprobante')
+        horaComprobante = encabezado.get('hora_comprobante', '')
         cae = encabezado.get("cae")
         caeVto = encabezado.get("cae_vto")
 
@@ -505,10 +660,10 @@ class EscPComandos():
                 alicIva = 21.00
 
             qty = float(item.get('qty'))
-            importe = float(item.get('importe'))
+            importe = convertirImporte(float(item.get('importe')))
             ds = item.get('ds')[0:self.desc_cols-2]
            
-            itemCant = floatToString( qty )
+            itemCant = cantidadToString( qty )
             importeUnitario = floatToString( importe )
             totalProducto = f"{round( qty * importe , 2 ):,.2f}"
             
@@ -516,12 +671,11 @@ class EscPComandos():
                 printer.set(font='b', bold=True, align='left', normal_textsize=True)
                 printer.text(f"{itemCant} x {importeUnitario} ({floatToString(alicIva)})\n")
                 printer.set(font='a', height=1, align='left', normal_textsize=True)
-                printer.text(f'{pad(ds, self.desc_cols_ext, " ", "l")}{pad( totalProducto, self.price_cols , " ", "r")}\n' )
+                dsTxt, totalTxt = self._columnasDescImporte(ds, totalProducto)
+                printer.text(f'{dsTxt}{totalTxt}\n' )
             else:
                 printer.set(font='a', height=1, align='left', normal_textsize=True)
-                cantTxt = pad(itemCant, self.cant_cols, " ", "l")
-                dsTxt = pad(ds, self.desc_cols, " ", "l")
-                totalTxt = pad(totalProducto, self.price_cols, " ", "r")
+                cantTxt, dsTxt, totalTxt = self._columnasItem(itemCant, ds, totalProducto)
                 printer.text(f'{cantTxt}{dsTxt}{totalTxt}\n')
 
         printer.text("-" * self.total_cols + "\n")
@@ -532,63 +686,70 @@ class EscPComandos():
         # 5- DESCUENTOS / RECARGOS
         descuentoRatio = 1
         if addAdditional:
-            sAmount = float(addAdditional.get('amount', 0))
+            sAmount = convertirImporte(float(addAdditional.get('amount', 0)))
             descuentoDesc = addAdditional.get('description')[0:20]
             desporcentaje = float(addAdditional.get('descuento_porcentaje'))
             sAmount = -sAmount
             descuentoRatio = (1 - (desporcentaje/100)) if desporcentaje != 0 else 1
 
             # 5.1- SUBTOTAL
-            dsSubtotal = pad("SUBTOTAL:", self.desc_cols_ext - 1, " ", "l")
-            importeSubtotal = pad(f"{round(total - sAmount,2):,.2f}",self.price_cols, " ", "r")
-            dsDescuento = pad(descuentoDesc, self.desc_cols_ext - 1, " ", "l")
-            importeDescuento = pad(f"{round(sAmount, 2):,.2f}",self.price_cols, " ", "r")
+            lineaSubtotal = self._lineaImporte("SUBTOTAL:", f"{round(total - sAmount,2):,.2f}")
+            lineaDescuento = self._lineaImporte(descuentoDesc, f"{round(sAmount, 2):,.2f}")
 
             printer.set(font='a', bold=True, height=1, width=1, align='left')
-            printer.text(f'{dsSubtotal}{self.signo}{importeSubtotal}\n')
+            printer.text(f'{lineaSubtotal}\n')
             printer.set(font='a', height=1, align='left', normal_textsize=True)
-            printer.text(f'{dsDescuento}{self.signo}{importeDescuento}\n\n')
+            printer.text(f'{lineaDescuento}\n\n')
 
         # 6- DETALLE IVAS (INSCRIPTO)
         # si tiene el array de ivas tiene items, se detallan los IVAs
-        if ivas:
-            dsTotal = pad("SUBTOTAL:", self.desc_cols_ext - 1, " ", "l")
-            importeTotal = pad(f"{round(float(total),2):,.2f}",self.price_cols, " ", "r")
-            escpos.writelines(f'{dsTotal}{self.signo}{importeTotal}', bold=True, align='left', height=2, width=2)
+        # SOLO para Factura A y M (Inscriptos) - Para B se usa Transparencia Fiscal
+        es_inscripto = tipoComprobante in tiposInscriptoString or tipoCmp in tiposInscriptoCod
+        
+        if ivas and es_inscripto:
+            lineaTotal = self._lineaImporte("SUBTOTAL:", f"{round(float(total),2):,.2f}")
+            escpos.writelines(lineaTotal, bold=True, align='left', height=2, width=2)
             printer.ln();
 
-            dsSinIva = pad("Neto sin IVA:", self.desc_cols_ext - 1, " ", "l")
-            importeSinIva = pad(f"{round(float(totalNeto), 2):,.2f}",self.price_cols, " ", "r")
+            lineaSinIva = self._lineaImporte("Neto sin IVA:", f"{round(float(totalNeto), 2):,.2f}")
             printer.set(font='a', height=1, align='left', normal_textsize=True)
 
-            printer.text(f'{dsSinIva}{self.signo}{importeSinIva}\n')
+            printer.text(f'{lineaSinIva}\n')
 
             for iva in ivas:
                 alicIva = iva["alic_iva"]
-                dsIva = pad(f"IVA {alicIva}:", self.desc_cols_ext - 1, " ", "l")
                 importeIva = iva["importe"]
-                importeIva = pad(f"{round(float(importeIva), 2):,.2f}",self.price_cols, " ", "r")
+                lineaIva = self._lineaImporte(f"IVA {alicIva}:", f"{round(float(importeIva), 2):,.2f}")
                 printer.set(font='a', height=1, align='left', normal_textsize=True)
 
-                printer.text(f'{dsIva}{self.signo}{importeIva}\n')
+                printer.text(f'{lineaIva}\n')
 
         # 7- TOTAL
         # Imprimir total
         escpos.writelines(f'TOTAL: {self.signo}{round(total,2):,.2f}', bold=True, align='center', height=2, width=2, double_height=True, double_width=True)
         printer.ln();
 
+        # 7.1- MONEDA DEL COMPROBANTE
+        # Solo cuando no es la moneda local: sin esta linea un total en dolares
+        # seria indistinguible de uno en pesos. El importe queda en tamano
+        # normal (el TOTAL viene en doble alto/ancho).
+        if esMonedaExtranjera:
+            monedaVisible = MONEDA_COD_A_ISO.get(monedaComprobante, monedaComprobante)
+            printer.set(normal_textsize=True)
+            printer.text(f'Moneda: {monedaVisible} - Cotiz: {self.signo}{money(round(ctzComprobante, 2))}\n')
+            printer.ln();
+
         # 8- TRANSPARENCIA FISCAL AL CONSUMIDOR (Ley 27.743)
-        # SOLO comprobantes clase B a consumidor final: Factura B (006),
-        # ND B (007) y NC B (008). RG 5614/2024 art. 2 pto. 7: el bloque
-        # (inciso g del Apartado B, Anexo II RG 1415) remite EXCLUSIVAMENTE
-        # al punto 2 (operaciones con CF/exentos/no alcanzados). Las clases
-        # A y M van por el punto 1 (discriminacion clasica del art. 37 Ley
-        # de IVA, en el cuerpo, SIN leyenda) y los monotributistas (C) estan
-        # excluidos por la FAQ oficial de ARCA (1/4/2025).
+        # Factura B (006) y NC B (008) — mismo alcance que el facturador de
+        # ARCA y que el render raw server-side (no A, M ni C)
         tiposTransparenciaString = ["Factura B", "Factura \"B\"", "NOTAS DE DEBITO B", "NOTAS DE DEBITO \"B\"", "NOTAS DE CREDITO B", "NOTAS DE CREDITO \"B\""]
+        # 007 (ND B) incluida: las notas llevan la clase de la operacion que
+        # ajustan y comparten sus requisitos (Anexo II RG 1415 / RG 5614)
         tiposTransparenciaCod = ["006", "007", "008"]
         if tipoComprobante in tiposTransparenciaString or tipoCmp in tiposTransparenciaCod:
             otros_impuestos = kwargs.get("otros_impuestos", 0)
+            if esMonedaExtranjera and otros_impuestos:
+                otros_impuestos = convertirImporte(otros_impuestos)
             self._printTransparenciaFiscal(escpos, encabezado, ivas, otros_impuestos)
 
         # NC si hay que firmar
@@ -622,6 +783,14 @@ class EscPComandos():
         pdv = int(numlist[0])
         numticket = int(numlist[1])
 
+        # RG 4291: 'ctz' tiene que viajar como numero (un "1350.50" string no
+        # valida) y 'moneda' cae a la local si llega vacia o nula. Se reusa el
+        # mismo float que el cuerpo del ticket y se emite como entero cuando lo
+        # es, para no alterar el QR de los comprobantes en pesos.
+        ctzQr = ctzComprobante if ctzComprobante > 0 else 1
+        if isinstance(ctzQr, float) and ctzQr.is_integer():
+            ctzQr = int(ctzQr)
+
         qrcode = {
             "ver":1,
             "fecha":fecha,
@@ -630,8 +799,8 @@ class EscPComandos():
             "tipoCmp":int(tipoCmp),
             "nroCmp":numticket,
             "importe":total,
-            "moneda":"PES", #pesos argentinos
-            "ctz":1,
+            "moneda": encabezado.get("moneda") or "PES",
+            "ctz": ctzQr,
             #tipoDocRec OPCIONAL,
             #nroDocRec OPCIONAL,
             #tipoCodAut,
@@ -664,6 +833,7 @@ class EscPComandos():
         printer.text("\n")
         printer.text(f"{caeTxt}    {caeVtoTxt}")
         printer.text("\n")
+        printer.text(datetime.datetime.now().strftime("Fecha: %d/%m/%Y %H:%M\n"))
 
         printer.set(font='a', height=1, bold=True, align='center')
         printer.text("\n** Software PAXAPOS **")
@@ -729,12 +899,10 @@ class EscPComandos():
             ds = item.get('ds')[0:self.desc_cols-2]
             total = importe * qty
 
-            itemCant = floatToString( qty )
+            itemCant = cantidadToString( qty )
             totalProducto = f"{round( qty * importe , 2 ):,.2f}"
 
-            cantTxt = pad(itemCant, self.cant_cols, " ", "l")
-            dsTxt = pad(ds, self.desc_cols, " ", "l")
-            totalTxt = pad(totalProducto, self.price_cols, " ", "r")
+            cantTxt, dsTxt, totalTxt = self._columnasItem(itemCant, ds, totalProducto)
 
             escpos.writelines(f'{cantTxt}{dsTxt}{totalTxt}')            
             
@@ -751,13 +919,11 @@ class EscPComandos():
             sAmount = -sAmount
             importeTotal += sAmount
 
-            dsSubtotal = pad("SUBTOTAL:", self.desc_cols_ext - 1, " ", "l")
-            importeSubTotal = pad(f"{round(importeSubTotal,2):,.2f}",self.price_cols, " ", "r")
-            dsDescuento = pad(descuentoDesc, self.desc_cols_ext - 1, " ", "l")
-            importeDescuento = pad(f"{round(sAmount, 2):,.2f}",self.price_cols, " ", "r")
+            lineaSubtotal = self._lineaImporte("SUBTOTAL:", f"{round(importeSubTotal,2):,.2f}")
+            lineaDescuento = self._lineaImporte(descuentoDesc, f"{round(sAmount, 2):,.2f}")
 
-            escpos.writelines(f'{dsSubtotal}{self.signo}{importeSubTotal}')
-            escpos.writelines(f'{dsDescuento}{self.signo}{importeDescuento}' )
+            escpos.writelines(lineaSubtotal)
+            escpos.writelines(lineaDescuento)
             printer.ln()
 
         # Imprimir total
@@ -800,10 +966,7 @@ class EscPComandos():
             desc = pago.get('ds', "Pago")[0:20]
             importe = float(pago.get('importe'))
 
-            dsTxt = pad(desc, self.desc_cols_ext - 1," ","l")
-            importeTxt = pad(f"{importe:,.2f}",self.price_cols," ","r")
-            
-            escpos.writelines(f"{dsTxt}{self.signo}{importeTxt}")
+            escpos.writelines(self._lineaImporte(desc, f"{importe:,.2f}"))
         
         return True
 
@@ -823,16 +986,16 @@ class EscPComandos():
             if importe > 0:
                 totalPagos += importe
                 desc = str(pago.get('ds')[0:20]).upper()
-                printer.text(f'{pad(desc, self.desc_cols_ext, " ", "l")}{pad(f"{importe:,.2f}",self.price_cols," ", "r")}\n')
+                printer.text(self._lineaImporte(desc, f"{importe:,.2f}", signo="") + "\n")
                 cantPagos += 1
             else:
                 vuelto += importe
         if totalPagos > 0 and cantPagos > 1:
             printer.set(font='a', bold=True, height=1, width=1, align='left')
-            printer.text(f'{pad("La suma de sus pagos:", self.desc_cols_ext, " ", "l")}{pad(f"{totalPagos:,.2f}", self.price_cols, " ", "r")}\n')
+            printer.text(self._lineaImporte("La suma de sus pagos:", f"{totalPagos:,.2f}", signo="") + "\n")
         if vuelto < 0: 
             printer.set(font='a', bold=True, height=1, width=1, align='left')
-            printer.text(f'{pad("Su vuelto:", self.desc_cols_ext, " ", "l")}{pad(f"{abs(vuelto):,.2f}", self.price_cols, " ", "r")}\n')
+            printer.text(self._lineaImporte("Su vuelto:", f"{abs(vuelto):,.2f}", signo="") + "\n")
         
         return True
 
@@ -879,14 +1042,10 @@ class EscPComandos():
             printer.set(font='a', height=1, align='left', normal_textsize=True)
             
             if iva_contenido > 0:
-                ds_iva = pad("IVA Contenido:", self.desc_cols_ext - 1, " ", "l")
-                imp_iva = pad(f"{iva_contenido:,.2f}", self.price_cols, " ", "r")
-                printer.text(f"{ds_iva}{self.signo}{imp_iva}\n")
+                printer.text(self._lineaImporte("IVA Contenido:", f"{iva_contenido:,.2f}") + "\n")
             
             if otros_imp > 0:
-                ds_otros = pad("Otros Imp. Nac. Indirectos:", self.desc_cols_ext - 1, " ", "l")
-                imp_otros = pad(f"{otros_imp:,.2f}", self.price_cols, " ", "r")
-                printer.text(f"{ds_otros}{self.signo}{imp_otros}\n")
+                printer.text(self._lineaImporte("Otros Imp. Nac. Indirectos:", f"{otros_imp:,.2f}") + "\n")
             
             printer.text("\n")
 
@@ -903,7 +1062,7 @@ class EscPComandos():
         if setHeader:
             for headerLine in setHeader:
                 printer.textln(headerLine)
-            printer.text("\n\n")
+            printer.text("\n")
 
         if "id" in comanda:
             printer.text(f"Comanda #{comanda['id']}\n")
@@ -912,47 +1071,45 @@ class EscPComandos():
             fecha = datetime.datetime.strptime(comanda['created'], '%Y-%m-%d %H:%M:%S').strftime('%H:%M',)
         else:
             fecha = datetime.datetime.strftime(datetime.datetime.now(), '%H:%M')
-            
-        printer.text(fecha + "\n\n")
+
+        printer.text(fecha + "\n")
 
         def print_plato(plato):
             "Imprimir platos"
             printer.set(font='a', bold=False, height=2, width=2, align='left', double_height=True, double_width=False)
 
-            printer.text(f"{plato['cant']}) {plato['nombre']}")
+            # El nombre cierra siempre su propia línea; antes las líneas en blanco entre
+            # sabores/OBS/ítems desperdiciaban mucho papel. Se mantienen las fuentes, se
+            # sacan los \n en blanco. Ver issue #47.
+            printer.text(f"{plato['cant']}) {plato['nombre']}\n")
 
             if 'sabores' in plato:
-                printer.text("\n")
                 for sabor in plato['sabores']:
                     printer.text(f"   - {sabor}\n")
-                printer.text("\n")
 
             if 'observacion' in plato:
-                printer.text("\n")
                 printer.set(font='b', bold=False, height=2, width=2, align='left', double_height=False, double_width=False)
                 printer.text(f"   OBS: {plato['observacion']}\n")
-                
-            printer.text("\n")
 
         if 'observacion' in comanda:
             printer.set(font='a', bold=True, height=2, width=2, align='center', double_height=True, double_width=True)
             printer.text(u"OBSERVACIÓN\n")
             printer.text(comanda['observacion'])
-            printer.text("\n\n")
+            printer.text("\n")
 
         if 'entradas' in comanda:
             printer.set(font='a', bold=True, height=2, width=2, align='center', double_height=True, double_width=True)
-            printer.text(u"** ** ENTRADA ** **\n\n")
+            printer.text(u"** ** ENTRADA ** **\n")
             for entrada in comanda['entradas']:
                 print_plato(entrada)
-            printer.text("\n\n")
+            printer.text("\n")
 
         if 'platos' in comanda:
             printer.set(font='a', bold=True, height=2, width=2, align='center', double_height=True, double_width=True)
-            printer.text(u"----- PRINCIPAL -----\n\n")
+            printer.text(u"----- PRINCIPAL -----\n")
             for plato in comanda['platos']:
                 print_plato(plato)
-            printer.text("\n\n")
+            printer.text("\n")
 
         printer.set(font='a', bold=True, height=2, width=2, align='left', double_height=True, double_width=True)
         if self.__preFillTrailer:
@@ -998,9 +1155,16 @@ class EscPComandos():
         totalRetiros  = 0
         totalIngresos = 0
 
-        fechaDesde = datetime.datetime.strptime(encabezado['fechaDesde'], '%d-%m-%Y %H:%M').strftime('%d/%m %H:%M',)
-        fechaHasta = datetime.datetime.strptime(encabezado['fechaHasta'], '%d-%m-%Y %H:%M').strftime('%d/%m %H:%M',)
-        fechaArqueo = datetime.datetime.strptime(encabezado['ArqueoDateTime'], '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%y %H:%M',)
+        fechaDesde = safe_parse_date(encabezado.get('fechaDesde'), '%d-%m-%Y %H:%M').strftime('%d/%m %H:%M',)
+        fechaHasta = safe_parse_date(encabezado.get('fechaHasta'), '%d-%m-%Y %H:%M').strftime('%d/%m %H:%M',)
+        fechaArqueo = safe_parse_date(encabezado.get('ArqueoDateTime'), '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%y %H:%M',)
+
+        # ID del arqueo: identifica de qué cierre es el papel. Se acepta en el
+        # encabezado o al nivel de printArqueo; si no viene (backends viejos),
+        # simplemente no se imprime la línea.
+        arqueoId = encabezado.get('arqueo_id')
+        if arqueoId in (None, ""):
+            arqueoId = kwargs.get('arqueo_id')
 
 
         def imprimirEncabezado():            
@@ -1013,11 +1177,13 @@ class EscPComandos():
             printer.set(font='a', height=1, align='center', normal_textsize=True)
             printer.text("-" * self.total_cols + "\n")
             printer.set(font='a', height=1, align='left', normal_textsize=True)
+            if arqueoId not in (None, ""):
+                printer.text(f"'Arqueo ID': {arqueoId}\n")
             printer.text(f"'Fecha de Cierre': {fechaArqueo}\n")
             printer.text(f"'Fecha de Turno': {fechaDesde} al {fechaHasta}\n")
-            printer.text(f"'Reporte de Caja': {encabezado['nombreCaja']}\n")
-            printer.text(f"'Usuario': {encabezado['aliasUsuario']}\n")
-            printer.text(f"'Observación': {encabezado['observacion']}\n\n")
+            printer.text(f"'Reporte de Caja': {encabezado.get('nombreCaja', '')}\n")
+            printer.text(f"'Usuario': {encabezado.get('aliasUsuario', '')}\n")
+            printer.text(f"'Observación': {encabezado.get('observacion', '')}\n\n")
 
         def imprimirTitulo(titulo, ancho=1, alto=1):
             printer.set(font='a', height=1, bold=True, align='center')
@@ -1040,18 +1206,23 @@ class EscPComandos():
 
                 printer.set(font='a', height=1, align='left', normal_textsize=True)
                 for cobro in ingresosPorVentas['detalle']:
-                    printer.text(pad(cobro['cant'],self.cant_cols," ","l") 
-                                + pad(cobro['tipoPago'][:self.desc_cols-1],self.desc_cols," ","l")
-                                + "$" + pad(f"{cobro['importe']:,.2f}",self.price_cols - 1," ", "r") + "\n")
-                    totalIngresosPorVenta += cobro['importe']
-                    if (cobro['tipoPago'] == 'Efectivo'):
-                        ingresosEfectivo = cobro['importe'] 
+                    try:
+                        importe = to_float(cobro.get('importe'))
+                        printer.text(cell(cobro.get('cant'), self.cant_cols)
+                                    + cell(cobro.get('tipoPago'), self.desc_cols)
+                                    + "$" + pad(money(importe), self.price_cols - 1, " ", "r") + "\n")
+                        totalIngresosPorVenta += importe
+                        if (cobro.get('tipoPago') == 'Efectivo'):
+                            ingresosEfectivo = importe
+                    except Exception as e:
+                        logger.error(f"[ARQUEO] fila de cobro omitida por error: {e} | data={cobro}")
+                        continue
 
                 if (ingresosPorVentas['otros']):
-                    printer.text(pad("    Otros Cobros",(self.desc_cols_ext)," ", "l") 
-                                + "$" + pad(f"{float(ingresosPorVentas['otros']):,.2f}", self.price_cols - 1," ","r") + "\n\n")
-                    totalIngresosPorVenta += float(ingresosPorVentas['otros'])
-                    otrosIngresos += float(ingresosPorVentas['otros'])
+                    printer.text(pad("    Otros Cobros",(self.desc_cols_ext)," ", "l")
+                                + "$" + pad(money(ingresosPorVentas['otros']), self.price_cols - 1," ","r") + "\n\n")
+                    totalIngresosPorVenta += to_float(ingresosPorVentas['otros'])
+                    otrosIngresos += to_float(ingresosPorVentas['otros'])
 
                 printer.set(font='a', bold=True, height=1, width=1, align='left')
                 printer.text(pad("    TOTAL",self.desc_cols_ext, " ", "l")
@@ -1066,18 +1237,23 @@ class EscPComandos():
 
                 printer.set(font='a', height=1, align='left', normal_textsize=True)
                 for pago in egresosPorPagos['detalle']:
-                    printer.text(pad(pago['cant'],self.cant_cols," ","l") 
-                                + pad(pago['tipoPago'][:self.desc_cols-1],self.desc_cols," ","l")
-                                + "$" + pad(f"{pago['importe']:,.2f}",self.price_cols - 1," ", "r") + "\n")
-                    totalEgresosPorPagos += pago['importe']
-                    if (pago['tipoPago'] == 'Efectivo'):
-                        egresosEfectivo = pago['importe']
+                    try:
+                        importe = to_float(pago.get('importe'))
+                        printer.text(cell(pago.get('cant'), self.cant_cols)
+                                    + cell(pago.get('tipoPago'), self.desc_cols)
+                                    + "$" + pad(money(importe), self.price_cols - 1, " ", "r") + "\n")
+                        totalEgresosPorPagos += importe
+                        if (pago.get('tipoPago') == 'Efectivo'):
+                            egresosEfectivo = importe
+                    except Exception as e:
+                        logger.error(f"[ARQUEO] fila de pago omitida por error: {e} | data={pago}")
+                        continue
 
                 if (egresosPorPagos['otros']):
-                    printer.text(pad("    Otros Pagos",(self.desc_cols_ext)," ", "l") 
-                                + "$" + pad(f"{float(egresosPorPagos['otros']):,.2f}", self.price_cols - 1," ","r") + "\n\n")                    
-                    totalEgresosPorPagos += float(egresosPorPagos['otros'])
-                    otrosEgresos += float(egresosPorPagos['otros'])
+                    printer.text(pad("    Otros Pagos",(self.desc_cols_ext)," ", "l")
+                                + "$" + pad(money(egresosPorPagos['otros']), self.price_cols - 1," ","r") + "\n\n")
+                    totalEgresosPorPagos += to_float(egresosPorPagos['otros'])
+                    otrosEgresos += to_float(egresosPorPagos['otros'])
 
                 printer.set(font='a', bold=True, height=1, width=1, align='left')
                 printer.text(pad("    TOTAL",self.desc_cols_ext, " ", "l")
@@ -1097,10 +1273,15 @@ class EscPComandos():
                 printer.set(font='a', height=1, align='left', normal_textsize=True)
 
                 for retiro in retiros:
-                    fechaRetiro = datetime.datetime.strptime(retiro['fechaTraspaso'], '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y %H:%M',)
-                    printer.text(pad(fechaRetiro,self.desc_cols_ext, " ","l")
-                                + "$" + pad(f"{retiro['monto']:,.2f}",self.price_cols - 1," ","r") + "\n")
-                    totalRetiros += retiro['monto']
+                    try:
+                        monto = to_float(retiro.get('monto'))
+                        fechaRetiro = safe_parse_date(retiro.get('fechaTraspaso'), '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y %H:%M',)
+                        printer.text(pad(fechaRetiro,self.desc_cols_ext, " ","l")
+                                    + "$" + pad(money(monto),self.price_cols - 1," ","r") + "\n")
+                        totalRetiros += monto
+                    except Exception as e:
+                        logger.error(f"[ARQUEO] fila de retiro omitida por error: {e} | data={retiro}")
+                        continue
                     #TODO traer las observaciones del retiro
                     # if retiro['observacion']:
                     #     printer.set(font='a', height=1, bold=True, align='center'), "A", "A", 1, 1)
@@ -1123,10 +1304,15 @@ class EscPComandos():
                 printer.set(font='a', height=1, align='left', normal_textsize=True)
 
                 for ingreso in ingresos:
-                    fechaIngreso = datetime.datetime.strptime(ingreso['fechaTraspaso'], '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y %H:%M',)
-                    printer.text(pad(fechaIngreso,self.desc_cols_ext, " ","l")
-                                + "$" + pad(f"{ingreso['monto']:,.2f}",self.price_cols - 1," ","r") + "\n")
-                    totalIngresos += ingreso['monto']
+                    try:
+                        monto = to_float(ingreso.get('monto'))
+                        fechaIngreso = safe_parse_date(ingreso.get('fechaTraspaso'), '%Y-%m-%d %H:%M:%S').strftime('%d/%m/%Y %H:%M',)
+                        printer.text(pad(fechaIngreso,self.desc_cols_ext, " ","l")
+                                    + "$" + pad(money(monto),self.price_cols - 1," ","r") + "\n")
+                        totalIngresos += monto
+                    except Exception as e:
+                        logger.error(f"[ARQUEO] fila de ingreso omitida por error: {e} | data={ingreso}")
+                        continue
                     #TODO traer observaciones de ingresos
                     # if ingreso['observacion']:
                     #     printer.set(font='a', height=1, bold=True, align='center'), "A", "A", 1, 1)
@@ -1138,19 +1324,17 @@ class EscPComandos():
                             + "$" +  pad(f"{totalIngresos:,.2f}", self.price_cols - 1, " ","r") + "\n\n")
         
         ######### RESULTADO
-        if encabezado['importeFinal']:
-            importeFinal = float(encabezado['importeFinal'])
-        else:
-            importeFinal = 0
+        importeFinal = to_float(encabezado.get('importeFinal'))
+        importeInicial = to_float(encabezado.get('importeInicial'))
 
         imprimirTitulo(u"RESÚMEN (Efectivo)", 1, 2)
 
         printer.set(font='a', height=1, align='left', normal_textsize=True)
 
-        ingresosDict = {"Importe Inicial:"    : f"{float(encabezado['importeInicial']):,.2f}",
-                        "Ingresos por Cobros:": f"{ingresosEfectivo:,.2f}",
-                        "Ingresos de Caja:"   : f"{totalIngresos:,.2f}",
-                        "Otros Ingresos:"     : f"{otrosIngresos:,.2f}"}
+        ingresosDict = {"Importe Inicial:"    : money(importeInicial),
+                        "Ingresos por Cobros:": money(ingresosEfectivo),
+                        "Ingresos de Caja:"   : money(totalIngresos),
+                        "Otros Ingresos:"     : money(otrosIngresos)}
 
         for key in ingresosDict:
             printer.text(pad("+",self.cant_cols," ","l") + pad(key,self.desc_cols," ","l") + "$" 

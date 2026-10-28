@@ -24,7 +24,14 @@ class KivyRecipePython312(KivyRecipe):
     
     # Usar Kivy 2.3.1 que tiene soporte nativo para Python 3.12
     version = '2.3.1'
-    
+
+    # Sin patches heredados: la KivyRecipe base trae 'use_cython.patch', pero p4a
+    # lo busca relativo a ESTE recipe (my_recipes/kivy/) donde no existe → el build
+    # Android fallaba con "Can't open patch file .../use_cython.patch". Este recipe
+    # ya hace su propio parcheo (apply_python312_patches) y fuerza source build, así
+    # que la lista de patches va vacía.
+    patches = []
+
     # FORZAR source build
     install_in_hostpython = False
     call_hostpython_via_targetpython = False

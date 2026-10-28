@@ -13,6 +13,21 @@ TOKEN_FILE = os.path.join(platformdirs.user_config_dir(APP_NAME, APP_AUTHOR), "f
 # Ensure the directory exists
 os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
 
+
+def _resolve_verify(cfg=None):
+    """Valor de verificación TLS (ver Configberry.get_ssl_verify) para requests."""
+    from fiscalberry.common.Configberry import Configberry
+    cfg = cfg or Configberry()
+    verify = cfg.get_ssl_verify()
+    if verify is False:
+        try:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        except Exception:
+            pass
+    return verify
+
+
 def do_login(username, password):
     """Autentica al usuario contra el backend y guarda el token JWT."""
     
@@ -21,8 +36,8 @@ def do_login(username, password):
     cfg = Configberry()
     host = cfg.get("SERVIDOR","sio_host")
     backend_url = host.rstrip("/") + "/login.json"
-    
-    response = requests.post(backend_url, json={"email": username, "password": password})
+
+    response = requests.post(backend_url, json={"email": username, "password": password}, verify=_resolve_verify(cfg))
     if response.status_code == 200:
         # Login exitoso, guardar el token JWT
         token = response.json().get("jwt")
@@ -68,11 +83,12 @@ def make_authenticated_request(url, method="GET", data=None):
         raise Exception("No se encontró un token JWT. Inicie sesión primero.")
 
     headers = {"Authorization": f"Bearer {token}"}
+    verify = _resolve_verify()
     try:
         if method == "GET":
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, verify=verify)
         elif method == "POST":
-            response = requests.post(url, json=data, headers=headers)
+            response = requests.post(url, json=data, headers=headers, verify=verify)
         else:
             raise ValueError("Método HTTP no soportado.")
         return response

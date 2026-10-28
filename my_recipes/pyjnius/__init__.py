@@ -10,9 +10,10 @@ class PyjniusRecipePython312(PyjniusRecipe):
     Pyjnius recipe with Python 3.12 compatibility fix.
     Removes all references to 'long' type which doesn't exist in Python 3.12+
     """
-    
-    version = '1.6.1'
-    
+
+    # Sin pin de versión: 'pyjnius==1.6.1' daba "No matching distribution found".
+    # Heredamos la versión de la PyjniusRecipe base de p4a (la que p4a sabe bajar).
+
     def fix_python312_long_type(self, filepath):
         """Elimina todas las referencias al tipo 'long' de Python 2.x"""
         print(f"🔧 Procesando {filepath}")
@@ -91,12 +92,15 @@ class PyjniusRecipePython312(PyjniusRecipe):
         # NO llamar a super().apply_patches(arch)
         pass
     
-    def get_recipe_env(self, arch):
+    def get_recipe_env(self, arch=None, **kwargs):
         """
         Override para remover SDL2 de las bibliotecas de link.
         webview bootstrap NO tiene SDL2.
+
+        **kwargs: p4a moderno llama get_recipe_env(arch, with_flags_in_cc=...).
+        Aceptamos y reenviamos cualquier kwarg para no romper con cambios de API.
         """
-        env = super().get_recipe_env(arch)
+        env = super().get_recipe_env(arch, **kwargs)
         
         # Remover SDL2 de LDFLAGS y LDLIBS si existe
         if 'LDFLAGS' in env:
