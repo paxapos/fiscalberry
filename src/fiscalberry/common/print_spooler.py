@@ -18,6 +18,10 @@ Qué hace este spooler:
 
 El spooler NO sabe de formatos ni de escpos: recibe un dict (ticket) y una función
 print_fn(ticket) que imprime y lanza excepción si falla. Así es testeable sin escpos.
+
+Tampoco sabe de la red: si quien lo crea quiere enterarse de cómo terminó cada
+trabajo (por ejemplo para confirmárselo al servidor) pasa los callbacks opcionales
+on_success / on_failure. Son best-effort: si uno lanza, solo se loguea.
 """
 
 import os
@@ -46,9 +50,19 @@ def default_db_path():
 
 class DurablePrintSpooler:
     def __init__(self, print_fn, db_path=None, max_attempts=1000,
-                 base_delay=5.0, max_delay=300.0, idle_wait=5.0):
+                 base_delay=5.0, max_delay=300.0, idle_wait=5.0,
+                 on_success=None, on_failure=None):
         """
         print_fn: callable(ticket_dict) -> imprime; lanza excepción si falla.
+        on_success: callable(job_id, ticket, result, intentos) opcional. Se llama
+            cuando el trabajo se imprimió y ya se borró de la cola; `result` es lo que
+            devolvió print_fn e `intentos` el número del intento que anduvo (1 = el
+            primero).
+        on_failure: callable(job_id, ticket, exc, intentos, final) opcional. Se llama
+            tras cada intento fallido, con la cola ya actualizada; `final` es True si
+            el trabajo pasó a dead-letter ('failed') y False si se va a reintentar.
+            `ticket` es None si ni siquiera se pudo leer el payload guardado.
+        Un callback que lanza NUNCA afecta al spooler: se loguea y se sigue.
         max_attempts: tras N intentos el job pasa a 'failed' (dead-letter). Default alto
             (1000) a propósito: con backoff tope 300s son ~3.5 días de reintentos, así una
             impresora caída mucho tiempo NO pierde el ticket. Además, los 'failed' se
@@ -56,6 +70,8 @@ class DurablePrintSpooler:
             "apagar y prender" siempre recupera todo lo pendiente.
         """
         self._print_fn = print_fn
+        self._on_success = on_success
+        self._on_failure = on_failure
         self._db_path = db_path or default_db_path()
         self._max_attempts = max_attempts
         self._base_delay = base_delay
@@ -205,9 +221,10 @@ class DurablePrintSpooler:
                 self._wake.clear()
                 continue
             job_id, payload, attempts = row
+            ticket = None
             try:
                 ticket = json.loads(payload)
-                self._print_fn(ticket)
+                result = self._print_fn(ticket)
                 with self._lock:
                     self._conn.execute("DELETE FROM jobs WHERE job_id=?", (job_id,))
                     self._conn.commit()
@@ -220,6 +237,7 @@ class DurablePrintSpooler:
                     except Exception:
                         pass
                 logger.info("Spooler: job %s impreso OK", job_id)
+                self._notify(self._on_success, "on_success", job_id, ticket, result, attempts + 1)
             except Exception as e:
                 attempts += 1
                 delay = min(self._base_delay * (2 ** min(attempts, 8)), self._max_delay)
@@ -237,6 +255,22 @@ class DurablePrintSpooler:
                 else:
                     logger.warning("Spooler: job %s error (intento %d), reintenta en %.0fs: %s",
                                    job_id, attempts, delay, e)
+                self._notify(self._on_failure, "on_failure", job_id, ticket, e, attempts,
+                             status == 'failed')
+
+    @staticmethod
+    def _notify(callback, nombre, *args):
+        """Llama a un callback opcional sin que pueda afectar al spooler.
+
+        Corre en el hilo del worker, así que un callback lento demoraría la
+        impresión: los que se pasan acá tienen que encolar y volver.
+        """
+        if callback is None:
+            return
+        try:
+            callback(*args)
+        except Exception as cb_err:
+            logger.warning("Spooler: el callback %s falló (se ignora): %s", nombre, cb_err)
 
     # Cada cuánto se repite el aviso de cola estancada mientras el worker está
     # ocioso (issue #166: "loguear el pendiente ... cuando supere un umbral").

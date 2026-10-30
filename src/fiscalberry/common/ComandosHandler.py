@@ -542,6 +542,8 @@ def _spooler_print_fn(ticket):
             f"Circuito abierto para '{printer_name}': impresora con fallos recientes")
 
     try:
+        # Se le pasa una COPIA: runTraductor le saca printerName y jobId, y el
+        # spooler necesita el jobId del original para confirmar la impresión.
         result = runTraductor(dict(ticket), Queue())
 
         # runTraductor no siempre lanza: ante "impresora no encontrada" o un
@@ -568,7 +570,15 @@ def get_print_spooler():
         with _print_spooler_lock:
             if _print_spooler is None:
                 from fiscalberry.common.print_spooler import DurablePrintSpooler
-                _print_spooler = DurablePrintSpooler(_spooler_print_fn)
+                from fiscalberry.common.confirmacion_impresion import get_confirmador
+                # Cada trabajo con `jobId` se le confirma al servidor al terminar
+                # (impreso o con error). Los callbacks solo encolan: no demoran la
+                # impresión (ver confirmacion_impresion.py).
+                confirmador = get_confirmador()
+                _print_spooler = DurablePrintSpooler(
+                    _spooler_print_fn,
+                    on_success=confirmador.reportar_exito,
+                    on_failure=confirmador.reportar_fallo)
     return _print_spooler
 
 
