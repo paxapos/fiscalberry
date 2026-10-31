@@ -16,6 +16,13 @@
 >   `publish_error()` encola y retorna de inmediato; un worker de fondo publica a
 >   `fiscalberry/errors/{tenant}`. Nunca bloquea impresión, **sanea** datos
 >   sensibles (password/token/…) y aplica **rate-limit** por tipo de error.
+> - **Confirmación de impresión** (`common/confirmacion_impresion.py`): al terminar
+>   cada trabajo del spooler que trae `jobId`, avisa al servidor (impreso, o error
+>   con motivo) con un POST HTTP a
+>   `{sio_host}/{tenant}/printers/impresiones/confirmar.json`. No usa MQTT ni
+>   `publish_error()`. Corre en un hilo propio con cola acotada, nunca demora la
+>   impresión, y tras un 403/404 se suspende 30 minutos para no provocar un ban de
+>   IP por ráfaga de rechazos.
 > - **Compatibilidad paho 1.x/2.x** vía `common/rabbitmq/mqtt_compat.py`.
 >
 > Las secciones de abajo describen el manejo de red original (DNS, backoff,

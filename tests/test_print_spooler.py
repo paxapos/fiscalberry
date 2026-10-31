@@ -327,3 +327,164 @@ def test_requeue_failed_moves_failed_back_to_pending_and_wakes_worker(db_path):
         assert attempts["n"] == 2
     finally:
         sp.stop()
+
+
+# ---------------------------------------------------------------------------
+# Callbacks opcionales on_success / on_failure (confirmación de impresión)
+# ---------------------------------------------------------------------------
+
+def test_on_success_recibe_job_ticket_resultado_e_intento_1(db_path):
+    """Al imprimir bien se avisa con lo que devolvió print_fn, tras borrar el job."""
+    llamadas = []
+    pendientes_al_avisar = []
+    sp_ref = {}
+
+    def print_fn(ticket):
+        return {"message": "Impresión exitosa", "result": ["ok"]}
+
+    def on_success(job_id, ticket, result, intentos):
+        pendientes_al_avisar.append(sp_ref["sp"].pending_count())
+        llamadas.append((job_id, ticket, result, intentos))
+
+    sp = DurablePrintSpooler(print_fn, db_path=db_path, base_delay=0.05, idle_wait=0.1,
+                             on_success=on_success)
+    sp_ref["sp"] = sp
+    try:
+        sp.enqueue("job-ok", {"jobId": "job-ok", "a": 1}, "printerA")
+        assert _wait_until(lambda: len(llamadas) == 1)
+    finally:
+        sp.stop()
+
+    assert llamadas == [("job-ok", {"jobId": "job-ok", "a": 1},
+                         {"message": "Impresión exitosa", "result": ["ok"]}, 1)]
+    assert pendientes_al_avisar == [0], "el aviso llega con el job ya borrado de la cola"
+
+
+def test_callbacks_cuentan_intentos_y_final_hasta_el_exito(db_path):
+    """Falla dos veces (no finales, intentos 1 y 2) y anda al tercero (intento 3)."""
+    n = {"n": 0}
+    fallos, exitos = [], []
+
+    def print_fn(ticket):
+        n["n"] += 1
+        if n["n"] <= 2:
+            raise RuntimeError("sin papel %d" % n["n"])
+        return "listo"
+
+    sp = DurablePrintSpooler(
+        print_fn, db_path=db_path, base_delay=0.01, max_delay=0.05, idle_wait=0.05,
+        on_success=lambda *a: exitos.append(a),
+        on_failure=lambda *a: fallos.append(a))
+    try:
+        sp.enqueue("job-flaky", {"k": 1}, "printerA")
+        assert _wait_until(lambda: len(exitos) == 1)
+    finally:
+        sp.stop()
+
+    assert [(f[0], f[1], str(f[2]), f[3], f[4]) for f in fallos] == [
+        ("job-flaky", {"k": 1}, "sin papel 1", 1, False),
+        ("job-flaky", {"k": 1}, "sin papel 2", 2, False),
+    ]
+    assert exitos == [("job-flaky", {"k": 1}, "listo", 3)]
+
+
+def test_on_failure_final_en_dead_letter(db_path):
+    """Con max_attempts chico el último fallo llega con final=True y el job queda 'failed'."""
+    fallos = []
+
+    def print_fn(ticket):
+        raise RuntimeError("impresora offline")
+
+    sp = DurablePrintSpooler(
+        print_fn, db_path=db_path, max_attempts=3, base_delay=0.01, max_delay=0.05,
+        idle_wait=0.05, on_failure=lambda *a: fallos.append(a))
+    try:
+        sp.enqueue("job-fail", {"x": 1}, "printerA")
+        assert _wait_until(lambda: sp.failed_count() == 1)
+        assert _wait_until(lambda: len(fallos) == 3)
+    finally:
+        sp.stop()
+
+    assert [(f[3], f[4]) for f in fallos] == [(1, False), (2, False), (3, True)]
+    assert all(isinstance(f[2], RuntimeError) for f in fallos)
+
+
+def test_on_failure_con_payload_ilegible_recibe_ticket_none(db_path):
+    """Si ni siquiera se puede leer el payload guardado no hay ticket que confirmar."""
+    fallos = []
+    sp = DurablePrintSpooler(lambda t: None, db_path=db_path, max_attempts=1, base_delay=0.01,
+                             idle_wait=0.05, on_failure=lambda *a: fallos.append(a))
+    try:
+        con = sqlite3.connect(db_path)
+        ahora = time.time()
+        con.execute(
+            "INSERT INTO jobs (job_id, printer_name, payload, status, attempts, next_attempt_at,"
+            " created_at, updated_at) VALUES ('roto', 'p', 'esto no es json', 'pending', 0, 0, ?, ?)",
+            (ahora, ahora))
+        con.commit()
+        con.close()
+        sp._wake.set()
+        assert _wait_until(lambda: len(fallos) == 1)
+    finally:
+        sp.stop()
+
+    job_id, ticket, exc, intentos, final = fallos[0]
+    assert (job_id, ticket, intentos, final) == ("roto", None, 1, True)
+    assert isinstance(exc, ValueError)
+
+
+def test_callback_que_lanza_no_rompe_el_spooler_en_exito(db_path):
+    """Un on_success que explota no afecta al trabajo ni a los siguientes."""
+    impresos = []
+
+    def on_success(*a):
+        raise RuntimeError("el callback explotó")
+
+    sp = DurablePrintSpooler(lambda t: impresos.append(t["n"]), db_path=db_path,
+                             base_delay=0.02, idle_wait=0.05, on_success=on_success)
+    try:
+        sp.enqueue("j1", {"n": 1}, "printerA")
+        sp.enqueue("j2", {"n": 2}, "printerA")
+        assert _wait_until(lambda: sp.pending_count() == 0)
+        assert _wait_until(lambda: impresos == [1, 2])
+        assert sp.failed_count() == 0
+        assert sp._worker.is_alive()
+    finally:
+        sp.stop()
+
+    assert impresos == [1, 2], "el job no se reimprime por culpa del callback"
+
+
+def test_callback_que_lanza_no_rompe_el_spooler_en_fallo(db_path):
+    """Un on_failure que explota no cambia el reintento ni el dead-letter."""
+    intentos = {"n": 0}
+
+    def print_fn(ticket):
+        intentos["n"] += 1
+        raise RuntimeError("offline")
+
+    def on_failure(*a):
+        raise RuntimeError("el callback explotó")
+
+    sp = DurablePrintSpooler(print_fn, db_path=db_path, max_attempts=3, base_delay=0.01,
+                             max_delay=0.05, idle_wait=0.05, on_failure=on_failure)
+    try:
+        sp.enqueue("job-fail", {"x": 1}, "printerA")
+        assert _wait_until(lambda: sp.failed_count() == 1)
+        assert sp._worker.is_alive()
+    finally:
+        sp.stop()
+
+    assert intentos["n"] == 3
+
+
+def test_sin_callbacks_el_spooler_se_comporta_como_siempre(db_path):
+    """Los callbacks son opcionales: print_fn de un argumento y sin on_* sigue andando."""
+    impresos = []
+    sp = DurablePrintSpooler(lambda t: impresos.append(t), db_path=db_path,
+                             base_delay=0.05, idle_wait=0.1)
+    try:
+        sp.enqueue("j", {"a": 1}, "printerA")
+        assert _wait_until(lambda: impresos == [{"a": 1}])
+    finally:
+        sp.stop()
