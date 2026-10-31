@@ -69,3 +69,35 @@ def test_discover_without_uuid_does_not_post(monkeypatch):
 
     assert discover.send_discover() is False
     assert not called
+
+
+def test_discover_declara_las_capabilities(monkeypatch):
+    sent = {}
+
+    def fake_post(url, headers=None, data=None, timeout=None, verify=None):
+        sent["body"] = json.loads(data)
+        return FakeResponse()
+
+    monkeypatch.setattr(discover, "configberry", FakeConfigberry())
+    monkeypatch.setattr(discover, "listar_impresoras", lambda: [])
+    monkeypatch.setattr(discover.requests, "post", fake_post)
+
+    assert discover.send_discover() is True
+    raw = json.loads(sent["body"]["raw_data"])
+    assert raw["capabilities"] == ["printRaw", "upgrade", "upgradePin", "spoolerControl"]
+
+
+def test_las_capabilities_salen_aunque_falle_la_config(monkeypatch):
+    sent = {}
+
+    class ConfigRota(FakeConfigberry):
+        def getJSON(self):
+            raise RuntimeError("config.ini roto")
+
+    monkeypatch.setattr(discover, "configberry", ConfigRota())
+    monkeypatch.setattr(discover, "listar_impresoras", lambda: [])
+    monkeypatch.setattr(discover.requests, "post",
+                        lambda url, headers=None, data=None, timeout=None, verify=None: sent.update(body=json.loads(data)) or FakeResponse())
+
+    discover.send_discover()
+    assert "printRaw" in json.loads(sent["body"]["raw_data"])["capabilities"]

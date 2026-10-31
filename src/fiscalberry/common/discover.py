@@ -8,6 +8,17 @@ from fiscalberry.version import VERSION
 
 configberry = Configberry()
 
+# Lo que este cliente sabe hacer, para que Paxapos decida por capacidad y no
+# por número de versión (épica paxapos/paxapos#1723, S9). Viaja en
+# raw_data.capabilities. Cada capacidad nueva se agrega acá, diciendo qué
+# comando habilita: un comando que el cliente no entiende se pierde en silencio.
+CAPABILITIES = (
+    "printRaw",        # {"printRaw": {data, encoding}}: imprime bytes ESC/POS armados por Paxapos
+    "upgrade",         # {"upgrade": true}: buscar actualización ya
+    "upgradePin",      # {"upgrade": {"version": "x.y.z" | "latest"}}: fijar o soltar la versión
+    "spoolerControl",  # {"imprimirPendientes": true} / {"descartarPendientes": true}
+)
+
 def send_discover():
     """
     Envía el discover al servidor para registrar este dispositivo.
@@ -48,6 +59,8 @@ def send_discover():
         logger.error(f"DISCOVER:: falló la detección de impresoras ({e}); "
                      "se registra el dispositivo sin lista de impresoras.")
         data["installed_printers"] = []
+
+    data["capabilities"] = list(CAPABILITIES)
 
     senddata = {
         "uuid": uuidval,
