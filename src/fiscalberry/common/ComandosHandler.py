@@ -669,18 +669,9 @@ def _is_sync_print_mode():
 
 
 def _compute_job_id(jsonTicket):
-    """job_id estable para dedup en el spooler.
-
-    Usa 'jobId' si viene en el ticket; si no, un sha1 del payload normalizado.
-    Mismo criterio conceptual que RabbitMQConsumer._on_message() para que un mismo
-    ticket no se imprima dos veces.
-    """
-    import hashlib
-    jid = jsonTicket.get("jobId")
-    if jid:
-        return str(jid)
-    payload = json.dumps(jsonTicket, ensure_ascii=False, sort_keys=True)
-    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
+    """job_id para dedup en el spooler: el mismo cálculo que el consumer MQTT."""
+    from fiscalberry.common.job_id import compute_job_id
+    return compute_job_id(jsonTicket)
 
 
 class ComandosHandler:

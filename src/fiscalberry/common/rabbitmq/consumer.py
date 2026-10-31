@@ -292,10 +292,9 @@ class RabbitMQConsumer:
             # reentregas QoS1 por job_id. Los comandos de control (getStatus, reboot,
             # etc.) siguen el camino sincrono de abajo.
             if isinstance(json_data, dict) and 'printerName' in json_data:
-                import hashlib
                 from fiscalberry.common.ComandosHandler import get_print_spooler
-                job_id = json_data.get('jobId') or hashlib.sha1(
-                    (body_str or json.dumps(json_data)).encode('utf-8')).hexdigest()
+                from fiscalberry.common.job_id import compute_job_id
+                job_id = compute_job_id(json_data)
                 get_print_spooler().enqueue(
                     job_id, json_data, json_data.get('printerName'))
                 # ACK: el trabajo ya esta persistido en disco; se imprimira (con

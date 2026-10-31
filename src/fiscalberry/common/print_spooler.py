@@ -14,7 +14,9 @@ Qué hace este spooler:
   2. Un worker drena la cola persistente e imprime con reintentos (backoff). Si la
      impresora está caída, el job queda 'pending' y se reintenta; sobrevive reinicios.
   3. Dedup por job_id: MQTT QoS1 es "al menos una vez" y puede reentregar el mismo
-     mensaje -> INSERT OR IGNORE evita imprimir dos veces el mismo ticket.
+     mensaje -> INSERT OR IGNORE evita imprimir dos veces el mismo ticket mientras
+     está en la cola, y la tabla printed_jobs lo evita después de impreso (ver
+     PRINTED_RETENTION_SECONDS).
 
 El spooler NO sabe de formatos ni de escpos: recibe un dict (ticket) y una función
 print_fn(ticket) que imprime y lanza excepción si falla. Así es testeable sin escpos.
@@ -49,6 +51,17 @@ def default_db_path():
 
 
 class DurablePrintSpooler:
+
+    # Cuánto se recuerda que un jobId ya se imprimió (paxapos/fiscalberry#216).
+    # Paxapos manda un jobId nuevo en cada publish (cada copia y cada
+    # reimpresión tiene el suyo), así que el mismo jobId solo vuelve a llegar
+    # por una reentrega del broker: esa no se imprime. Pasado este tiempo se
+    # olvida y una reentrega tardía vuelve a salir.
+    # Solo se recuerdan los trabajos con jobId explícito: uno sin jobId tiene
+    # como id el hash del contenido y dos tickets iguales pueden ser una
+    # reimpresión legítima.
+    PRINTED_RETENTION_SECONDS = 24 * 3600
+    _PRINTED_PURGE_INTERVAL = 3600.0
     def __init__(self, print_fn, db_path=None, max_attempts=1000,
                  base_delay=5.0, max_delay=300.0, idle_wait=5.0,
                  on_success=None, on_failure=None):
@@ -98,6 +111,7 @@ class DurablePrintSpooler:
         # Debe existir ANTES de arrancar el worker: _run() lo lee desde su
         # primer ciclo si la cola arranca vacía (race si se setea después).
         self._last_pending_log = time.time()
+        self._last_printed_purge = 0.0
         self._worker = threading.Thread(target=self._run, name="print-spooler", daemon=True)
         self._worker.start()
         pending, failed = self.pending_count(), self.failed_count()
@@ -183,6 +197,12 @@ class DurablePrintSpooler:
             self._conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_jobs_pending "
                 "ON jobs(status, next_attempt_at, created_at)")
+            self._conn.execute("""
+                CREATE TABLE IF NOT EXISTS printed_jobs (
+                    job_id     TEXT PRIMARY KEY,
+                    printed_at REAL NOT NULL
+                )
+            """)
             self._conn.commit()
 
     def enqueue(self, job_id, ticket, printer_name=None):
@@ -190,6 +210,12 @@ class DurablePrintSpooler:
         now = time.time()
         payload = json.dumps(ticket, ensure_ascii=False)
         with self._lock:
+            ya_impreso = self._conn.execute(
+                "SELECT 1 FROM printed_jobs WHERE job_id=? AND printed_at>=?",
+                (job_id, now - self.PRINTED_RETENTION_SECONDS)).fetchone()
+            if ya_impreso:
+                logger.info("Spooler: job %s ya se imprimió, reentrega ignorada (dedup)", job_id)
+                return False
             cur = self._conn.execute(
                 "INSERT OR IGNORE INTO jobs "
                 "(job_id, printer_name, payload, status, attempts, next_attempt_at, created_at, updated_at) "
@@ -217,6 +243,7 @@ class DurablePrintSpooler:
             row = self._claim_next()
             if row is None:
                 self._maybe_log_pending()
+                self._maybe_purge_printed()
                 self._wake.wait(timeout=self._idle_wait)
                 self._wake.clear()
                 continue
@@ -227,6 +254,10 @@ class DurablePrintSpooler:
                 result = self._print_fn(ticket)
                 with self._lock:
                     self._conn.execute("DELETE FROM jobs WHERE job_id=?", (job_id,))
+                    if isinstance(ticket, dict) and ticket.get("jobId"):
+                        self._conn.execute(
+                            "INSERT OR REPLACE INTO printed_jobs (job_id, printed_at) VALUES (?,?)",
+                            (job_id, time.time()))
                     self._conn.commit()
                     # Checkpoint PASSIVE (no bloquea lectores/escritores, aporta lo
                     # que puede): con synchronous=FULL cada commit ya es durable,
@@ -293,6 +324,19 @@ class DurablePrintSpooler:
         if pending or failed:
             logger.warning(
                 "Spooler: cola sin drenar (pending=%d, failed=%d)", pending, failed)
+
+    def _maybe_purge_printed(self, force=False):
+        """Borra de printed_jobs lo que ya pasó la retención (con el worker ocioso)."""
+        now = time.time()
+        if not force and now - self._last_printed_purge < self._PRINTED_PURGE_INTERVAL:
+            return 0
+        self._last_printed_purge = now
+        with self._lock:
+            cur = self._conn.execute(
+                "DELETE FROM printed_jobs WHERE printed_at<?",
+                (now - self.PRINTED_RETENTION_SECONDS,))
+            self._conn.commit()
+        return cur.rowcount
 
     def pending_count(self):
         with self._lock:
