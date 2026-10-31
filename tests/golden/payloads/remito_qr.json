@@ -1,0 +1,21 @@
+{
+  "printRemito": {
+    "encabezado": {
+      "imprimir_fecha_remito": false
+    },
+    "items": [
+      {
+        "alic_iva": 21,
+        "qty": 1,
+        "ds": "Pizza Muzzarella",
+        "importe": 9800,
+        "order": 1
+      }
+    ],
+    "total": 9800.0,
+    "qr": "https://menu.paxapos.com/demo/encuesta?mesa=12",
+    "setTrailer": [
+      "Mesa: 7"
+    ]
+  }
+}

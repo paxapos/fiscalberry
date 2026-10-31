@@ -1,0 +1,14 @@
+{
+  "printComanda": {
+    "comanda": {
+      "id": 78,
+      "entradas": [
+        {
+          "nombre": "Papas fritas",
+          "cant": 1,
+          "observacion": "sin sal"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "printPedido": {
+    "encabezado": {
+      "nombre_proveedor": "Distribuidora El Ñandú SRL",
+      "cuit": "30-71234567-8",
+      "telefono": "0351-4223344",
+      "email": "ventas@elnandu.com.ar",
+      "pedido_recepcionado": 1
+    },
+    "items": [
+      {
+        "qty": 12,
+        "unidad_de_medida": "u",
+        "ds": "Coca Cola 500ml",
+        "observacion": "retornable"
+      },
+      {
+        "qty": 0.125,
+        "unidad_de_medida": "kg",
+        "ds": "Pimienta negra molida en grano"
+      },
+      {
+        "qty": 3.3751,
+        "unidad_de_medida": "lts",
+        "ds": "Aceite de oliva"
+      }
+    ]
+  }
+}

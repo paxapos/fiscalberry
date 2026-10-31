@@ -1,0 +1,51 @@
+{
+  "printFacturaElectronica": {
+    "encabezado": {
+      "condicion_venta": "Contado",
+      "comprobante_asociado": "Factura B 0003-00001234 del 10/07/2026",
+      "nombre_comercio": "Café Ñandú",
+      "razon_social": "Ñandú Gastronomía S.A.",
+      "cuit_empresa": "30712345678",
+      "domicilio_comercial": "San Martín 1234 - Córdoba",
+      "tipo_responsable": "IVA Responsable Inscripto",
+      "inicio_actividades": "01/03/2015",
+      "tipo_comprobante": "NOTAS DE CREDITO B",
+      "tipo_comprobante_codigo": "008",
+      "numero_comprobante": "0003-00000045",
+      "fecha_comprobante": "10/07/2026",
+      "hora_comprobante": "2026-07-10 21:40:12",
+      "documento_cliente": "",
+      "nombre_cliente": "",
+      "domicilio_cliente": "",
+      "nombre_tipo_documento": "",
+      "tipo_responsable_cliente": "",
+      "cae": "76281234567890",
+      "cae_vto": "20/07/2026",
+      "importe_total": "1500.00",
+      "importe_neto": "1239.67",
+      "importe_iva": "260.33",
+      "moneda": "PES",
+      "ctz": 1,
+      "tipoDocRec": 99,
+      "tipoCodAut": "E"
+    },
+    "items": [
+      {
+        "alic_iva": "21",
+        "importe": "1500.00",
+        "ds": "Agua Gasificada 500ml",
+        "qty": 1
+      }
+    ],
+    "ivas": [
+      {
+        "alic_iva": "21%",
+        "importe": "260.33"
+      }
+    ],
+    "pagos": [],
+    "setTrailer": [
+      "Mesa: 12"
+    ]
+  }
+}

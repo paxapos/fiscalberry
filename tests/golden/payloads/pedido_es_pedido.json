@@ -1,0 +1,17 @@
+{
+  "printPedido": {
+    "encabezado": {
+      "es_pedido": true,
+      "nombre_proveedor": "Verdulería Don José",
+      "cuit": "",
+      "telefono": "1"
+    },
+    "items": [
+      {
+        "qty": 1234.5678,
+        "unidad_de_medida": "kg",
+        "ds": "Papa negra"
+      }
+    ]
+  }
+}

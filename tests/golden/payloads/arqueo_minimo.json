@@ -1,0 +1,26 @@
+{
+  "printArqueo": {
+    "encabezado": {
+      "nombreComercio": "Bar Sin Movimientos",
+      "nombreCaja": "Caja 1",
+      "aliasUsuario": "admin",
+      "ArqueoDateTime": "2026-07-10 23:00:00",
+      "fechaDesde": "10-07-2026 20:00",
+      "fechaHasta": "10-07-2026 23:00",
+      "importeInicial": 1000.0,
+      "importeFinal": 1000.0,
+      "diferencia": 0.0,
+      "observacion": null
+    },
+    "ingresosPorVentas": {
+      "detalle": [],
+      "otros": null
+    },
+    "egresosPorPagos": {
+      "detalle": [],
+      "otros": null
+    },
+    "retiros": [],
+    "ingresos": []
+  }
+}

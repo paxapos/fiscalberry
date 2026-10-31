@@ -1,0 +1,19 @@
+{
+  "printRemito": {
+    "encabezado": {
+      "imprimir_fecha_remito": false
+    },
+    "items": [
+      {
+        "alic_iva": 21,
+        "qty": 1,
+        "ds": "Hamburguesa completa",
+        "importe": 8500,
+        "order": 1
+      }
+    ],
+    "total": 8500.0,
+    "barcode": "779123456789",
+    "setTrailer": []
+  }
+}

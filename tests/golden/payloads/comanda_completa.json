@@ -1,0 +1,46 @@
+{
+  "printComanda": {
+    "comanda": {
+      "id": 4521,
+      "created": "2026-07-10 12:34:56",
+      "observacion": "Mesa con celíaco: sin harinas",
+      "entradas": [
+        {
+          "nombre": "Empanada de Carne",
+          "cant": 2,
+          "sabores": [
+            "(1) Carne suave",
+            "(1) Carne picante"
+          ]
+        },
+        {
+          "nombre": "Provoleta",
+          "cant": 1
+        }
+      ],
+      "platos": [
+        {
+          "nombre": "Milanesa Napolitana",
+          "cant": 1,
+          "observacion": "bien cocida"
+        },
+        {
+          "nombre": "Ñoquis caseros",
+          "cant": 3,
+          "sabores": [
+            "Salsa: Fileto"
+          ]
+        }
+      ]
+    },
+    "setHeader": [
+      "  COMANDA MODIFICADA \n"
+    ],
+    "setTrailer": [
+      " ",
+      "Mozo: 5",
+      "Mesa: 12",
+      " "
+    ]
+  }
+}

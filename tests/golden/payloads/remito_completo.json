@@ -1,0 +1,54 @@
+{
+  "printRemito": {
+    "encabezado": {
+      "imprimir_fecha_remito": true,
+      "telefono": "11-5555-4444",
+      "nombre_cliente": "Juan Pérez",
+      "domicilio_cliente": "Av. Siempreviva 742"
+    },
+    "items": [
+      {
+        "alic_iva": 21,
+        "qty": 1,
+        "ds": "Agua Gasificada 500ml",
+        "importe": 1500,
+        "order": 1
+      },
+      {
+        "alic_iva": 21,
+        "qty": 2,
+        "ds": "Milanesa Napolitana con papas fritas",
+        "importe": 12500.5,
+        "order": 2
+      },
+      {
+        "alic_iva": 21,
+        "qty": 3,
+        "ds": "Flan casero con dulce de leche",
+        "importe": 4200,
+        "order": 3
+      }
+    ],
+    "total": 35190.9,
+    "addAdditional": {
+      "description": "Descuento Jubilados 10%",
+      "descuento_porcentaje": 10,
+      "amount": 3910.1
+    },
+    "pagos": [
+      {
+        "ds": "Tarjeta de Débito",
+        "importe": 20000
+      },
+      {
+        "ds": "Efectivo",
+        "importe": 15190.9
+      }
+    ],
+    "qr-mercadopago": "00020101021243650016COM.MERCADOLIBRE02013063638f3d1e7-6d2a-4f1c-9a7e-2b1f3c4d5e6f5204970053030325802AR5909PAXAPOS SA6004CABA62070503***6304A1B2",
+    "setTrailer": [
+      "Mozo: 5",
+      "Mesa: 12"
+    ]
+  }
+}

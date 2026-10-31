@@ -8,3 +8,9 @@ bump-my-version
 # Tests unitarios (arnés de pruebas de src/fiscalberry/**).
 # Uso: python -m pytest tests
 pytest>=8.0
+
+# Goldens de bytes ESC/POS (tools/golden_escpos.py, tests/test_golden_escpos.py):
+# los bytes dependen de cómo encodea python-escpos y de cómo arma el QR qrcode.
+# Con otras versiones el test se saltea en vez de fallar.
+python-escpos==3.1
+qrcode==8.2

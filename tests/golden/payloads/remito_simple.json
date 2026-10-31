@@ -1,0 +1,41 @@
+{
+  "printRemito": {
+    "encabezado": {
+      "imprimir_fecha_remito": false
+    },
+    "items": [
+      {
+        "alic_iva": 21,
+        "qty": 1,
+        "ds": "Agua Gasificada 500ml",
+        "importe": 1500,
+        "order": 1
+      },
+      {
+        "alic_iva": 21,
+        "qty": 2,
+        "ds": "Milanesa Napolitana con papas fritas",
+        "importe": 12500.5,
+        "order": 2
+      },
+      {
+        "alic_iva": 21,
+        "qty": 3,
+        "ds": "Flan casero con dulce de leche",
+        "importe": 4200,
+        "order": 3
+      }
+    ],
+    "total": 39101.0,
+    "pagos": [
+      {
+        "ds": "Efectivo",
+        "importe": 39101
+      }
+    ],
+    "setTrailer": [
+      "Mozo: 5",
+      "Mesa: 12"
+    ]
+  }
+}

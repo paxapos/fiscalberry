@@ -1,0 +1,38 @@
+{
+  "printRemito": {
+    "encabezado": {
+      "imprimir_fecha_remito": false
+    },
+    "items": [
+      {
+        "alic_iva": 21,
+        "qty": 0.125,
+        "ds": "Queso por kilo",
+        "importe": 18000,
+        "order": 1
+      },
+      {
+        "alic_iva": 21,
+        "qty": 3.3751,
+        "ds": "Jamón crudo",
+        "importe": 42000,
+        "order": 2
+      },
+      {
+        "alic_iva": 21,
+        "qty": 1,
+        "ds": "Vino Gran Reserva",
+        "importe": 9876543.12,
+        "order": 3
+      }
+    ],
+    "total": 9878647.66,
+    "pagos": [
+      {
+        "ds": "Transferencia bancaria inmediata",
+        "importe": 9878647.66
+      }
+    ],
+    "setTrailer": []
+  }
+}

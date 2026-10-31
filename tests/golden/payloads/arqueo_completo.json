@@ -1,0 +1,70 @@
+{
+  "printArqueo": {
+    "printer_id": 3,
+    "encabezado": {
+      "arqueo_id": 4321,
+      "nombreComercio": "Café Ñandú",
+      "nombreCaja": "Caja Salón",
+      "aliasUsuario": "María",
+      "ArqueoDateTime": "2026-07-10 23:58:10",
+      "fechaDesde": "10-07-2026 08:00",
+      "fechaHasta": "10-07-2026 23:58",
+      "importeInicial": 15000.0,
+      "importeFinal": 182350.5,
+      "diferencia": -120.5,
+      "observacion": "Faltó cambio a la tarde"
+    },
+    "ingresosPorVentas": {
+      "detalle": [
+        {
+          "tipoPago": "Efectivo",
+          "importe": 210500.0,
+          "cant": 48
+        },
+        {
+          "tipoPago": "Tarjeta de Débito",
+          "importe": 98000.0,
+          "cant": 17
+        },
+        {
+          "tipoPago": "Mercado Pago QR",
+          "importe": 45230.75,
+          "cant": 9
+        }
+      ],
+      "otros": "1500.00"
+    },
+    "egresosPorPagos": {
+      "detalle": [
+        {
+          "tipoPago": "Efectivo",
+          "importe": 23000.0,
+          "cant": 2
+        }
+      ],
+      "otros": "0.00"
+    },
+    "retiros": [
+      {
+        "caja": "Tesorería",
+        "monto": 15000,
+        "fechaTraspaso": "2026-07-10 16:30:00"
+      },
+      {
+        "caja": "Tesorería",
+        "monto": 5000.5,
+        "fechaTraspaso": "2026-07-10 20:15:00"
+      }
+    ],
+    "ingresos": [
+      {
+        "caja": "Tesorería",
+        "monto": 10000,
+        "fechaTraspaso": "2026-07-10 08:05:00"
+      }
+    ],
+    "cobrosPorMoneda": {
+      "ARS": 353730.75
+    }
+  }
+}

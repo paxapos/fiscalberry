@@ -1,0 +1,16 @@
+{
+  "columns": [
+    40,
+    32
+  ],
+  "driver": "escpos.printer.Dummy (perfil default)",
+  "frozen_now": "2026-07-10 21:45:00",
+  "generator": "tools/golden_escpos.py",
+  "locale_time": "C",
+  "versions": {
+    "fiscalberry": "3.6.8",
+    "pillow": "10.4.0",
+    "python-escpos": "3.1",
+    "qrcode": "8.2"
+  }
+}

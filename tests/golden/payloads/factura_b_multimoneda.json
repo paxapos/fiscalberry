@@ -1,0 +1,73 @@
+{
+  "printFacturaElectronica": {
+    "encabezado": {
+      "condicion_venta": "Contado",
+      "comprobante_asociado": "",
+      "nombre_comercio": "Café Ñandú",
+      "razon_social": "Ñandú Gastronomía S.A.",
+      "cuit_empresa": "30712345678",
+      "domicilio_comercial": "San Martín 1234 - Córdoba",
+      "tipo_responsable": "IVA Responsable Inscripto",
+      "inicio_actividades": "01/03/2015",
+      "tipo_comprobante": "Factura B",
+      "tipo_comprobante_codigo": "006",
+      "numero_comprobante": "0003-00001234",
+      "fecha_comprobante": "10/07/2026",
+      "hora_comprobante": "2026-07-10 21:40:12",
+      "documento_cliente": "",
+      "nombre_cliente": "",
+      "domicilio_cliente": "",
+      "nombre_tipo_documento": "",
+      "tipo_responsable_cliente": "",
+      "cae": "76281234567890",
+      "cae_vto": "20/07/2026",
+      "importe_total": "28.95",
+      "importe_neto": "23.93",
+      "importe_iva": "5.02",
+      "moneda": "DOL",
+      "ctz": 1350.5,
+      "tipoDocRec": 99,
+      "tipoCodAut": "E"
+    },
+    "items": [
+      {
+        "alic_iva": "21",
+        "importe": "1500.00",
+        "ds": "Agua Gasificada 500ml",
+        "qty": 1
+      },
+      {
+        "alic_iva": "21",
+        "importe": "12500.50",
+        "ds": "Milanesa Napolitana con papas fritas",
+        "qty": 2
+      },
+      {
+        "alic_iva": "10.5",
+        "importe": "4200.00",
+        "ds": "Flan casero con dulce de leche",
+        "qty": 3
+      }
+    ],
+    "ivas": [
+      {
+        "alic_iva": "21%",
+        "importe": "5446.19"
+      },
+      {
+        "alic_iva": "10.5%",
+        "importe": "1339.93"
+      }
+    ],
+    "pagos": [
+      {
+        "ds": "Dólares",
+        "importe": 28.95
+      }
+    ],
+    "otros_impuestos": "1350.50",
+    "setTrailer": [
+      "Mesa: 3"
+    ]
+  }
+}
