@@ -14,25 +14,28 @@ class FiscalberryComandos():
 	DEFAULT_DRIVER = "Fiscalberry"
 
 	def run(self, host, jsonData):
-		"""Envia comando a impresora"""
+		"""Reenvía el ticket a otro Fiscalberry.
+
+		Lanza PrinterException si el remoto no responde o no contesta 200: el
+		que llama (el spooler) tiene que poder reintentar en vez de dar el
+		ticket por impreso.
+		"""
 
 		logger.debug(f"Conectando a la URL {host}")
 		headers = {'Content-type': 'application/json'}
 
 		try:
 			reply = requests.post(host, data=json.dumps(jsonData), headers=headers, timeout=self.timeout)
-
-			if reply.status_code == 200:
-				logger.debug("Conexión exitosa")
-				return []
 		except requests.exceptions.Timeout as e:
-			# Maybe set up for a retry, or continue in a retry loop
 			# Sin timeout, si NO existe la IP de destino, queda intentando infinitamente.
 			logger.error(f"Timeout de conexión con {host} después de {self.timeout} segundos")
-			return []
-
+			raise PrinterException(f"Timeout con el Fiscalberry {host}") from e
 		except requests.exceptions.RequestException as e:
-			# catastrophic error. bail.
-			# Raises en caso de que exista la IP destino pero el puerto esté cerrado
+			# Existe la IP destino pero el puerto está cerrado, DNS, etc.
 			logger.error(f"No se pudo establecer la conexión con {host}")
-			return []
+			raise PrinterException(f"No se pudo conectar con el Fiscalberry {host}: {e}") from e
+
+		if reply.status_code != 200:
+			raise PrinterException(f"El Fiscalberry {host} respondió {reply.status_code}")
+		logger.debug("Conexión exitosa")
+		return []

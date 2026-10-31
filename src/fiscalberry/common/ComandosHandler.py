@@ -407,6 +407,63 @@ def build_driver(driver_config):
     return driver, driverName, driverOps, columns
 
 
+RAW_ENCODINGS = ("gzip+base64", "gzip", "base64")
+
+
+def decode_raw_payload(raw_cmd):
+    """Bytes ESC/POS de un comando printRaw.
+
+    `data` viaja siempre en base64; salvo con encoding "base64", además
+    comprimido con gzip ("gzip+base64", el default, y "gzip" por compatibilidad).
+    Lanza ValueError si falta `data` o el encoding no se conoce.
+    """
+    import base64
+    import gzip
+
+    if not isinstance(raw_cmd, dict) or not raw_cmd.get("data"):
+        raise ValueError("printRaw sin 'data'")
+    encoding = str(raw_cmd.get("encoding") or "gzip+base64").lower()
+    if encoding not in RAW_ENCODINGS:
+        raise ValueError(f"printRaw con encoding desconocido: {encoding}")
+    data = base64.b64decode(raw_cmd["data"])
+    if encoding != "base64":
+        data = gzip.decompress(data)
+    return data
+
+
+def _publicar_error_de_impresion(error, context):
+    try:
+        PrinterErrorDetector.detect_and_publish_error(
+            error_message=f"Print error: {error}", exception=error, context=context)
+    except Exception as publish_err:
+        logger.error(f"No se pudo publicar el error de impresión: {publish_err}")
+
+
+def _print_raw(driver, raw_cmd, printerName, driverName):
+    """Escribe los bytes de un printRaw en la impresora y cierra el driver.
+
+    El close() va dentro del mismo try porque en CupsPrinter, LP y Win32Raw es
+    el close() el que manda el trabajo al sistema: un error ahí es un ticket
+    que no salió. Ante cualquier error se cierra el driver (best-effort), se
+    publica y se relanza, para que el spooler lo reintente.
+    """
+    try:
+        data = decode_raw_payload(raw_cmd)
+        driver._raw(data)
+        driver.close()
+    except Exception as e:
+        try:
+            driver.close()
+        except Exception:
+            pass
+        logger.error(f"Impresión RAW falló en '{printerName}': {e}")
+        _publicar_error_de_impresion(e, {
+            "command": "printRaw", "printer_name": printerName, "driver": driverName})
+        raise
+    logger.info(f"Impresión RAW OK en '{printerName}' ({len(data)} bytes)")
+    return {"message": "Impresion RAW exitosa", "result": "ok", "bytes": len(data)}
+
+
 def runTraductor(jsonTicket, queue):
     printerName = jsonTicket.pop('printerName')
     # jobId es metadata de dedup del spooler, no un comando: si quedara en el
@@ -452,18 +509,21 @@ def runTraductor(jsonTicket, queue):
     driverName = str(dictSectionConf.get("driver", "Dummy")).lower()
 
     if driverName == "Fiscalberry".lower():
+        # Proxy a otro Fiscalberry: se reenvía el ticket tal cual (printRaw
+        # incluido) y un error del remoto se propaga, para que el spooler lo
+        # reintente en vez de darlo por impreso.
         driverOps = {k: v for k, v in dictSectionConf.items()
                      if k != "driver" and not k.startswith("_")}
+        host = driverOps.get('host', 'localhost')
+        printerName = driverOps.get('printerName', printerName)
+        jsonTicket['printerName'] = printerName
         try:
-            comando = FiscalberryComandos()
-            host = driverOps.get('host', 'localhost')
-            printerName = driverOps.get('printerName', printerName)
-            jsonTicket['printerName'] = printerName
-            result = comando.run(host, jsonTicket)
-            return queue.put(result)
+            result = FiscalberryComandos().run(host, jsonTicket)
         except Exception as e:
             logger.error(f"Error FiscalberryComandos: {e}")
-            return queue.put({"error": f"Error en FiscalberryComandos: {str(e)}"})
+            _publicar_error_de_impresion(e, {"printer_name": printerName, "driver": "Fiscalberry", "host": host})
+            raise
+        return {"message": "Reenviado a otro Fiscalberry", "result": result}
 
     driver, driverName, driverOps, columns = build_driver(dictSectionConf)
 
@@ -475,17 +535,7 @@ def runTraductor(jsonTicket, queue):
     if not raw_cmd and jsonTicket.get("type") == "raw":
         raw_cmd = jsonTicket  # variante: envelope plano {type:raw,data,encoding}
     if raw_cmd:
-        import base64, gzip
-        data = base64.b64decode(raw_cmd["data"])
-        if (raw_cmd.get("encoding") or "gzip+base64") in ("gzip", "gzip+base64"):
-            data = gzip.decompress(data)
-        driver._raw(data)
-        try:
-            driver.close()
-        except Exception:
-            pass
-        logger.info(f"Impresión RAW OK en '{printerName}' ({len(data)} bytes)")
-        return {"message": "Impresion RAW exitosa", "result": "ok", "bytes": len(data)}
+        return _print_raw(driver, raw_cmd, printerName, driverName)
 
     try:
         comando = EscPComandos(driver, columns=columns)
