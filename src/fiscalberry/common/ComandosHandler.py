@@ -1,5 +1,6 @@
 # coding=utf-8
 
+import os
 import sys
 import json
 import threading
@@ -889,13 +890,19 @@ class ComandosHandler:
                 rta["rta"] = self._getStatus()
 
             elif 'reboot' in jsonTicket:
-                rta["rta"] = self._reboot()
+                rta["rta"] = self._rebootFiscalberry()
+                if "err" in rta["rta"]:
+                    rta["err"] = rta["rta"]["err"]
 
             elif 'restart' in jsonTicket:
                 rta["rta"] = self._restartService()
+                if "err" in rta["rta"]:
+                    rta["err"] = rta["rta"]["err"]
 
             elif 'upgrade' in jsonTicket:
-                rta["rta"] = self._upgrade()
+                rta["rta"] = self._upgrade(jsonTicket["upgrade"])
+                if "err" in rta["rta"]:
+                    rta["err"] = rta["rta"]["err"]
 
             elif 'getPrinterInfo' in jsonTicket:
                 rta["rta"] = self._getPrinterInfo(jsonTicket["getPrinterInfo"])
@@ -943,13 +950,70 @@ class ComandosHandler:
 
         return rta
 
-    def _upgrade(self):
-        ret = self.fbApp.upgradeGitPull()
-        rta = {
-            "rta": ret
-        }
-        self.fbApp.restart_service()
-        return rta
+    def _upgrade(self, params=True):
+        """
+        Comando remoto `upgrade`: chequea (o fija una versión) y actualiza ya.
+
+        `params`: True -> chequear ahora respetando el pin; {"version": "3.7.1"}
+        o "3.7.1" -> fijar esa versión y aplicarla; "latest" -> quitar el pin y
+        volver a seguir la última. Devuelve enseguida: el chequeo corre en un
+        hilo y su resultado queda en el log del updater.
+        """
+        from fiscalberry.common.updater import release_source, service
+
+        if params is True:
+            version = None
+        elif isinstance(params, dict):
+            version = params.get("version")
+        elif isinstance(params, str):
+            version = params
+        else:
+            return {"action": "upgrade",
+                    "err": "upgrade espera true, \"latest\", una versión o {\"version\": ...}"}
+
+        try:
+            resultado = service.request_remote_update(version, config=configberry)
+        except release_source.InvalidVersion as e:
+            logger.warning("Comando upgrade rechazado: %s", e)
+            return {"action": "upgrade", "err": str(e)}
+
+        return {"action": "upgrade", "rta": resultado}
+
+    def _restartService(self):
+        """
+        Comando remoto `restart`: reinicia el servicio Fiscalberry (no la máquina).
+
+        Con la GUI abierta (incluida Android) reinicia los servicios dentro del
+        mismo proceso. Sin GUI se cierra el proceso y lo levanta quien lo
+        supervisa, que hoy es systemd (`Restart=always`); donde no hay
+        supervisor, salir dejaría al local sin imprimir, así que se rechaza.
+        """
+        app = self._app_gui_en_ejecucion()
+        if app is not None:
+            app.restart_service()
+            return {"action": "restart", "rta": "Reiniciando servicios (GUI)"}
+
+        if not os.environ.get("INVOCATION_ID"):
+            return {"action": "restart",
+                    "err": "este equipo no corre bajo systemd ni con la GUI: no hay "
+                           "quién vuelva a levantar Fiscalberry, hay que reiniciarlo a mano"}
+
+        from fiscalberry.common.service_controller import ServiceController
+        # Con demora para que la respuesta del comando alcance a salir antes
+        # de cerrar el proceso.
+        timer = threading.Timer(3.0, ServiceController()._shutdown_for_restart)
+        timer.daemon = True
+        timer.start()
+        return {"action": "restart", "rta": "Reiniciando el servicio en 3 segundos"}
+
+    @staticmethod
+    def _app_gui_en_ejecucion():
+        try:
+            from kivy.app import App
+            app = App.get_running_app()
+            return app if hasattr(app, "restart_service") else None
+        except Exception:
+            return None
 
     def _getPrinterInfo(self, printerName):
         rta = {
@@ -960,15 +1024,20 @@ class ComandosHandler:
         return rta
 
     def _rebootFiscalberry(self):
-        "reinicia el servicio fiscalberry"
+        "Comando remoto `reboot`: reinicia la MÁQUINA (para el servicio es `restart`)"
         from subprocess import call
 
-        rta = {
-            "action": "rebootFiscalberry",
-            "rta": call(["reboot"])
-        }
+        try:
+            codigo = call(["reboot"])
+        except OSError as e:
+            # Windows, Android o un equipo sin el binario `reboot`.
+            return {"action": "rebootFiscalberry",
+                    "err": f"no se pudo reiniciar la máquina en este equipo: {e}"}
 
-        return rta
+        return {
+            "action": "rebootFiscalberry",
+            "rta": codigo
+        }
 
     def _configure(self, **kwargs):
         "Configura generando o modificando el archivo configure.ini"

@@ -21,6 +21,7 @@ logger = getLogger("Updater")
 
 DEFAULT_REPO = "paxapos/fiscalberry"
 API_URL = "https://api.github.com/repos/{repo}/releases/latest"
+TAG_API_URL = "https://api.github.com/repos/{repo}/releases/tags/{tag}"
 # Descarga directa de un asset de un release ya publicado. No pasa por la API.
 DOWNLOAD_URL = "https://github.com/{repo}/releases/download/{tag}/{name}"
 HTTP_TIMEOUT = 20
@@ -31,6 +32,32 @@ CHECKSUMS_ASSET = "SHA256SUMS"
 
 class ReleaseUnavailable(Exception):
     """No se pudo averiguar cuál es el release vigente. No es un error fatal."""
+
+
+class InvalidVersion(ValueError):
+    """La versión pedida no tiene forma de versión (ver `normalize_version`)."""
+
+
+# La versión termina armando una URL de GitHub: se acepta solo lo que parece una
+# versión de verdad, nada de barras, puntos y comas ni caracteres raros.
+_VERSION_RE = re.compile(r"^\d+(\.\d+){1,3}$")
+
+
+def normalize_version(valor):
+    """
+    '3.7.1' / 'v3.7.1' -> '3.7.1'. Lanza InvalidVersion si no es una versión.
+
+    'latest' y el vacío NO se resuelven acá: son "sin fijar" y los maneja quien
+    llama (ver `UpdaterService.request_check`).
+    """
+    if not isinstance(valor, str):
+        raise InvalidVersion(f"la versión tiene que ser texto, no {type(valor).__name__}")
+    texto = valor.strip()
+    if texto[:1] in ("v", "V"):
+        texto = texto[1:]
+    if not _VERSION_RE.match(texto):
+        raise InvalidVersion(f"{valor!r} no es una versión válida (ej. 3.7.1)")
+    return texto
 
 
 def _version_tuple(version):
@@ -120,6 +147,36 @@ def fetch_latest(repo=DEFAULT_REPO, session=None):
         raise ReleaseUnavailable(f"GitHub respondió {resp.status_code}")
 
     return _release_desde_json(data)
+
+
+def fetch_tag(version, repo=DEFAULT_REPO, session=None):
+    """
+    Devuelve el Release de una versión puntual (`releases/tags/v{version}`).
+
+    Misma forma que `fetch_latest`. A diferencia de `latest`, acá SÍ aparecen los
+    prereleases: es lo que permite probar un build en un solo local. No usa el
+    caché de etag porque ese archivo guarda la respuesta de `latest` y mezclarlas
+    devolvería el release equivocado en un 304.
+    """
+    import requests
+
+    version = normalize_version(version)
+    sess = session or requests
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    try:
+        resp = sess.get(TAG_API_URL.format(repo=repo, tag=f"v{version}"),
+                        headers=headers, timeout=HTTP_TIMEOUT)
+    except Exception as e:
+        raise ReleaseUnavailable(f"no se pudo consultar GitHub: {e}")
+
+    if resp.status_code == 200:
+        return _release_desde_json(resp.json())
+    if resp.status_code == 404:
+        raise ReleaseUnavailable(f"no existe el release v{version}")
+    raise ReleaseUnavailable(f"GitHub respondió {resp.status_code}")
 
 
 def _release_desde_json(data):

@@ -343,6 +343,8 @@ En el `config.ini`, sección opcional:
 [Updater]
 enabled = true              ; false para desactivarlo
 check_interval_hours = 6    ; mínimo efectivo: 10 minutos
+pinned_version = 3.7.1      ; opcional: quedarse en esa versión en vez de seguir la última
+                            ; (lo escribe el comando remoto "upgrade", ver docs/Comandos_Basicos.md)
 ```
 
 ## Comandos útiles
