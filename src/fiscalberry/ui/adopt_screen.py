@@ -48,12 +48,17 @@ class AdoptScreen(Screen):
     adoptarLink = StringProperty(ADOP_LINK)
     qrCodeLink = StringProperty(QRGENLINK + ADOP_LINK)
     is_monitoring = BooleanProperty(False)
+    # El QR y el link solo se muestran cuando el servidor confirmó el discover
+    registrado = BooleanProperty(False)
+    estado_registro = StringProperty("Registrando el dispositivo en Paxapos...")
     platform_name = StringProperty("Android" if IS_ANDROID else "Desktop")
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._monitoring = False
         self._adoption_thread = None
+        self._registro_thread = None
+        self._stop_registro = threading.Event()
         logger.debug(f"AdoptScreen inicializada - Plataforma: {self.platform_name}")
     
     def on_pre_enter(self):
@@ -76,6 +81,9 @@ class AdoptScreen(Screen):
         
         # Actualizar links por si cambiaron
         self._update_links()
+        
+        if not self.registrado:
+            self._start_registro()
         
         # Iniciar monitoreo de adopción
         if not self._monitoring:
@@ -108,11 +116,44 @@ class AdoptScreen(Screen):
         except Exception as e:
             logger.error(f"Error actualizando links: {e}")
     
+    def _start_registro(self):
+        """
+        Reintenta el discover en segundo plano hasta que el servidor confirme el registro.
+        Mientras tanto la pantalla no muestra el QR ni habilita el link de adopción.
+        """
+        if self._registro_thread and self._registro_thread.is_alive():
+            return
+        if configberry.is_comercio_adoptado():
+            return
+
+        from fiscalberry.common.discover import send_discover_hasta_registrar
+
+        def on_intento_fallido(intento, espera):
+            texto = (f"No se pudo registrar el dispositivo en Paxapos (intento {intento}).\n"
+                     f"Reintentando en {espera}s... Verificá la conexión a internet.")
+            Clock.schedule_once(lambda dt: setattr(self, 'estado_registro', texto), 0)
+
+        def registrar():
+            if send_discover_hasta_registrar(self._stop_registro, on_intento_fallido):
+                Clock.schedule_once(self._on_registrado, 0)
+
+        self.estado_registro = "Registrando el dispositivo en Paxapos..."
+        self._registro_thread = threading.Thread(target=registrar, daemon=True)
+        self._registro_thread.start()
+
+    def _on_registrado(self, dt=None):
+        logger.info("Dispositivo registrado en el servidor: se muestra el QR de adopción")
+        self._update_links()
+        self.registrado = True
+
     def open_adoption_link(self):
         """
         Abre el link de adopción en el navegador.
         Usa Intent para Android o webbrowser para Desktop.
         """
+        if not self.registrado:
+            logger.warning("El dispositivo todavía no está registrado en el servidor: no se abre el link")
+            return
         try:
             url = self.adoptarLink
             

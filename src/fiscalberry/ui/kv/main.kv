@@ -67,6 +67,7 @@ ScreenManager:
                 
                 Button:
                     text: "Abrir vinculación"
+                    disabled: not root.registrado
                     size_hint_y: None
                     height: dp(60)
                     background_color: 0.2, 0.4, 0.8, 1
@@ -107,21 +108,25 @@ ScreenManager:
                     height: dp(180)
                     
                     AsyncImage:
-                        source: root.qrCodeLink
+                        source: root.qrCodeLink if root.registrado else ''
+                        opacity: 1 if root.registrado else 0
                         size_hint: None, None
-                        size: dp(160), dp(160)
+                        size: (dp(160), dp(160)) if root.registrado else (0, 0)
                         pos_hint: {'center_x': 0.5, 'center_y': 0.5}
                         allow_stretch: True
                         keep_ratio: True
                         
-                    # Loading fallback
+                    # Estado del registro mientras el servidor no confirma el discover
                     Label:
-                        text: "📱 Cargando QR..."
-                        font_size: '14sp'
-                        color: 0.6, 0.6, 0.6, 1
+                        text: root.estado_registro
+                        font_size: '13sp'
+                        color: 0.6, 0.3, 0.1, 1
                         halign: 'center'
+                        valign: 'middle'
+                        text_size: self.width, None
                         pos_hint: {'center_x': 0.5, 'center_y': 0.5}
-                        opacity: 0
+                        opacity: 0 if root.registrado else 1
+                        size_hint_y: 0.001 if root.registrado else 1
                 
                 Label:
                     text: "Escanea con tu celular"
@@ -143,6 +148,7 @@ ScreenManager:
             
             Button:
                 text: "Ya completé la vinculación - Verificar"
+                disabled: not root.registrado
                 size_hint_y: None
                 height: dp(50)
                 background_color: 0.3, 0.7, 0.3, 1

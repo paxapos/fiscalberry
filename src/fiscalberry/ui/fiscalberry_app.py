@@ -256,41 +256,9 @@ class FiscalberryApp(App):
                 logger.debug("Iniciando servicio Android...")
                 Clock.schedule_once(lambda dt: self._start_android_service(), 0.5)
         else:
-            # Comercio NO adoptado → enviar discover primero
-            logger.debug("Comercio no adoptado. Enviando discover...")
-            
-            # CRÍTICO: Enviar discover ANTES de mostrar adopt screen
-            # Esperar confirmación del servidor con reintentos
-            from fiscalberry.common.discover import send_discover
-            
-            max_retries = 3
-            discover_success = False
-            
-            for attempt in range(1, max_retries + 1):
-                try:
-                    logger.debug(f"Discover intento {attempt}/{max_retries}...")
-                    discover_success = send_discover()
-                    if discover_success:
-                        logger.info("Dispositivo registrado correctamente en el servidor")
-                        # Dar tiempo al servidor para completar el commit a DB
-                        import time
-                        time.sleep(1.5)
-                        break
-                    else:
-                        if attempt < max_retries:
-                            logger.warning(f"Discover falló, reintentando ({attempt}/{max_retries})...")
-                            import time
-                            time.sleep(2)
-                except Exception as e:
-                    logger.error(f"Error al enviar discover: {e}")
-                    if attempt < max_retries:
-                        logger.warning(f"Reintentando ({attempt}/{max_retries})...")
-                        import time
-                        time.sleep(2)
-            
-            if not discover_success:
-                logger.error("No se pudo registrar el dispositivo en el servidor después de varios intentos")
-                # Continuamos de todas formas para permitir reintentos manuales
+            # Comercio NO adoptado → la pantalla de adopción registra el dispositivo (discover)
+            # en segundo plano y recién muestra el QR cuando el servidor lo confirma
+            logger.debug("Comercio no adoptado. Mostrando pantalla de adopción...")
             
             # NUEVO: Iniciar SocketIO para recibir configuración de adopción
             logger.debug("Iniciando SocketIO para adopción...")
