@@ -38,6 +38,16 @@ BUSY_RETRY_SECONDS = 600
 
 TARBALL_URL = "https://github.com/{repo}/archive/refs/tags/{tag}.tar.gz"
 
+# Un solo chequeo a la vez en todo el proceso: el periódico y el pedido por
+# comando remoto (ver `request_check`) bajan y aplican cosas, y dos de esos en
+# paralelo se pisarían el staging y el reemplazo. Es de módulo y no de instancia
+# porque `request_remote_update` puede armar un servicio al vuelo.
+_CHECK_LOCK = threading.Lock()
+
+# El servicio que arrancó `start()`, para que el comando remoto use ese y no
+# arme otro.
+_active = None
+
 
 def spooler_idle():
     """
@@ -92,6 +102,7 @@ class UpdaterService:
     # -- ciclo de vida ----------------------------------------------------
 
     def start(self):
+        global _active
         if not self.enabled():
             logger.info("Auto-actualización desactivada por configuración.")
             return None
@@ -101,10 +112,14 @@ class UpdaterService:
         self._thread = threading.Thread(target=self._loop, daemon=True,
                                         name="fiscalberry-updater")
         self._thread.start()
+        _active = self
         return self._thread
 
     def stop(self):
+        global _active
         self._stop.set()
+        if _active is self:
+            _active = None
 
     def _loop(self):
         # Espera inicial interrumpible.
@@ -125,6 +140,40 @@ class UpdaterService:
 
     # -- el chequeo -------------------------------------------------------
 
+    def request_check(self):
+        """
+        Pedido remoto de "actualizá ahora" (comando `upgrade`): el mismo chequeo
+        que el periódico, contra `releases/latest`, con las mismas garantías.
+
+        No bloquea: el comando llega por el callback de MQTT y la descarga puede
+        tardar minutos, así que el chequeo corre en un hilo propio. Devuelve
+        `{"accepted", "current"}` (y "reason" si no se aceptó); el resultado
+        del chequeo queda en `last_result` y en el log.
+        """
+        # El lock se toma acá y lo suelta el hilo al terminar: así "aceptado"
+        # significa que el chequeo realmente va a correr.
+        if not _CHECK_LOCK.acquire(blocking=False):
+            return {"accepted": False, "current": VERSION,
+                    "reason": "ya hay un chequeo en curso"}
+        try:
+            hilo = threading.Thread(target=self._chequeo_remoto, daemon=True,
+                                    name="fiscalberry-updater-remoto")
+            hilo.start()
+        except Exception:
+            _CHECK_LOCK.release()
+            raise
+        return {"accepted": True, "current": VERSION}
+
+    def _chequeo_remoto(self):
+        try:
+            self.last_result = self._check_once_sin_lock()
+            logger.info("Chequeo remoto de actualización: %s", self.last_result)
+        except Exception as e:
+            logger.error("Error inesperado en el chequeo remoto: %s", e)
+            self.last_result = ("error", str(e))
+        finally:
+            _CHECK_LOCK.release()
+
     def check_once(self):
         """
         Un ciclo completo. Devuelve (estado, detalle) para logs y tests.
@@ -132,6 +181,15 @@ class UpdaterService:
         Estados: al-dia, revertida, sin-artefacto, sin-checksums, ocupado,
                  descartado, aplicado, error.
         """
+        if not _CHECK_LOCK.acquire(blocking=False):
+            # "ocupado" hace que el bucle periódico reintente pronto.
+            return ("ocupado", "ya hay un chequeo en curso")
+        try:
+            return self._check_once_sin_lock()
+        finally:
+            _CHECK_LOCK.release()
+
+    def _check_once_sin_lock(self):
         kind = install_kind.detect()
 
         # Restos de ciclos anteriores. Importa sobre todo en Android: el APK no
@@ -309,6 +367,31 @@ class UpdaterService:
             except Exception as e:
                 logger.error("El cierre ordenado falló (%s); se sale igual.", e)
         os._exit(0)
+
+
+def _shutdown_del_servicio():
+    """El cierre ordenado del ServiceController, si ya existe uno en este proceso."""
+    try:
+        from fiscalberry.common.service_controller import ServiceController
+        instancia = ServiceController._instance
+        return getattr(instancia, "_shutdown_for_update", None)
+    except Exception as e:
+        logger.debug("No se pudo obtener el cierre ordenado del servicio: %s", e)
+        return None
+
+
+def request_remote_update(config=None):
+    """
+    Punto de entrada del comando remoto `upgrade`. Ver `UpdaterService.request_check`.
+
+    Usa el servicio que arrancó `start()`. Si la auto-actualización está
+    desactivada (o aún no arrancó) arma uno al vuelo: el pedido remoto es
+    explícito y vale aunque el chequeo periódico esté apagado.
+    """
+    servicio = _active
+    if servicio is None:
+        servicio = UpdaterService(config=config, shutdown_cb=_shutdown_del_servicio())
+    return servicio.request_check()
 
 
 # --------------------------------------------------------------------------

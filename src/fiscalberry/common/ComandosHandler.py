@@ -898,10 +898,14 @@ class ComandosHandler:
                 rta["rta"] = self._getStatus()
 
             elif 'reboot' in jsonTicket:
-                rta["rta"] = self._reboot()
+                rta["rta"] = self._rebootFiscalberry()
+                if "err" in rta["rta"]:
+                    rta["err"] = rta["rta"]["err"]
 
             elif 'restart' in jsonTicket:
                 rta["rta"] = self._restartService()
+                if "err" in rta["rta"]:
+                    rta["err"] = rta["rta"]["err"]
 
             elif 'upgrade' in jsonTicket:
                 rta["rta"] = self._upgrade()
@@ -953,12 +957,56 @@ class ComandosHandler:
         return rta
 
     def _upgrade(self):
-        ret = self.fbApp.upgradeGitPull()
-        rta = {
-            "rta": ret
-        }
-        self.fbApp.restart_service()
-        return rta
+        """
+        Comando remoto `upgrade`: buscar la última versión publicada y aplicarla
+        ya. Devuelve enseguida: el chequeo corre en un hilo y su resultado
+        queda en el log del updater.
+        """
+        from fiscalberry.common.updater import service
+
+        return {"action": "upgrade",
+                "rta": service.request_remote_update(config=configberry)}
+
+    def _restartService(self):
+        """
+        Comando remoto `restart`: reinicia el servicio Fiscalberry (no la máquina).
+
+        Con la GUI abierta (incluida Android) reinicia los servicios dentro del
+        mismo proceso. Sin GUI se cierra el proceso y lo levanta quien lo
+        supervisa, que hoy es systemd (`Restart=always`); donde no hay
+        supervisor, salir dejaría al local sin imprimir, así que se rechaza.
+        """
+        app = self._app_gui_en_ejecucion()
+        if app is not None:
+            app.restart_service()
+            return {"action": "restart", "rta": "Reiniciando servicios (GUI)"}
+
+        from fiscalberry.common.updater.appliers import _bajo_systemd
+        if not _bajo_systemd():
+            return {"action": "restart",
+                    "err": "este equipo no corre bajo systemd ni con la GUI: no hay "
+                           "quién vuelva a levantar Fiscalberry, hay que reiniciarlo a mano"}
+
+        # Con demora para que la respuesta del comando alcance a salir antes
+        # de cerrar el proceso.
+        timer = threading.Timer(3.0, self._cerrar_para_reinicio)
+        timer.daemon = True
+        timer.start()
+        return {"action": "restart", "rta": "Reiniciando el servicio en 3 segundos"}
+
+    @staticmethod
+    def _cerrar_para_reinicio():
+        from fiscalberry.common.service_controller import ServiceController
+        ServiceController()._shutdown_for_restart()
+
+    @staticmethod
+    def _app_gui_en_ejecucion():
+        try:
+            from kivy.app import App
+            app = App.get_running_app()
+            return app if hasattr(app, "restart_service") else None
+        except Exception:
+            return None
 
     def _getPrinterInfo(self, printerName):
         rta = {
@@ -969,15 +1017,20 @@ class ComandosHandler:
         return rta
 
     def _rebootFiscalberry(self):
-        "reinicia el servicio fiscalberry"
+        "Comando remoto `reboot`: reinicia la MÁQUINA (para el servicio es `restart`)"
         from subprocess import call
 
-        rta = {
-            "action": "rebootFiscalberry",
-            "rta": call(["reboot"])
-        }
+        try:
+            codigo = call(["reboot"])
+        except OSError as e:
+            # Windows, Android o un equipo sin el binario `reboot`.
+            return {"action": "rebootFiscalberry",
+                    "err": f"no se pudo reiniciar la máquina en este equipo: {e}"}
 
-        return rta
+        return {
+            "action": "rebootFiscalberry",
+            "rta": codigo
+        }
 
     def _configure(self, **kwargs):
         "Configura generando o modificando el archivo configure.ini"
