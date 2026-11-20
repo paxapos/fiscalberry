@@ -14,7 +14,10 @@ Qué hace este spooler:
   2. Un worker drena la cola persistente e imprime con reintentos (backoff). Si la
      impresora está caída, el job queda 'pending' y se reintenta; sobrevive reinicios.
   3. Dedup por job_id: MQTT QoS1 es "al menos una vez" y puede reentregar el mismo
-     mensaje -> INSERT OR IGNORE evita imprimir dos veces el mismo ticket.
+     mensaje -> INSERT OR IGNORE evita imprimir dos veces el mismo ticket. Mientras
+     el trabajo está en la cola protege la fila; una vez impreso (y borrado) lo
+     protege una memoria acotada de job_id completados (tabla done_jobs, retenida
+     un tiempo limitado), solo para tickets que traen un `jobId` explícito.
 
 El spooler NO sabe de formatos ni de escpos: recibe un dict (ticket) y una función
 print_fn(ticket) que imprime y lanza excepción si falla. Así es testeable sin escpos.
@@ -39,6 +42,11 @@ except Exception:  # pragma: no cover - fallback para tests aislados
 
 APP_NAME = "fiscalberry"
 
+# Memoria de trabajos ya impresos (ver DurablePrintSpooler._mark_done).
+DONE_RETENTION = 24 * 3600.0
+DONE_MAX_ROWS = 5000
+_DONE_PURGE_INTERVAL = 600.0
+
 
 class PermanentJobError(Exception):
     """Error de un trabajo que no tiene sentido reintentar (p. ej. payload invalido).
@@ -59,7 +67,8 @@ def default_db_path():
 class DurablePrintSpooler:
     def __init__(self, print_fn, db_path=None, max_attempts=1000,
                  base_delay=5.0, max_delay=300.0, idle_wait=5.0,
-                 on_success=None, on_failure=None):
+                 on_success=None, on_failure=None,
+                 done_retention=DONE_RETENTION, done_max_rows=DONE_MAX_ROWS):
         """
         print_fn: callable(ticket_dict) -> imprime; lanza excepción si falla.
         on_success: callable(job_id, ticket, result, intentos) opcional. Se llama
@@ -71,6 +80,8 @@ class DurablePrintSpooler:
             el trabajo pasó a dead-letter ('failed') o falló con un PermanentJobError
             (se quita de la cola, sin reintento) y False si se va a reintentar.
             `ticket` es None si ni siquiera se pudo leer el payload guardado.
+        done_retention / done_max_rows: cuánto (segundos) y cuántos job_id ya impresos
+            se recuerdan para descartar reentregas del mismo `jobId`.
         Un callback que lanza NUNCA afecta al spooler: se loguea y se sigue.
         max_attempts: tras N intentos el job pasa a 'failed' (dead-letter). Default alto
             (1000) a propósito: con backoff tope 300s son ~3.5 días de reintentos, así una
@@ -85,6 +96,9 @@ class DurablePrintSpooler:
         self._max_attempts = max_attempts
         self._base_delay = base_delay
         self._max_delay = max_delay
+        self._done_retention = done_retention
+        self._done_max_rows = done_max_rows
+        self._last_done_purge = 0.0
         self._idle_wait = idle_wait
         self._lock = threading.Lock()
         self._wake = threading.Event()
@@ -103,6 +117,7 @@ class DurablePrintSpooler:
         except Exception:
             pass
         self._init_db()
+        self._purge_done()
         self._recover_on_start()
         # Debe existir ANTES de arrancar el worker: _run() lo lee desde su
         # primer ciclo si la cola arranca vacía (race si se setea después).
@@ -192,12 +207,54 @@ class DurablePrintSpooler:
             self._conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_jobs_pending "
                 "ON jobs(status, next_attempt_at, created_at)")
+            # Tabla agregada en 3.7.0: IF NOT EXISTS la crea en bases de equipos
+            # ya instalados sin tocar la tabla jobs.
+            self._conn.execute(
+                "CREATE TABLE IF NOT EXISTS done_jobs ("
+                "job_id TEXT PRIMARY KEY, done_at REAL NOT NULL)")
+            self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_done_jobs_done_at ON done_jobs(done_at)")
             self._conn.commit()
+
+    @staticmethod
+    def _explicit_job_id(ticket):
+        """El `jobId` del ticket si es un string no vacío; si no, None.
+
+        Un job_id calculado por hash del contenido no entra en la memoria de
+        completados: dos tickets idénticos pero distintos son legítimos.
+        """
+        jid = ticket.get("jobId") if isinstance(ticket, dict) else None
+        return jid if isinstance(jid, str) and jid.strip() else None
+
+    def _purge_done(self):
+        """Borra los completados vencidos y recorta al tope de filas (más viejos primero)."""
+        now = time.time()
+        with self._lock:
+            self._last_done_purge = now
+            self._conn.execute(
+                "DELETE FROM done_jobs WHERE done_at<?", (now - self._done_retention,))
+            self._conn.execute(
+                "DELETE FROM done_jobs WHERE job_id IN (SELECT job_id FROM done_jobs "
+                "ORDER BY done_at DESC LIMIT -1 OFFSET ?)", (self._done_max_rows,))
+            self._conn.commit()
+
+    def _was_done(self, job_id):
+        with self._lock:
+            return self._conn.execute(
+                "SELECT 1 FROM done_jobs WHERE job_id=? AND done_at>=?",
+                (job_id, time.time() - self._done_retention)).fetchone() is not None
 
     def enqueue(self, job_id, ticket, printer_name=None):
         """Persiste el trabajo. Devuelve True si es nuevo, False si era duplicado."""
         now = time.time()
         payload = json.dumps(ticket, ensure_ascii=False)
+        if self._explicit_job_id(ticket) and self._was_done(job_id):
+            # Reentrega (QoS1, reconexión) de un trabajo que ya salió: no se
+            # reimprime. Se vuelve a confirmar al servidor por si no recibió la
+            # primera confirmación (intentos=1: el número real no se conserva).
+            logger.info("Spooler: job %s ya impreso antes, descartado (dedup)", job_id)
+            self._notify(self._on_success, "on_success", job_id, ticket, None, 1)
+            return False
         with self._lock:
             cur = self._conn.execute(
                 "INSERT OR IGNORE INTO jobs "
@@ -240,6 +297,10 @@ class DurablePrintSpooler:
                 result = self._print_fn(ticket)
                 with self._lock:
                     self._conn.execute("DELETE FROM jobs WHERE job_id=?", (job_id,))
+                    if self._explicit_job_id(ticket):
+                        self._conn.execute(
+                            "INSERT OR REPLACE INTO done_jobs (job_id, done_at) VALUES (?,?)",
+                            (job_id, time.time()))
                     self._conn.commit()
                     # Checkpoint PASSIVE (no bloquea lectores/escritores, aporta lo
                     # que puede): con synchronous=FULL cada commit ya es durable,
@@ -250,6 +311,12 @@ class DurablePrintSpooler:
                     except Exception:
                         pass
                 logger.info("Spooler: job %s impreso OK", job_id)
+                if time.time() - self._last_done_purge >= _DONE_PURGE_INTERVAL:
+                    try:  # el trabajo ya salió: una falla de la purga no lo reintenta
+                        self._purge_done()
+                    except Exception as purge_err:
+                        logger.warning("Spooler: no se pudo purgar la memoria de completados: %s",
+                                       purge_err)
                 self._notify(self._on_success, "on_success", job_id, ticket, result, attempts + 1)
             except PermanentJobError as e:
                 attempts += 1

@@ -514,3 +514,96 @@ def test_payload_corrupto_es_fallo_final_sin_reintento(db_path):
         assert sp.pending_count() == 0 and sp.failed_count() == 0
     finally:
         sp.stop()
+
+
+# ---------------------------------------------- memoria de trabajos ya impresos
+
+def test_reentrega_de_un_job_ya_impreso_no_imprime_y_se_confirma(db_path):
+    impresos, exitos = [], []
+    sp = DurablePrintSpooler(lambda t: impresos.append(t), db_path=db_path, base_delay=0.01,
+                             idle_wait=0.05, on_success=lambda *a: exitos.append(a))
+    try:
+        ticket = {"jobId": "J1", "printerName": "p", "n": 1}
+        assert sp.enqueue("J1", ticket, "p") is True
+        assert _wait_until(lambda: len(exitos) == 1 and sp.pending_count() == 0)
+        # el broker reentrega el mismo jobId ya impreso
+        assert sp.enqueue("J1", dict(ticket), "p") is False
+        time.sleep(0.3)
+        assert len(impresos) == 1
+        assert len(exitos) == 2 and exitos[1][0] == "J1"      # se confirma de nuevo
+        assert sp.pending_count() == 0
+    finally:
+        sp.stop()
+
+
+def test_job_id_nuevo_si_imprime(db_path):
+    impresos = []
+    sp = DurablePrintSpooler(lambda t: impresos.append(t["jobId"]), db_path=db_path,
+                             base_delay=0.01, idle_wait=0.05)
+    try:
+        sp.enqueue("J1", {"jobId": "J1", "printerName": "p"}, "p")
+        assert _wait_until(lambda: impresos == ["J1"])
+        # una reimpresión pedida por el servidor trae un jobId nuevo
+        assert sp.enqueue("J2", {"jobId": "J2", "printerName": "p"}, "p") is True
+        assert _wait_until(lambda: impresos == ["J1", "J2"])
+    finally:
+        sp.stop()
+
+
+def test_sin_job_id_explicito_se_comporta_como_antes(db_path):
+    impresos = []
+    sp = DurablePrintSpooler(lambda t: impresos.append(1), db_path=db_path,
+                             base_delay=0.01, idle_wait=0.05)
+    try:
+        sp.enqueue("hash1", {"printerName": "p"}, "p")
+        assert _wait_until(lambda: len(impresos) == 1 and sp.pending_count() == 0)
+        assert sp.enqueue("hash1", {"printerName": "p"}, "p") is True
+        assert _wait_until(lambda: len(impresos) == 2)
+    finally:
+        sp.stop()
+
+
+def test_memoria_de_completados_se_purga_por_antiguedad_y_tope(db_path):
+    sp = DurablePrintSpooler(lambda t: None, db_path=db_path, idle_wait=0.05,
+                             done_retention=100.0, done_max_rows=3)
+    try:
+        ahora = time.time()
+        con = sqlite3.connect(db_path)
+        filas = [("viejo", ahora - 500)] + [("n%d" % i, ahora - 10 + i) for i in range(5)]
+        con.executemany("INSERT INTO done_jobs (job_id, done_at) VALUES (?,?)", filas)
+        con.commit()
+        sp._purge_done()
+        quedan = {r[0] for r in con.execute("SELECT job_id FROM done_jobs")}
+        con.close()
+        assert quedan == {"n2", "n3", "n4"}       # sin el vencido, y solo los 3 más nuevos
+        # un vencido que aún no se purgó tampoco cuenta como "ya impreso"
+        con = sqlite3.connect(db_path)
+        con.execute("INSERT INTO done_jobs (job_id, done_at) VALUES ('rancio', ?)", (ahora - 500,))
+        con.commit()
+        con.close()
+        assert sp._was_done("rancio") is False
+    finally:
+        sp.stop()
+
+
+def test_base_vieja_sin_la_tabla_se_migra(tmp_path):
+    db = str(tmp_path / "vieja.db")
+    con = sqlite3.connect(db)
+    con.execute("""CREATE TABLE jobs (
+        job_id TEXT PRIMARY KEY, printer_name TEXT, payload TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at REAL NOT NULL DEFAULT 0, last_error TEXT,
+        created_at REAL NOT NULL, updated_at REAL NOT NULL)""")
+    ahora = time.time()
+    con.execute("INSERT INTO jobs VALUES ('pendiente','p','{\"jobId\":\"pendiente\"}',"
+                "'pending',0,0,NULL,?,?)", (ahora, ahora))
+    con.commit()
+    con.close()
+    impresos = []
+    sp = DurablePrintSpooler(lambda t: impresos.append(t["jobId"]), db_path=db, idle_wait=0.05)
+    try:
+        assert _wait_until(lambda: impresos == ["pendiente"])    # lo viejo se conserva
+        assert _wait_until(lambda: sp._was_done("pendiente"))
+        assert sp.enqueue("pendiente", {"jobId": "pendiente"}, "p") is False
+    finally:
+        sp.stop()
