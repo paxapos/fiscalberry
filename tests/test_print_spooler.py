@@ -23,7 +23,7 @@ import time
 
 import pytest
 
-from fiscalberry.common.print_spooler import DurablePrintSpooler
+from fiscalberry.common.print_spooler import DurablePrintSpooler, PermanentJobError
 
 
 def _wait_until(predicate, timeout=5.0, interval=0.02):
@@ -430,7 +430,7 @@ def test_on_failure_con_payload_ilegible_recibe_ticket_none(db_path):
 
     job_id, ticket, exc, intentos, final = fallos[0]
     assert (job_id, ticket, intentos, final) == ("roto", None, 1, True)
-    assert isinstance(exc, ValueError)
+    assert isinstance(exc, PermanentJobError)
 
 
 def test_callback_que_lanza_no_rompe_el_spooler_en_exito(db_path):
@@ -486,5 +486,215 @@ def test_sin_callbacks_el_spooler_se_comporta_como_siempre(db_path):
     try:
         sp.enqueue("j", {"a": 1}, "printerA")
         assert _wait_until(lambda: impresos == [{"a": 1}])
+    finally:
+        sp.stop()
+
+
+def test_payload_corrupto_es_fallo_final_sin_reintento(db_path):
+    """Un JSON guardado que no se puede parsear sale de la cola sin reintentos."""
+    llamadas, fallos = [], []
+    sp = DurablePrintSpooler(lambda t: llamadas.append(t), db_path=db_path,
+                             base_delay=0.01, idle_wait=0.05,
+                             on_failure=lambda *a: fallos.append(a))
+    try:
+        now = time.time()
+        con = sqlite3.connect(db_path)
+        con.execute(
+            "INSERT INTO jobs (job_id, printer_name, payload, status, attempts, "
+            "next_attempt_at, created_at, updated_at) VALUES (?,?,?,'pending',0,0,?,?)",
+            ("corrupto", "p", "{no es json", now, now))
+        con.commit()
+        con.close()
+        assert _wait_until(lambda: fallos)
+        time.sleep(0.3)
+        assert llamadas == []
+        assert len(fallos) == 1
+        job_id, ticket, exc, intentos, final = fallos[0]
+        assert job_id == "corrupto" and ticket is None and final is True
+        assert sp.pending_count() == 0 and sp.failed_count() == 0
+    finally:
+        sp.stop()
+
+
+# ---------------------------------------------- memoria de trabajos ya impresos
+
+def test_reentrega_de_un_job_ya_impreso_no_imprime_y_se_confirma(db_path):
+    impresos, exitos = [], []
+    sp = DurablePrintSpooler(lambda t: impresos.append(t), db_path=db_path, base_delay=0.01,
+                             idle_wait=0.05, on_success=lambda *a: exitos.append(a))
+    try:
+        ticket = {"jobId": "J1", "printerName": "p", "n": 1}
+        assert sp.enqueue("J1", ticket, "p") is True
+        assert _wait_until(lambda: len(exitos) == 1 and sp.pending_count() == 0)
+        # el broker reentrega el mismo jobId ya impreso
+        assert sp.enqueue("J1", dict(ticket), "p") is False
+        time.sleep(0.3)
+        assert len(impresos) == 1
+        assert len(exitos) == 2 and exitos[1][0] == "J1"      # se confirma de nuevo
+        assert sp.pending_count() == 0
+    finally:
+        sp.stop()
+
+
+def test_job_id_nuevo_si_imprime(db_path):
+    impresos = []
+    sp = DurablePrintSpooler(lambda t: impresos.append(t["jobId"]), db_path=db_path,
+                             base_delay=0.01, idle_wait=0.05)
+    try:
+        sp.enqueue("J1", {"jobId": "J1", "printerName": "p"}, "p")
+        assert _wait_until(lambda: impresos == ["J1"])
+        # una reimpresión pedida por el servidor trae un jobId nuevo
+        assert sp.enqueue("J2", {"jobId": "J2", "printerName": "p"}, "p") is True
+        assert _wait_until(lambda: impresos == ["J1", "J2"])
+    finally:
+        sp.stop()
+
+
+def test_sin_job_id_explicito_se_comporta_como_antes(db_path):
+    impresos = []
+    sp = DurablePrintSpooler(lambda t: impresos.append(1), db_path=db_path,
+                             base_delay=0.01, idle_wait=0.05)
+    try:
+        sp.enqueue("hash1", {"printerName": "p"}, "p")
+        assert _wait_until(lambda: len(impresos) == 1 and sp.pending_count() == 0)
+        assert sp.enqueue("hash1", {"printerName": "p"}, "p") is True
+        assert _wait_until(lambda: len(impresos) == 2)
+    finally:
+        sp.stop()
+
+
+def test_memoria_de_completados_se_purga_por_antiguedad_y_tope(db_path):
+    sp = DurablePrintSpooler(lambda t: None, db_path=db_path, idle_wait=0.05,
+                             done_retention=100.0, done_max_rows=3)
+    try:
+        ahora = time.time()
+        con = sqlite3.connect(db_path)
+        filas = [("viejo", ahora - 500)] + [("n%d" % i, ahora - 10 + i) for i in range(5)]
+        con.executemany("INSERT INTO done_jobs (job_id, done_at) VALUES (?,?)", filas)
+        con.commit()
+        sp._purge_done()
+        quedan = {r[0] for r in con.execute("SELECT job_id FROM done_jobs")}
+        con.close()
+        assert quedan == {"n2", "n3", "n4"}       # sin el vencido, y solo los 3 más nuevos
+        # un vencido que aún no se purgó tampoco cuenta como "ya impreso"
+        con = sqlite3.connect(db_path)
+        con.execute("INSERT INTO done_jobs (job_id, done_at) VALUES ('rancio', ?)", (ahora - 500,))
+        con.commit()
+        con.close()
+        assert sp._was_done("rancio") is False
+    finally:
+        sp.stop()
+
+
+def test_base_vieja_sin_la_tabla_se_migra(tmp_path):
+    db = str(tmp_path / "vieja.db")
+    con = sqlite3.connect(db)
+    con.execute("""CREATE TABLE jobs (
+        job_id TEXT PRIMARY KEY, printer_name TEXT, payload TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at REAL NOT NULL DEFAULT 0, last_error TEXT,
+        created_at REAL NOT NULL, updated_at REAL NOT NULL)""")
+    ahora = time.time()
+    con.execute("INSERT INTO jobs VALUES ('pendiente','p','{\"jobId\":\"pendiente\"}',"
+                "'pending',0,0,NULL,?,?)", (ahora, ahora))
+    con.commit()
+    con.close()
+    impresos = []
+    sp = DurablePrintSpooler(lambda t: impresos.append(t["jobId"]), db_path=db, idle_wait=0.05)
+    try:
+        assert _wait_until(lambda: impresos == ["pendiente"])    # lo viejo se conserva
+        assert _wait_until(lambda: sp._was_done("pendiente"))
+        assert sp.enqueue("pendiente", {"jobId": "pendiente"}, "p") is False
+    finally:
+        sp.stop()
+
+
+# --- Política de reintentos: "velocidad ante todo" ---------------------------
+# base_delay/max_delay enormes: un reintento rápido solo puede venir de adelantar
+# la espera tras un éxito, no de que el backoff venza.
+
+def _retry_spooler(db_path, fail_printers, log):
+    def print_fn(ticket):
+        log.append(ticket["n"])
+        if ticket["p"] in fail_printers:
+            raise RuntimeError("offline")
+    return DurablePrintSpooler(print_fn, db_path=db_path, base_delay=1000.0,
+                               max_delay=1000.0, idle_wait=0.02)
+
+
+def _next_attempt(db_path, job_id):
+    raw = sqlite3.connect(db_path)
+    try:
+        return raw.execute("SELECT next_attempt_at FROM jobs WHERE job_id=?",
+                           (job_id,)).fetchone()[0]
+    finally:
+        raw.close()
+
+
+def test_exito_en_impresora_adelanta_fallido_de_la_misma(db_path):
+    log, fail = [], {"X"}
+    sp = _retry_spooler(db_path, fail, log)
+    try:
+        sp.enqueue("a", {"n": "a", "p": "X"}, "X")
+        assert _wait_until(lambda: log.count("a") == 1)
+        fail.clear()  # A queda esperando ~1000 s
+        sp.enqueue("b", {"n": "b", "p": "X"}, "X")
+        assert _wait_until(lambda: sp.pending_count() == 0, timeout=3.0)
+        assert log == ["a", "b", "a"]
+    finally:
+        sp.stop()
+
+
+def test_exito_en_x_no_adelanta_fallido_de_y(db_path):
+    log, fail = [], {"Y"}
+    sp = _retry_spooler(db_path, fail, log)
+    try:
+        sp.enqueue("a", {"n": "a", "p": "Y"}, "Y")
+        assert _wait_until(lambda: log.count("a") == 1)
+        sp.enqueue("b", {"n": "b", "p": "X"}, "X")
+        assert _wait_until(lambda: "b" in log and sp.pending_count() == 1)
+        time.sleep(0.3)
+        assert log == ["a", "b"]
+        assert _next_attempt(db_path, "a") > time.time() + 500
+    finally:
+        sp.stop()
+
+
+def test_fallo_no_adelanta_otros_fallidos(db_path):
+    log, fail = [], {"X"}
+    sp = _retry_spooler(db_path, fail, log)
+    try:
+        sp.enqueue("a", {"n": "a", "p": "X"}, "X")
+        assert _wait_until(lambda: log.count("a") == 1)
+        sp.enqueue("b", {"n": "b", "p": "X"}, "X")
+        assert _wait_until(lambda: log.count("b") == 1)
+        time.sleep(0.3)
+        assert log == ["a", "b"]  # A no se reintentó por el fallo de B
+        assert _next_attempt(db_path, "a") > time.time() + 500
+    finally:
+        sp.stop()
+
+
+def test_espera_maxima_es_30s_aunque_lleve_muchos_intentos(db_path):
+    sp = DurablePrintSpooler(lambda t: None, db_path=db_path, idle_wait=0.05)
+    try:
+        assert all(sp._backoff_delay(n) <= 30.0 for n in range(1, 1001))
+        assert sp._backoff_delay(1000) == 30.0
+        assert sp._backoff_delay(1) < 30.0  # los primeros siguen siendo cortos
+    finally:
+        sp.stop()
+
+
+def test_fallidos_adelantados_salen_del_mas_viejo_al_mas_nuevo(db_path):
+    log, fail = [], {"X"}
+    sp = _retry_spooler(db_path, fail, log)
+    try:
+        for j in ("a", "b", "c"):
+            sp.enqueue(j, {"n": j, "p": "X"}, "X")
+            assert _wait_until(lambda j=j: log.count(j) == 1)
+        fail.clear()
+        sp.enqueue("d", {"n": "d", "p": "X"}, "X")
+        assert _wait_until(lambda: sp.pending_count() == 0, timeout=3.0)
+        assert log[3:] == ["d", "a", "b", "c"]
     finally:
         sp.stop()

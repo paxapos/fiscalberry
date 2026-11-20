@@ -14,7 +14,10 @@ Qué hace este spooler:
   2. Un worker drena la cola persistente e imprime con reintentos (backoff). Si la
      impresora está caída, el job queda 'pending' y se reintenta; sobrevive reinicios.
   3. Dedup por job_id: MQTT QoS1 es "al menos una vez" y puede reentregar el mismo
-     mensaje -> INSERT OR IGNORE evita imprimir dos veces el mismo ticket.
+     mensaje -> INSERT OR IGNORE evita imprimir dos veces el mismo ticket. Mientras
+     el trabajo está en la cola protege la fila; una vez impreso (y borrado) lo
+     protege una memoria acotada de job_id completados (tabla done_jobs, retenida
+     un tiempo limitado), solo para tickets que traen un `jobId` explícito.
 
 El spooler NO sabe de formatos ni de escpos: recibe un dict (ticket) y una función
 print_fn(ticket) que imprime y lanza excepción si falla. Así es testeable sin escpos.
@@ -39,6 +42,23 @@ except Exception:  # pragma: no cover - fallback para tests aislados
 
 APP_NAME = "fiscalberry"
 
+# Memoria de trabajos ya impresos (ver DurablePrintSpooler._mark_done).
+DONE_RETENTION = 24 * 3600.0
+DONE_MAX_ROWS = 5000
+_DONE_PURGE_INTERVAL = 600.0
+
+
+class PermanentJobError(Exception):
+    """Error de un trabajo que no tiene sentido reintentar (p. ej. payload invalido).
+
+    El spooler lo trata como fallo final: no reintenta, lo saca de la cola (no
+    vuelve tras un reinicio) y lo informa con on_failure(final=True).
+    """
+
+
+# Tope de la espera entre reintentos de un trabajo fallido (segundos).
+MAX_RETRY_DELAY = 30.0
+
 
 def default_db_path():
     """Ruta del .db en el data dir del usuario (import diferido para testeo aislado)."""
@@ -50,8 +70,9 @@ def default_db_path():
 
 class DurablePrintSpooler:
     def __init__(self, print_fn, db_path=None, max_attempts=1000,
-                 base_delay=5.0, max_delay=300.0, idle_wait=5.0,
-                 on_success=None, on_failure=None):
+                 base_delay=5.0, max_delay=MAX_RETRY_DELAY, idle_wait=5.0,
+                 on_success=None, on_failure=None,
+                 done_retention=DONE_RETENTION, done_max_rows=DONE_MAX_ROWS):
         """
         print_fn: callable(ticket_dict) -> imprime; lanza excepción si falla.
         on_success: callable(job_id, ticket, result, intentos) opcional. Se llama
@@ -60,12 +81,20 @@ class DurablePrintSpooler:
             primero).
         on_failure: callable(job_id, ticket, exc, intentos, final) opcional. Se llama
             tras cada intento fallido, con la cola ya actualizada; `final` es True si
-            el trabajo pasó a dead-letter ('failed') y False si se va a reintentar.
+            el trabajo pasó a dead-letter ('failed') o falló con un PermanentJobError
+            (se quita de la cola, sin reintento) y False si se va a reintentar.
             `ticket` es None si ni siquiera se pudo leer el payload guardado.
+        done_retention / done_max_rows: cuánto (segundos) y cuántos job_id ya impresos
+            se recuerdan para descartar reentregas del mismo `jobId`.
         Un callback que lanza NUNCA afecta al spooler: se loguea y se sigue.
+        max_delay: tope (segundos) de la espera entre reintentos de un mismo trabajo.
+            Política "velocidad ante todo": un trabajo que falla no frena a los
+            siguientes de su impresora, y tras cada impresión EXITOSA en una impresora
+            sus trabajos fallidos pendientes se reintentan enseguida (ver
+            _advance_failed). Sin trabajos nuevos, se reintenta solo cada <= max_delay.
         max_attempts: tras N intentos el job pasa a 'failed' (dead-letter). Default alto
-            (1000) a propósito: con backoff tope 300s son ~3.5 días de reintentos, así una
-            impresora caída mucho tiempo NO pierde el ticket. Además, los 'failed' se
+            (1000) a propósito: con backoff tope 30s son ~8 horas de reintentos, así una
+            impresora caída un turno entero NO pierde el ticket. Además, los 'failed' se
             re-encolan al reiniciar el proceso (ver _recover_on_start), así que un
             "apagar y prender" siempre recupera todo lo pendiente.
         """
@@ -76,6 +105,9 @@ class DurablePrintSpooler:
         self._max_attempts = max_attempts
         self._base_delay = base_delay
         self._max_delay = max_delay
+        self._done_retention = done_retention
+        self._done_max_rows = done_max_rows
+        self._last_done_purge = 0.0
         self._idle_wait = idle_wait
         self._lock = threading.Lock()
         self._wake = threading.Event()
@@ -94,6 +126,7 @@ class DurablePrintSpooler:
         except Exception:
             pass
         self._init_db()
+        self._purge_done()
         self._recover_on_start()
         # Debe existir ANTES de arrancar el worker: _run() lo lee desde su
         # primer ciclo si la cola arranca vacía (race si se setea después).
@@ -183,12 +216,54 @@ class DurablePrintSpooler:
             self._conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_jobs_pending "
                 "ON jobs(status, next_attempt_at, created_at)")
+            # Tabla agregada en 3.7.0: IF NOT EXISTS la crea en bases de equipos
+            # ya instalados sin tocar la tabla jobs.
+            self._conn.execute(
+                "CREATE TABLE IF NOT EXISTS done_jobs ("
+                "job_id TEXT PRIMARY KEY, done_at REAL NOT NULL)")
+            self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_done_jobs_done_at ON done_jobs(done_at)")
             self._conn.commit()
+
+    @staticmethod
+    def _explicit_job_id(ticket):
+        """El `jobId` del ticket si es un string no vacío; si no, None.
+
+        Un job_id calculado por hash del contenido no entra en la memoria de
+        completados: dos tickets idénticos pero distintos son legítimos.
+        """
+        jid = ticket.get("jobId") if isinstance(ticket, dict) else None
+        return jid if isinstance(jid, str) and jid.strip() else None
+
+    def _purge_done(self):
+        """Borra los completados vencidos y recorta al tope de filas (más viejos primero)."""
+        now = time.time()
+        with self._lock:
+            self._last_done_purge = now
+            self._conn.execute(
+                "DELETE FROM done_jobs WHERE done_at<?", (now - self._done_retention,))
+            self._conn.execute(
+                "DELETE FROM done_jobs WHERE job_id IN (SELECT job_id FROM done_jobs "
+                "ORDER BY done_at DESC LIMIT -1 OFFSET ?)", (self._done_max_rows,))
+            self._conn.commit()
+
+    def _was_done(self, job_id):
+        with self._lock:
+            return self._conn.execute(
+                "SELECT 1 FROM done_jobs WHERE job_id=? AND done_at>=?",
+                (job_id, time.time() - self._done_retention)).fetchone() is not None
 
     def enqueue(self, job_id, ticket, printer_name=None):
         """Persiste el trabajo. Devuelve True si es nuevo, False si era duplicado."""
         now = time.time()
         payload = json.dumps(ticket, ensure_ascii=False)
+        if self._explicit_job_id(ticket) and self._was_done(job_id):
+            # Reentrega (QoS1, reconexión) de un trabajo que ya salió: no se
+            # reimprime. Se vuelve a confirmar al servidor por si no recibió la
+            # primera confirmación (intentos=1: el número real no se conserva).
+            logger.info("Spooler: job %s ya impreso antes, descartado (dedup)", job_id)
+            self._notify(self._on_success, "on_success", job_id, ticket, None, 1)
+            return False
         with self._lock:
             cur = self._conn.execute(
                 "INSERT OR IGNORE INTO jobs "
@@ -204,11 +279,30 @@ class DurablePrintSpooler:
             logger.info("Spooler: job %s DUPLICADO, ignorado (dedup)", job_id)
         return is_new
 
+    def _backoff_delay(self, attempts):
+        """Espera antes del próximo reintento: exponencial, con tope max_delay."""
+        return min(self._base_delay * (2 ** min(attempts, 8)), self._max_delay)
+
+    def _advance_failed(self, printer_name):
+        """Tras un éxito en `printer_name`, deja listos (espera anulada) los
+        trabajos fallidos pendientes de ESA impresora. _claim_next los toma por
+        created_at, o sea del más viejo al más nuevo. Solo un éxito llama a esto:
+        un fallo nunca anula esperas (sin tormenta de reintentos), y el circuit
+        breaker sigue mandando: si está abierto, el reintento adelantado vuelve a
+        fallar sin tocar la impresora. Los trabajos sin impresora (NULL) forman
+        su propio grupo (`IS` compara NULL con NULL)."""
+        with self._lock:
+            self._conn.execute(
+                "UPDATE jobs SET next_attempt_at=0 "
+                "WHERE status='pending' AND attempts>0 AND next_attempt_at>0 "
+                "AND printer_name IS ?", (printer_name,))
+            self._conn.commit()
+
     def _claim_next(self):
         now = time.time()
         with self._lock:
             return self._conn.execute(
-                "SELECT job_id, payload, attempts FROM jobs "
+                "SELECT job_id, payload, attempts, printer_name FROM jobs "
                 "WHERE status='pending' AND next_attempt_at<=? "
                 "ORDER BY created_at LIMIT 1", (now,)).fetchone()
 
@@ -220,13 +314,21 @@ class DurablePrintSpooler:
                 self._wake.wait(timeout=self._idle_wait)
                 self._wake.clear()
                 continue
-            job_id, payload, attempts = row
+            job_id, payload, attempts, printer_name = row
             ticket = None
             try:
-                ticket = json.loads(payload)
+                try:
+                    ticket = json.loads(payload)
+                except ValueError as e:
+                    # Un JSON ilegible no se arregla reintentando.
+                    raise PermanentJobError(f"payload guardado ilegible: {e}") from e
                 result = self._print_fn(ticket)
                 with self._lock:
                     self._conn.execute("DELETE FROM jobs WHERE job_id=?", (job_id,))
+                    if self._explicit_job_id(ticket):
+                        self._conn.execute(
+                            "INSERT OR REPLACE INTO done_jobs (job_id, done_at) VALUES (?,?)",
+                            (job_id, time.time()))
                     self._conn.commit()
                     # Checkpoint PASSIVE (no bloquea lectores/escritores, aporta lo
                     # que puede): con synchronous=FULL cada commit ya es durable,
@@ -237,10 +339,28 @@ class DurablePrintSpooler:
                     except Exception:
                         pass
                 logger.info("Spooler: job %s impreso OK", job_id)
+                try:  # el trabajo ya salió: esto no puede reintentarlo
+                    self._advance_failed(printer_name)
+                except Exception as adv_err:
+                    logger.warning("Spooler: no se pudieron adelantar los reintentos: %s", adv_err)
+                if time.time() - self._last_done_purge >= _DONE_PURGE_INTERVAL:
+                    try:  # el trabajo ya salió: una falla de la purga no lo reintenta
+                        self._purge_done()
+                    except Exception as purge_err:
+                        logger.warning("Spooler: no se pudo purgar la memoria de completados: %s",
+                                       purge_err)
                 self._notify(self._on_success, "on_success", job_id, ticket, result, attempts + 1)
+            except PermanentJobError as e:
+                attempts += 1
+                with self._lock:
+                    self._conn.execute("DELETE FROM jobs WHERE job_id=?", (job_id,))
+                    self._conn.commit()
+                logger.error("Spooler: job %s FALLÓ sin reintento (error permanente): %s",
+                             job_id, e)
+                self._notify(self._on_failure, "on_failure", job_id, ticket, e, attempts, True)
             except Exception as e:
                 attempts += 1
-                delay = min(self._base_delay * (2 ** min(attempts, 8)), self._max_delay)
+                delay = self._backoff_delay(attempts)
                 status = 'pending' if attempts < self._max_attempts else 'failed'
                 with self._lock:
                     self._conn.execute(

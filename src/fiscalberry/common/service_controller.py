@@ -451,6 +451,14 @@ class ServiceController:
         finally:
             os._exit(0)
 
+    def _shutdown_for_restart(self):
+        """Cierre ordenado para que el supervisor (systemd) lo vuelva a levantar."""
+        logger.warning("Reiniciando el servicio por pedido remoto.")
+        try:
+            self._stop_services_only()
+        finally:
+            os._exit(0)
+
     def _is_gui_mode(self):
         """Detecta si la aplicación está ejecutándose en modo GUI."""
         try:
