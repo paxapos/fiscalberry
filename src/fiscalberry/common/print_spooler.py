@@ -232,7 +232,11 @@ class DurablePrintSpooler:
             job_id, payload, attempts = row
             ticket = None
             try:
-                ticket = json.loads(payload)
+                try:
+                    ticket = json.loads(payload)
+                except ValueError as e:
+                    # Un JSON ilegible no se arregla reintentando.
+                    raise PermanentJobError(f"payload guardado ilegible: {e}") from e
                 result = self._print_fn(ticket)
                 with self._lock:
                     self._conn.execute("DELETE FROM jobs WHERE job_id=?", (job_id,))

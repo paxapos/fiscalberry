@@ -23,7 +23,7 @@ import time
 
 import pytest
 
-from fiscalberry.common.print_spooler import DurablePrintSpooler
+from fiscalberry.common.print_spooler import DurablePrintSpooler, PermanentJobError
 
 
 def _wait_until(predicate, timeout=5.0, interval=0.02):
@@ -430,7 +430,7 @@ def test_on_failure_con_payload_ilegible_recibe_ticket_none(db_path):
 
     job_id, ticket, exc, intentos, final = fallos[0]
     assert (job_id, ticket, intentos, final) == ("roto", None, 1, True)
-    assert isinstance(exc, ValueError)
+    assert isinstance(exc, PermanentJobError)
 
 
 def test_callback_que_lanza_no_rompe_el_spooler_en_exito(db_path):
@@ -486,5 +486,31 @@ def test_sin_callbacks_el_spooler_se_comporta_como_siempre(db_path):
     try:
         sp.enqueue("j", {"a": 1}, "printerA")
         assert _wait_until(lambda: impresos == [{"a": 1}])
+    finally:
+        sp.stop()
+
+
+def test_payload_corrupto_es_fallo_final_sin_reintento(db_path):
+    """Un JSON guardado que no se puede parsear sale de la cola sin reintentos."""
+    llamadas, fallos = [], []
+    sp = DurablePrintSpooler(lambda t: llamadas.append(t), db_path=db_path,
+                             base_delay=0.01, idle_wait=0.05,
+                             on_failure=lambda *a: fallos.append(a))
+    try:
+        now = time.time()
+        con = sqlite3.connect(db_path)
+        con.execute(
+            "INSERT INTO jobs (job_id, printer_name, payload, status, attempts, "
+            "next_attempt_at, created_at, updated_at) VALUES (?,?,?,'pending',0,0,?,?)",
+            ("corrupto", "p", "{no es json", now, now))
+        con.commit()
+        con.close()
+        assert _wait_until(lambda: fallos)
+        time.sleep(0.3)
+        assert llamadas == []
+        assert len(fallos) == 1
+        job_id, ticket, exc, intentos, final = fallos[0]
+        assert job_id == "corrupto" and ticket is None and final is True
+        assert sp.pending_count() == 0 and sp.failed_count() == 0
     finally:
         sp.stop()
