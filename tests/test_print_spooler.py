@@ -607,3 +607,94 @@ def test_base_vieja_sin_la_tabla_se_migra(tmp_path):
         assert sp.enqueue("pendiente", {"jobId": "pendiente"}, "p") is False
     finally:
         sp.stop()
+
+
+# --- Política de reintentos: "velocidad ante todo" ---------------------------
+# base_delay/max_delay enormes: un reintento rápido solo puede venir de adelantar
+# la espera tras un éxito, no de que el backoff venza.
+
+def _retry_spooler(db_path, fail_printers, log):
+    def print_fn(ticket):
+        log.append(ticket["n"])
+        if ticket["p"] in fail_printers:
+            raise RuntimeError("offline")
+    return DurablePrintSpooler(print_fn, db_path=db_path, base_delay=1000.0,
+                               max_delay=1000.0, idle_wait=0.02)
+
+
+def _next_attempt(db_path, job_id):
+    raw = sqlite3.connect(db_path)
+    try:
+        return raw.execute("SELECT next_attempt_at FROM jobs WHERE job_id=?",
+                           (job_id,)).fetchone()[0]
+    finally:
+        raw.close()
+
+
+def test_exito_en_impresora_adelanta_fallido_de_la_misma(db_path):
+    log, fail = [], {"X"}
+    sp = _retry_spooler(db_path, fail, log)
+    try:
+        sp.enqueue("a", {"n": "a", "p": "X"}, "X")
+        assert _wait_until(lambda: log.count("a") == 1)
+        fail.clear()  # A queda esperando ~1000 s
+        sp.enqueue("b", {"n": "b", "p": "X"}, "X")
+        assert _wait_until(lambda: sp.pending_count() == 0, timeout=3.0)
+        assert log == ["a", "b", "a"]
+    finally:
+        sp.stop()
+
+
+def test_exito_en_x_no_adelanta_fallido_de_y(db_path):
+    log, fail = [], {"Y"}
+    sp = _retry_spooler(db_path, fail, log)
+    try:
+        sp.enqueue("a", {"n": "a", "p": "Y"}, "Y")
+        assert _wait_until(lambda: log.count("a") == 1)
+        sp.enqueue("b", {"n": "b", "p": "X"}, "X")
+        assert _wait_until(lambda: "b" in log and sp.pending_count() == 1)
+        time.sleep(0.3)
+        assert log == ["a", "b"]
+        assert _next_attempt(db_path, "a") > time.time() + 500
+    finally:
+        sp.stop()
+
+
+def test_fallo_no_adelanta_otros_fallidos(db_path):
+    log, fail = [], {"X"}
+    sp = _retry_spooler(db_path, fail, log)
+    try:
+        sp.enqueue("a", {"n": "a", "p": "X"}, "X")
+        assert _wait_until(lambda: log.count("a") == 1)
+        sp.enqueue("b", {"n": "b", "p": "X"}, "X")
+        assert _wait_until(lambda: log.count("b") == 1)
+        time.sleep(0.3)
+        assert log == ["a", "b"]  # A no se reintentó por el fallo de B
+        assert _next_attempt(db_path, "a") > time.time() + 500
+    finally:
+        sp.stop()
+
+
+def test_espera_maxima_es_30s_aunque_lleve_muchos_intentos(db_path):
+    sp = DurablePrintSpooler(lambda t: None, db_path=db_path, idle_wait=0.05)
+    try:
+        assert all(sp._backoff_delay(n) <= 30.0 for n in range(1, 1001))
+        assert sp._backoff_delay(1000) == 30.0
+        assert sp._backoff_delay(1) < 30.0  # los primeros siguen siendo cortos
+    finally:
+        sp.stop()
+
+
+def test_fallidos_adelantados_salen_del_mas_viejo_al_mas_nuevo(db_path):
+    log, fail = [], {"X"}
+    sp = _retry_spooler(db_path, fail, log)
+    try:
+        for j in ("a", "b", "c"):
+            sp.enqueue(j, {"n": j, "p": "X"}, "X")
+            assert _wait_until(lambda j=j: log.count(j) == 1)
+        fail.clear()
+        sp.enqueue("d", {"n": "d", "p": "X"}, "X")
+        assert _wait_until(lambda: sp.pending_count() == 0, timeout=3.0)
+        assert log[3:] == ["d", "a", "b", "c"]
+    finally:
+        sp.stop()

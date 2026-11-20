@@ -56,6 +56,10 @@ class PermanentJobError(Exception):
     """
 
 
+# Tope de la espera entre reintentos de un trabajo fallido (segundos).
+MAX_RETRY_DELAY = 30.0
+
+
 def default_db_path():
     """Ruta del .db en el data dir del usuario (import diferido para testeo aislado)."""
     import platformdirs
@@ -66,7 +70,7 @@ def default_db_path():
 
 class DurablePrintSpooler:
     def __init__(self, print_fn, db_path=None, max_attempts=1000,
-                 base_delay=5.0, max_delay=300.0, idle_wait=5.0,
+                 base_delay=5.0, max_delay=MAX_RETRY_DELAY, idle_wait=5.0,
                  on_success=None, on_failure=None,
                  done_retention=DONE_RETENTION, done_max_rows=DONE_MAX_ROWS):
         """
@@ -83,9 +87,14 @@ class DurablePrintSpooler:
         done_retention / done_max_rows: cuánto (segundos) y cuántos job_id ya impresos
             se recuerdan para descartar reentregas del mismo `jobId`.
         Un callback que lanza NUNCA afecta al spooler: se loguea y se sigue.
+        max_delay: tope (segundos) de la espera entre reintentos de un mismo trabajo.
+            Política "velocidad ante todo": un trabajo que falla no frena a los
+            siguientes de su impresora, y tras cada impresión EXITOSA en una impresora
+            sus trabajos fallidos pendientes se reintentan enseguida (ver
+            _advance_failed). Sin trabajos nuevos, se reintenta solo cada <= max_delay.
         max_attempts: tras N intentos el job pasa a 'failed' (dead-letter). Default alto
-            (1000) a propósito: con backoff tope 300s son ~3.5 días de reintentos, así una
-            impresora caída mucho tiempo NO pierde el ticket. Además, los 'failed' se
+            (1000) a propósito: con backoff tope 30s son ~8 horas de reintentos, así una
+            impresora caída un turno entero NO pierde el ticket. Además, los 'failed' se
             re-encolan al reiniciar el proceso (ver _recover_on_start), así que un
             "apagar y prender" siempre recupera todo lo pendiente.
         """
@@ -270,11 +279,30 @@ class DurablePrintSpooler:
             logger.info("Spooler: job %s DUPLICADO, ignorado (dedup)", job_id)
         return is_new
 
+    def _backoff_delay(self, attempts):
+        """Espera antes del próximo reintento: exponencial, con tope max_delay."""
+        return min(self._base_delay * (2 ** min(attempts, 8)), self._max_delay)
+
+    def _advance_failed(self, printer_name):
+        """Tras un éxito en `printer_name`, deja listos (espera anulada) los
+        trabajos fallidos pendientes de ESA impresora. _claim_next los toma por
+        created_at, o sea del más viejo al más nuevo. Solo un éxito llama a esto:
+        un fallo nunca anula esperas (sin tormenta de reintentos), y el circuit
+        breaker sigue mandando: si está abierto, el reintento adelantado vuelve a
+        fallar sin tocar la impresora. Los trabajos sin impresora (NULL) forman
+        su propio grupo (`IS` compara NULL con NULL)."""
+        with self._lock:
+            self._conn.execute(
+                "UPDATE jobs SET next_attempt_at=0 "
+                "WHERE status='pending' AND attempts>0 AND next_attempt_at>0 "
+                "AND printer_name IS ?", (printer_name,))
+            self._conn.commit()
+
     def _claim_next(self):
         now = time.time()
         with self._lock:
             return self._conn.execute(
-                "SELECT job_id, payload, attempts FROM jobs "
+                "SELECT job_id, payload, attempts, printer_name FROM jobs "
                 "WHERE status='pending' AND next_attempt_at<=? "
                 "ORDER BY created_at LIMIT 1", (now,)).fetchone()
 
@@ -286,7 +314,7 @@ class DurablePrintSpooler:
                 self._wake.wait(timeout=self._idle_wait)
                 self._wake.clear()
                 continue
-            job_id, payload, attempts = row
+            job_id, payload, attempts, printer_name = row
             ticket = None
             try:
                 try:
@@ -311,6 +339,10 @@ class DurablePrintSpooler:
                     except Exception:
                         pass
                 logger.info("Spooler: job %s impreso OK", job_id)
+                try:  # el trabajo ya salió: esto no puede reintentarlo
+                    self._advance_failed(printer_name)
+                except Exception as adv_err:
+                    logger.warning("Spooler: no se pudieron adelantar los reintentos: %s", adv_err)
                 if time.time() - self._last_done_purge >= _DONE_PURGE_INTERVAL:
                     try:  # el trabajo ya salió: una falla de la purga no lo reintenta
                         self._purge_done()
@@ -328,7 +360,7 @@ class DurablePrintSpooler:
                 self._notify(self._on_failure, "on_failure", job_id, ticket, e, attempts, True)
             except Exception as e:
                 attempts += 1
-                delay = min(self._base_delay * (2 ** min(attempts, 8)), self._max_delay)
+                delay = self._backoff_delay(attempts)
                 status = 'pending' if attempts < self._max_attempts else 'failed'
                 with self._lock:
                     self._conn.execute(
