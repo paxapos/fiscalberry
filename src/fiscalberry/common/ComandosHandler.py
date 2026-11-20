@@ -519,8 +519,29 @@ def _print_raw(driver, raw_cmd, printerName, driverName):
     return {"message": "Impresion RAW exitosa", "result": "ok", "bytes": len(data)}
 
 
+def _contexto_de_comando(jsonTicket, job_id=None):
+    """Valor de `context.command` para los reportes de error.
+
+    Un printRaw lleva el comprobante entero en base64: se informan solo
+    metadatos (tipo, jobId, tamaño del payload), nunca los bytes. El resto de los
+    comandos se publican como siempre.
+    """
+    raw_cmd = jsonTicket.get("printRaw")
+    if not raw_cmd and jsonTicket.get("type") == "raw":
+        raw_cmd = jsonTicket
+    if not raw_cmd:
+        return jsonTicket
+    data = raw_cmd.get("data") if isinstance(raw_cmd, dict) else raw_cmd
+    return {
+        "command": "printRaw",
+        "jobId": job_id,
+        "payload_size": len(data) if isinstance(data, (str, bytes)) else None,
+    }
+
+
 def runTraductor(jsonTicket, queue):
     printerName = jsonTicket.pop('printerName')
+    job_id = jsonTicket.get('jobId')
     # jobId es metadata de dedup del spooler, no un comando: si quedara en el
     # ticket, EscPComandos.run() lo tomaria como accion inexistente.
     jsonTicket.pop('jobId', None)
@@ -537,7 +558,7 @@ def runTraductor(jsonTicket, queue):
             error_message=error_msg,
             context={
                 "printer_name": printerName,
-                "command": jsonTicket
+                "command": _contexto_de_comando(jsonTicket, job_id)
             },
             exception=e
         )
@@ -553,7 +574,7 @@ def runTraductor(jsonTicket, queue):
             error_message=error_msg,
             context={
                 "printer_name": printerName,
-                "command": jsonTicket
+                "command": _contexto_de_comando(jsonTicket, job_id)
             },
             exception=e
         )
@@ -611,7 +632,7 @@ def runTraductor(jsonTicket, queue):
                 "printer_name": printerName,
                 "driver": driverName,
                 "driver_ops": driverOps,
-                "command": jsonTicket
+                "command": _contexto_de_comando(jsonTicket, job_id)
             }
         )
         

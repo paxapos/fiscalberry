@@ -270,3 +270,33 @@ def test_upgrade_true_funciona_sin_opcion_local(handler, monkeypatch):
     _config(monkeypatch, "false")
     handler.send_command({"upgrade": True})
     assert handler.llamados == ["upgrade"]
+
+
+# ------------------------------------------- reportes de error sin el comprobante
+
+@pytest.fixture
+def reportes(monkeypatch):
+    lista = []
+    monkeypatch.setattr(ch, "publish_error", lambda **kw: lista.append(kw))
+    return lista
+
+
+@pytest.mark.parametrize("falla", [KeyError("x"), RuntimeError("config rota")])
+def test_error_de_impresora_con_printraw_publica_solo_metadatos(monkeypatch, reportes, falla):
+    def _falla(nombre):
+        raise falla
+    monkeypatch.setattr(ch.configberry, "get_config_for_printer", _falla)
+    datos = _b64gz(b"COMPROBANTE SECRETO\n" * 50)
+    ch.runTraductor({"printerName": "p", "jobId": "j9", "printRaw": {"data": datos}}, None)
+    assert len(reportes) == 1
+    cmd = reportes[0]["context"]["command"]
+    assert cmd == {"command": "printRaw", "jobId": "j9", "payload_size": len(datos)}
+    assert datos not in repr(reportes[0])
+
+
+def test_error_de_impresora_con_comando_json_no_cambia(monkeypatch, reportes):
+    def _falla(nombre):
+        raise KeyError(nombre)
+    monkeypatch.setattr(ch.configberry, "get_config_for_printer", _falla)
+    ch.runTraductor({"printerName": "p", "jobId": "j1", "generalConfig": {"a": 1}}, None)
+    assert reportes[0]["context"]["command"] == {"generalConfig": {"a": 1}}
