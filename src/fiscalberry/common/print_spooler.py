@@ -40,6 +40,14 @@ except Exception:  # pragma: no cover - fallback para tests aislados
 APP_NAME = "fiscalberry"
 
 
+class PermanentJobError(Exception):
+    """Error de un trabajo que no tiene sentido reintentar (p. ej. payload invalido).
+
+    El spooler lo trata como fallo final: no reintenta, lo saca de la cola (no
+    vuelve tras un reinicio) y lo informa con on_failure(final=True).
+    """
+
+
 def default_db_path():
     """Ruta del .db en el data dir del usuario (import diferido para testeo aislado)."""
     import platformdirs
@@ -60,7 +68,8 @@ class DurablePrintSpooler:
             primero).
         on_failure: callable(job_id, ticket, exc, intentos, final) opcional. Se llama
             tras cada intento fallido, con la cola ya actualizada; `final` es True si
-            el trabajo pasó a dead-letter ('failed') y False si se va a reintentar.
+            el trabajo pasó a dead-letter ('failed') o falló con un PermanentJobError
+            (se quita de la cola, sin reintento) y False si se va a reintentar.
             `ticket` es None si ni siquiera se pudo leer el payload guardado.
         Un callback que lanza NUNCA afecta al spooler: se loguea y se sigue.
         max_attempts: tras N intentos el job pasa a 'failed' (dead-letter). Default alto
@@ -238,6 +247,14 @@ class DurablePrintSpooler:
                         pass
                 logger.info("Spooler: job %s impreso OK", job_id)
                 self._notify(self._on_success, "on_success", job_id, ticket, result, attempts + 1)
+            except PermanentJobError as e:
+                attempts += 1
+                with self._lock:
+                    self._conn.execute("DELETE FROM jobs WHERE job_id=?", (job_id,))
+                    self._conn.commit()
+                logger.error("Spooler: job %s FALLÓ sin reintento (error permanente): %s",
+                             job_id, e)
+                self._notify(self._on_failure, "on_failure", job_id, ticket, e, attempts, True)
             except Exception as e:
                 attempts += 1
                 delay = min(self._base_delay * (2 ** min(attempts, 8)), self._max_delay)

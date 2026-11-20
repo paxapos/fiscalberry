@@ -261,6 +261,9 @@ def test_restart_sin_supervisor_devuelve_error_explicito(monkeypatch):
     pytest.importorskip("escpos")
     import fiscalberry.common.ComandosHandler as CH
 
+    # reboot/restart remotos vienen apagados por defecto: se habilitan en el config local.
+    monkeypatch.setattr(CH, "_remote_power_commands_enabled", lambda: True)
+
     monkeypatch.delenv("INVOCATION_ID", raising=False)
     monkeypatch.setattr(CH.ComandosHandler, "_app_gui_en_ejecucion",
                         staticmethod(lambda: None))
@@ -274,6 +277,9 @@ def test_restart_bajo_systemd_cierra_ordenado_con_demora(monkeypatch):
     pytest.importorskip("paho")
     pytest.importorskip("escpos")
     import fiscalberry.common.ComandosHandler as CH
+
+    # reboot/restart remotos vienen apagados por defecto: se habilitan en el config local.
+    monkeypatch.setattr(CH, "_remote_power_commands_enabled", lambda: True)
 
     monkeypatch.setenv("INVOCATION_ID", "abc")
     monkeypatch.setattr(CH.ComandosHandler, "_app_gui_en_ejecucion",
@@ -303,6 +309,9 @@ def test_reboot_llama_a_rebootFiscalberry(monkeypatch):
     import subprocess
     import fiscalberry.common.ComandosHandler as CH
 
+    # reboot/restart remotos vienen apagados por defecto: se habilitan en el config local.
+    monkeypatch.setattr(CH, "_remote_power_commands_enabled", lambda: True)
+
     llamadas = []
     monkeypatch.setattr(subprocess, "call", lambda cmd: llamadas.append(cmd) or 0)
 
@@ -318,6 +327,9 @@ def test_reboot_sin_binario_devuelve_error_explicito(monkeypatch):
     pytest.importorskip("escpos")
     import subprocess
     import fiscalberry.common.ComandosHandler as CH
+
+    # reboot/restart remotos vienen apagados por defecto: se habilitan en el config local.
+    monkeypatch.setattr(CH, "_remote_power_commands_enabled", lambda: True)
 
     def no_existe(cmd):
         raise FileNotFoundError("reboot")

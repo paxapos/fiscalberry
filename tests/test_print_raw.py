@@ -92,12 +92,13 @@ def test_si_close_falla_no_se_reporta_como_impreso(publicados):
     assert publicados
 
 
-def test_datos_rotos_tambien_lanzan_y_cierran(publicados):
+def test_datos_rotos_lanzan_sin_tocar_el_driver(publicados):
     driver = DriverFalso()
-    with pytest.raises(Exception):
+    with pytest.raises(ch.InvalidPayloadError):
         ch._print_raw(driver, {"data": "no-es-base64-gzip!!"}, "Caja", "Network")
-    assert driver.cierres == 1
+    assert driver.cierres == 0
     assert driver.escrito == b""
+    assert publicados == []
 
 
 def test_proxy_fiscalberry_propaga_el_error_del_remoto(monkeypatch, publicados):

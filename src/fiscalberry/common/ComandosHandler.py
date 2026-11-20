@@ -7,6 +7,7 @@ import time
 import queue
 from fiscalberry.common.FiscalberryComandos import FiscalberryComandos
 from fiscalberry.common.Configberry import Configberry
+from fiscalberry.common.print_spooler import PermanentJobError
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.EscPComandos import EscPComandos
 from fiscalberry.common.rabbitmq.error_publisher import publish_error
@@ -409,26 +410,67 @@ def build_driver(driver_config):
 
 RAW_ENCODINGS = ("gzip+base64", "gzip", "base64")
 
+# Topes de un printRaw. Un ticket ESC/POS pesa unos pocos KB (un logo raster
+# puede llegar a cientos de KB); estos limites dejan mucho margen y evitan
+# reservar memoria sin cota al decodificar.
+MAX_RAW_ENCODED_BYTES = 3 * 1024 * 1024   # `data` tal como llega (base64)
+MAX_RAW_DECODED_BYTES = 2 * 1024 * 1024   # bytes ESC/POS ya descomprimidos
+
+
+class InvalidPayloadError(PermanentJobError, ValueError):
+    """El payload de un comando no se puede decodificar.
+
+    Es un error permanente: reintentar el mismo payload da siempre el mismo
+    resultado, y no es un fallo de la impresora.
+    """
+
 
 def decode_raw_payload(raw_cmd):
     """Bytes ESC/POS de un comando printRaw.
 
-    `data` viaja siempre en base64; salvo con encoding "base64", además
+    `data` viaja siempre en base64; salvo con encoding "base64", ademas
     comprimido con gzip ("gzip+base64", el default, y "gzip" por compatibilidad).
-    Lanza ValueError si falta `data` o el encoding no se conoce.
+    Lanza InvalidPayloadError (subclase de ValueError) si falta `data`, el
+    encoding no se conoce, el base64 o el gzip son invalidos, o se superan
+    MAX_RAW_ENCODED_BYTES / MAX_RAW_DECODED_BYTES.
     """
     import base64
-    import gzip
+    import binascii
+    import zlib
 
     if not isinstance(raw_cmd, dict) or not raw_cmd.get("data"):
-        raise ValueError("printRaw sin 'data'")
+        raise InvalidPayloadError("printRaw sin 'data'")
     encoding = str(raw_cmd.get("encoding") or "gzip+base64").lower()
     if encoding not in RAW_ENCODINGS:
-        raise ValueError(f"printRaw con encoding desconocido: {encoding}")
-    data = base64.b64decode(raw_cmd["data"])
-    if encoding != "base64":
-        data = gzip.decompress(data)
-    return data
+        raise InvalidPayloadError(f"printRaw con encoding desconocido: {encoding}")
+    encoded = raw_cmd["data"]
+    if not isinstance(encoded, (str, bytes)):
+        raise InvalidPayloadError("printRaw con 'data' de tipo invalido")
+    if len(encoded) > MAX_RAW_ENCODED_BYTES:
+        raise InvalidPayloadError(
+            f"printRaw: 'data' supera el maximo de {MAX_RAW_ENCODED_BYTES} bytes")
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as e:
+        raise InvalidPayloadError(f"printRaw: base64 invalido: {e}")
+    if encoding == "base64":
+        if len(data) > MAX_RAW_DECODED_BYTES:
+            raise InvalidPayloadError(
+                f"printRaw: supera el maximo de {MAX_RAW_DECODED_BYTES} bytes")
+        return data
+    try:
+        # wbits=31: formato gzip. max_length acota la salida; si queda entrada
+        # sin consumir (unconsumed_tail) es que el limite se alcanzo.
+        descompresor = zlib.decompressobj(wbits=31)
+        out = descompresor.decompress(data, MAX_RAW_DECODED_BYTES + 1)
+        if len(out) > MAX_RAW_DECODED_BYTES or descompresor.unconsumed_tail:
+            raise InvalidPayloadError(
+                f"printRaw: descomprimido supera el maximo de {MAX_RAW_DECODED_BYTES} bytes")
+        if not descompresor.eof:
+            raise InvalidPayloadError("printRaw: gzip truncado")
+    except zlib.error as e:
+        raise InvalidPayloadError(f"printRaw: gzip invalido: {e}")
+    return out
 
 
 def _publicar_error_de_impresion(error, context):
@@ -442,21 +484,34 @@ def _publicar_error_de_impresion(error, context):
 def _print_raw(driver, raw_cmd, printerName, driverName):
     """Escribe los bytes de un printRaw en la impresora y cierra el driver.
 
-    El close() va dentro del mismo try porque en CupsPrinter, LP y Win32Raw es
-    el close() el que manda el trabajo al sistema: un error ahí es un ticket
-    que no salió. Ante cualquier error se cierra el driver (best-effort), se
-    publica y se relanza, para que el spooler lo reintente.
+    El close() va dentro del manejo de errores porque en CupsPrinter, LP y
+    Win32Raw es el close() el que manda el trabajo al sistema: un error ahi es un
+    ticket que no salio. Si falla la escritura se cierra el driver (best-effort);
+    si falla el close() NO se vuelve a cerrar, porque en python-escpos un segundo
+    close() reenvia el trabajo pendiente. En ambos casos se publica y se
+    relanza, para que el spooler lo reintente. Un payload invalido no es un fallo
+    de la impresora: se relanza sin publicarlo como tal ni tocar el driver.
     """
     try:
         data = decode_raw_payload(raw_cmd)
+    except InvalidPayloadError as e:
+        logger.error(f"printRaw descartado en '{printerName}': {e}")
+        raise
+    try:
         driver._raw(data)
-        driver.close()
     except Exception as e:
         try:
             driver.close()
         except Exception:
             pass
         logger.error(f"Impresión RAW falló en '{printerName}': {e}")
+        _publicar_error_de_impresion(e, {
+            "command": "printRaw", "printer_name": printerName, "driver": driverName})
+        raise
+    try:
+        driver.close()
+    except Exception as e:
+        logger.error(f"Impresión RAW falló al cerrar en '{printerName}': {e}")
         _publicar_error_de_impresion(e, {
             "command": "printRaw", "printer_name": printerName, "driver": driverName})
         raise
@@ -607,6 +662,9 @@ def _spooler_print_fn(ticket):
         if printer_name:
             breaker.record_success(printer_name)
         return result
+    except PermanentJobError:
+        # El trabajo es invalido, no la impresora: no cuenta para el breaker.
+        raise
     except Exception:
         if printer_name:
             breaker.record_failure(printer_name)
@@ -651,6 +709,23 @@ def shutdown_print_spooler():
             sp.stop()
         except Exception as e:
             logger.debug("Error deteniendo el spooler durable: %s", e)
+
+
+_REMOTE_POWER_DISABLED_MSG = (
+    "reboot/restart remotos deshabilitados en este equipo "
+    "([Paxaprinter] remote_power_commands = false)")
+
+
+def _remote_power_commands_enabled():
+    """Los comandos remotos `reboot` y `restart` solo corren si el config.ini
+    local lo habilita (apagado por defecto):
+        [Paxaprinter] remote_power_commands = true
+    """
+    try:
+        val = configberry.get("Paxaprinter", "remote_power_commands", fallback="false")
+    except Exception:
+        val = "false"
+    return str(val).strip().lower() in ("true", "1", "yes", "on")
 
 
 def _is_sync_print_mode():
@@ -898,17 +973,35 @@ class ComandosHandler:
                 rta["rta"] = self._getStatus()
 
             elif 'reboot' in jsonTicket:
-                rta["rta"] = self._rebootFiscalberry()
-                if "err" in rta["rta"]:
-                    rta["err"] = rta["rta"]["err"]
+                if jsonTicket['reboot'] is not True:
+                    rta["err"] = "reboot requiere el valor true: ignorado"
+                    logger.warning("Comando reboot ignorado: valor distinto de true")
+                elif not _remote_power_commands_enabled():
+                    rta["err"] = _REMOTE_POWER_DISABLED_MSG
+                    logger.warning("Comando reboot rechazado: deshabilitado por configuración")
+                else:
+                    rta["rta"] = self._rebootFiscalberry()
+                    if "err" in rta["rta"]:
+                        rta["err"] = rta["rta"]["err"]
 
             elif 'restart' in jsonTicket:
-                rta["rta"] = self._restartService()
-                if "err" in rta["rta"]:
-                    rta["err"] = rta["rta"]["err"]
+                if jsonTicket['restart'] is not True:
+                    rta["err"] = "restart requiere el valor true: ignorado"
+                    logger.warning("Comando restart ignorado: valor distinto de true")
+                elif not _remote_power_commands_enabled():
+                    rta["err"] = _REMOTE_POWER_DISABLED_MSG
+                    logger.warning("Comando restart rechazado: deshabilitado por configuración")
+                else:
+                    rta["rta"] = self._restartService()
+                    if "err" in rta["rta"]:
+                        rta["err"] = rta["rta"]["err"]
 
             elif 'upgrade' in jsonTicket:
-                rta["rta"] = self._upgrade()
+                if jsonTicket['upgrade'] is not True:
+                    rta["err"] = "upgrade requiere el valor true: ignorado"
+                    logger.warning("Comando upgrade ignorado: valor distinto de true")
+                else:
+                    rta["rta"] = self._upgrade()
 
             elif 'getPrinterInfo' in jsonTicket:
                 rta["rta"] = self._getPrinterInfo(jsonTicket["getPrinterInfo"])
