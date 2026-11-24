@@ -64,9 +64,9 @@ def test_toda_variante_empaquetada_sabe_su_asset_y_su_binario():
         assert install_kind.binary_name(kind), f"{kind} sin binario"
 
 
-def test_source_no_tiene_asset():
-    """Se actualiza con pip desde el tarball de código, no con un artefacto."""
-    assert install_kind.asset_name(install_kind.SOURCE) is None
+def test_source_se_actualiza_con_el_tarball_de_codigo_del_release():
+    """pip instala ese tarball recién después de verificarlo contra SHA256SUMS."""
+    assert install_kind.asset_name(install_kind.SOURCE) == "fiscalberry-source.tar.gz"
 
 
 @pytest.mark.skipif(not os.path.exists(WORKFLOW), reason="sin workflow en el checkout")

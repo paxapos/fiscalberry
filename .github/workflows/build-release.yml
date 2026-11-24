@@ -624,6 +624,11 @@ jobs:
           name: fiscalberry-android-gui
           path: ./artifacts/
 
+      # Las instalaciones desde código se actualizan con este tarball, verificado
+      # contra SHA256SUMS igual que los binarios. Ver updater/install_kind.py.
+      - name: Empaquetar el código fuente
+        run: git archive --format=tar.gz --prefix=fiscalberry-${{ needs.version.outputs.tag }}/ -o artifacts/fiscalberry-source.tar.gz HEAD
+
       # El auto-updater de los dispositivos EXIGE este archivo: si un release no
       # lo trae, se niega a instalar (mejor quedarse en la version vieja que
       # aplicar un binario que no se pudo verificar). Ver
@@ -686,6 +691,7 @@ jobs:
             ./artifacts/fiscalberry-windows-cli.zip
             ./artifacts/FiscalberrySetup.exe
             ./artifacts/fiscalberry-android-gui.apk
+            ./artifacts/fiscalberry-source.tar.gz
             ./artifacts/SHA256SUMS
           draft: false
           prerelease: false
