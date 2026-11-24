@@ -247,6 +247,28 @@ def _como_bool(clave, valor):
     raise DriverError(f"Valor inválido en la configuración: {clave}={valor!r}")
 
 
+class CupsPrinterAbierto(printer.CupsPrinter):
+    """CupsPrinter de python-escpos, corregido para Fiscalberry (#220).
+
+    - Abre la conexión al crearse: su _raw no la abre (el de Network, LP y
+      Win32Raw sí) y sin conexión close() no manda nada.
+    - Si close() no pudo mandar el trabajo, lo descarta: el spooler lo reintenta
+      con un driver nuevo, y si quedara pendiente Escpos.__del__ lo reenviaría
+      (trabajo duplicado).
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.open()
+
+    def close(self):
+        try:
+            super().close()
+        except Exception:
+            self._clear()
+            raise
+
+
 def build_driver(driver_config):
     """
     Crea el driver de impresión para una configuración, sin leer ni escribir
@@ -375,6 +397,7 @@ def build_driver(driver_config):
 
     elif driverName == "Cups".lower():
         # printer.CupsPrinter(printer_name='', *args, **kwargs)[source]
+        driver_class = CupsPrinterAbierto
         driverName = "CupsPrinter"
 
 
@@ -386,7 +409,7 @@ def build_driver(driver_config):
     else:
         raise DriverError(f"Invalid driver: {driverName}")
     
-    # Los drivers propios (Bluetooth, UsbPrint) ya tienen driver_class.
+    # Los drivers propios (Bluetooth, UsbPrint, Cups) ya tienen driver_class.
     if driver_class is None:
         try:
             driver_class = getattr(printer, driverName)
