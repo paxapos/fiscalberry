@@ -12,6 +12,9 @@ Ejecutar con el venv del proyecto:
     venv.cli/bin/python -m pytest tests/test_comandos_handler.py -v
 """
 
+import logging
+import time
+
 import pytest
 
 pytest.importorskip("paho")
@@ -50,13 +53,14 @@ class FakeSpooler:
         self._failed.clear()
         return n
 
-    def discard_all(self):
+    def discard_all(self, hasta=None):
         """Simula vaciar 'pending' + 'failed' (issue #166, 'descartar')."""
         self.discard_all_calls += 1
-        n = len(self._jobs) + len(self._failed)
+        self.discard_hasta = hasta
+        ids = sorted(self._jobs | self._failed)
         self._jobs.clear()
         self._failed.clear()
-        return n
+        return ids
 
 
 @pytest.fixture
@@ -290,8 +294,90 @@ def test_descartar_pendientes_command_discards_everything(fake_spooler):
     assert action_response["action"] == "descartarPendientes"
     r = action_response["rta"]
     assert r["discarded"] == 2
+    assert r["job_ids"] == ["job-1", "job-failed-1"]
     assert r["pending_count"] == 0
     assert r["failed_count"] == 0
+
+
+# ---------------------------------------------------------------------------
+# #225: "descartar" trae `hasta` (cuándo se apretó el botón) y vence.
+# ---------------------------------------------------------------------------
+
+def _avisos(caplog):
+    return [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+def test_descartar_pendientes_con_hasta_descarta_solo_hasta_el_corte(fake_spooler, caplog):
+    fake_spooler.enqueue("job-1", {"a": 1}, "cocina")
+    hasta = int(time.time()) - 60
+
+    with caplog.at_level(logging.WARNING):
+        resp = CH.ComandosHandler().send_command({"descartarPendientes": True, "hasta": hasta})
+
+    assert "err" not in resp
+    assert fake_spooler.discard_all_calls == 1
+    assert fake_spooler.discard_hasta == hasta
+    assert resp["rta"]["rta"]["job_ids"] == ["job-1"]
+
+
+def test_descartar_pendientes_vencido_no_descarta_nada(fake_spooler, caplog):
+    fake_spooler.enqueue("job-1", {"a": 1}, "cocina")
+    hasta = int(time.time()) - 16 * 60      # vencimiento por defecto: 15 min
+
+    with caplog.at_level(logging.WARNING):
+        resp = CH.ComandosHandler().send_command({"descartarPendientes": True, "hasta": hasta})
+
+    assert fake_spooler.discard_all_calls == 0
+    assert fake_spooler.pending_count() == 1
+    assert "vencido" in resp["err"]
+    assert any("vencido" in m for m in _avisos(caplog))
+
+
+@pytest.mark.parametrize("hasta", [
+    "1795470000",               # string
+    1795470000.5,               # no entero
+    True,                       # bool no es un epoch
+    None,
+    -1,
+    "futuro",                   # se reemplaza por ahora + 1 h (ver el test)
+])
+def test_descartar_pendientes_con_hasta_invalido_no_descarta_nada(fake_spooler, caplog, hasta):
+    if hasta == "futuro":
+        hasta = int(time.time()) + 3600
+    fake_spooler.enqueue("job-1", {"a": 1}, "cocina")
+
+    with caplog.at_level(logging.WARNING):
+        resp = CH.ComandosHandler().send_command({"descartarPendientes": True, "hasta": hasta})
+
+    assert fake_spooler.discard_all_calls == 0
+    assert fake_spooler.pending_count() == 1
+    assert "ignorado" in resp["err"]
+    assert _avisos(caplog)
+
+
+def test_descartar_pendientes_sin_hasta_descarta_todo_con_warning(fake_spooler, caplog):
+    """Paxapos viejo (sin `hasta`): se mantiene el comportamiento anterior, con aviso."""
+    fake_spooler.enqueue("job-1", {"a": 1}, "cocina")
+
+    with caplog.at_level(logging.WARNING):
+        resp = CH.ComandosHandler().send_command({"descartarPendientes": True})
+
+    assert "err" not in resp
+    assert fake_spooler.discard_all_calls == 1
+    assert fake_spooler.discard_hasta is None
+    assert any("sin 'hasta'" in m for m in _avisos(caplog))
+
+
+def test_descartar_vencimiento_se_lee_del_config(fake_spooler, monkeypatch):
+    monkeypatch.setattr(
+        CH.configberry, "get",
+        lambda sec, key, fallback=None: "30" if key == "descartar_vencimiento_min" else fallback)
+    hasta = int(time.time()) - 20 * 60
+
+    resp = CH.ComandosHandler().send_command({"descartarPendientes": True, "hasta": hasta})
+
+    assert "err" not in resp
+    assert fake_spooler.discard_hasta == hasta
 
 
 def test_imprimir_pendientes_with_nothing_pending_is_a_noop(fake_spooler):

@@ -252,6 +252,23 @@ def test_exito_envia_el_post_del_contrato():
     }
 
 
+def test_descartado_envia_el_post_del_contrato():
+    """#225: un trabajo que el operador descartó se confirma como final, sin imprimir."""
+    post = PostFalso(200)
+    c = _confirmador(post=post)
+
+    assert c.reportar_descartado("comanda-77-abc123", TICKET, 3) is True
+    c.procesar_pendientes()
+
+    body = post.bodies()[0]
+    assert body.pop("ts") > 0
+    assert body == {
+        "uuid": "uuid-del-equipo", "jobId": "comanda-77-abc123", "ok": False,
+        "error": "Descartado por el operador", "intentos": 3, "final": True,
+        "descartado": True, "version": VERSION,
+    }
+
+
 def test_usa_el_verify_del_config():
     post = PostFalso(200)
     c = _confirmador(cfg=ConfigFalso(verify="/ruta/ca.pem"), post=post)
@@ -273,6 +290,7 @@ def test_sin_job_id_no_se_envia_nada(ticket):
 
     assert c.reportar_exito("sha1-de-respaldo", ticket, {"result": []}, 1) is False
     assert c.reportar_fallo("sha1-de-respaldo", ticket, RuntimeError("x"), 1, True) is False
+    assert c.reportar_descartado("sha1-de-respaldo", ticket, 1) is False
     c.procesar_pendientes()
 
     assert post.llamadas == []
@@ -710,6 +728,31 @@ def test_spooler_confirma_fallos_con_throttle_y_el_dead_letter(tmp_path):
     assert all(b["ok"] is False and b["error"] == "OSError: Impresora apagada" for b in bodies)
 
 
+def test_spooler_confirma_cada_descartado(tmp_path):
+    """#225: descartar la cola confirma cada trabajo con `descartado: true`."""
+    post = PostFalso(200)
+    c = _confirmador(post=post)
+
+    def print_fn(ticket):
+        raise IOError("Impresora apagada")
+
+    sp = DurablePrintSpooler(print_fn, db_path=str(tmp_path / "s.db"), base_delay=60.0,
+                             idle_wait=0.05, on_discard=c.reportar_descartado)
+    try:
+        sp.enqueue("a", {"printerName": "p", "jobId": "a"}, "p")
+        sp.enqueue("b", {"printerName": "p", "jobId": "b"}, "p")
+        sp.enqueue("sin-job-id-del-servidor", {"printerName": "p"}, "p")
+        assert sorted(sp.discard_all()) == ["a", "b", "sin-job-id-del-servidor"]
+    finally:
+        sp.stop()
+    c.procesar_pendientes()
+
+    por_job = {b["jobId"]: b for b in post.bodies()}
+    assert set(por_job) == {"a", "b"}
+    assert all(b["ok"] is False and b["final"] is True and b["descartado"] is True
+               and b["error"] == "Descartado por el operador" for b in por_job.values())
+
+
 def test_get_print_spooler_conecta_el_confirmador(monkeypatch):
     pytest.importorskip("paho")
     pytest.importorskip("escpos")
@@ -721,6 +764,7 @@ def test_get_print_spooler_conecta_el_confirmador(monkeypatch):
         confirmador = ci.get_confirmador()
         assert sp._on_success == confirmador.reportar_exito
         assert sp._on_failure == confirmador.reportar_fallo
+        assert sp._on_discard == confirmador.reportar_descartado
     finally:
         CH.shutdown_print_spooler()
 

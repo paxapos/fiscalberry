@@ -267,8 +267,7 @@ def test_discard_all_clears_pending_and_failed(db_path):
         sp.enqueue("job-fail", {"x": 1}, "printerA")
         assert _wait_until(lambda: sp.failed_count() == 1, timeout=5.0)
 
-        n = sp.discard_all()
-        assert n == 1
+        assert sp.discard_all() == ["job-fail"]
         assert sp.pending_count() == 0
         assert sp.failed_count() == 0
     finally:
@@ -290,13 +289,60 @@ def test_discard_all_then_same_job_id_is_accepted_again(db_path):
         assert sp.enqueue("job-1", {"a": 1}, "printerA") is True
         assert sp.enqueue("job-1", {"a": 1}, "printerA") is False  # dedup normal
 
-        n = sp.discard_all()
-        assert n == 1
+        assert sp.discard_all() == ["job-1"]
 
         assert sp.enqueue("job-1", {"a": 1}, "printerA") is True
     finally:
         block.set()
         sp.stop()
+
+
+def _fechar(sp, job_id, created_at):
+    with sp._lock:
+        sp._conn.execute("UPDATE jobs SET created_at=? WHERE job_id=?", (created_at, job_id))
+        sp._conn.commit()
+
+
+def test_discard_all_con_hasta_solo_descarta_los_anteriores_al_corte(db_path):
+    """#225: con `hasta` se descarta solo lo creado hasta ese instante; lo que
+    llegó después de apretar "descartar" sigue en la cola."""
+
+    def offline_print_fn(ticket):
+        raise RuntimeError("impresora offline")
+
+    sp = DurablePrintSpooler(offline_print_fn, db_path=db_path, base_delay=60.0, idle_wait=0.05)
+    try:
+        for job_id, creado in (("antes", 1000.0), ("en-el-corte", 1500.0), ("despues", 1500.5)):
+            sp.enqueue(job_id, {"jobId": job_id}, "printerA")
+            _fechar(sp, job_id, creado)
+
+        assert sorted(sp.discard_all(hasta=1500)) == ["antes", "en-el-corte"]
+        assert sp.pending_count() + sp.failed_count() == 1
+        assert sp.enqueue("despues", {"jobId": "despues"}, "printerA") is False  # sigue en la cola
+    finally:
+        sp.stop()
+
+
+def test_discard_all_avisa_cada_descartado_con_on_discard(db_path):
+    """#225: cada trabajo descartado se avisa con (job_id, ticket, intentos)."""
+    avisos = []
+
+    def offline_print_fn(ticket):
+        raise RuntimeError("impresora offline")
+
+    sp = DurablePrintSpooler(
+        offline_print_fn, db_path=db_path, max_attempts=1, base_delay=0.02,
+        max_delay=0.05, idle_wait=0.05, on_discard=lambda *a: avisos.append(a),
+    )
+    try:
+        sp.enqueue("job-1", {"jobId": "job-1", "printerName": "printerA"}, "printerA")
+        assert _wait_until(lambda: sp.failed_count() == 1, timeout=5.0)
+
+        assert sp.discard_all() == ["job-1"]
+    finally:
+        sp.stop()
+
+    assert avisos == [("job-1", {"jobId": "job-1", "printerName": "printerA"}, 1)]
 
 
 def test_requeue_failed_moves_failed_back_to_pending_and_wakes_worker(db_path):
