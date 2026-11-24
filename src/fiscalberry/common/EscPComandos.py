@@ -249,6 +249,9 @@ class EscPComandos():
     )
 
     def run(self, jsonTicket):
+        # Se abre antes de escribir: si la impresora no está, no salió nada y la
+        # excepción llega al spooler, que reintenta sin riesgo de duplicar.
+        self.printer.open()
         try:
             with EscposIO(self.printer, autocut=False, autoclose=True) as escpos:
                 actions = jsonTicket.keys()
