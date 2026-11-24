@@ -2,6 +2,7 @@
 
 import sys
 import json
+import socket
 import threading
 import time
 import queue
@@ -481,6 +482,31 @@ def _publicar_error_de_impresion(error, context):
         logger.error(f"No se pudo publicar el error de impresión: {publish_err}")
 
 
+# Cuánto se espera, después de mandar un printRaw por red, a ver si la
+# impresora cortó la conexión. Una impresora sana que no contesta solo demora esto.
+ESPERA_CORTE_NETWORK = 0.5
+
+
+def _verificar_conexion_network(driver):
+    """Lanza OSError si la impresora de red cortó la conexión sin leer todo.
+
+    sendall() vuelve apenas los bytes entran al buffer del socket: un corte a
+    mitad del ticket no se ve al escribir. Si la impresora cierra con datos sin
+    leer, el sistema manda un RST y recv() lo informa. Timeout, datos (estado) o
+    un cierre ordenado = OK. No se cierra la escritura antes de leer: cómo
+    contesta una impresora a ese cierre depende de su firmware (puede ser un RST
+    aunque haya leído todo), y sería un falso error que reimprime el ticket.
+    """
+    sock = driver._device if isinstance(driver, printer.Network) else None
+    if not sock:
+        return
+    sock.settimeout(ESPERA_CORTE_NETWORK)
+    try:
+        sock.recv(1)
+    except socket.timeout:
+        pass
+
+
 def _print_raw(driver, raw_cmd, printerName, driverName):
     """Escribe los bytes de un printRaw en la impresora y cierra el driver.
 
@@ -499,6 +525,7 @@ def _print_raw(driver, raw_cmd, printerName, driverName):
         raise
     try:
         driver._raw(data)
+        _verificar_conexion_network(driver)
     except Exception as e:
         try:
             driver.close()
