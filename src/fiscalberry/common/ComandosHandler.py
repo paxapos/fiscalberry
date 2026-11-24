@@ -485,6 +485,9 @@ def _publicar_error_de_impresion(error, context):
 # Cuánto se espera, después de mandar un printRaw por red, a ver si la
 # impresora cortó la conexión. Una impresora sana que no contesta solo demora esto.
 ESPERA_CORTE_NETWORK = 0.5
+# Tras un FIN, cuánto se espera el RST que lo sigue si la impresora cerró con
+# datos sin leer: los manda juntos, así que llega enseguida.
+ESPERA_RST_TRAS_FIN = 0.05
 
 
 def _verificar_conexion_network(driver):
@@ -492,19 +495,27 @@ def _verificar_conexion_network(driver):
 
     sendall() vuelve apenas los bytes entran al buffer del socket: un corte a
     mitad del ticket no se ve al escribir. Si la impresora cierra con datos sin
-    leer, el sistema manda un RST y recv() lo informa. Timeout, datos (estado) o
-    un cierre ordenado = OK. No se cierra la escritura antes de leer: cómo
-    contesta una impresora a ese cierre depende de su firmware (puede ser un RST
-    aunque haya leído todo), y sería un falso error que reimprime el ticket.
+    leer, el sistema manda un RST (a veces precedido por un FIN, si antes hizo
+    shutdown()) y recv() o SO_ERROR lo informan. Timeout, datos (estado) o un
+    FIN sin RST (leyó todo y cerró) = OK. No se cierra la escritura antes de
+    leer: cómo contesta una impresora a ese cierre depende de su firmware (puede
+    ser un RST aunque haya leído todo), y sería un falso error que reimprime el
+    ticket.
     """
     sock = driver._device if isinstance(driver, printer.Network) else None
     if not sock:
         return
     sock.settimeout(ESPERA_CORTE_NETWORK)
     try:
-        sock.recv(1)
+        if sock.recv(1) != b"":
+            return
     except socket.timeout:
-        pass
+        return
+    # Después del FIN, recv() devuelve b"" aunque llegue el RST: queda en SO_ERROR.
+    time.sleep(ESPERA_RST_TRAS_FIN)
+    error = sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+    if error:
+        raise ConnectionResetError(error, "la impresora cortó la conexión sin leer todo el ticket")
 
 
 def _print_raw(driver, raw_cmd, printerName, driverName):

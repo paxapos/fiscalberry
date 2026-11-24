@@ -23,9 +23,11 @@ TICKET = b"\x1b@" + b"REMITO 0001-00001234\n" * 22 + b"\x1dV\x00"
 class Impresora:
     """Impresora de red falsa en 127.0.0.1: lee hasta `lee` bytes y cierra; sin
     `lee`, hasta que el cliente cierra. Si cierra con datos sin leer, el sistema
-    le manda un RST al cliente."""
+    le manda un RST al cliente. Con `fin`, antes de cerrar hace shutdown(), y el
+    cliente recibe un FIN y enseguida el RST."""
 
-    def __init__(self, lee=None):
+    def __init__(self, lee=None, fin=False):
+        self.fin = fin
         self.srv = socket.create_server(("127.0.0.1", 0))
         self.port = self.srv.getsockname()[1]
         self.recibido = b""
@@ -40,6 +42,8 @@ class Impresora:
                 if not trozo:
                     break
                 self.recibido += trozo
+            if self.fin:
+                conn.shutdown(socket.SHUT_RDWR)
         self.srv.close()
 
 
@@ -57,17 +61,19 @@ def imprimir(monkeypatch):
     return imprimir
 
 
-def test_corte_a_mitad_no_se_da_por_impreso(imprimir):
-    impresora = Impresora(lee=200)
+@pytest.mark.parametrize("fin", [False, True], ids=["rst", "fin-y-rst"])
+def test_corte_a_mitad_no_se_da_por_impreso(imprimir, fin):
+    impresora = Impresora(lee=200, fin=fin)
 
     with pytest.raises(OSError):
         imprimir(impresora)
     assert len(impresora.recibido) == 200
 
 
-@pytest.mark.parametrize("lee", [None, len(TICKET)], ids=["no-contesta", "cierra-tras-leer-todo"])
-def test_impresora_sana_es_ok(imprimir, lee):
-    impresora = Impresora(lee=lee)
+@pytest.mark.parametrize("lee, fin", [(None, False), (len(TICKET), False), (len(TICKET), True)],
+                         ids=["no-contesta", "cierra-tras-leer-todo", "fin-tras-leer-todo"])
+def test_impresora_sana_es_ok(imprimir, lee, fin):
+    impresora = Impresora(lee=lee, fin=fin)
 
     rta = imprimir(impresora)
 
