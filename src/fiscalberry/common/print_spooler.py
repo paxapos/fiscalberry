@@ -167,17 +167,30 @@ class DurablePrintSpooler:
             logger.warning(
                 "Spooler: %d job(s) en dead-letter re-encolados tras reinicio", recovered)
 
-    def requeue_failed(self):
-        """Vuelve a poner en cola los jobs 'failed' (dead-letter). Devuelve cuántos."""
+    def retry_now(self):
+        """Reintenta YA toda la cola ("imprimir pendientes", #166 y #226).
+
+        Re-encola los 'failed' (dead-letter) con presupuesto de reintentos fresco
+        y anula la espera de los 'pending' que están en backoff. Devuelve
+        (requeued_failed, retried_now).
+        """
         with self._lock:
-            n = self._conn.execute(
+            retried = self._conn.execute(
+                "UPDATE jobs SET next_attempt_at=0 WHERE status='pending' AND next_attempt_at>?",
+                (time.time(),)).rowcount
+            requeued = self._conn.execute(
                 "UPDATE jobs SET status='pending', attempts=0, next_attempt_at=0 "
                 "WHERE status='failed'").rowcount
             self._conn.commit()
-        if n:
-            self._wake.set()
-            logger.info("Spooler: %d job(s) 'failed' re-encolados manualmente", n)
-        return n
+        self._wake.set()
+        return requeued, retried
+
+    def printers_in_queue(self):
+        """Impresoras con trabajos en la cola ('pending' o 'failed')."""
+        with self._lock:
+            return [p for (p,) in self._conn.execute(
+                "SELECT DISTINCT printer_name FROM jobs WHERE status IN ('pending','failed') "
+                "AND printer_name IS NOT NULL ORDER BY printer_name")]
 
     def discard_all(self, hasta=None):
         """Descarta la cola ('pending' + 'failed'). Devuelve los job_id descartados.

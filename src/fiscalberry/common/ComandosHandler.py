@@ -1223,18 +1223,27 @@ class ComandosHandler:
         return rta
 
     def _imprimirPendientes(self):
-        """Comando remoto 'imprimir todos' (issue #166): reintenta la cola.
+        """Comando remoto 'imprimir todos' (issue #166): reintenta YA la cola.
 
-        Re-encola los 'failed' (dead-letter) para que el worker del spooler
-        los retome de inmediato. `requeue_failed()` ya existía pero nadie la
-        llamaba desde ningún comando: era código muerto.
+        Re-encola los 'failed' (dead-letter) y anula la espera de los 'pending'
+        en backoff (#226). Antes cierra el circuit breaker de las impresoras con
+        trabajos en cola: abierto, el reintento fallaría sin tocar la impresora.
         """
+        from fiscalberry.common.printer_circuit_breaker import get_circuit_breaker
+
         spooler = get_print_spooler()
-        n = spooler.requeue_failed()
+        breaker = get_circuit_breaker()
+        impresoras = spooler.printers_in_queue()
+        for impresora in impresoras:
+            breaker.record_success(impresora)    # cierra el circuito y pone en 0 los fallos
+        requeued, retried = spooler.retry_now()
+        logger.info("imprimirPendientes: %d 'failed' re-encolados, %d 'pending' reintentados ya "
+                    "(circuito cerrado en: %s)", requeued, retried, ", ".join(impresoras) or "-")
         return {
             "action": "imprimirPendientes",
             "rta": {
-                "requeued": n,
+                "requeued_failed": requeued,
+                "retried_now": retried,
                 "pending_count": spooler.pending_count(),
                 "failed_count": spooler.failed_count(),
             },
