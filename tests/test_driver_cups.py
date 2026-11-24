@@ -1,13 +1,14 @@
 # coding=utf-8
 """
-Driver Cups (paxapos/fiscalberry#220) con el CupsPrinter real de python-escpos
-y una cups.Connection falsa: el trabajo tiene que llegar a la cola una sola vez,
-y si printFile falla, se le devuelve el error al spooler para que lo reintente
-en vez de darlo por impreso.
+Drivers Cups y LP (paxapos/fiscalberry#220) con las clases reales de
+python-escpos y una cups.Connection o un `lp` falsos: el trabajo tiene que
+llegar a la cola una sola vez, y si CUPS no lo acepta, se le devuelve el error
+al spooler para que lo reintente en vez de darlo por impreso.
 """
 
 import base64
 import gzip
+import io
 from types import SimpleNamespace
 
 import pytest
@@ -17,6 +18,7 @@ cups = pytest.importorskip("cups")
 from fiscalberry.common import ComandosHandler as ch
 from fiscalberry.common.EscPComandos import EscPComandos
 from fiscalberry.common.print_spooler import PermanentJobError
+from escpos.printer import lp as escpos_lp
 
 DATOS = b"\x1b@COMANDA\n\x1dV\x00"
 CONFIG = {"driver": "Cups", "printer_name": "qa-raw"}
@@ -95,3 +97,43 @@ def test_si_printfile_falla_se_reintenta_y_llega_una_vez(imprimir, cola):
 def test_cola_inexistente_no_se_da_por_impresa(cola):
     with pytest.raises(ch.DriverError):
         ch.build_driver({"driver": "Cups", "printer_name": "no-existe"})
+
+
+@pytest.fixture
+def lp(monkeypatch):
+    """`lp` falso que termina con `codigo` (1 = p. ej. la cola no acepta trabajos)."""
+    estado = SimpleNamespace(codigo=0)
+
+    class Proceso:
+        def __init__(self, args, **kw):
+            self.stdin = io.BytesIO()
+            self.returncode = None
+
+        def wait(self):
+            self.returncode = estado.codigo
+            return self.returncode
+
+        def terminate(self):
+            pass
+
+    monkeypatch.setattr(escpos_lp.LP, "printers", property(lambda self: {"qa-raw": "x"}))
+    monkeypatch.setattr(escpos_lp.subprocess, "Popen", Proceso)
+    return estado
+
+
+def _driver_lp():
+    return ch.build_driver({"driver": "LP", "printer_name": "qa-raw"})[0]
+
+
+def test_lp_que_anda_cierra_sin_error(lp):
+    d = _driver_lp()
+    d._raw(DATOS)
+    d.close()
+
+
+def test_lp_que_falla_no_se_da_por_impreso(lp):
+    lp.codigo = 1
+    d = _driver_lp()
+    d._raw(DATOS)
+    with pytest.raises(OSError, match="lp"):
+        d.close()
