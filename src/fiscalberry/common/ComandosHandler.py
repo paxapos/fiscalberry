@@ -712,6 +712,10 @@ def get_print_spooler():
     return _print_spooler
 
 
+# Tope (segundos) para esperar al trabajo en vuelo al cerrar el servicio (#224).
+ESPERA_TRABAJO_EN_VUELO = 30.0
+
+
 def shutdown_print_spooler():
     """Cierra el spooler durable de forma ordenada, si llegó a crearse.
 
@@ -721,16 +725,22 @@ def shutdown_print_spooler():
     issue fiscalberry#165, propuesta 3). Con PRAGMA synchronous=FULL los jobs
     ya son durables sin este cierre ordenado, pero cerrar bien evita dejar el
     WAL creciendo entre reinicios frecuentes (ej. auto-actualización).
+
+    Espera hasta ESPERA_TRABAJO_EN_VUELO al trabajo que se está imprimiendo
+    (#224). Mientras tanto el spooler sigue siendo el del proceso: lo que llega
+    se persiste en él y no en uno nuevo que se pondría a imprimir.
     """
     global _print_spooler
+    sp = _print_spooler
+    if sp is None:
+        return
+    try:
+        sp.stop(timeout=ESPERA_TRABAJO_EN_VUELO)
+    except Exception as e:
+        logger.debug("Error deteniendo el spooler durable: %s", e)
     with _print_spooler_lock:
-        sp = _print_spooler
-        _print_spooler = None
-    if sp is not None:
-        try:
-            sp.stop()
-        except Exception as e:
-            logger.debug("Error deteniendo el spooler durable: %s", e)
+        if _print_spooler is sp:
+            _print_spooler = None
 
 
 _REMOTE_POWER_DISABLED_MSG = (

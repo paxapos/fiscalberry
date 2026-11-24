@@ -17,6 +17,7 @@ controlado y hacen polling con timeout corto para ser deterministas sin sleeps
 frágiles.
 """
 
+import logging
 import sqlite3
 import threading
 import time
@@ -247,6 +248,34 @@ def test_stop_closes_connection_cleanly(db_path):
         assert sp2.pending_count() == 1
     finally:
         sp2.stop()
+
+
+def test_stop_con_un_trabajo_que_no_termina_avisa_y_no_cierra_la_base(db_path, caplog):
+    """#224: si vence el tope de stop() con un trabajo imprimiéndose, se avisa y
+    la conexión queda abierta: si el trabajo termina después, queda impreso en
+    vez de romper el worker y volver a imprimirse al reiniciar."""
+    en_vuelo, soltar = threading.Event(), threading.Event()
+
+    def print_fn(ticket):
+        en_vuelo.set()
+        soltar.wait(timeout=5.0)
+
+    sp = DurablePrintSpooler(print_fn, db_path=db_path, idle_wait=0.05)
+    sp.enqueue("job-1", {"x": 1}, "printerA")
+    assert en_vuelo.wait(timeout=2.0)
+
+    with caplog.at_level(logging.WARNING):
+        sp.stop(timeout=0.1)
+    assert any("no terminó" in r.getMessage() for r in caplog.records
+               if r.levelno >= logging.WARNING)
+
+    soltar.set()
+    assert _wait_until(lambda: not sp._worker.is_alive(), timeout=2.0)
+    con = sqlite3.connect(db_path)
+    try:
+        assert con.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
+    finally:
+        con.close()
 
 
 # ---------------------------------------------------------------------------
