@@ -9,7 +9,9 @@ logger = getLogger()
 
 class FiscalberryComandos():
  
-	timeout = 5
+	# (conexión, respuesta): un remoto lento que ya recibió el ticket no se da por
+	# caído, porque el spooler lo reintentaría y el remoto lo imprimiría otra vez.
+	timeout = (5, 30)
 
 	DEFAULT_DRIVER = "Fiscalberry"
 
@@ -28,7 +30,7 @@ class FiscalberryComandos():
 			reply = requests.post(host, data=json.dumps(jsonData), headers=headers, timeout=self.timeout)
 		except requests.exceptions.Timeout as e:
 			# Sin timeout, si NO existe la IP de destino, queda intentando infinitamente.
-			logger.error(f"Timeout de conexión con {host} después de {self.timeout} segundos")
+			logger.error(f"Timeout con {host}: {e}")
 			raise PrinterException(f"Timeout con el Fiscalberry {host}") from e
 		except requests.exceptions.RequestException as e:
 			# Existe la IP destino pero el puerto está cerrado, DNS, etc.
