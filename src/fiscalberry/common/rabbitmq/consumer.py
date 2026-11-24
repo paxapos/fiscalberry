@@ -45,7 +45,8 @@ class RabbitMQConsumer:
         password: str,
         queue_name: str,
         message_queue: Optional[queue.Queue] = None,
-        vhost: str = "/"
+        vhost: str = "/",
+        tls: Optional[dict] = None
     ) -> None:
         self.logger = getLogger("MQTT.Consumer")
         
@@ -73,6 +74,8 @@ class RabbitMQConsumer:
 
         # Config local para TLS y binding AMQP (Fases 5 y 10).
         self._configberry = Configberry()
+        # TLS informado por el servidor (credenciales activas del process_handler).
+        self._tls_servidor = tls
 
         # Handler de comandos reutilizable (evita crear instancia por mensaje)
         self._comandos_handler = None
@@ -369,16 +372,19 @@ class RabbitMQConsumer:
             # Configurar credenciales
             self.client.username_pw_set(self.user, self.password)
 
-            # TLS opt-in (Fase 5). Sin config, no hace nada (MQTT plano en 1883).
+            # TLS opt-in (Fase 5): lo pide config.ini o el servidor en start_rabbit.
+            # Sin pedido, no hace nada (MQTT plano en 1883).
             try:
-                tls_cfg = mqtt_compat.read_mqtt_tls_config(self._configberry)
+                tls_cfg = mqtt_compat.read_mqtt_tls_config(
+                    self._configberry, servidor=self._tls_servidor)
                 if mqtt_compat.apply_tls(self.client, tls_cfg):
                     self.logger.info(
-                        "MQTT TLS habilitado (puerto config=%s, ca_cert=%s, insecure=%s)",
-                        tls_cfg["port"], tls_cfg["ca_cert"], tls_cfg["tls_insecure"])
+                        "MQTT TLS habilitado (ca_cert=%s, ca del servidor=%s, insecure=%s)",
+                        tls_cfg["ca_cert"], bool(tls_cfg["ca_data"]), tls_cfg["tls_insecure"])
             except Exception as tls_err:
-                # Nunca romper la conexión por un problema de lectura de TLS.
-                self.logger.error("No se pudo aplicar TLS (se continúa sin TLS): %s", tls_err)
+                # Nunca caer a texto plano: si no se puede aplicar TLS, no se conecta.
+                self.logger.error("No se pudo aplicar TLS; no se conecta sin TLS: %s", tls_err)
+                raise
             
             # Habilitar reconexión automática con backoff (1s min, 120s max)
             self.client.reconnect_delay_set(min_delay=1, max_delay=120)
