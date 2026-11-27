@@ -87,7 +87,7 @@ class UpdaterService:
             return defecto
 
     def enabled(self):
-        valor = str(self._cfg("enabled", "true")).strip().lower()
+        valor = str(self._cfg("enabled", "false")).strip().lower()
         return valor not in ("false", "0", "no", "off")
 
     def interval_seconds(self):

@@ -217,7 +217,7 @@ def test_request_remote_update_usa_el_servicio_activo(entorno, monkeypatch):
 
 def test_start_registra_el_servicio_activo_y_stop_lo_saca(entorno, monkeypatch):
     monkeypatch.setattr(service, "FIRST_CHECK_DELAY_SECONDS", 60)
-    svc = service.UpdaterService(config=FakeConfig())
+    svc = service.UpdaterService(config=FakeConfig(enabled="true"))
 
     svc.start()
     try:
