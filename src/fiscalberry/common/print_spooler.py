@@ -71,7 +71,7 @@ def default_db_path():
 class DurablePrintSpooler:
     def __init__(self, print_fn, db_path=None, max_attempts=1000,
                  base_delay=5.0, max_delay=MAX_RETRY_DELAY, idle_wait=5.0,
-                 on_success=None, on_failure=None,
+                 on_success=None, on_failure=None, on_discard=None,
                  done_retention=DONE_RETENTION, done_max_rows=DONE_MAX_ROWS):
         """
         print_fn: callable(ticket_dict) -> imprime; lanza excepción si falla.
@@ -84,6 +84,8 @@ class DurablePrintSpooler:
             el trabajo pasó a dead-letter ('failed') o falló con un PermanentJobError
             (se quita de la cola, sin reintento) y False si se va a reintentar.
             `ticket` es None si ni siquiera se pudo leer el payload guardado.
+        on_discard: callable(job_id, ticket, intentos) opcional. Se llama por cada
+            trabajo que discard_all() sacó de la cola sin imprimir.
         done_retention / done_max_rows: cuánto (segundos) y cuántos job_id ya impresos
             se recuerdan para descartar reentregas del mismo `jobId`.
         Un callback que lanza NUNCA afecta al spooler: se loguea y se sigue.
@@ -101,6 +103,7 @@ class DurablePrintSpooler:
         self._print_fn = print_fn
         self._on_success = on_success
         self._on_failure = on_failure
+        self._on_discard = on_discard
         self._db_path = db_path or default_db_path()
         self._max_attempts = max_attempts
         self._base_delay = base_delay
@@ -164,39 +167,65 @@ class DurablePrintSpooler:
             logger.warning(
                 "Spooler: %d job(s) en dead-letter re-encolados tras reinicio", recovered)
 
-    def requeue_failed(self):
-        """Vuelve a poner en cola los jobs 'failed' (dead-letter). Devuelve cuántos."""
+    def retry_now(self):
+        """Reintenta YA toda la cola ("imprimir pendientes", #166 y #226).
+
+        Re-encola los 'failed' (dead-letter) con presupuesto de reintentos fresco
+        y anula la espera de los 'pending' que están en backoff. Devuelve
+        (requeued_failed, retried_now).
+        """
         with self._lock:
-            n = self._conn.execute(
+            retried = self._conn.execute(
+                "UPDATE jobs SET next_attempt_at=0 WHERE status='pending' AND next_attempt_at>?",
+                (time.time(),)).rowcount
+            requeued = self._conn.execute(
                 "UPDATE jobs SET status='pending', attempts=0, next_attempt_at=0 "
                 "WHERE status='failed'").rowcount
             self._conn.commit()
-        if n:
-            self._wake.set()
-            logger.info("Spooler: %d job(s) 'failed' re-encolados manualmente", n)
-        return n
+        self._wake.set()
+        return requeued, retried
 
-    def discard_all(self):
-        """Descarta TODA la cola ('pending' + 'failed'). Devuelve cuántos.
+    def printers_in_queue(self):
+        """Impresoras con trabajos en la cola ('pending' o 'failed')."""
+        with self._lock:
+            return [p for (p,) in self._conn.execute(
+                "SELECT DISTINCT printer_name FROM jobs WHERE status IN ('pending','failed') "
+                "AND printer_name IS NOT NULL ORDER BY printer_name")]
+
+    def discard_all(self, hasta=None):
+        """Descarta la cola ('pending' + 'failed'). Devuelve los job_id descartados.
 
         Acción "descartar" de la issue #166: el operador decide explícitamente
         no imprimir lo acumulado (ej. impresora fue reemplazada, comandas ya
         vencidas). No toca la dedup: si más tarde llega un job con el mismo
         job_id ya descartado, se vuelve a aceptar (se descartó a propósito).
+
+        hasta: epoch en segundos. Si viene, solo se descartan los trabajos con
+        created_at <= hasta (#225): lo que llegó después de que el operador
+        apretó el botón no lo vio nadie y se imprime.
         """
+        filtro, params = "status IN ('pending','failed')", ()
+        if hasta is not None:
+            filtro, params = filtro + " AND created_at<=?", (hasta,)
         with self._lock:
-            n = self._conn.execute(
-                "SELECT COUNT(*) FROM jobs WHERE status IN ('pending','failed')"
-            ).fetchone()[0]
-            self._conn.execute(
-                "DELETE FROM jobs WHERE status IN ('pending','failed')")
+            filas = self._conn.execute(
+                "SELECT job_id, payload, attempts FROM jobs WHERE " + filtro, params).fetchall()
+            self._conn.execute("DELETE FROM jobs WHERE " + filtro, params)
             self._conn.commit()
-        if n:
+        ids = [job_id for job_id, _, _ in filas]
+        if ids:
             # WARNING a propósito: se están descartando comprobantes fiscales
             # y comandas, no una notificación cualquiera. Tiene que quedar
             # rastro en el log de quien lo pidió y cuándo.
-            logger.warning("Spooler: %d job(s) DESCARTADOS manualmente (no se imprimirán)", n)
-        return n
+            logger.warning("Spooler: %d job(s) DESCARTADOS manualmente (no se imprimirán): %s",
+                           len(ids), ", ".join(ids))
+        for job_id, payload, attempts in filas:
+            try:
+                ticket = json.loads(payload)
+            except ValueError:
+                ticket = None
+            self._notify(self._on_discard, "on_discard", job_id, ticket, attempts)
+        return ids
 
     def _init_db(self):
         with self._lock:
@@ -432,11 +461,20 @@ class DurablePrintSpooler:
         contrato de durabilidad ya no depende de esto, pero cerrar bien evita
         dejar el WAL creciendo y conexiones sqlite a medio commit (issue #165,
         propuesta 3).
+
+        No toma trabajos nuevos y espera hasta `timeout` segundos al que se está
+        imprimiendo (#224). Si no termina, avisa y deja la conexión abierta: si
+        el trabajo termina después, todavía puede quedar registrado como impreso.
         """
         self._stop.set()
         self._wake.set()
         if self._worker.is_alive():
             self._worker.join(timeout=timeout)
+        if self._worker.is_alive():
+            logger.warning("Spooler: el trabajo que se estaba imprimiendo no terminó en %.0f s; "
+                           "se cierra igual (si no llega a terminar, se reintenta al volver)",
+                           timeout)
+            return
         with self._lock:
             try:
                 self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
