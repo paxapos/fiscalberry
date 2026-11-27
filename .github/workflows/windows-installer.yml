@@ -93,3 +93,11 @@ jobs:
           $linea = Select-String -Path src/fiscalberry/version.py -Pattern 'VERSION\s*=\s*"([^"]+)"'
           if (-not $linea) { throw "No se encontró VERSION en src/fiscalberry/version.py" }
           ./installer/test_installer.ps1 -Version $linea.Matches[0].Groups[1].Value
+
+      - name: Subir el instalador del piloto
+        uses: actions/upload-artifact@v4
+        with:
+          name: FiscalberrySetup-${{ github.sha }}
+          path: dist/FiscalberrySetup.exe
+          if-no-files-found: error
+          retention-days: 30
