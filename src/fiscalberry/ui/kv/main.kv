@@ -345,7 +345,7 @@
                 dot_color: (0.16, 0.72, 0.36, 1) if app.status_level == 'ok' else ((0.95, 0.66, 0.15, 1) if app.status_level == 'warn' else (0.86, 0.25, 0.25, 1))
 
             Label:
-                text: "OK" if app.status_level == 'ok' else ("!" if app.status_level == 'warn' else "OFF")
+                text: "!" if app.printer_problem_title else ("OK" if app.status_level == 'ok' else ("!" if app.status_level == 'warn' else "OFF"))
                 font_size: '44sp'
                 bold: True
                 color: 1, 1, 1, 1
@@ -363,6 +363,51 @@
             halign: 'center'
             valign: 'middle'
             text_size: self.width, None
+
+        # ── Aviso de impresora: qué pasa y qué hacer, en palabras simples ──
+        BoxLayout:
+            orientation: 'vertical'
+            size_hint_y: None
+            height: (self.minimum_height if app.printer_problem_title else 0)
+            opacity: 1 if app.printer_problem_title else 0
+            disabled: not app.printer_problem_title
+            padding: [dp(16), dp(12)] if app.printer_problem_title else [0, 0]
+            spacing: dp(6)
+            canvas.before:
+                Color:
+                    rgba: (0.99, 0.91, 0.91, 1) if app.printer_problem_title else (0, 0, 0, 0)
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [dp(10)]
+
+            Label:
+                text: app.printer_problem_title
+                font_size: '19sp'
+                bold: True
+                color: 0.6, 0.1, 0.1, 1
+                size_hint_y: None
+                height: self.texture_size[1] if app.printer_problem_title else 0
+                halign: 'center'
+                text_size: self.width, None
+
+            Label:
+                text: app.printer_problem_message
+                font_size: '18sp'
+                color: 0.2, 0.08, 0.08, 1
+                size_hint_y: None
+                height: self.texture_size[1] if app.printer_problem_title else 0
+                halign: 'center'
+                text_size: self.width, None
+
+            Label:
+                text: app.printer_problem_hint
+                font_size: '14sp'
+                color: 0.35, 0.3, 0.3, 1
+                size_hint_y: None
+                height: self.texture_size[1] if app.printer_problem_title else 0
+                halign: 'center'
+                text_size: self.width, None
 
         # Sub-chips de canales (Socket.IO + RabbitMQ)
         BoxLayout:
