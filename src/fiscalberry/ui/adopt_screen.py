@@ -96,7 +96,7 @@ class AdoptScreen(Screen):
     qrCodeLink = StringProperty("")
     # Mensaje visible cuando la vinculación no se puede preparar. Vacío = todo ok.
     linkError = StringProperty("")
-    # True mientras el botón reintenta el registro en segundo plano.
+    # True mientras se registra el dispositivo en segundo plano (botón deshabilitado).
     registrando = BooleanProperty(False)
     is_monitoring = BooleanProperty(False)
     platform_name = StringProperty("Android" if IS_ANDROID else "Desktop")
@@ -110,6 +110,9 @@ class AdoptScreen(Screen):
         # a una página que va a fallar.
         self._registrado = False
         self._registro_thread = None
+        # Lo que corre recién cuando el servidor registró el dispositivo (la App
+        # conecta ahí SocketIO para la adopción).
+        self.al_registrar = None
         logger.debug(f"AdoptScreen inicializada - Plataforma: {self.platform_name}")
 
     def marcar_registrado(self, registrado=True):
@@ -142,6 +145,9 @@ class AdoptScreen(Screen):
         
         # Actualizar links por si cambiaron
         self._update_links()
+
+        if not self._registrado:
+            self._registrar_en_segundo_plano()
         
         # Iniciar monitoreo de adopción
         if not self._monitoring:
@@ -180,7 +186,9 @@ class AdoptScreen(Screen):
 
             if uuid_val:
                 self.adoptarLink = f"{host}/adopt/{uuid_val}"
-                self.qrCodeLink = generar_qr(self.adoptarLink)
+                # Antes de que el servidor registre el dispositivo, el QR lleva
+                # a "Paxaprinter no encontrada".
+                self.qrCodeLink = generar_qr(self.adoptarLink) if self._registrado else ""
                 self.linkError = ""
                 logger.debug(f"Links actualizados - UUID: {uuid_val[:8]}...")
             else:
@@ -252,6 +260,40 @@ class AdoptScreen(Screen):
         except Exception as e:
             logger.error(f"Error registrando el dispositivo: {e}", exc_info=True)
             return False, f"No se pudo contactar al servidor: {e}"
+
+    def _registrar_en_segundo_plano(self):
+        """
+        Reintenta el discover hasta que el servidor confirme el registro.
+
+        Mientras tanto no hay QR y "Abrir vinculación" queda deshabilitado: los
+        dos llevan a una página que todavía no encuentra el dispositivo.
+        """
+        if self.registrando or configberry.is_comercio_adoptado():
+            return
+
+        from fiscalberry.common.discover import send_discover_hasta_registrar
+
+        def on_intento_fallido(intento, espera):
+            texto = (f"No se pudo registrar el dispositivo en el servidor (intento "
+                     f"{intento}). Reintentando en {espera} s; revisá la conexión.")
+            Clock.schedule_once(lambda dt: setattr(self, "linkError", texto), 0)
+
+        def registrar():
+            if send_discover_hasta_registrar(on_intento_fallido=on_intento_fallido):
+                Clock.schedule_once(self._registrado_en_servidor, 0)
+
+        self.registrando = True
+        self._registro_thread = threading.Thread(target=registrar, daemon=True)
+        self._registro_thread.start()
+
+    def _registrado_en_servidor(self, dt=None):
+        """Hilo de Kivy: el servidor ya conoce el dispositivo, se muestra el QR."""
+        logger.info("Dispositivo registrado en el servidor: se muestra el QR de adopción.")
+        self.registrando = False
+        self.marcar_registrado(True)
+        self._update_links()
+        if self.al_registrar:
+            self.al_registrar()
 
     def _regenerar_uuid(self):
         """
