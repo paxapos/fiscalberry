@@ -242,10 +242,11 @@ def preparar_cola(printer_name, win32print=None, winreg=None):
                         if d["vivo"] and d["descripcion"].strip().lower() in descripciones)
 
     if not candidatos:
-        # No hay ningún dispositivo igual conectado: apagada o desenchufada.
-        raise PrinterProblem(
-            NO_RESPONDE,
-            f"Cola '{printer_name}' en {','.join(puertos)}: el dispositivo USB no está conectado")
+        # El registro no es prueba suficiente (hay equipos donde da "no conectado"
+        # con la impresora andando): se imprime y esperar_trabajo confirma si salió.
+        logger.debug("Cola '%s' en %s figura sin dispositivo USB en el registro; "
+                     "se imprime igual", printer_name, ",".join(puertos))
+        return printer_name
 
     if len(candidatos) > 1:
         # Dos impresoras iguales conectadas: no adivinamos cuál es.

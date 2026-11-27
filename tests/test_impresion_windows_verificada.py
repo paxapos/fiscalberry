@@ -290,6 +290,19 @@ def test_impresora_desenchufada_es_problema_de_la_impresora(win):
     assert exc.value.origen == ph.ORIGEN_IMPRESORA
 
 
+def test_registro_que_da_el_puerto_por_muerto_no_frena_la_impresion(win, monkeypatch):
+    """Visto en un piloto: el registro da USB001 sin dispositivo y Windows imprime bien."""
+    win.agregar_cola("Ticketera", "USB001")
+    win.agregar_puerto("USB001", vivo=True)
+    monkeypatch.setattr(w32, "puertos_usb", lambda winreg=None: {
+        "USB001": {"vivo": False, "descripcion": "TERMICA USB T80", "dispositivo": "x"}})
+
+    res = _imprimir("Ticketera", **_raw(b"HOLA"))
+
+    assert res["result"] == "ok"
+    assert win.impreso["USB001"] == b"HOLA"
+
+
 def test_trabajo_trabado_se_cancela_y_no_se_da_por_impreso(win):
     """Puerto no USB (no se puede chequear antes): se detecta después."""
     win.agregar_cola("Ticketera", "COM3")
@@ -337,13 +350,17 @@ def test_cola_pausada(win):
 
 
 def test_ticket_normal_con_puerto_muerto_no_se_da_por_impreso(win):
-    """Camino EscPComandos: la impresora se abre antes de renderizar (#221) y el
-    chequeo del puerto corre en ese open(), así que el error llega al spooler."""
+    """Camino EscPComandos: el trabajo queda trabado en el puerto muerto, se
+    cancela y el error llega al spooler."""
     win.agregar_cola("Ticketera", "USB001")
     win.agregar_puerto("USB001", vivo=False)
 
-    with pytest.raises(PrinterProblem):
+    with pytest.raises(Exception) as exc:
         _imprimir("Ticketera", printTexto={"texto": "hola"})
+
+    assert ph.clasificar(exc.value) == ph.NO_RESPONDE
+    assert win.cancelados
+    assert win.trabajos == {}
 
 
 def test_ticket_normal_con_trabajo_trabado_es_fallo(win):
