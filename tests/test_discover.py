@@ -69,3 +69,49 @@ def test_discover_without_uuid_does_not_post(monkeypatch):
 
     assert discover.send_discover() is False
     assert not called
+
+
+class EventoQueNoCorta:
+    """stop_event que anota cada espera y vuelve enseguida."""
+
+    def __init__(self):
+        self.esperas = []
+
+    def is_set(self):
+        return False
+
+    def wait(self, segundos):
+        self.esperas.append(segundos)
+        return False
+
+
+def test_hasta_registrar_reintenta_con_espera_creciente(monkeypatch):
+    respuestas = iter([False, RuntimeError("sin red"), False, False, False, False, True])
+
+    def falso():
+        r = next(respuestas)
+        if isinstance(r, Exception):
+            raise r
+        return r
+
+    monkeypatch.setattr(discover, "send_discover", falso)
+    evento = EventoQueNoCorta()
+    avisos = []
+
+    assert discover.send_discover_hasta_registrar(evento, lambda i, e: avisos.append((i, e))) is True
+    assert evento.esperas == [2, 4, 8, 16, 30, 30]
+    assert avisos == [(1, 2), (2, 4), (3, 8), (4, 16), (5, 30), (6, 30)]
+
+
+def test_hasta_registrar_para_con_el_stop_event(monkeypatch):
+    import threading
+
+    llamadas = []
+    monkeypatch.setattr(discover, "send_discover", lambda: llamadas.append(1) or False)
+    stop = threading.Event()
+
+    assert discover.send_discover_hasta_registrar(stop, lambda i, e: stop.set()) is False
+    assert llamadas == [1]
+
+    assert discover.send_discover_hasta_registrar(stop) is False
+    assert llamadas == [1]

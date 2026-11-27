@@ -20,7 +20,7 @@ setup_crash_reporting()
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.service_controller import ServiceController
 from fiscalberry.common.Configberry import Configberry
-from fiscalberry.common.discover import send_discover
+from fiscalberry.common.discover import send_discover, send_discover_hasta_registrar
 
 logger = getLogger("AndroidCLI")
 
@@ -108,14 +108,20 @@ def main():
     logger.info(f"Host: {host}")
     
     # 2. Discover (REUTILIZADO)
+    registrado = False
     try:
-        send_discover()
-        logger.info("✓ Discover sent")
+        registrado = send_discover()
+        logger.info(f"Discover enviado - registrado: {registrado}")
     except Exception as e:
         logger.error(f"Discover failed: {e}")
     
     # 3. Check adoption
     if not configberry.is_comercio_adoptado():
+        # El link de adopción solo sirve cuando la Paxaprinter ya existe en el servidor
+        if not registrado:
+            logger.info("Esperando que el servidor registre el dispositivo...")
+            send_discover_hasta_registrar()
+            logger.info("✓ Dispositivo registrado en el servidor")
         adoption_url = f"{host}/adopt/{uuid}"
         logger.warning("Comercio NO adoptado - iniciando flow...")
         wait_for_adoption_headless(adoption_url)
