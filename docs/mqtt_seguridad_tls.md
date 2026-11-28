@@ -27,6 +27,16 @@
 > Verificar con: `python -m fiscalberry.diagnostics.rabbitmq_check --from-config`
 > (o `--tls --ca-cert /ruta/ca.pem`).
 >
+> **TLS informado por el servidor** (evento `start_rabbit`, objeto `RabbitMq`):
+> `use_tls` (`true`/`false`), `mqtt_port` y, opcional, `ca_cert` con la CA en
+> **texto PEM** (no una ruta). Con `use_tls=true` el equipo conecta con TLS
+> verificando el certificado (contra esa CA, o las del sistema si no viene
+> ninguna), sin tocar `config.ini`; sin `mqtt_port`, usa 8883. El servidor
+> puede prender TLS pero no apagarlo, y `tls_insecure` es solo local. Si TLS no
+> se puede aplicar o falla el handshake, no se conecta y queda el error en el
+> log: nunca cae a texto plano. Si el servidor no manda `use_tls`, todo sigue
+> como antes.
+>
 > ---
 
 ## ⚠️ Estado Anterior: SIN ENCRIPTACIÓN

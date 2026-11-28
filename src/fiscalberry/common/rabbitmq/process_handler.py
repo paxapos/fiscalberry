@@ -95,14 +95,18 @@ class RabbitMQProcessHandler:
         # Hilo vivo pero aún sin consumer instanciado: está arrancando.
         return True
     
-    def _update_active_credentials(self, host, port, user, password, vhost="/"):
+    def _update_active_credentials(self, host, port, user, password, vhost="/",
+                                   use_tls=False, ca_data=None):
         """Actualiza las credenciales activas."""
         self.active_credentials = {
             'host': host,
             'port': port,
             'user': user,
             'password': password,
-            'vhost': vhost  # Se mantiene por compatibilidad, pero no se usa en MQTT
+            'vhost': vhost,  # Se mantiene por compatibilidad, pero no se usa en MQTT
+            # TLS informado por el servidor (ver mqtt_compat.read_mqtt_tls_config).
+            'use_tls': use_tls,
+            'ca_data': ca_data,
         }
 
     def start(self, message_queue):
@@ -235,7 +239,8 @@ class RabbitMQProcessHandler:
                     user=user,
                     password=password,
                     queue_name=queue_name,
-                    message_queue=message_queue
+                    message_queue=message_queue,
+                    tls=self.active_credentials,
                 )
                 
                 # Guardar referencia al consumer para poder detenerlo desde stop()
@@ -402,9 +407,14 @@ class RabbitMQProcessHandler:
         # al default local, que es lo que hoy mantiene viva a la flota.
         env_port = _override_de_entorno("FISCALBERRY_MQTT_PORT")
         srv_port = str(rabbit_cfg.get("mqtt_port", "") or "").strip()
-        use_tls = str(
-            self.config.get("RabbitMq", "use_tls", fallback="false")
-        ).strip().lower() in ("true", "1", "yes", "on")
+        # TLS: lo pide config.ini o el servidor (`use_tls`, con la CA opcional
+        # en `ca_cert` como texto PEM). El servidor puede prenderlo, no apagarlo.
+        use_tls = any(
+            str(v).strip().lower() in ("true", "1", "yes", "on")
+            for v in (self.config.get("RabbitMq", "use_tls", fallback="false"),
+                      rabbit_cfg.get("use_tls")))
+        final_config["use_tls"] = use_tls
+        final_config["ca_data"] = str(rabbit_cfg.get("ca_cert") or "").strip() or None
         if env_port:
             final_config["port"] = env_port
             logger.warning(
@@ -507,7 +517,9 @@ class RabbitMQProcessHandler:
             final_config['port'],
             final_config['user'],
             final_config['password'],
-            vhost
+            vhost,
+            final_config['use_tls'],
+            final_config['ca_data'],
         )
         
         # Reinicia hilo con la configuración actual

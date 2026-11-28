@@ -81,7 +81,9 @@ class ErrorPublisher:
                         'host': active_creds.get('host', 'localhost'),
                         'port': int(active_creds.get('port', self.MQTT_PORT_DEFAULT)),
                         'user': active_creds.get('user', 'guest'),
-                        'password': active_creds.get('password', 'guest')
+                        'password': active_creds.get('password', 'guest'),
+                        'use_tls': active_creds.get('use_tls'),
+                        'ca_data': active_creds.get('ca_data'),
                     }
             except Exception as e:
                 logger.debug("ErrorPublisher: Could not obtain active credentials, using config - %s", e)
@@ -186,12 +188,10 @@ class ErrorPublisher:
                 # Configurar credenciales
                 client.username_pw_set(config['user'], config['password'])
 
-                # TLS opt-in (misma config local que el consumer).
-                try:
-                    tls_cfg = mqtt_compat.read_mqtt_tls_config(self.config)
-                    mqtt_compat.apply_tls(client, tls_cfg)
-                except Exception as tls_err:
-                    logger.debug("ErrorPublisher: no se pudo aplicar TLS: %s", tls_err)
+                # TLS opt-in, el mismo que el consumer (config.ini o servidor).
+                # Sin try propio: si no se puede aplicar, no se conecta en claro.
+                mqtt_compat.apply_tls(
+                    client, mqtt_compat.read_mqtt_tls_config(self.config, servidor=config))
 
                 # Reconexión automática con backoff (la hace el loop de paho).
                 client.reconnect_delay_set(min_delay=1, max_delay=120)
