@@ -10,20 +10,21 @@ Cubren el contrato central de "nunca perder impresiones":
   - el payload (incluido RAW) se serializa/deserializa sin mutar
   - durabilidad ante power-cycle (issue #165): PRAGMA synchronous=FULL y
     visibilidad de lo persistido sin depender de un cierre ordenado
-  - discard_all() / requeue_failed() sin romper la dedup (issue #166)
+  - discard_all() / retry_now() sin romper la dedup (issue #166)
 
 El spooler corre un worker en un thread daemon. Los tests usan un print_fn
 controlado y hacen polling con timeout corto para ser deterministas sin sleeps
 frágiles.
 """
 
+import logging
 import sqlite3
 import threading
 import time
 
 import pytest
 
-from fiscalberry.common.print_spooler import DurablePrintSpooler
+from fiscalberry.common.print_spooler import DurablePrintSpooler, PermanentJobError
 
 
 def _wait_until(predicate, timeout=5.0, interval=0.02):
@@ -249,8 +250,36 @@ def test_stop_closes_connection_cleanly(db_path):
         sp2.stop()
 
 
+def test_stop_con_un_trabajo_que_no_termina_avisa_y_no_cierra_la_base(db_path, caplog):
+    """#224: si vence el tope de stop() con un trabajo imprimiéndose, se avisa y
+    la conexión queda abierta: si el trabajo termina después, queda impreso en
+    vez de romper el worker y volver a imprimirse al reiniciar."""
+    en_vuelo, soltar = threading.Event(), threading.Event()
+
+    def print_fn(ticket):
+        en_vuelo.set()
+        soltar.wait(timeout=5.0)
+
+    sp = DurablePrintSpooler(print_fn, db_path=db_path, idle_wait=0.05)
+    sp.enqueue("job-1", {"x": 1}, "printerA")
+    assert en_vuelo.wait(timeout=2.0)
+
+    with caplog.at_level(logging.WARNING):
+        sp.stop(timeout=0.1)
+    assert any("no terminó" in r.getMessage() for r in caplog.records
+               if r.levelno >= logging.WARNING)
+
+    soltar.set()
+    assert _wait_until(lambda: not sp._worker.is_alive(), timeout=2.0)
+    con = sqlite3.connect(db_path)
+    try:
+        assert con.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
+    finally:
+        con.close()
+
+
 # ---------------------------------------------------------------------------
-# Regresión #166: discard_all() / requeue_failed() sin romper la dedup.
+# Regresión #166: discard_all() / retry_now() sin romper la dedup.
 # ---------------------------------------------------------------------------
 
 def test_discard_all_clears_pending_and_failed(db_path):
@@ -267,8 +296,7 @@ def test_discard_all_clears_pending_and_failed(db_path):
         sp.enqueue("job-fail", {"x": 1}, "printerA")
         assert _wait_until(lambda: sp.failed_count() == 1, timeout=5.0)
 
-        n = sp.discard_all()
-        assert n == 1
+        assert sp.discard_all() == ["job-fail"]
         assert sp.pending_count() == 0
         assert sp.failed_count() == 0
     finally:
@@ -290,8 +318,7 @@ def test_discard_all_then_same_job_id_is_accepted_again(db_path):
         assert sp.enqueue("job-1", {"a": 1}, "printerA") is True
         assert sp.enqueue("job-1", {"a": 1}, "printerA") is False  # dedup normal
 
-        n = sp.discard_all()
-        assert n == 1
+        assert sp.discard_all() == ["job-1"]
 
         assert sp.enqueue("job-1", {"a": 1}, "printerA") is True
     finally:
@@ -299,8 +326,56 @@ def test_discard_all_then_same_job_id_is_accepted_again(db_path):
         sp.stop()
 
 
-def test_requeue_failed_moves_failed_back_to_pending_and_wakes_worker(db_path):
-    """requeue_failed() (issue #166, 'imprimir todos') re-encola los 'failed'
+def _fechar(sp, job_id, created_at):
+    with sp._lock:
+        sp._conn.execute("UPDATE jobs SET created_at=? WHERE job_id=?", (created_at, job_id))
+        sp._conn.commit()
+
+
+def test_discard_all_con_hasta_solo_descarta_los_anteriores_al_corte(db_path):
+    """#225: con `hasta` se descarta solo lo creado hasta ese instante; lo que
+    llegó después de apretar "descartar" sigue en la cola."""
+
+    def offline_print_fn(ticket):
+        raise RuntimeError("impresora offline")
+
+    sp = DurablePrintSpooler(offline_print_fn, db_path=db_path, base_delay=60.0, idle_wait=0.05)
+    try:
+        for job_id, creado in (("antes", 1000.0), ("en-el-corte", 1500.0), ("despues", 1500.5)):
+            sp.enqueue(job_id, {"jobId": job_id}, "printerA")
+            _fechar(sp, job_id, creado)
+
+        assert sorted(sp.discard_all(hasta=1500)) == ["antes", "en-el-corte"]
+        assert sp.pending_count() + sp.failed_count() == 1
+        assert sp.enqueue("despues", {"jobId": "despues"}, "printerA") is False  # sigue en la cola
+    finally:
+        sp.stop()
+
+
+def test_discard_all_avisa_cada_descartado_con_on_discard(db_path):
+    """#225: cada trabajo descartado se avisa con (job_id, ticket, intentos)."""
+    avisos = []
+
+    def offline_print_fn(ticket):
+        raise RuntimeError("impresora offline")
+
+    sp = DurablePrintSpooler(
+        offline_print_fn, db_path=db_path, max_attempts=1, base_delay=0.02,
+        max_delay=0.05, idle_wait=0.05, on_discard=lambda *a: avisos.append(a),
+    )
+    try:
+        sp.enqueue("job-1", {"jobId": "job-1", "printerName": "printerA"}, "printerA")
+        assert _wait_until(lambda: sp.failed_count() == 1, timeout=5.0)
+
+        assert sp.discard_all() == ["job-1"]
+    finally:
+        sp.stop()
+
+    assert avisos == [("job-1", {"jobId": "job-1", "printerName": "printerA"}, 1)]
+
+
+def test_retry_now_moves_failed_back_to_pending_and_wakes_worker(db_path):
+    """retry_now() (issue #166, 'imprimir todos') re-encola los 'failed'
     y despierta al worker: no hace falta esperar el idle_wait para que se
     reintenten."""
     attempts = {"n": 0}
@@ -309,7 +384,7 @@ def test_requeue_failed_moves_failed_back_to_pending_and_wakes_worker(db_path):
         attempts["n"] += 1
         if attempts["n"] <= 1:
             raise RuntimeError("impresora offline")
-        # segundo intento (tras requeue_failed) sale bien
+        # segundo intento (tras retry_now) sale bien
 
     sp = DurablePrintSpooler(
         flaky_fn, db_path=db_path, max_attempts=1, base_delay=0.02,
@@ -319,11 +394,41 @@ def test_requeue_failed_moves_failed_back_to_pending_and_wakes_worker(db_path):
         sp.enqueue("job-flaky", {"x": 1}, "printerA")
         assert _wait_until(lambda: sp.failed_count() == 1, timeout=5.0)
 
-        n = sp.requeue_failed()
-        assert n == 1
+        assert sp.retry_now() == (1, 0)
 
         assert _wait_until(lambda: sp.pending_count() == 0 and sp.failed_count() == 0,
                             timeout=2.0)
+        assert attempts["n"] == 2
+    finally:
+        sp.stop()
+
+
+def _intentos(sp, job_id):
+    with sp._lock:
+        fila = sp._conn.execute("SELECT attempts FROM jobs WHERE job_id=?", (job_id,)).fetchone()
+    return fila and fila[0]
+
+
+def test_retry_now_reintenta_enseguida_los_pending_en_backoff(db_path):
+    """#226 ("imprimir pendientes"): un 'pending' que espera su backoff se
+    reintenta ya, sin esperar la espera entre reintentos ni el idle_wait."""
+    attempts = {"n": 0}
+
+    def flaky_fn(ticket):
+        attempts["n"] += 1
+        if attempts["n"] <= 1:
+            raise RuntimeError("impresora offline")
+
+    sp = DurablePrintSpooler(flaky_fn, db_path=db_path, base_delay=60.0, max_delay=60.0,
+                             idle_wait=5.0)
+    try:
+        sp.enqueue("job-1", {"x": 1}, "printerA")
+        assert _wait_until(lambda: _intentos(sp, "job-1") == 1, timeout=2.0)
+
+        assert sp.printers_in_queue() == ["printerA"]
+        assert sp.retry_now() == (0, 1)
+
+        assert _wait_until(lambda: sp.pending_count() == 0, timeout=2.0)
         assert attempts["n"] == 2
     finally:
         sp.stop()
@@ -430,7 +535,7 @@ def test_on_failure_con_payload_ilegible_recibe_ticket_none(db_path):
 
     job_id, ticket, exc, intentos, final = fallos[0]
     assert (job_id, ticket, intentos, final) == ("roto", None, 1, True)
-    assert isinstance(exc, ValueError)
+    assert isinstance(exc, PermanentJobError)
 
 
 def test_callback_que_lanza_no_rompe_el_spooler_en_exito(db_path):
@@ -486,5 +591,215 @@ def test_sin_callbacks_el_spooler_se_comporta_como_siempre(db_path):
     try:
         sp.enqueue("j", {"a": 1}, "printerA")
         assert _wait_until(lambda: impresos == [{"a": 1}])
+    finally:
+        sp.stop()
+
+
+def test_payload_corrupto_es_fallo_final_sin_reintento(db_path):
+    """Un JSON guardado que no se puede parsear sale de la cola sin reintentos."""
+    llamadas, fallos = [], []
+    sp = DurablePrintSpooler(lambda t: llamadas.append(t), db_path=db_path,
+                             base_delay=0.01, idle_wait=0.05,
+                             on_failure=lambda *a: fallos.append(a))
+    try:
+        now = time.time()
+        con = sqlite3.connect(db_path)
+        con.execute(
+            "INSERT INTO jobs (job_id, printer_name, payload, status, attempts, "
+            "next_attempt_at, created_at, updated_at) VALUES (?,?,?,'pending',0,0,?,?)",
+            ("corrupto", "p", "{no es json", now, now))
+        con.commit()
+        con.close()
+        assert _wait_until(lambda: fallos)
+        time.sleep(0.3)
+        assert llamadas == []
+        assert len(fallos) == 1
+        job_id, ticket, exc, intentos, final = fallos[0]
+        assert job_id == "corrupto" and ticket is None and final is True
+        assert sp.pending_count() == 0 and sp.failed_count() == 0
+    finally:
+        sp.stop()
+
+
+# ---------------------------------------------- memoria de trabajos ya impresos
+
+def test_reentrega_de_un_job_ya_impreso_no_imprime_y_se_confirma(db_path):
+    impresos, exitos = [], []
+    sp = DurablePrintSpooler(lambda t: impresos.append(t), db_path=db_path, base_delay=0.01,
+                             idle_wait=0.05, on_success=lambda *a: exitos.append(a))
+    try:
+        ticket = {"jobId": "J1", "printerName": "p", "n": 1}
+        assert sp.enqueue("J1", ticket, "p") is True
+        assert _wait_until(lambda: len(exitos) == 1 and sp.pending_count() == 0)
+        # el broker reentrega el mismo jobId ya impreso
+        assert sp.enqueue("J1", dict(ticket), "p") is False
+        time.sleep(0.3)
+        assert len(impresos) == 1
+        assert len(exitos) == 2 and exitos[1][0] == "J1"      # se confirma de nuevo
+        assert sp.pending_count() == 0
+    finally:
+        sp.stop()
+
+
+def test_job_id_nuevo_si_imprime(db_path):
+    impresos = []
+    sp = DurablePrintSpooler(lambda t: impresos.append(t["jobId"]), db_path=db_path,
+                             base_delay=0.01, idle_wait=0.05)
+    try:
+        sp.enqueue("J1", {"jobId": "J1", "printerName": "p"}, "p")
+        assert _wait_until(lambda: impresos == ["J1"])
+        # una reimpresión pedida por el servidor trae un jobId nuevo
+        assert sp.enqueue("J2", {"jobId": "J2", "printerName": "p"}, "p") is True
+        assert _wait_until(lambda: impresos == ["J1", "J2"])
+    finally:
+        sp.stop()
+
+
+def test_sin_job_id_explicito_se_comporta_como_antes(db_path):
+    impresos = []
+    sp = DurablePrintSpooler(lambda t: impresos.append(1), db_path=db_path,
+                             base_delay=0.01, idle_wait=0.05)
+    try:
+        sp.enqueue("hash1", {"printerName": "p"}, "p")
+        assert _wait_until(lambda: len(impresos) == 1 and sp.pending_count() == 0)
+        assert sp.enqueue("hash1", {"printerName": "p"}, "p") is True
+        assert _wait_until(lambda: len(impresos) == 2)
+    finally:
+        sp.stop()
+
+
+def test_memoria_de_completados_se_purga_por_antiguedad_y_tope(db_path):
+    sp = DurablePrintSpooler(lambda t: None, db_path=db_path, idle_wait=0.05,
+                             done_retention=100.0, done_max_rows=3)
+    try:
+        ahora = time.time()
+        con = sqlite3.connect(db_path)
+        filas = [("viejo", ahora - 500)] + [("n%d" % i, ahora - 10 + i) for i in range(5)]
+        con.executemany("INSERT INTO done_jobs (job_id, done_at) VALUES (?,?)", filas)
+        con.commit()
+        sp._purge_done()
+        quedan = {r[0] for r in con.execute("SELECT job_id FROM done_jobs")}
+        con.close()
+        assert quedan == {"n2", "n3", "n4"}       # sin el vencido, y solo los 3 más nuevos
+        # un vencido que aún no se purgó tampoco cuenta como "ya impreso"
+        con = sqlite3.connect(db_path)
+        con.execute("INSERT INTO done_jobs (job_id, done_at) VALUES ('rancio', ?)", (ahora - 500,))
+        con.commit()
+        con.close()
+        assert sp._was_done("rancio") is False
+    finally:
+        sp.stop()
+
+
+def test_base_vieja_sin_la_tabla_se_migra(tmp_path):
+    db = str(tmp_path / "vieja.db")
+    con = sqlite3.connect(db)
+    con.execute("""CREATE TABLE jobs (
+        job_id TEXT PRIMARY KEY, printer_name TEXT, payload TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at REAL NOT NULL DEFAULT 0, last_error TEXT,
+        created_at REAL NOT NULL, updated_at REAL NOT NULL)""")
+    ahora = time.time()
+    con.execute("INSERT INTO jobs VALUES ('pendiente','p','{\"jobId\":\"pendiente\"}',"
+                "'pending',0,0,NULL,?,?)", (ahora, ahora))
+    con.commit()
+    con.close()
+    impresos = []
+    sp = DurablePrintSpooler(lambda t: impresos.append(t["jobId"]), db_path=db, idle_wait=0.05)
+    try:
+        assert _wait_until(lambda: impresos == ["pendiente"])    # lo viejo se conserva
+        assert _wait_until(lambda: sp._was_done("pendiente"))
+        assert sp.enqueue("pendiente", {"jobId": "pendiente"}, "p") is False
+    finally:
+        sp.stop()
+
+
+# --- Política de reintentos: "velocidad ante todo" ---------------------------
+# base_delay/max_delay enormes: un reintento rápido solo puede venir de adelantar
+# la espera tras un éxito, no de que el backoff venza.
+
+def _retry_spooler(db_path, fail_printers, log):
+    def print_fn(ticket):
+        log.append(ticket["n"])
+        if ticket["p"] in fail_printers:
+            raise RuntimeError("offline")
+    return DurablePrintSpooler(print_fn, db_path=db_path, base_delay=1000.0,
+                               max_delay=1000.0, idle_wait=0.02)
+
+
+def _next_attempt(db_path, job_id):
+    raw = sqlite3.connect(db_path)
+    try:
+        return raw.execute("SELECT next_attempt_at FROM jobs WHERE job_id=?",
+                           (job_id,)).fetchone()[0]
+    finally:
+        raw.close()
+
+
+def test_exito_en_impresora_adelanta_fallido_de_la_misma(db_path):
+    log, fail = [], {"X"}
+    sp = _retry_spooler(db_path, fail, log)
+    try:
+        sp.enqueue("a", {"n": "a", "p": "X"}, "X")
+        assert _wait_until(lambda: log.count("a") == 1)
+        fail.clear()  # A queda esperando ~1000 s
+        sp.enqueue("b", {"n": "b", "p": "X"}, "X")
+        assert _wait_until(lambda: sp.pending_count() == 0, timeout=3.0)
+        assert log == ["a", "b", "a"]
+    finally:
+        sp.stop()
+
+
+def test_exito_en_x_no_adelanta_fallido_de_y(db_path):
+    log, fail = [], {"Y"}
+    sp = _retry_spooler(db_path, fail, log)
+    try:
+        sp.enqueue("a", {"n": "a", "p": "Y"}, "Y")
+        assert _wait_until(lambda: log.count("a") == 1)
+        sp.enqueue("b", {"n": "b", "p": "X"}, "X")
+        assert _wait_until(lambda: "b" in log and sp.pending_count() == 1)
+        time.sleep(0.3)
+        assert log == ["a", "b"]
+        assert _next_attempt(db_path, "a") > time.time() + 500
+    finally:
+        sp.stop()
+
+
+def test_fallo_no_adelanta_otros_fallidos(db_path):
+    log, fail = [], {"X"}
+    sp = _retry_spooler(db_path, fail, log)
+    try:
+        sp.enqueue("a", {"n": "a", "p": "X"}, "X")
+        assert _wait_until(lambda: log.count("a") == 1)
+        sp.enqueue("b", {"n": "b", "p": "X"}, "X")
+        assert _wait_until(lambda: log.count("b") == 1)
+        time.sleep(0.3)
+        assert log == ["a", "b"]  # A no se reintentó por el fallo de B
+        assert _next_attempt(db_path, "a") > time.time() + 500
+    finally:
+        sp.stop()
+
+
+def test_espera_maxima_es_30s_aunque_lleve_muchos_intentos(db_path):
+    sp = DurablePrintSpooler(lambda t: None, db_path=db_path, idle_wait=0.05)
+    try:
+        assert all(sp._backoff_delay(n) <= 30.0 for n in range(1, 1001))
+        assert sp._backoff_delay(1000) == 30.0
+        assert sp._backoff_delay(1) < 30.0  # los primeros siguen siendo cortos
+    finally:
+        sp.stop()
+
+
+def test_fallidos_adelantados_salen_del_mas_viejo_al_mas_nuevo(db_path):
+    log, fail = [], {"X"}
+    sp = _retry_spooler(db_path, fail, log)
+    try:
+        for j in ("a", "b", "c"):
+            sp.enqueue(j, {"n": j, "p": "X"}, "X")
+            assert _wait_until(lambda j=j: log.count(j) == 1)
+        fail.clear()
+        sp.enqueue("d", {"n": "d", "p": "X"}, "X")
+        assert _wait_until(lambda: sp.pending_count() == 0, timeout=3.0)
+        assert log[3:] == ["d", "a", "b", "c"]
     finally:
         sp.stop()

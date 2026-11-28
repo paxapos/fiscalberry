@@ -34,7 +34,8 @@ ASSET_BY_KIND = {
     WINDOWS_INSTALLER: "FiscalberrySetup.exe",
     WINDOWS_CLI: "fiscalberry-windows-cli.zip",
     ANDROID: "fiscalberry-android-gui.apk",
-    # SOURCE no tiene asset: se actualiza desde el tarball de código del release.
+    # El código del release: pip lo instala recién después de verificarlo.
+    SOURCE: "fiscalberry-source.tar.gz",
 }
 
 # Nombre del ejecutable dentro del paquete comprimido, por variante.

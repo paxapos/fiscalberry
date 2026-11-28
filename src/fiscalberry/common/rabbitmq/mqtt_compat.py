@@ -10,10 +10,12 @@ Centraliza:
   - Un solo cliente vivo por client id dentro del proceso (core#473).
   - Lectura de configuración TLS local y aplicación de `tls_set()` (Fase 5).
 
-Todo es opt-in y retrocompatible: sin configuración TLS, el comportamiento es el
-mismo de siempre (MQTT sin TLS en 1883).
+Todo es opt-in y retrocompatible: sin configuración TLS (ni en config.ini ni
+informada por el servidor en start_rabbit), el comportamiento es el mismo de
+siempre (MQTT sin TLS en 1883).
 """
 
+import ssl
 import threading
 import weakref
 
@@ -112,7 +114,7 @@ def _truthy(value):
     return str(value).strip().lower() in ("true", "1", "yes", "on")
 
 
-def read_mqtt_tls_config(configberry, section="RabbitMq"):
+def read_mqtt_tls_config(configberry, section="RabbitMq", servidor=None):
     """Lee la configuración TLS local desde Configberry.
 
     Claves soportadas en la sección (por defecto [RabbitMq]):
@@ -121,9 +123,16 @@ def read_mqtt_tls_config(configberry, section="RabbitMq"):
       - ca_cert      = /ruta/ca.pem    (opcional)
       - tls_insecure = true/false      (default false; solo pruebas locales)
 
-    Devuelve un dict normalizado: {use_tls, port(int), ca_cert(str|None), tls_insecure}.
+    `servidor` es lo que informó el servidor en start_rabbit (las credenciales
+    activas del process_handler): su `use_tls` prende TLS aunque config.ini no
+    lo pida (nunca lo apaga) y `ca_data` es la CA en PEM que mandó.
+
+    Devuelve un dict normalizado:
+    {use_tls, port(int), ca_cert(str|None), ca_data(str|None), tls_insecure}.
     """
-    use_tls = _truthy(configberry.get(section, "use_tls", fallback="false"))
+    servidor = servidor or {}
+    use_tls = (_truthy(configberry.get(section, "use_tls", fallback="false"))
+               or _truthy(servidor.get("use_tls")))
 
     port = configberry.get(section, "port", fallback=None)
     if not port or not str(port).strip():
@@ -138,6 +147,7 @@ def read_mqtt_tls_config(configberry, section="RabbitMq"):
         "use_tls": use_tls,
         "port": int(port),
         "ca_cert": ca,
+        "ca_data": servidor.get("ca_data") or None,
         "tls_insecure": tls_insecure,
     }
 
@@ -151,7 +161,12 @@ def apply_tls(client, tls_cfg):
     if not tls_cfg or not tls_cfg.get("use_tls"):
         return False
     ca = tls_cfg.get("ca_cert") or None
-    client.tls_set(ca_certs=ca)
+    if tls_cfg.get("ca_data"):
+        # tls_set() solo acepta rutas; la CA del servidor llega como texto PEM.
+        client.tls_set_context(
+            ssl.create_default_context(cafile=ca, cadata=tls_cfg["ca_data"]))
+    else:
+        client.tls_set(ca_certs=ca)
     if tls_cfg.get("tls_insecure"):
         client.tls_insecure_set(True)
     return True

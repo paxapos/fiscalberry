@@ -25,7 +25,8 @@ Garantías:
   - Éxitos: siempre. Fallos que el spooler va a reintentar: el primero de cada
     trabajo y, después, como máximo uno cada 5 minutos por trabajo (una impresora
     caída se reintenta cada pocos minutos durante días: sin límite se inundaría al
-    servidor). El fallo final (dead-letter) siempre.
+    servidor). El fallo final (dead-letter) siempre. Los que el operador descartó
+    (`descartarPendientes`), siempre, como fallo final con `descartado: true`.
   - 403/404 (el uuid no corresponde, o servidor viejo sin esta función) = no se
     reintenta y se SUSPENDEN todas las confirmaciones durante 30 minutos (en
     memoria): una ráfaga de 403/404 desde la IP del local puede hacer que el
@@ -68,6 +69,7 @@ MAX_TRABAJOS_THROTTLE = 1000
 _UMBRAL_PODA_THROTTLE = 100
 
 PREFIJO_IMPRESO_CON_ERRORES = "Impreso con errores: "
+MOTIVO_DESCARTADO = "Descartado por el operador"
 
 # Credenciales que no pueden salir del dispositivo aunque estén en el texto de una
 # excepción (una URL de broker con usuario:clave, un "password=..." en un mensaje).
@@ -145,9 +147,9 @@ def motivo_impreso_con_errores(errores):
     return sanear_texto(PREFIJO_IMPRESO_CON_ERRORES + " | ".join(errores))
 
 
-def armar_payload(uuid, job_id, ok, error, intentos, final, ts=None):
+def armar_payload(uuid, job_id, ok, error, intentos, final, ts=None, descartado=False):
     """Body del POST de confirmación (función pura, testeable sin red)."""
-    return {
+    payload = {
         "uuid": uuid,
         "jobId": job_id,
         "ok": bool(ok),
@@ -157,6 +159,9 @@ def armar_payload(uuid, job_id, ok, error, intentos, final, ts=None):
         "version": VERSION,
         "ts": ts if ts is not None else int(time.time()),
     }
+    if descartado:
+        payload["descartado"] = True
+    return payload
 
 
 def url_confirmacion(host, tenant):
@@ -240,6 +245,19 @@ class ConfirmadorImpresion:
                 return False
             return self._encolar(
                 armar_payload(None, jid, False, motivo_de_excepcion(exc), intentos, final))
+        except Exception as e:
+            logger.warning("CONFIRMACION:: error armando la confirmación de %s: %s", job_id, e)
+            return False
+
+    def reportar_descartado(self, job_id, ticket, intentos):
+        """Callback `on_discard` del spooler: el operador lo descartó sin imprimir. Nunca lanza."""
+        try:
+            jid = job_id_del_ticket(ticket)
+            if not jid or self._suspendida(jid):
+                return False
+            self._olvidar_fallos(jid)
+            return self._encolar(armar_payload(None, jid, False, MOTIVO_DESCARTADO, intentos, True,
+                                               descartado=True))
         except Exception as e:
             logger.warning("CONFIRMACION:: error armando la confirmación de %s: %s", job_id, e)
             return False

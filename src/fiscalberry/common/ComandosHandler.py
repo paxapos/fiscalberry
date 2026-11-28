@@ -2,15 +2,18 @@
 
 import sys
 import json
+import socket
 import threading
 import time
 import queue
 from fiscalberry.common.FiscalberryComandos import FiscalberryComandos
 from fiscalberry.common.Configberry import Configberry
+from fiscalberry.common.print_spooler import PermanentJobError
 from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.EscPComandos import EscPComandos
 from fiscalberry.common.rabbitmq.error_publisher import publish_error
 from fiscalberry.common.printer_error_detector import PrinterErrorDetector, analyze_printer_response
+from fiscalberry.common.printer_health import get_printer_health
 from escpos import printer
 from queue import Queue
 import traceback
@@ -128,6 +131,7 @@ def process_print_jobs(worker_id=0):
             try:
                 result = runTraductor(jsonTicket, q)
                 processing_time = time.time() - start_time
+                get_printer_health().reportar_ok(printer_name)
                 
                 # Respuesta optimizada sin nested dicts innecesarios
                 q.put({"success": True, "result": result, "processing_time": processing_time})
@@ -169,6 +173,7 @@ def process_print_jobs(worker_id=0):
                 processing_time = time.time() - start_time
                 error_msg = str(e)
                 logger.error(f"Worker {worker_id} print job failed in {processing_time:.2f}s: {error_msg}")
+                get_printer_health().reportar_falla(printer_name, e)
                 
                 # Publicar error de trabajo fallido
                 publish_error(
@@ -244,6 +249,44 @@ def _como_bool(clave, valor):
     if texto in _FALSOS:
         return False
     raise DriverError(f"Valor inválido en la configuración: {clave}={valor!r}")
+
+
+class CupsPrinterAbierto(printer.CupsPrinter):
+    """CupsPrinter de python-escpos, corregido para Fiscalberry (#220).
+
+    - Abre la conexión al crearse: su _raw no la abre (el de Network, LP y
+      Win32Raw sí) y sin conexión close() no manda nada.
+    - Si close() no pudo mandar el trabajo, lo descarta: el spooler lo reintenta
+      con un driver nuevo, y si quedara pendiente Escpos.__del__ lo reenviaría
+      (trabajo duplicado).
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.open()
+
+    def close(self):
+        try:
+            super().close()
+        except Exception:
+            self._clear()
+            raise
+
+
+class LPVerificado(printer.LP):
+    """LP de python-escpos, corregido para Fiscalberry (#220): su close() no mira
+    cómo terminó `lp`, y un trabajo que `lp` no encoló (p. ej. una cola que no
+    acepta trabajos) se daba por impreso.
+
+    shortcut: con auto_flush cada _raw es un `lp` aparte y esos códigos no se
+    miran; si alguien lo usa, revisar el código en flush().
+    """
+
+    def close(self):
+        lp = self._device
+        super().close()
+        if lp and lp.returncode:
+            raise OSError(f"lp terminó con código {lp.returncode}: el trabajo no se encoló")
 
 
 def build_driver(driver_config):
@@ -374,18 +417,20 @@ def build_driver(driver_config):
 
     elif driverName == "Cups".lower():
         # printer.CupsPrinter(printer_name='', *args, **kwargs)[source]
+        driver_class = CupsPrinterAbierto
         driverName = "CupsPrinter"
 
 
     elif driverName == "LP".lower():
         # printer.LP(printer_name='', *args, **kwargs)[source]
+        driver_class = LPVerificado
         driverName = "LP"
 
 
     else:
         raise DriverError(f"Invalid driver: {driverName}")
     
-    # Los drivers propios (Bluetooth, UsbPrint) ya tienen driver_class.
+    # Los drivers propios (Bluetooth, UsbPrint, Cups, LP) ya tienen driver_class.
     if driver_class is None:
         try:
             driver_class = getattr(printer, driverName)
@@ -407,8 +452,177 @@ def build_driver(driver_config):
     return driver, driverName, driverOps, columns
 
 
+RAW_ENCODINGS = ("gzip+base64", "gzip", "base64")
+
+# Topes de un printRaw. Un ticket ESC/POS pesa unos pocos KB (un logo raster
+# puede llegar a cientos de KB); estos limites dejan mucho margen y evitan
+# reservar memoria sin cota al decodificar.
+MAX_RAW_ENCODED_BYTES = 3 * 1024 * 1024   # `data` tal como llega (base64)
+MAX_RAW_DECODED_BYTES = 2 * 1024 * 1024   # bytes ESC/POS ya descomprimidos
+
+
+class InvalidPayloadError(PermanentJobError, ValueError):
+    """El payload de un comando no se puede decodificar.
+
+    Es un error permanente: reintentar el mismo payload da siempre el mismo
+    resultado, y no es un fallo de la impresora.
+    """
+
+
+def decode_raw_payload(raw_cmd):
+    """Bytes ESC/POS de un comando printRaw.
+
+    `data` viaja siempre en base64; salvo con encoding "base64", ademas
+    comprimido con gzip ("gzip+base64", el default, y "gzip" por compatibilidad).
+    Lanza InvalidPayloadError (subclase de ValueError) si falta `data`, el
+    encoding no se conoce, el base64 o el gzip son invalidos, o se superan
+    MAX_RAW_ENCODED_BYTES / MAX_RAW_DECODED_BYTES.
+    """
+    import base64
+    import binascii
+    import zlib
+
+    if not isinstance(raw_cmd, dict) or not raw_cmd.get("data"):
+        raise InvalidPayloadError("printRaw sin 'data'")
+    encoding = str(raw_cmd.get("encoding") or "gzip+base64").lower()
+    if encoding not in RAW_ENCODINGS:
+        raise InvalidPayloadError(f"printRaw con encoding desconocido: {encoding}")
+    encoded = raw_cmd["data"]
+    if not isinstance(encoded, (str, bytes)):
+        raise InvalidPayloadError("printRaw con 'data' de tipo invalido")
+    if len(encoded) > MAX_RAW_ENCODED_BYTES:
+        raise InvalidPayloadError(
+            f"printRaw: 'data' supera el maximo de {MAX_RAW_ENCODED_BYTES} bytes")
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as e:
+        raise InvalidPayloadError(f"printRaw: base64 invalido: {e}")
+    if encoding == "base64":
+        if len(data) > MAX_RAW_DECODED_BYTES:
+            raise InvalidPayloadError(
+                f"printRaw: supera el maximo de {MAX_RAW_DECODED_BYTES} bytes")
+        return data
+    try:
+        # wbits=31: formato gzip. max_length acota la salida; si queda entrada
+        # sin consumir (unconsumed_tail) es que el limite se alcanzo.
+        descompresor = zlib.decompressobj(wbits=31)
+        out = descompresor.decompress(data, MAX_RAW_DECODED_BYTES + 1)
+        if len(out) > MAX_RAW_DECODED_BYTES or descompresor.unconsumed_tail:
+            raise InvalidPayloadError(
+                f"printRaw: descomprimido supera el maximo de {MAX_RAW_DECODED_BYTES} bytes")
+        if not descompresor.eof:
+            raise InvalidPayloadError("printRaw: gzip truncado")
+    except zlib.error as e:
+        raise InvalidPayloadError(f"printRaw: gzip invalido: {e}")
+    return out
+
+
+def _publicar_error_de_impresion(error, context):
+    try:
+        PrinterErrorDetector.detect_and_publish_error(
+            error_message=f"Print error: {error}", exception=error, context=context)
+    except Exception as publish_err:
+        logger.error(f"No se pudo publicar el error de impresión: {publish_err}")
+
+
+# Cuánto se espera, después de mandar un printRaw por red, a ver si la
+# impresora cortó la conexión. Una impresora sana que no contesta solo demora esto.
+ESPERA_CORTE_NETWORK = 0.5
+# Tras un FIN, cuánto se espera el RST que lo sigue si la impresora cerró con
+# datos sin leer: los manda juntos, así que llega enseguida.
+ESPERA_RST_TRAS_FIN = 0.05
+
+
+def _verificar_conexion_network(driver):
+    """Lanza OSError si la impresora de red cortó la conexión sin leer todo.
+
+    sendall() vuelve apenas los bytes entran al buffer del socket: un corte a
+    mitad del ticket no se ve al escribir. Si la impresora cierra con datos sin
+    leer, el sistema manda un RST (a veces precedido por un FIN, si antes hizo
+    shutdown()) y recv() o SO_ERROR lo informan. Timeout, datos (estado) o un
+    FIN sin RST (leyó todo y cerró) = OK. No se cierra la escritura antes de
+    leer: cómo contesta una impresora a ese cierre depende de su firmware (puede
+    ser un RST aunque haya leído todo), y sería un falso error que reimprime el
+    ticket.
+    """
+    sock = driver._device if isinstance(driver, printer.Network) else None
+    if not sock:
+        return
+    sock.settimeout(ESPERA_CORTE_NETWORK)
+    try:
+        if sock.recv(1) != b"":
+            return
+    except socket.timeout:
+        return
+    # Después del FIN, recv() devuelve b"" aunque llegue el RST: queda en SO_ERROR.
+    time.sleep(ESPERA_RST_TRAS_FIN)
+    error = sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+    if error:
+        raise ConnectionResetError(error, "la impresora cortó la conexión sin leer todo el ticket")
+
+
+def _print_raw(driver, raw_cmd, printerName, driverName):
+    """Escribe los bytes de un printRaw en la impresora y cierra el driver.
+
+    El close() va dentro del manejo de errores porque en CupsPrinter, LP y
+    Win32Raw es el close() el que manda el trabajo al sistema: un error ahi es un
+    ticket que no salio. Si falla la escritura se cierra el driver (best-effort);
+    si falla el close() NO se vuelve a cerrar, porque en python-escpos un segundo
+    close() reenvia el trabajo pendiente. En ambos casos se publica y se
+    relanza, para que el spooler lo reintente. Un payload invalido no es un fallo
+    de la impresora: se relanza sin publicarlo como tal ni tocar el driver.
+    """
+    try:
+        data = decode_raw_payload(raw_cmd)
+    except InvalidPayloadError as e:
+        logger.error(f"printRaw descartado en '{printerName}': {e}")
+        raise
+    try:
+        driver._raw(data)
+        _verificar_conexion_network(driver)
+    except Exception as e:
+        try:
+            driver.close()
+        except Exception:
+            pass
+        logger.error(f"Impresión RAW falló en '{printerName}': {e}")
+        _publicar_error_de_impresion(e, {
+            "command": "printRaw", "printer_name": printerName, "driver": driverName})
+        raise
+    try:
+        driver.close()
+    except Exception as e:
+        logger.error(f"Impresión RAW falló al cerrar en '{printerName}': {e}")
+        _publicar_error_de_impresion(e, {
+            "command": "printRaw", "printer_name": printerName, "driver": driverName})
+        raise
+    logger.info(f"Impresión RAW OK en '{printerName}' ({len(data)} bytes)")
+    return {"message": "Impresion RAW exitosa", "result": "ok", "bytes": len(data)}
+
+
+def _contexto_de_comando(jsonTicket, job_id=None):
+    """Valor de `context.command` para los reportes de error.
+
+    Un printRaw lleva el comprobante entero en base64: se informan solo
+    metadatos (tipo, jobId, tamaño del payload), nunca los bytes. El resto de los
+    comandos se publican como siempre.
+    """
+    raw_cmd = jsonTicket.get("printRaw")
+    if not raw_cmd and jsonTicket.get("type") == "raw":
+        raw_cmd = jsonTicket
+    if not raw_cmd:
+        return jsonTicket
+    data = raw_cmd.get("data") if isinstance(raw_cmd, dict) else raw_cmd
+    return {
+        "command": "printRaw",
+        "jobId": job_id,
+        "payload_size": len(data) if isinstance(data, (str, bytes)) else None,
+    }
+
+
 def runTraductor(jsonTicket, queue):
     printerName = jsonTicket.pop('printerName')
+    job_id = jsonTicket.get('jobId')
     # jobId es metadata de dedup del spooler, no un comando: si quedara en el
     # ticket, EscPComandos.run() lo tomaria como accion inexistente.
     jsonTicket.pop('jobId', None)
@@ -425,7 +639,7 @@ def runTraductor(jsonTicket, queue):
             error_message=error_msg,
             context={
                 "printer_name": printerName,
-                "command": jsonTicket
+                "command": _contexto_de_comando(jsonTicket, job_id)
             },
             exception=e
         )
@@ -441,7 +655,7 @@ def runTraductor(jsonTicket, queue):
             error_message=error_msg,
             context={
                 "printer_name": printerName,
-                "command": jsonTicket
+                "command": _contexto_de_comando(jsonTicket, job_id)
             },
             exception=e
         )
@@ -452,20 +666,29 @@ def runTraductor(jsonTicket, queue):
     driverName = str(dictSectionConf.get("driver", "Dummy")).lower()
 
     if driverName == "Fiscalberry".lower():
+        # Proxy a otro Fiscalberry: se reenvía el ticket tal cual (printRaw
+        # incluido) y un error del remoto se propaga, para que el spooler lo
+        # reintente en vez de darlo por impreso.
         driverOps = {k: v for k, v in dictSectionConf.items()
                      if k != "driver" and not k.startswith("_")}
+        host = driverOps.get('host', 'localhost')
+        printerName = driverOps.get('printerName', printerName)
+        jsonTicket['printerName'] = printerName
         try:
-            comando = FiscalberryComandos()
-            host = driverOps.get('host', 'localhost')
-            printerName = driverOps.get('printerName', printerName)
-            jsonTicket['printerName'] = printerName
-            result = comando.run(host, jsonTicket)
-            return queue.put(result)
+            result = FiscalberryComandos().run(host, jsonTicket)
         except Exception as e:
             logger.error(f"Error FiscalberryComandos: {e}")
-            return queue.put({"error": f"Error en FiscalberryComandos: {str(e)}"})
+            _publicar_error_de_impresion(e, {"printer_name": printerName, "driver": "Fiscalberry", "host": host})
+            raise
+        return {"message": "Reenviado a otro Fiscalberry", "result": result}
 
     driver, driverName, driverOps, columns = build_driver(dictSectionConf)
+    if driverName == "Win32Raw" and _verificar_impresion_windows():
+        # Confirma que el trabajo salga de la cola de Windows y la corrige si
+        # Windows le cambió el puerto USB. Fuera de build_driver: el ticket de
+        # prueba del asistente sigue él mismo su trabajo en la cola.
+        from fiscalberry.common.win32_printer import crear_driver_verificado
+        driver = crear_driver_verificado(**driverOps)
 
     # ---- Modo RAW: el backend manda bytes ESC/POS ya renderizados ----
     # Permite cambiar cualquier formato (arqueo, comanda, etc.) deployando solo el
@@ -475,17 +698,7 @@ def runTraductor(jsonTicket, queue):
     if not raw_cmd and jsonTicket.get("type") == "raw":
         raw_cmd = jsonTicket  # variante: envelope plano {type:raw,data,encoding}
     if raw_cmd:
-        import base64, gzip
-        data = base64.b64decode(raw_cmd["data"])
-        if (raw_cmd.get("encoding") or "gzip+base64") in ("gzip", "gzip+base64"):
-            data = gzip.decompress(data)
-        driver._raw(data)
-        try:
-            driver.close()
-        except Exception:
-            pass
-        logger.info(f"Impresión RAW OK en '{printerName}' ({len(data)} bytes)")
-        return {"message": "Impresion RAW exitosa", "result": "ok", "bytes": len(data)}
+        return _print_raw(driver, raw_cmd, printerName, driverName)
 
     try:
         comando = EscPComandos(driver, columns=columns)
@@ -506,7 +719,7 @@ def runTraductor(jsonTicket, queue):
                 "printer_name": printerName,
                 "driver": driverName,
                 "driver_ops": driverOps,
-                "command": jsonTicket
+                "command": _contexto_de_comando(jsonTicket, job_id)
             }
         )
         
@@ -541,6 +754,8 @@ def _spooler_print_fn(ticket):
         raise CircuitOpenError(
             f"Circuito abierto para '{printer_name}': impresora con fallos recientes")
 
+    health = get_printer_health()
+
     try:
         # Se le pasa una COPIA: runTraductor le saca printerName y jobId, y el
         # spooler necesita el jobId del original para confirmar la impresión.
@@ -556,11 +771,36 @@ def _spooler_print_fn(ticket):
 
         if printer_name:
             breaker.record_success(printer_name)
+        health.reportar_ok(printer_name)
         return result
-    except Exception:
+    except PermanentJobError:
+        # El trabajo es invalido, no la impresora: no cuenta para el breaker.
+        raise
+    except Exception as e:
         if printer_name:
             breaker.record_failure(printer_name)
+        health.reportar_falla(printer_name, e)
         raise
+
+
+def print_status_snapshot():
+    """
+    Estado de impresión para la pantalla: problemas activos por impresora (con
+    el mensaje para el cajero) y cuántos tickets esperan salir. No crea el
+    spooler si todavía no existe. Nunca lanza.
+    """
+    snap = {"printer_problems": [], "pending_jobs": 0}
+    try:
+        snap["printer_problems"] = get_printer_health().problemas()
+    except Exception as e:
+        logger.debug("No se pudo leer el estado de las impresoras: %s", e)
+    sp = _print_spooler
+    if sp is not None:
+        try:
+            snap["pending_jobs"] = sp.pending_count() + sp.failed_count()
+        except Exception as e:
+            logger.debug("No se pudo leer la cola del spooler: %s", e)
+    return snap
 
 
 def get_print_spooler():
@@ -578,8 +818,13 @@ def get_print_spooler():
                 _print_spooler = DurablePrintSpooler(
                     _spooler_print_fn,
                     on_success=confirmador.reportar_exito,
-                    on_failure=confirmador.reportar_fallo)
+                    on_failure=confirmador.reportar_fallo,
+                    on_discard=confirmador.reportar_descartado)
     return _print_spooler
+
+
+# Tope (segundos) para esperar al trabajo en vuelo al cerrar el servicio (#224).
+ESPERA_TRABAJO_EN_VUELO = 30.0
 
 
 def shutdown_print_spooler():
@@ -591,16 +836,53 @@ def shutdown_print_spooler():
     issue fiscalberry#165, propuesta 3). Con PRAGMA synchronous=FULL los jobs
     ya son durables sin este cierre ordenado, pero cerrar bien evita dejar el
     WAL creciendo entre reinicios frecuentes (ej. auto-actualización).
+
+    Espera hasta ESPERA_TRABAJO_EN_VUELO al trabajo que se está imprimiendo
+    (#224). Mientras tanto el spooler sigue siendo el del proceso: lo que llega
+    se persiste en él y no en uno nuevo que se pondría a imprimir.
     """
     global _print_spooler
+    sp = _print_spooler
+    if sp is None:
+        return
+    try:
+        sp.stop(timeout=ESPERA_TRABAJO_EN_VUELO)
+    except Exception as e:
+        logger.debug("Error deteniendo el spooler durable: %s", e)
     with _print_spooler_lock:
-        sp = _print_spooler
-        _print_spooler = None
-    if sp is not None:
-        try:
-            sp.stop()
-        except Exception as e:
-            logger.debug("Error deteniendo el spooler durable: %s", e)
+        if _print_spooler is sp:
+            _print_spooler = None
+
+
+_REMOTE_POWER_DISABLED_MSG = (
+    "reboot/restart remotos deshabilitados en este equipo "
+    "([Paxaprinter] remote_power_commands = false)")
+
+
+def _remote_power_commands_enabled():
+    """Los comandos remotos `reboot` y `restart` solo corren si el config.ini
+    local lo habilita (apagado por defecto):
+        [Paxaprinter] remote_power_commands = true
+    """
+    try:
+        val = configberry.get("Paxaprinter", "remote_power_commands", fallback="false")
+    except Exception:
+        val = "false"
+    return str(val).strip().lower() in ("true", "1", "yes", "on")
+
+
+def _verificar_impresion_windows():
+    """
+    Win32Raw verificado: confirma con Windows que cada ticket salió de la cola
+    y repone la cola si Windows le cambió el puerto USB. Activo por defecto; se
+    puede apagar si una impresora puntual se comporta raro con la verificación:
+        [Paxaprinter] verificar_impresion_windows = false
+    """
+    try:
+        val = configberry.get("Paxaprinter", "verificar_impresion_windows", fallback="true")
+    except Exception:
+        val = "true"
+    return str(val).strip().lower() not in ("false", "0", "no", "off")
 
 
 def _is_sync_print_mode():
@@ -616,6 +898,34 @@ def _is_sync_print_mode():
     except Exception:
         val = "false"
     return str(val).strip().lower() in ("true", "1", "yes", "on")
+
+
+# `descartarPendientes` con `hasta` (#225): un comando más viejo que esto se
+# ignora (pudo quedar horas en la cola del broker con el equipo apagado).
+DESCARTAR_VENCIMIENTO_MIN = 15
+# Cuánto puede estar `hasta` en el futuro por diferencia de relojes con el servidor.
+DESCARTAR_TOLERANCIA_FUTURO_SEG = 60
+
+
+def _descartar_vencimiento_seg():
+    """[Paxaprinter] descartar_vencimiento_min (minutos), en segundos."""
+    try:
+        return int(configberry.get("Paxaprinter", "descartar_vencimiento_min",
+                                   fallback=str(DESCARTAR_VENCIMIENTO_MIN))) * 60
+    except Exception:
+        return DESCARTAR_VENCIMIENTO_MIN * 60
+
+
+def _motivo_para_ignorar_hasta(hasta):
+    """Por qué no se puede usar el `hasta` de descartarPendientes, o None si vale."""
+    if not isinstance(hasta, int) or isinstance(hasta, bool):
+        return "'hasta' tiene que ser un epoch entero en segundos (vino %r)" % (hasta,)
+    atraso = time.time() - hasta
+    if atraso > _descartar_vencimiento_seg():
+        return "vencido: se pidió hace %d min" % (atraso // 60)
+    if atraso < -DESCARTAR_TOLERANCIA_FUTURO_SEG:
+        return "'hasta' está %d s en el futuro (reloj desfasado)" % -atraso
+    return None
 
 
 def _compute_job_id(jsonTicket):
@@ -848,13 +1158,35 @@ class ComandosHandler:
                 rta["rta"] = self._getStatus()
 
             elif 'reboot' in jsonTicket:
-                rta["rta"] = self._reboot()
+                if jsonTicket['reboot'] is not True:
+                    rta["err"] = "reboot requiere el valor true: ignorado"
+                    logger.warning("Comando reboot ignorado: valor distinto de true")
+                elif not _remote_power_commands_enabled():
+                    rta["err"] = _REMOTE_POWER_DISABLED_MSG
+                    logger.warning("Comando reboot rechazado: deshabilitado por configuración")
+                else:
+                    rta["rta"] = self._rebootFiscalberry()
+                    if "err" in rta["rta"]:
+                        rta["err"] = rta["rta"]["err"]
 
             elif 'restart' in jsonTicket:
-                rta["rta"] = self._restartService()
+                if jsonTicket['restart'] is not True:
+                    rta["err"] = "restart requiere el valor true: ignorado"
+                    logger.warning("Comando restart ignorado: valor distinto de true")
+                elif not _remote_power_commands_enabled():
+                    rta["err"] = _REMOTE_POWER_DISABLED_MSG
+                    logger.warning("Comando restart rechazado: deshabilitado por configuración")
+                else:
+                    rta["rta"] = self._restartService()
+                    if "err" in rta["rta"]:
+                        rta["err"] = rta["rta"]["err"]
 
             elif 'upgrade' in jsonTicket:
-                rta["rta"] = self._upgrade()
+                if jsonTicket['upgrade'] is not True:
+                    rta["err"] = "upgrade requiere el valor true: ignorado"
+                    logger.warning("Comando upgrade ignorado: valor distinto de true")
+                else:
+                    rta["rta"] = self._upgrade()
 
             elif 'getPrinterInfo' in jsonTicket:
                 rta["rta"] = self._getPrinterInfo(jsonTicket["getPrinterInfo"])
@@ -883,7 +1215,9 @@ class ComandosHandler:
                 rta["rta"] = self._imprimirPendientes()
 
             elif 'descartarPendientes' in jsonTicket:
-                rta["rta"] = self._descartarPendientes()
+                rta["rta"] = self._descartarPendientes(jsonTicket)
+                if "err" in rta["rta"]:
+                    rta["err"] = rta["rta"]["err"]
             else:
                 raise TraductorException("No se pasó un comando válido")
 
@@ -903,12 +1237,56 @@ class ComandosHandler:
         return rta
 
     def _upgrade(self):
-        ret = self.fbApp.upgradeGitPull()
-        rta = {
-            "rta": ret
-        }
-        self.fbApp.restart_service()
-        return rta
+        """
+        Comando remoto `upgrade`: buscar la última versión publicada y aplicarla
+        ya. Devuelve enseguida: el chequeo corre en un hilo y su resultado
+        queda en el log del updater.
+        """
+        from fiscalberry.common.updater import service
+
+        return {"action": "upgrade",
+                "rta": service.request_remote_update(config=configberry)}
+
+    def _restartService(self):
+        """
+        Comando remoto `restart`: reinicia el servicio Fiscalberry (no la máquina).
+
+        Con la GUI abierta (incluida Android) reinicia los servicios dentro del
+        mismo proceso. Sin GUI se cierra el proceso y lo levanta quien lo
+        supervisa, que hoy es systemd (`Restart=always`); donde no hay
+        supervisor, salir dejaría al local sin imprimir, así que se rechaza.
+        """
+        app = self._app_gui_en_ejecucion()
+        if app is not None:
+            app.restart_service()
+            return {"action": "restart", "rta": "Reiniciando servicios (GUI)"}
+
+        from fiscalberry.common.updater.appliers import _bajo_systemd
+        if not _bajo_systemd():
+            return {"action": "restart",
+                    "err": "este equipo no corre bajo systemd ni con la GUI: no hay "
+                           "quién vuelva a levantar Fiscalberry, hay que reiniciarlo a mano"}
+
+        # Con demora para que la respuesta del comando alcance a salir antes
+        # de cerrar el proceso.
+        timer = threading.Timer(3.0, self._cerrar_para_reinicio)
+        timer.daemon = True
+        timer.start()
+        return {"action": "restart", "rta": "Reiniciando el servicio en 3 segundos"}
+
+    @staticmethod
+    def _cerrar_para_reinicio():
+        from fiscalberry.common.service_controller import ServiceController
+        ServiceController()._shutdown_for_restart()
+
+    @staticmethod
+    def _app_gui_en_ejecucion():
+        try:
+            from kivy.app import App
+            app = App.get_running_app()
+            return app if hasattr(app, "restart_service") else None
+        except Exception:
+            return None
 
     def _getPrinterInfo(self, printerName):
         rta = {
@@ -919,15 +1297,20 @@ class ComandosHandler:
         return rta
 
     def _rebootFiscalberry(self):
-        "reinicia el servicio fiscalberry"
+        "Comando remoto `reboot`: reinicia la MÁQUINA (para el servicio es `restart`)"
         from subprocess import call
 
-        rta = {
-            "action": "rebootFiscalberry",
-            "rta": call(["reboot"])
-        }
+        try:
+            codigo = call(["reboot"])
+        except OSError as e:
+            # Windows, Android o un equipo sin el binario `reboot`.
+            return {"action": "rebootFiscalberry",
+                    "err": f"no se pudo reiniciar la máquina en este equipo: {e}"}
 
-        return rta
+        return {
+            "action": "rebootFiscalberry",
+            "rta": codigo
+        }
 
     def _configure(self, **kwargs):
         "Configura generando o modificando el archivo configure.ini"
@@ -975,35 +1358,61 @@ class ComandosHandler:
         return rta
 
     def _imprimirPendientes(self):
-        """Comando remoto 'imprimir todos' (issue #166): reintenta la cola.
+        """Comando remoto 'imprimir todos' (issue #166): reintenta YA la cola.
 
-        Re-encola los 'failed' (dead-letter) para que el worker del spooler
-        los retome de inmediato. `requeue_failed()` ya existía pero nadie la
-        llamaba desde ningún comando: era código muerto.
+        Re-encola los 'failed' (dead-letter) y anula la espera de los 'pending'
+        en backoff (#226). Antes cierra el circuit breaker de las impresoras con
+        trabajos en cola: abierto, el reintento fallaría sin tocar la impresora.
         """
+        from fiscalberry.common.printer_circuit_breaker import get_circuit_breaker
+
         spooler = get_print_spooler()
-        n = spooler.requeue_failed()
+        breaker = get_circuit_breaker()
+        impresoras = spooler.printers_in_queue()
+        for impresora in impresoras:
+            breaker.record_success(impresora)    # cierra el circuito y pone en 0 los fallos
+        requeued, retried = spooler.retry_now()
+        logger.info("imprimirPendientes: %d 'failed' re-encolados, %d 'pending' reintentados ya "
+                    "(circuito cerrado en: %s)", requeued, retried, ", ".join(impresoras) or "-")
         return {
             "action": "imprimirPendientes",
             "rta": {
-                "requeued": n,
+                "requeued_failed": requeued,
+                "retried_now": retried,
                 "pending_count": spooler.pending_count(),
                 "failed_count": spooler.failed_count(),
             },
         }
 
-    def _descartarPendientes(self):
+    def _descartarPendientes(self, jsonTicket):
         """Comando remoto 'descartar' (issue #166): vacía la cola sin imprimir.
 
         Destructivo a propósito: se tiran comprobantes fiscales y comandas
         sin imprimir. `discard_all()` deja constancia en el log (WARNING).
+
+        `hasta` (#225, epoch en segundos de cuando el operador apretó el botón)
+        limita el descarte a lo que ya estaba en la cola en ese momento. Un
+        `hasta` vencido o inválido no descarta nada; sin `hasta` (servidor
+        anterior a #225) se descarta todo, como antes.
         """
+        if "hasta" in jsonTicket:
+            hasta = jsonTicket["hasta"]
+            motivo = _motivo_para_ignorar_hasta(hasta)
+            if motivo:
+                logger.warning("Comando descartarPendientes ignorado: %s", motivo)
+                return {"action": "descartarPendientes",
+                        "err": "descartarPendientes ignorado: " + motivo}
+        else:
+            hasta = None
+            logger.warning("Comando descartarPendientes sin 'hasta' (servidor sin corte "
+                           "temporal): se descarta toda la cola")
         spooler = get_print_spooler()
-        n = spooler.discard_all()
+        ids = spooler.discard_all(hasta=hasta)
         return {
             "action": "descartarPendientes",
             "rta": {
-                "discarded": n,
+                "discarded": len(ids),
+                "job_ids": ids,
                 "pending_count": spooler.pending_count(),
                 "failed_count": spooler.failed_count(),
             },

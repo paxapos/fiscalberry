@@ -140,10 +140,9 @@ class HeartbeatPublisher:
                 client_id=f"fiscalberry-hb-{self._uuid()}",
                 clean_session=True)
             self._client.username_pw_set(creds.get("user"), creds.get("password"))
-            try:
-                mqtt_compat.apply_tls(self._client, mqtt_compat.read_mqtt_tls_config(self.config))
-            except Exception:
-                pass
+            # Sin try propio: si TLS no se puede aplicar, no se conecta en claro.
+            mqtt_compat.apply_tls(self._client,
+                                  mqtt_compat.read_mqtt_tls_config(self.config, servidor=creds))
             port = int(creds.get("port") or 1883)
             self._client.connect(creds.get("host"), port, keepalive=60)
             self._client.loop_start()

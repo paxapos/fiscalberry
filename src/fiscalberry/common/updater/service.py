@@ -36,7 +36,15 @@ DEFAULT_INTERVAL_HOURS = 6
 # el intervalo completo.
 BUSY_RETRY_SECONDS = 600
 
-TARBALL_URL = "https://github.com/{repo}/archive/refs/tags/{tag}.tar.gz"
+# Un solo chequeo a la vez en todo el proceso: el periódico y el pedido por
+# comando remoto (ver `request_check`) bajan y aplican cosas, y dos de esos en
+# paralelo se pisarían el staging y el reemplazo. Es de módulo y no de instancia
+# porque `request_remote_update` puede armar un servicio al vuelo.
+_CHECK_LOCK = threading.Lock()
+
+# El servicio que arrancó `start()`, para que el comando remoto use ese y no
+# arme otro.
+_active = None
 
 
 def spooler_idle():
@@ -92,6 +100,7 @@ class UpdaterService:
     # -- ciclo de vida ----------------------------------------------------
 
     def start(self):
+        global _active
         if not self.enabled():
             logger.info("Auto-actualización desactivada por configuración.")
             return None
@@ -101,10 +110,14 @@ class UpdaterService:
         self._thread = threading.Thread(target=self._loop, daemon=True,
                                         name="fiscalberry-updater")
         self._thread.start()
+        _active = self
         return self._thread
 
     def stop(self):
+        global _active
         self._stop.set()
+        if _active is self:
+            _active = None
 
     def _loop(self):
         # Espera inicial interrumpible.
@@ -125,6 +138,40 @@ class UpdaterService:
 
     # -- el chequeo -------------------------------------------------------
 
+    def request_check(self):
+        """
+        Pedido remoto de "actualizá ahora" (comando `upgrade`): el mismo chequeo
+        que el periódico, contra `releases/latest`, con las mismas garantías.
+
+        No bloquea: el comando llega por el callback de MQTT y la descarga puede
+        tardar minutos, así que el chequeo corre en un hilo propio. Devuelve
+        `{"accepted", "current"}` (y "reason" si no se aceptó); el resultado
+        del chequeo queda en `last_result` y en el log.
+        """
+        # El lock se toma acá y lo suelta el hilo al terminar: así "aceptado"
+        # significa que el chequeo realmente va a correr.
+        if not _CHECK_LOCK.acquire(blocking=False):
+            return {"accepted": False, "current": VERSION,
+                    "reason": "ya hay un chequeo en curso"}
+        try:
+            hilo = threading.Thread(target=self._chequeo_remoto, daemon=True,
+                                    name="fiscalberry-updater-remoto")
+            hilo.start()
+        except Exception:
+            _CHECK_LOCK.release()
+            raise
+        return {"accepted": True, "current": VERSION}
+
+    def _chequeo_remoto(self):
+        try:
+            self.last_result = self._check_once_sin_lock()
+            logger.info("Chequeo remoto de actualización: %s", self.last_result)
+        except Exception as e:
+            logger.error("Error inesperado en el chequeo remoto: %s", e)
+            self.last_result = ("error", str(e))
+        finally:
+            _CHECK_LOCK.release()
+
     def check_once(self):
         """
         Un ciclo completo. Devuelve (estado, detalle) para logs y tests.
@@ -132,6 +179,15 @@ class UpdaterService:
         Estados: al-dia, revertida, sin-artefacto, sin-checksums, ocupado,
                  descartado, aplicado, error.
         """
+        if not _CHECK_LOCK.acquire(blocking=False):
+            # "ocupado" hace que el bucle periódico reintente pronto.
+            return ("ocupado", "ya hay un chequeo en curso")
+        try:
+            return self._check_once_sin_lock()
+        finally:
+            _CHECK_LOCK.release()
+
+    def _check_once_sin_lock(self):
         kind = install_kind.detect()
 
         # Restos de ciclos anteriores. Importa sobre todo en Android: el APK no
@@ -170,24 +226,23 @@ class UpdaterService:
         verbo = "Actualizando" if direccion > 0 else "Volviendo atrás"
         logger.info("%s: instalada %s, vigente %s.", verbo, VERSION, release.version)
 
-        if kind == install_kind.SOURCE:
-            return self._aplicar_source(release)
-
         nombre_asset = install_kind.asset_name(kind)
         asset = release.asset(nombre_asset) if nombre_asset else None
         if not asset:
             # Pasa de verdad: el build de Android es best-effort y la CI publica
             # el release igual si falla. No es un error, es "no hay nada para mí".
-            logger.info("El release %s no trae %s: nada que hacer en esta "
-                        "plataforma.", release.tag, nombre_asset)
+            # Desde código sí lo es: sin el tarball no hay nada verificable.
+            log = logger.error if kind == install_kind.SOURCE else logger.info
+            log("El release %s no trae %s: nada que hacer en esta plataforma.",
+                release.tag, nombre_asset)
             return ("sin-artefacto", nombre_asset)
 
         sums = release_source.fetch_checksums(release)
         esperado = sums.get(nombre_asset)
         if not esperado:
-            logger.warning("Sin checksum publicado para %s: no se actualiza "
-                           "(preferimos quedarnos como estamos antes que "
-                           "instalar algo sin verificar).", nombre_asset)
+            logger.error("Sin checksum publicado para %s: no se actualiza "
+                         "(preferimos quedarnos como estamos antes que "
+                         "instalar algo sin verificar).", nombre_asset)
             return ("sin-checksums", nombre_asset)
 
         dir_staging = staging.new_staging()
@@ -198,6 +253,9 @@ class UpdaterService:
 
             if kind == install_kind.ANDROID:
                 return self._aplicar_android(descarga, release, dir_staging)
+
+            if kind == install_kind.SOURCE:
+                return self._aplicar_source(descarga, release, dir_staging)
 
             if install_kind.uses_installer(kind):
                 return self._aplicar_instalador(kind, descarga, release,
@@ -285,13 +343,35 @@ class UpdaterService:
         appliers.apply_android(apk, release.version, VERSION)
         return ("aplicado", release.version)
 
-    def _aplicar_source(self, release):
+    def _aplicar_source(self, tarball, release, dir_staging):
+        # El respaldo se baja ANTES de mirar la cola, como en _aplicar_instalador.
+        previo = self._tarball_previo(dir_staging)
         if not spooler_idle():
+            staging.cleanup(dir_staging)
             return ("ocupado", "cola de impresión no vacía")
-        url = TARBALL_URL.format(repo=self._repo, tag=release.tag)
-        appliers.apply_source(url, release.version, VERSION)
+        appliers.apply_source(tarball, release.version, VERSION, previo)
+        staging.cleanup(dir_staging)
         self._pedir_reinicio()
         return ("aplicado", release.version)
+
+    def _tarball_previo(self, dir_staging):
+        """
+        El tarball verificado de la versión que corre, para revertir si la nueva
+        no pasa el selftest. None si no se pudo: se actualiza igual, sin reversión.
+        """
+        nombre = install_kind.asset_name(install_kind.SOURCE)
+        release = release_source.release_for_tag(
+            f"v{VERSION}", [nombre, release_source.CHECKSUMS_ASSET], self._repo)
+        try:
+            return staging.download(
+                release.asset(nombre)["url"],
+                os.path.join(dir_staging, f"previo-{nombre}"),
+                release_source.fetch_checksums(release).get(nombre))
+        except staging.StagingError as e:
+            logger.warning("Sin tarball verificado de %s para revertir (%s): si "
+                           "la versión nueva no arranca, hay que reinstalar a mano.",
+                           VERSION, e)
+            return None
 
     def _pedir_reinicio(self):
         """
@@ -309,6 +389,31 @@ class UpdaterService:
             except Exception as e:
                 logger.error("El cierre ordenado falló (%s); se sale igual.", e)
         os._exit(0)
+
+
+def _shutdown_del_servicio():
+    """El cierre ordenado del ServiceController, si ya existe uno en este proceso."""
+    try:
+        from fiscalberry.common.service_controller import ServiceController
+        instancia = ServiceController._instance
+        return getattr(instancia, "_shutdown_for_update", None)
+    except Exception as e:
+        logger.debug("No se pudo obtener el cierre ordenado del servicio: %s", e)
+        return None
+
+
+def request_remote_update(config=None):
+    """
+    Punto de entrada del comando remoto `upgrade`. Ver `UpdaterService.request_check`.
+
+    Usa el servicio que arrancó `start()`. Si la auto-actualización está
+    desactivada (o aún no arrancó) arma uno al vuelo: el pedido remoto es
+    explícito y vale aunque el chequeo periódico esté apagado.
+    """
+    servicio = _active
+    if servicio is None:
+        servicio = UpdaterService(config=config, shutdown_cb=_shutdown_del_servicio())
+    return servicio.request_check()
 
 
 # --------------------------------------------------------------------------

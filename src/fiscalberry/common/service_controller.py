@@ -316,9 +316,11 @@ class ServiceController:
                 if now - last_status_write >= self.STATUS_WRITE_INTERVAL_SECONDS:
                     last_status_write = now
                     try:
+                        from fiscalberry.common.ComandosHandler import print_status_snapshot
                         write_status(
                             sio_connected=self.sio.isSioConnected(),
                             mqtt_connected=self.sio.isRabbitMQRunning(),
+                            extra=print_status_snapshot(),
                         )
                     except Exception as e:
                         logger.debug(f"No se pudo publicar el estado: {e}")
@@ -451,6 +453,14 @@ class ServiceController:
         finally:
             os._exit(0)
 
+    def _shutdown_for_restart(self):
+        """Cierre ordenado para que el supervisor (systemd) lo vuelva a levantar."""
+        logger.warning("Reiniciando el servicio por pedido remoto.")
+        try:
+            self._stop_services_only()
+        finally:
+            os._exit(0)
+
     def _is_gui_mode(self):
         """Detecta si la aplicación está ejecutándose en modo GUI."""
         try:
@@ -550,9 +560,11 @@ class ServiceController:
     def _stop_services_only(self):
         """Detiene solo los servicios sin llamar a sys.exit() - para uso interno."""
         logger.debug("Requesting SIO services stop...")
-        self._stop_event.set()
         self._stop_updater()
+        # Antes que _stop_event (#224): con él termina el bucle principal y, en la
+        # CLI, el proceso, aunque el spooler siga esperando al trabajo en vuelo.
         self._stop_print_spooler()
+        self._stop_event.set()
 
         self.sio.stop()
         
