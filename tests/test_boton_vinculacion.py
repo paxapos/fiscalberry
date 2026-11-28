@@ -193,3 +193,40 @@ def test_link_sin_uuid_no_se_abre(pantalla, navegador, monkeypatch):
     assert navegador.abiertos == []
     assert llamadas == []
     assert pantalla.linkError
+
+
+def test_el_qr_aparece_recien_cuando_el_servidor_registro_el_dispositivo(pantalla, navegador, monkeypatch):
+    """Si el primer discover falla, el QR lleva a "Paxaprinter no encontrada"."""
+    avisado = threading.Event()
+    confirmar = threading.Event()
+
+    def registro_falso(stop_event=None, on_intento_fallido=None, **kw):
+        on_intento_fallido(1, 2)
+        avisado.set()
+        return confirmar.wait(5)
+
+    monkeypatch.setattr(discover, "send_discover", lambda: False)
+    monkeypatch.setattr(discover, "send_discover_hasta_registrar", registro_falso, raising=False)
+    monkeypatch.setattr(adopt_screen.configberry, "is_comercio_adoptado", lambda: False)
+    monkeypatch.setattr(adopt_screen, "generar_qr", lambda texto: "qr.png")
+    monkeypatch.setattr(pantalla, "_start_adoption_monitoring", lambda: None)
+    socketio = []
+    pantalla.al_registrar = lambda: socketio.append(1)
+
+    pantalla.on_enter()
+
+    assert pantalla.qrCodeLink == ""
+    assert avisado.wait(5)
+    assert pantalla.registrando is True  # "Abrir vinculación" queda deshabilitado
+    assert "intento 1" in pantalla.linkError
+    assert socketio == []
+
+    confirmar.set()
+    pantalla._registro_thread.join(timeout=5)
+
+    assert pantalla.qrCodeLink == "qr.png"
+    assert pantalla.registrando is False
+    assert pantalla.linkError == ""
+    assert socketio == [1]  # SocketIO conecta recién después del discover
+    pantalla.open_adoption_link()
+    assert navegador.abiertos == [pantalla.adoptarLink]

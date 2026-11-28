@@ -130,6 +130,7 @@
                     
                     AsyncImage:
                         source: root.qrCodeLink
+                        opacity: 1 if root.qrCodeLink else 0
                         size_hint: None, None
                         size: dp(160), dp(160)
                         pos_hint: {'center_x': 0.5, 'center_y': 0.5}
