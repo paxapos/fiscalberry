@@ -537,24 +537,24 @@ def _apk_es_compatible(contexto, apk_path, version_esperada):
 # Instalación desde código (Raspberry)
 # --------------------------------------------------------------------------
 
-def apply_source(tarball_url, version, version_previa):
+def apply_source(tarball, version, version_previa, previo=None):
     """
-    Reinstala el paquete con pip desde el tarball del release.
+    Reinstala el paquete con pip desde el tarball LOCAL del release, ya
+    verificado contra su SHA256SUMS.
 
-    Acá no hay binario que respaldar, así que la reversión es reinstalar el
-    tarball de la versión anterior. La verificación se hace DESPUÉS de instalar
-    (no hay forma de probar el paquete sin instalarlo) y si falla se revierte
-    en el acto.
+    Acá no hay binario que respaldar, así que la reversión es reinstalar
+    `previo`: el tarball de la versión anterior, también verificado (None si no
+    se pudo bajar). La prueba se hace DESPUÉS de instalar (no hay forma de
+    probar el paquete sin instalarlo) y si falla se revierte en el acto.
     """
-    if not _pip_install(tarball_url):
+    if not _pip_install(tarball):
         raise ApplyError("pip no pudo instalar la versión nueva")
 
     ok, detalle = _selftest_modulo(version)
     if not ok:
         logger.error("La versión %s no pasa el selftest tras instalarse (%s). "
                      "Volviendo a %s.", version, detalle, version_previa)
-        previo = tarball_url.replace(f"v{version}", f"v{version_previa}")
-        if not _pip_install(previo):
+        if not previo or not _pip_install(previo):
             logger.critical(
                 "No se pudo revertir a %s. El servicio puede quedar inestable; "
                 "hace falta intervención manual.", version_previa)
@@ -702,8 +702,8 @@ def apply_for_kind(kind, **kwargs):
         return apply_android(kwargs["apk_path"], kwargs["version"],
                              kwargs["version_previa"])
     if kind == install_kind.SOURCE:
-        return apply_source(kwargs["tarball_url"], kwargs["version"],
-                            kwargs["version_previa"])
+        return apply_source(kwargs["tarball"], kwargs["version"],
+                            kwargs["version_previa"], kwargs.get("previo"))
     if kind in (install_kind.WINDOWS_GUI, install_kind.WINDOWS_CLI):
         return apply_windows(kwargs["nuevo_dir"], kwargs["destino_dir"],
                              kwargs["version"], kwargs["version_previa"],

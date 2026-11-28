@@ -36,8 +36,6 @@ DEFAULT_INTERVAL_HOURS = 6
 # el intervalo completo.
 BUSY_RETRY_SECONDS = 600
 
-TARBALL_URL = "https://github.com/{repo}/archive/refs/tags/{tag}.tar.gz"
-
 # Un solo chequeo a la vez en todo el proceso: el periódico y el pedido por
 # comando remoto (ver `request_check`) bajan y aplican cosas, y dos de esos en
 # paralelo se pisarían el staging y el reemplazo. Es de módulo y no de instancia
@@ -228,24 +226,23 @@ class UpdaterService:
         verbo = "Actualizando" if direccion > 0 else "Volviendo atrás"
         logger.info("%s: instalada %s, vigente %s.", verbo, VERSION, release.version)
 
-        if kind == install_kind.SOURCE:
-            return self._aplicar_source(release)
-
         nombre_asset = install_kind.asset_name(kind)
         asset = release.asset(nombre_asset) if nombre_asset else None
         if not asset:
             # Pasa de verdad: el build de Android es best-effort y la CI publica
             # el release igual si falla. No es un error, es "no hay nada para mí".
-            logger.info("El release %s no trae %s: nada que hacer en esta "
-                        "plataforma.", release.tag, nombre_asset)
+            # Desde código sí lo es: sin el tarball no hay nada verificable.
+            log = logger.error if kind == install_kind.SOURCE else logger.info
+            log("El release %s no trae %s: nada que hacer en esta plataforma.",
+                release.tag, nombre_asset)
             return ("sin-artefacto", nombre_asset)
 
         sums = release_source.fetch_checksums(release)
         esperado = sums.get(nombre_asset)
         if not esperado:
-            logger.warning("Sin checksum publicado para %s: no se actualiza "
-                           "(preferimos quedarnos como estamos antes que "
-                           "instalar algo sin verificar).", nombre_asset)
+            logger.error("Sin checksum publicado para %s: no se actualiza "
+                         "(preferimos quedarnos como estamos antes que "
+                         "instalar algo sin verificar).", nombre_asset)
             return ("sin-checksums", nombre_asset)
 
         dir_staging = staging.new_staging()
@@ -256,6 +253,9 @@ class UpdaterService:
 
             if kind == install_kind.ANDROID:
                 return self._aplicar_android(descarga, release, dir_staging)
+
+            if kind == install_kind.SOURCE:
+                return self._aplicar_source(descarga, release, dir_staging)
 
             if install_kind.uses_installer(kind):
                 return self._aplicar_instalador(kind, descarga, release,
@@ -343,13 +343,35 @@ class UpdaterService:
         appliers.apply_android(apk, release.version, VERSION)
         return ("aplicado", release.version)
 
-    def _aplicar_source(self, release):
+    def _aplicar_source(self, tarball, release, dir_staging):
+        # El respaldo se baja ANTES de mirar la cola, como en _aplicar_instalador.
+        previo = self._tarball_previo(dir_staging)
         if not spooler_idle():
+            staging.cleanup(dir_staging)
             return ("ocupado", "cola de impresión no vacía")
-        url = TARBALL_URL.format(repo=self._repo, tag=release.tag)
-        appliers.apply_source(url, release.version, VERSION)
+        appliers.apply_source(tarball, release.version, VERSION, previo)
+        staging.cleanup(dir_staging)
         self._pedir_reinicio()
         return ("aplicado", release.version)
+
+    def _tarball_previo(self, dir_staging):
+        """
+        El tarball verificado de la versión que corre, para revertir si la nueva
+        no pasa el selftest. None si no se pudo: se actualiza igual, sin reversión.
+        """
+        nombre = install_kind.asset_name(install_kind.SOURCE)
+        release = release_source.release_for_tag(
+            f"v{VERSION}", [nombre, release_source.CHECKSUMS_ASSET], self._repo)
+        try:
+            return staging.download(
+                release.asset(nombre)["url"],
+                os.path.join(dir_staging, f"previo-{nombre}"),
+                release_source.fetch_checksums(release).get(nombre))
+        except staging.StagingError as e:
+            logger.warning("Sin tarball verificado de %s para revertir (%s): si "
+                           "la versión nueva no arranca, hay que reinstalar a mano.",
+                           VERSION, e)
+            return None
 
     def _pedir_reinicio(self):
         """
