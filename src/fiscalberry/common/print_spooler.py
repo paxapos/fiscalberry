@@ -461,11 +461,20 @@ class DurablePrintSpooler:
         contrato de durabilidad ya no depende de esto, pero cerrar bien evita
         dejar el WAL creciendo y conexiones sqlite a medio commit (issue #165,
         propuesta 3).
+
+        No toma trabajos nuevos y espera hasta `timeout` segundos al que se está
+        imprimiendo (#224). Si no termina, avisa y deja la conexión abierta: si
+        el trabajo termina después, todavía puede quedar registrado como impreso.
         """
         self._stop.set()
         self._wake.set()
         if self._worker.is_alive():
             self._worker.join(timeout=timeout)
+        if self._worker.is_alive():
+            logger.warning("Spooler: el trabajo que se estaba imprimiendo no terminó en %.0f s; "
+                           "se cierra igual (si no llega a terminar, se reintenta al volver)",
+                           timeout)
+            return
         with self._lock:
             try:
                 self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")

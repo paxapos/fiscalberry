@@ -457,13 +457,13 @@ def test_shutdown_print_spooler_stops_and_clears_singleton_if_created(fake_spool
     """shutdown_print_spooler() (cierre ordenado, issue #165 propuesta 3) debe
     llamar a stop() sobre el spooler existente y dejar el singleton en None,
     sin crear uno nuevo si nunca se usó."""
-    fake_spooler.stop_calls = 0
-    fake_spooler.stop = lambda: setattr(
-        fake_spooler, "stop_calls", fake_spooler.stop_calls + 1)
+    topes = []
+    fake_spooler.stop = lambda timeout: topes.append(timeout)
 
     CH.shutdown_print_spooler()
 
-    assert fake_spooler.stop_calls == 1
+    # #224: espera hasta 30 s a que termine el trabajo que se está imprimiendo.
+    assert topes == [30.0]
     assert CH._print_spooler is None
 
 
