@@ -778,8 +778,13 @@ def get_print_spooler():
                 _print_spooler = DurablePrintSpooler(
                     _spooler_print_fn,
                     on_success=confirmador.reportar_exito,
-                    on_failure=confirmador.reportar_fallo)
+                    on_failure=confirmador.reportar_fallo,
+                    on_discard=confirmador.reportar_descartado)
     return _print_spooler
+
+
+# Tope (segundos) para esperar al trabajo en vuelo al cerrar el servicio (#224).
+ESPERA_TRABAJO_EN_VUELO = 30.0
 
 
 def shutdown_print_spooler():
@@ -791,16 +796,22 @@ def shutdown_print_spooler():
     issue fiscalberry#165, propuesta 3). Con PRAGMA synchronous=FULL los jobs
     ya son durables sin este cierre ordenado, pero cerrar bien evita dejar el
     WAL creciendo entre reinicios frecuentes (ej. auto-actualización).
+
+    Espera hasta ESPERA_TRABAJO_EN_VUELO al trabajo que se está imprimiendo
+    (#224). Mientras tanto el spooler sigue siendo el del proceso: lo que llega
+    se persiste en él y no en uno nuevo que se pondría a imprimir.
     """
     global _print_spooler
+    sp = _print_spooler
+    if sp is None:
+        return
+    try:
+        sp.stop(timeout=ESPERA_TRABAJO_EN_VUELO)
+    except Exception as e:
+        logger.debug("Error deteniendo el spooler durable: %s", e)
     with _print_spooler_lock:
-        sp = _print_spooler
-        _print_spooler = None
-    if sp is not None:
-        try:
-            sp.stop()
-        except Exception as e:
-            logger.debug("Error deteniendo el spooler durable: %s", e)
+        if _print_spooler is sp:
+            _print_spooler = None
 
 
 _REMOTE_POWER_DISABLED_MSG = (
@@ -847,6 +858,34 @@ def _is_sync_print_mode():
     except Exception:
         val = "false"
     return str(val).strip().lower() in ("true", "1", "yes", "on")
+
+
+# `descartarPendientes` con `hasta` (#225): un comando más viejo que esto se
+# ignora (pudo quedar horas en la cola del broker con el equipo apagado).
+DESCARTAR_VENCIMIENTO_MIN = 15
+# Cuánto puede estar `hasta` en el futuro por diferencia de relojes con el servidor.
+DESCARTAR_TOLERANCIA_FUTURO_SEG = 60
+
+
+def _descartar_vencimiento_seg():
+    """[Paxaprinter] descartar_vencimiento_min (minutos), en segundos."""
+    try:
+        return int(configberry.get("Paxaprinter", "descartar_vencimiento_min",
+                                   fallback=str(DESCARTAR_VENCIMIENTO_MIN))) * 60
+    except Exception:
+        return DESCARTAR_VENCIMIENTO_MIN * 60
+
+
+def _motivo_para_ignorar_hasta(hasta):
+    """Por qué no se puede usar el `hasta` de descartarPendientes, o None si vale."""
+    if not isinstance(hasta, int) or isinstance(hasta, bool):
+        return "'hasta' tiene que ser un epoch entero en segundos (vino %r)" % (hasta,)
+    atraso = time.time() - hasta
+    if atraso > _descartar_vencimiento_seg():
+        return "vencido: se pidió hace %d min" % (atraso // 60)
+    if atraso < -DESCARTAR_TOLERANCIA_FUTURO_SEG:
+        return "'hasta' está %d s en el futuro (reloj desfasado)" % -atraso
+    return None
 
 
 def _compute_job_id(jsonTicket):
@@ -1136,7 +1175,9 @@ class ComandosHandler:
                 rta["rta"] = self._imprimirPendientes()
 
             elif 'descartarPendientes' in jsonTicket:
-                rta["rta"] = self._descartarPendientes()
+                rta["rta"] = self._descartarPendientes(jsonTicket)
+                if "err" in rta["rta"]:
+                    rta["err"] = rta["rta"]["err"]
             else:
                 raise TraductorException("No se pasó un comando válido")
 
@@ -1277,35 +1318,61 @@ class ComandosHandler:
         return rta
 
     def _imprimirPendientes(self):
-        """Comando remoto 'imprimir todos' (issue #166): reintenta la cola.
+        """Comando remoto 'imprimir todos' (issue #166): reintenta YA la cola.
 
-        Re-encola los 'failed' (dead-letter) para que el worker del spooler
-        los retome de inmediato. `requeue_failed()` ya existía pero nadie la
-        llamaba desde ningún comando: era código muerto.
+        Re-encola los 'failed' (dead-letter) y anula la espera de los 'pending'
+        en backoff (#226). Antes cierra el circuit breaker de las impresoras con
+        trabajos en cola: abierto, el reintento fallaría sin tocar la impresora.
         """
+        from fiscalberry.common.printer_circuit_breaker import get_circuit_breaker
+
         spooler = get_print_spooler()
-        n = spooler.requeue_failed()
+        breaker = get_circuit_breaker()
+        impresoras = spooler.printers_in_queue()
+        for impresora in impresoras:
+            breaker.record_success(impresora)    # cierra el circuito y pone en 0 los fallos
+        requeued, retried = spooler.retry_now()
+        logger.info("imprimirPendientes: %d 'failed' re-encolados, %d 'pending' reintentados ya "
+                    "(circuito cerrado en: %s)", requeued, retried, ", ".join(impresoras) or "-")
         return {
             "action": "imprimirPendientes",
             "rta": {
-                "requeued": n,
+                "requeued_failed": requeued,
+                "retried_now": retried,
                 "pending_count": spooler.pending_count(),
                 "failed_count": spooler.failed_count(),
             },
         }
 
-    def _descartarPendientes(self):
+    def _descartarPendientes(self, jsonTicket):
         """Comando remoto 'descartar' (issue #166): vacía la cola sin imprimir.
 
         Destructivo a propósito: se tiran comprobantes fiscales y comandas
         sin imprimir. `discard_all()` deja constancia en el log (WARNING).
+
+        `hasta` (#225, epoch en segundos de cuando el operador apretó el botón)
+        limita el descarte a lo que ya estaba en la cola en ese momento. Un
+        `hasta` vencido o inválido no descarta nada; sin `hasta` (servidor
+        anterior a #225) se descarta todo, como antes.
         """
+        if "hasta" in jsonTicket:
+            hasta = jsonTicket["hasta"]
+            motivo = _motivo_para_ignorar_hasta(hasta)
+            if motivo:
+                logger.warning("Comando descartarPendientes ignorado: %s", motivo)
+                return {"action": "descartarPendientes",
+                        "err": "descartarPendientes ignorado: " + motivo}
+        else:
+            hasta = None
+            logger.warning("Comando descartarPendientes sin 'hasta' (servidor sin corte "
+                           "temporal): se descarta toda la cola")
         spooler = get_print_spooler()
-        n = spooler.discard_all()
+        ids = spooler.discard_all(hasta=hasta)
         return {
             "action": "descartarPendientes",
             "rta": {
-                "discarded": n,
+                "discarded": len(ids),
+                "job_ids": ids,
                 "pending_count": spooler.pending_count(),
                 "failed_count": spooler.failed_count(),
             },

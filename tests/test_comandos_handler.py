@@ -12,6 +12,9 @@ Ejecutar con el venv del proyecto:
     venv.cli/bin/python -m pytest tests/test_comandos_handler.py -v
 """
 
+import logging
+import time
+
 import pytest
 
 pytest.importorskip("paho")
@@ -26,7 +29,8 @@ class FakeSpooler:
     def __init__(self):
         self.calls = []
         self._jobs = set()
-        self.requeue_failed_calls = 0
+        self.retry_now_calls = 0
+        self.impresoras_en_cola = []
         self.discard_all_calls = 0
         self._failed = set()
 
@@ -42,21 +46,25 @@ class FakeSpooler:
     def failed_count(self):
         return len(self._failed)
 
-    def requeue_failed(self):
-        """Simula mover 'failed' -> 'pending' (issue #166, 'imprimir todos')."""
-        self.requeue_failed_calls += 1
+    def retry_now(self):
+        """Simula mover 'failed' -> 'pending' (#166, 'imprimir todos'; #226)."""
+        self.retry_now_calls += 1
         n = len(self._failed)
         self._jobs |= self._failed
         self._failed.clear()
-        return n
+        return n, 0
 
-    def discard_all(self):
+    def printers_in_queue(self):
+        return list(self.impresoras_en_cola)
+
+    def discard_all(self, hasta=None):
         """Simula vaciar 'pending' + 'failed' (issue #166, 'descartar')."""
         self.discard_all_calls += 1
-        n = len(self._jobs) + len(self._failed)
+        self.discard_hasta = hasta
+        ids = sorted(self._jobs | self._failed)
         self._jobs.clear()
         self._failed.clear()
-        return n
+        return ids
 
 
 @pytest.fixture
@@ -267,13 +275,14 @@ def test_imprimir_pendientes_command_requeues_failed(fake_spooler):
     handler = CH.ComandosHandler()
     resp = handler.send_command({"imprimirPendientes": True})
 
-    assert fake_spooler.requeue_failed_calls == 1
+    assert fake_spooler.retry_now_calls == 1
     # Mismo formato que el resto de los comandos genéricos (getStatus, etc.):
     # {"rta": {"action": ..., "rta": {...datos...}}}
     action_response = resp["rta"]
     assert action_response["action"] == "imprimirPendientes"
     r = action_response["rta"]
-    assert r["requeued"] == 1
+    assert r["requeued_failed"] == 1
+    assert r["retried_now"] == 0
     assert r["pending_count"] == 1
     assert r["failed_count"] == 0
 
@@ -290,31 +299,171 @@ def test_descartar_pendientes_command_discards_everything(fake_spooler):
     assert action_response["action"] == "descartarPendientes"
     r = action_response["rta"]
     assert r["discarded"] == 2
+    assert r["job_ids"] == ["job-1", "job-failed-1"]
     assert r["pending_count"] == 0
     assert r["failed_count"] == 0
 
 
-def test_imprimir_pendientes_with_nothing_pending_is_a_noop(fake_spooler):
+# ---------------------------------------------------------------------------
+# #225: "descartar" trae `hasta` (cuándo se apretó el botón) y vence.
+# ---------------------------------------------------------------------------
+
+def _avisos(caplog):
+    return [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+def test_descartar_pendientes_con_hasta_descarta_solo_hasta_el_corte(fake_spooler, caplog):
+    fake_spooler.enqueue("job-1", {"a": 1}, "cocina")
+    hasta = int(time.time()) - 60
+
+    with caplog.at_level(logging.WARNING):
+        resp = CH.ComandosHandler().send_command({"descartarPendientes": True, "hasta": hasta})
+
+    assert "err" not in resp
+    assert fake_spooler.discard_all_calls == 1
+    assert fake_spooler.discard_hasta == hasta
+    assert resp["rta"]["rta"]["job_ids"] == ["job-1"]
+
+
+def test_descartar_pendientes_vencido_no_descarta_nada(fake_spooler, caplog):
+    fake_spooler.enqueue("job-1", {"a": 1}, "cocina")
+    hasta = int(time.time()) - 16 * 60      # vencimiento por defecto: 15 min
+
+    with caplog.at_level(logging.WARNING):
+        resp = CH.ComandosHandler().send_command({"descartarPendientes": True, "hasta": hasta})
+
+    assert fake_spooler.discard_all_calls == 0
+    assert fake_spooler.pending_count() == 1
+    assert "vencido" in resp["err"]
+    assert any("vencido" in m for m in _avisos(caplog))
+
+
+@pytest.mark.parametrize("hasta", [
+    "1795470000",               # string
+    1795470000.5,               # no entero
+    True,                       # bool no es un epoch
+    None,
+    -1,
+    "futuro",                   # se reemplaza por ahora + 1 h (ver el test)
+])
+def test_descartar_pendientes_con_hasta_invalido_no_descarta_nada(fake_spooler, caplog, hasta):
+    if hasta == "futuro":
+        hasta = int(time.time()) + 3600
+    fake_spooler.enqueue("job-1", {"a": 1}, "cocina")
+
+    with caplog.at_level(logging.WARNING):
+        resp = CH.ComandosHandler().send_command({"descartarPendientes": True, "hasta": hasta})
+
+    assert fake_spooler.discard_all_calls == 0
+    assert fake_spooler.pending_count() == 1
+    assert "ignorado" in resp["err"]
+    assert _avisos(caplog)
+
+
+def test_descartar_pendientes_sin_hasta_descarta_todo_con_warning(fake_spooler, caplog):
+    """Paxapos viejo (sin `hasta`): se mantiene el comportamiento anterior, con aviso."""
+    fake_spooler.enqueue("job-1", {"a": 1}, "cocina")
+
+    with caplog.at_level(logging.WARNING):
+        resp = CH.ComandosHandler().send_command({"descartarPendientes": True})
+
+    assert "err" not in resp
+    assert fake_spooler.discard_all_calls == 1
+    assert fake_spooler.discard_hasta is None
+    assert any("sin 'hasta'" in m for m in _avisos(caplog))
+
+
+def test_descartar_vencimiento_se_lee_del_config(fake_spooler, monkeypatch):
+    monkeypatch.setattr(
+        CH.configberry, "get",
+        lambda sec, key, fallback=None: "30" if key == "descartar_vencimiento_min" else fallback)
+    hasta = int(time.time()) - 20 * 60
+
+    resp = CH.ComandosHandler().send_command({"descartarPendientes": True, "hasta": hasta})
+
+    assert "err" not in resp
+    assert fake_spooler.discard_hasta == hasta
+
+
+def test_imprimir_pendientes_with_nothing_pending_is_a_noop(fake_spooler, caplog):
     handler = CH.ComandosHandler()
-    resp = handler.send_command({"imprimirPendientes": True})
+    with caplog.at_level(logging.INFO):
+        resp = handler.send_command({"imprimirPendientes": True})
 
     r = resp["rta"]["rta"]
-    assert r["requeued"] == 0
+    assert r["requeued_failed"] == 0
+    assert r["retried_now"] == 0
     assert r["pending_count"] == 0
     assert r["failed_count"] == 0
+    # #226: el resultado se loguea siempre, también cuando no había nada.
+    assert any("imprimirPendientes" in r.getMessage() for r in caplog.records)
+
+
+def test_imprimir_pendientes_reintenta_ya_un_pending_en_backoff(monkeypatch, tmp_path):
+    """#226: con el spooler real, un 'pending' que espera su backoff se
+    reintenta enseguida, no recién cuando vence la espera."""
+    from fiscalberry.common.print_spooler import DurablePrintSpooler
+    intentos = []
+
+    def print_fn(ticket):
+        intentos.append(ticket)
+        if len(intentos) == 1:
+            raise RuntimeError("impresora offline")
+
+    sp = DurablePrintSpooler(print_fn, db_path=str(tmp_path / "s.db"), base_delay=60.0,
+                             max_delay=60.0, idle_wait=5.0)
+    monkeypatch.setattr(CH, "_print_spooler", sp)
+
+    def esperar(condicion, timeout=2.0):
+        limite = time.time() + timeout
+        while time.time() < limite and not condicion():
+            time.sleep(0.02)
+        return condicion()
+
+    def en_backoff():
+        with sp._lock:
+            return sp._conn.execute(
+                "SELECT 1 FROM jobs WHERE next_attempt_at>?", (time.time(),)).fetchone()
+
+    try:
+        sp.enqueue("job-1", {"x": 1}, "cocina")
+        assert esperar(en_backoff)
+
+        r = CH.ComandosHandler().send_command({"imprimirPendientes": True})["rta"]["rta"]
+
+        assert esperar(lambda: sp.pending_count() == 0)
+        assert len(intentos) == 2
+        assert r["retried_now"] == 1 and r["requeued_failed"] == 0
+    finally:
+        sp.stop()
+
+
+def test_imprimir_pendientes_resetea_el_breaker_de_las_impresoras_en_cola(fake_spooler, monkeypatch):
+    """#226: con el circuito abierto el reintento ni tocaría la impresora."""
+    from fiscalberry.common import printer_circuit_breaker as pcb
+    breaker = pcb.PrinterCircuitBreaker(failure_threshold=1, cooldown=3600)
+    monkeypatch.setattr(pcb, "get_circuit_breaker", lambda: breaker)
+    breaker.record_failure("cocina")
+    breaker.record_failure("barra")
+    fake_spooler.impresoras_en_cola = ["cocina"]
+
+    CH.ComandosHandler().send_command({"imprimirPendientes": True})
+
+    assert breaker.state("cocina") == pcb.CLOSED
+    assert breaker.state("barra") == pcb.OPEN       # sin trabajos en cola: no se toca
 
 
 def test_shutdown_print_spooler_stops_and_clears_singleton_if_created(fake_spooler):
     """shutdown_print_spooler() (cierre ordenado, issue #165 propuesta 3) debe
     llamar a stop() sobre el spooler existente y dejar el singleton en None,
     sin crear uno nuevo si nunca se usó."""
-    fake_spooler.stop_calls = 0
-    fake_spooler.stop = lambda: setattr(
-        fake_spooler, "stop_calls", fake_spooler.stop_calls + 1)
+    topes = []
+    fake_spooler.stop = lambda timeout: topes.append(timeout)
 
     CH.shutdown_print_spooler()
 
-    assert fake_spooler.stop_calls == 1
+    # #224: espera hasta 30 s a que termine el trabajo que se está imprimiendo.
+    assert topes == [30.0]
     assert CH._print_spooler is None
 
 

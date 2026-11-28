@@ -560,9 +560,11 @@ class ServiceController:
     def _stop_services_only(self):
         """Detiene solo los servicios sin llamar a sys.exit() - para uso interno."""
         logger.debug("Requesting SIO services stop...")
-        self._stop_event.set()
         self._stop_updater()
+        # Antes que _stop_event (#224): con él termina el bucle principal y, en la
+        # CLI, el proceso, aunque el spooler siga esperando al trabajo en vuelo.
         self._stop_print_spooler()
+        self._stop_event.set()
 
         self.sio.stop()
         

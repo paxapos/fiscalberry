@@ -117,6 +117,10 @@ Mismo requisito que `reboot`: `[Paxaprinter] remote_power_commands = true` en el
 - Con la GUI abierta (escritorio) reinicia los servicios dentro del mismo proceso.
 - Sin GUI, cierra el proceso en forma ordenada a los 3 segundos (para que la
   respuesta alcance a salir) y lo vuelve a levantar systemd (`Restart=always`).
+- Antes de cortar deja de tomar trabajos nuevos y espera hasta 30 s a que termine
+  el que se está imprimiendo, para que no salga dos veces; lo demás queda en la
+  cola y se imprime al volver. Lo mismo pasa al cerrar por `upgrade` o por el
+  apagado del sistema (`reboot`).
 - Si el equipo no corre bajo systemd ni con GUI, no hay quién lo vuelva a
   levantar: devuelve un `err` y no hace nada. Es el caso de Android: el servicio
   corre en un proceso aparte, sin la App de Kivy, y no hay systemd, así que
