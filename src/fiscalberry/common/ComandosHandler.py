@@ -13,6 +13,7 @@ from fiscalberry.common.fiscalberry_logger import getLogger
 from fiscalberry.common.EscPComandos import EscPComandos
 from fiscalberry.common.rabbitmq.error_publisher import publish_error
 from fiscalberry.common.printer_error_detector import PrinterErrorDetector, analyze_printer_response
+from fiscalberry.common.printer_health import get_printer_health
 from escpos import printer
 from queue import Queue
 import traceback
@@ -130,6 +131,7 @@ def process_print_jobs(worker_id=0):
             try:
                 result = runTraductor(jsonTicket, q)
                 processing_time = time.time() - start_time
+                get_printer_health().reportar_ok(printer_name)
                 
                 # Respuesta optimizada sin nested dicts innecesarios
                 q.put({"success": True, "result": result, "processing_time": processing_time})
@@ -171,6 +173,7 @@ def process_print_jobs(worker_id=0):
                 processing_time = time.time() - start_time
                 error_msg = str(e)
                 logger.error(f"Worker {worker_id} print job failed in {processing_time:.2f}s: {error_msg}")
+                get_printer_health().reportar_falla(printer_name, e)
                 
                 # Publicar error de trabajo fallido
                 publish_error(
@@ -640,6 +643,12 @@ def runTraductor(jsonTicket, queue):
         return {"message": "Reenviado a otro Fiscalberry", "result": result}
 
     driver, driverName, driverOps, columns = build_driver(dictSectionConf)
+    if driverName == "Win32Raw" and _verificar_impresion_windows():
+        # Confirma que el trabajo salga de la cola de Windows y la corrige si
+        # Windows le cambió el puerto USB. Fuera de build_driver: el ticket de
+        # prueba del asistente sigue él mismo su trabajo en la cola.
+        from fiscalberry.common.win32_printer import crear_driver_verificado
+        driver = crear_driver_verificado(**driverOps)
 
     # ---- Modo RAW: el backend manda bytes ESC/POS ya renderizados ----
     # Permite cambiar cualquier formato (arqueo, comanda, etc.) deployando solo el
@@ -705,6 +714,8 @@ def _spooler_print_fn(ticket):
         raise CircuitOpenError(
             f"Circuito abierto para '{printer_name}': impresora con fallos recientes")
 
+    health = get_printer_health()
+
     try:
         # Se le pasa una COPIA: runTraductor le saca printerName y jobId, y el
         # spooler necesita el jobId del original para confirmar la impresión.
@@ -720,14 +731,36 @@ def _spooler_print_fn(ticket):
 
         if printer_name:
             breaker.record_success(printer_name)
+        health.reportar_ok(printer_name)
         return result
     except PermanentJobError:
         # El trabajo es invalido, no la impresora: no cuenta para el breaker.
         raise
-    except Exception:
+    except Exception as e:
         if printer_name:
             breaker.record_failure(printer_name)
+        health.reportar_falla(printer_name, e)
         raise
+
+
+def print_status_snapshot():
+    """
+    Estado de impresión para la pantalla: problemas activos por impresora (con
+    el mensaje para el cajero) y cuántos tickets esperan salir. No crea el
+    spooler si todavía no existe. Nunca lanza.
+    """
+    snap = {"printer_problems": [], "pending_jobs": 0}
+    try:
+        snap["printer_problems"] = get_printer_health().problemas()
+    except Exception as e:
+        logger.debug("No se pudo leer el estado de las impresoras: %s", e)
+    sp = _print_spooler
+    if sp is not None:
+        try:
+            snap["pending_jobs"] = sp.pending_count() + sp.failed_count()
+        except Exception as e:
+            logger.debug("No se pudo leer la cola del spooler: %s", e)
+    return snap
 
 
 def get_print_spooler():
@@ -785,6 +818,20 @@ def _remote_power_commands_enabled():
     except Exception:
         val = "false"
     return str(val).strip().lower() in ("true", "1", "yes", "on")
+
+
+def _verificar_impresion_windows():
+    """
+    Win32Raw verificado: confirma con Windows que cada ticket salió de la cola
+    y repone la cola si Windows le cambió el puerto USB. Activo por defecto; se
+    puede apagar si una impresora puntual se comporta raro con la verificación:
+        [Paxaprinter] verificar_impresion_windows = false
+    """
+    try:
+        val = configberry.get("Paxaprinter", "verificar_impresion_windows", fallback="true")
+    except Exception:
+        val = "true"
+    return str(val).strip().lower() not in ("false", "0", "no", "off")
 
 
 def _is_sync_print_mode():
