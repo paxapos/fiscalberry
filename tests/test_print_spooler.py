@@ -10,13 +10,14 @@ Cubren el contrato central de "nunca perder impresiones":
   - el payload (incluido RAW) se serializa/deserializa sin mutar
   - durabilidad ante power-cycle (issue #165): PRAGMA synchronous=FULL y
     visibilidad de lo persistido sin depender de un cierre ordenado
-  - discard_all() / requeue_failed() sin romper la dedup (issue #166)
+  - discard_all() / retry_now() sin romper la dedup (issue #166)
 
 El spooler corre un worker en un thread daemon. Los tests usan un print_fn
 controlado y hacen polling con timeout corto para ser deterministas sin sleeps
 frágiles.
 """
 
+import logging
 import sqlite3
 import threading
 import time
@@ -249,8 +250,36 @@ def test_stop_closes_connection_cleanly(db_path):
         sp2.stop()
 
 
+def test_stop_con_un_trabajo_que_no_termina_avisa_y_no_cierra_la_base(db_path, caplog):
+    """#224: si vence el tope de stop() con un trabajo imprimiéndose, se avisa y
+    la conexión queda abierta: si el trabajo termina después, queda impreso en
+    vez de romper el worker y volver a imprimirse al reiniciar."""
+    en_vuelo, soltar = threading.Event(), threading.Event()
+
+    def print_fn(ticket):
+        en_vuelo.set()
+        soltar.wait(timeout=5.0)
+
+    sp = DurablePrintSpooler(print_fn, db_path=db_path, idle_wait=0.05)
+    sp.enqueue("job-1", {"x": 1}, "printerA")
+    assert en_vuelo.wait(timeout=2.0)
+
+    with caplog.at_level(logging.WARNING):
+        sp.stop(timeout=0.1)
+    assert any("no terminó" in r.getMessage() for r in caplog.records
+               if r.levelno >= logging.WARNING)
+
+    soltar.set()
+    assert _wait_until(lambda: not sp._worker.is_alive(), timeout=2.0)
+    con = sqlite3.connect(db_path)
+    try:
+        assert con.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
+    finally:
+        con.close()
+
+
 # ---------------------------------------------------------------------------
-# Regresión #166: discard_all() / requeue_failed() sin romper la dedup.
+# Regresión #166: discard_all() / retry_now() sin romper la dedup.
 # ---------------------------------------------------------------------------
 
 def test_discard_all_clears_pending_and_failed(db_path):
@@ -345,8 +374,8 @@ def test_discard_all_avisa_cada_descartado_con_on_discard(db_path):
     assert avisos == [("job-1", {"jobId": "job-1", "printerName": "printerA"}, 1)]
 
 
-def test_requeue_failed_moves_failed_back_to_pending_and_wakes_worker(db_path):
-    """requeue_failed() (issue #166, 'imprimir todos') re-encola los 'failed'
+def test_retry_now_moves_failed_back_to_pending_and_wakes_worker(db_path):
+    """retry_now() (issue #166, 'imprimir todos') re-encola los 'failed'
     y despierta al worker: no hace falta esperar el idle_wait para que se
     reintenten."""
     attempts = {"n": 0}
@@ -355,7 +384,7 @@ def test_requeue_failed_moves_failed_back_to_pending_and_wakes_worker(db_path):
         attempts["n"] += 1
         if attempts["n"] <= 1:
             raise RuntimeError("impresora offline")
-        # segundo intento (tras requeue_failed) sale bien
+        # segundo intento (tras retry_now) sale bien
 
     sp = DurablePrintSpooler(
         flaky_fn, db_path=db_path, max_attempts=1, base_delay=0.02,
@@ -365,11 +394,41 @@ def test_requeue_failed_moves_failed_back_to_pending_and_wakes_worker(db_path):
         sp.enqueue("job-flaky", {"x": 1}, "printerA")
         assert _wait_until(lambda: sp.failed_count() == 1, timeout=5.0)
 
-        n = sp.requeue_failed()
-        assert n == 1
+        assert sp.retry_now() == (1, 0)
 
         assert _wait_until(lambda: sp.pending_count() == 0 and sp.failed_count() == 0,
                             timeout=2.0)
+        assert attempts["n"] == 2
+    finally:
+        sp.stop()
+
+
+def _intentos(sp, job_id):
+    with sp._lock:
+        fila = sp._conn.execute("SELECT attempts FROM jobs WHERE job_id=?", (job_id,)).fetchone()
+    return fila and fila[0]
+
+
+def test_retry_now_reintenta_enseguida_los_pending_en_backoff(db_path):
+    """#226 ("imprimir pendientes"): un 'pending' que espera su backoff se
+    reintenta ya, sin esperar la espera entre reintentos ni el idle_wait."""
+    attempts = {"n": 0}
+
+    def flaky_fn(ticket):
+        attempts["n"] += 1
+        if attempts["n"] <= 1:
+            raise RuntimeError("impresora offline")
+
+    sp = DurablePrintSpooler(flaky_fn, db_path=db_path, base_delay=60.0, max_delay=60.0,
+                             idle_wait=5.0)
+    try:
+        sp.enqueue("job-1", {"x": 1}, "printerA")
+        assert _wait_until(lambda: _intentos(sp, "job-1") == 1, timeout=2.0)
+
+        assert sp.printers_in_queue() == ["printerA"]
+        assert sp.retry_now() == (0, 1)
+
+        assert _wait_until(lambda: sp.pending_count() == 0, timeout=2.0)
         assert attempts["n"] == 2
     finally:
         sp.stop()
