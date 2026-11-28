@@ -133,6 +133,18 @@ def test_fiscalberry_comandos_lanza_si_el_remoto_no_contesta_200(monkeypatch):
         FiscalberryComandos().run("http://x", {})
 
 
+def test_fiscalberry_comandos_espera_la_respuesta_mas_que_la_conexion(monkeypatch):
+    # Un remoto lento que ya recibió el ticket no puede tomarse como caído a los
+    # 5 s: el spooler reintenta y el remoto lo imprime otra vez (#222).
+    class Respuesta:
+        status_code = 200
+
+    pedidos = []
+    monkeypatch.setattr(ch_requests(), "post", lambda *a, **k: pedidos.append(k) or Respuesta())
+    FiscalberryComandos().run("http://x", {})
+    assert pedidos[0]["timeout"] == (5, 30)
+
+
 def ch_requests():
     import fiscalberry.common.FiscalberryComandos as fc
     return fc.requests
