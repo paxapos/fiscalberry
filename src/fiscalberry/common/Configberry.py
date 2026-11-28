@@ -435,18 +435,19 @@ class Configberry:
              needs_reset = True # Reset if parsing fails
 
         # Check for essential section/key only if not already marked for reset
+        falta_uuid = False
         if not needs_reset:
             try:
                 # Use configparser directly to check existence before get
                 if not self.config.has_section("SERVIDOR") or not self.config.has_option("SERVIDOR", "uuid"):
                      print(f"Section SERVIDOR o UUID no encontrado en {configFile}")
-                     needs_reset = True
+                     falta_uuid = True
                 else:
                     # Optionally check if uuid value is valid/not empty
                     uuidVal = self.config.get("SERVIDOR", "uuid", fallback=None)
                     if not uuidVal:
                          print(f"Config UUID está vacío en {configFile}")
-                         needs_reset = True
+                         falta_uuid = True
             except configparser.Error as e: # Catch potential errors during check
                  print(f"Error checking config structure: {e}")
                  needs_reset = True
@@ -455,6 +456,12 @@ class Configberry:
         if needs_reset:
             print(f"Reseteando configuración en {configFile}")
             self.resetConfigFile() # This method should handle writing the config
+        elif falta_uuid:
+            # Solo el uuid, sin resetear: lo que ya está (un sio_host que apunta a
+            # otro host, por ejemplo) se respeta, y lo que falte lo completa
+            # _asegurar_claves_servidor() más abajo.
+            from fiscalberry.common.device_uuid import generate_device_uuid
+            self.set("SERVIDOR", {"uuid": generate_device_uuid()})
 
         # Reload config after potential reset to ensure it's current
         self.config.read(configFile)

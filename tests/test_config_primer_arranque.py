@@ -24,6 +24,7 @@ import configparser
 import os
 import subprocess
 import sys
+import uuid
 
 import pytest
 
@@ -61,3 +62,27 @@ def test_primer_arranque_crea_servidor_completo(tmp_path, primero):
     assert en_disco.has_section("SERVIDOR")
     assert en_disco.get("SERVIDOR", "uuid")
     assert en_disco.get("SERVIDOR", "sio_host").startswith("http")
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="usa XDG_CONFIG_HOME")
+def test_config_sin_uuid_genera_el_uuid_y_respeta_lo_que_ya_tiene(tmp_path):
+    """
+    #227: un config.ini que trae `sio_host` pero no `uuid` se reseteaba entero
+    y `sio_host` volvía al default. Solo tiene que aparecer el uuid (y lo que
+    falte), sin tocar lo que ya estaba.
+    """
+    carpeta = tmp_path / "Fiscalberry"
+    carpeta.mkdir()
+    (carpeta / "config.ini").write_text(
+        "[SERVIDOR]\nsio_host = http://otro-host\nverify_ssl = false\n\n"
+        "[Paxaprinter]\ndescartar_vencimiento_min = 30\n")
+
+    en_disco = _arrancar(tmp_path, (
+        "from fiscalberry.common.Configberry import Configberry\n"
+        "Configberry()\n"))
+
+    assert en_disco.get("SERVIDOR", "sio_host") == "http://otro-host"
+    assert en_disco.get("SERVIDOR", "verify_ssl") == "false"
+    assert en_disco.get("Paxaprinter", "descartar_vencimiento_min") == "30"
+    uuid.UUID(en_disco.get("SERVIDOR", "uuid"))
+    assert en_disco.has_option("SERVIDOR", "sio_password")
